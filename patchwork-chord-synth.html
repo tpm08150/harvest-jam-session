@@ -2561,15 +2561,16 @@ const stepGrid = $("#stepGrid"), pulseStepsSel = $("#pulseSteps"),
 
 /* Pulse and Bass are the same widget over different data */
 function fillStepCounts(sel, cfg){
-  [4,6,8,12,16].forEach(n => sel.appendChild(
+  [4,6,8,12,16,24,32,48,64].forEach(n => sel.appendChild(
     Object.assign(document.createElement("option"), {value:String(n), textContent:n + " steps"})));
   sel.value = String(cfg.steps);
 }
 function renderSteps(el, cfg){
   el.innerHTML = "";
   /* Anything over 8 splits into two equal rows rather than wrapping wherever the width
-     runs out — 16 reads as 2x8, which is also two beats per row. */
-  const cols = cfg.steps > 8 ? cfg.steps / 2 : cfg.steps;
+     runs out — 16 reads as 2x8, which is also two beats per row. Past 16 it caps at 16
+     across, because a 64-step row at this width is a line of slivers. */
+  const cols = cfg.steps > 16 ? 16 : (cfg.steps > 8 ? cfg.steps / 2 : cfg.steps);
   el.style.gridTemplateColumns = "repeat(" + cols + ", auto)";
   const perBeat = cfg.steps / 4;
   for (let s = 0; s < cfg.steps; s++){

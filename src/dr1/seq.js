@@ -13,7 +13,8 @@ const SEQ = {
 /* steps[voice][i] = 0 off, 1 on, 2 on+accent. A flat integer per step rather than an
    object, because there are 128 of them and two states beyond off. */
 const steps = {};
-ORDER.forEach(k => { steps[k] = new Array(32).fill(0); });
+const MAX_STEPS = 64;
+ORDER.forEach(k => { steps[k] = new Array(MAX_STEPS).fill(0); });
 
 const RATES = {"1/8": 2, "1/8t": 3, "1/16": 4, "1/16t": 6, "1/32": 8};
 

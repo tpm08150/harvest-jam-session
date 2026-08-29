@@ -18,7 +18,7 @@ function buildLanes(){
     row.appendChild(nm);
     const pads = document.createElement("div");
     pads.className = "pads";
-    for (let i = 0; i < 32; i++){
+    for (let i = 0; i < MAX_STEPS; i++){
       const b = document.createElement("button");
       b.className = "pad";
       b.dataset.v = id; b.dataset.i = i;
@@ -34,7 +34,11 @@ function buildLanes(){
 function paintPads(){
   /* the grid's column count follows the pattern length, so 8 steps fill the row rather
      than leaving half of it empty */
-  $$(".pads").forEach(p => p.style.setProperty("--steps", SEQ.len));
+  /* Sixteen columns is the widest a lane stays hittable at a panel's width, so anything
+     longer wraps into rows of 16 inside the same grid rather than shrinking the pads to
+     slivers. 64 steps is four rows per lane, which is what 64 steps looks like. */
+  const cols = Math.min(16, SEQ.len);
+  $$(".pads").forEach(p => p.style.setProperty("--steps", cols));
   $$(".pad").forEach(b => {
     const id = b.dataset.v, i = +b.dataset.i;
     b.hidden = i >= SEQ.len;

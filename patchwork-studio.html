@@ -1851,7 +1851,10 @@ body{
             <option value="8">8</option>
             <option value="12">12</option>
             <option value="16" selected>16</option>
+            <option value="24">24</option>
             <option value="32">32</option>
+            <option value="48">48</option>
+            <option value="64">64</option>
           </select>
         </div>
         <div class="hfader" id="swingF">
@@ -3830,15 +3833,16 @@ const stepGrid = $("#stepGrid"), pulseStepsSel = $("#pulseSteps"),
 
 /* Pulse and Bass are the same widget over different data */
 function fillStepCounts(sel, cfg){
-  [4,6,8,12,16].forEach(n => sel.appendChild(
+  [4,6,8,12,16,24,32,48,64].forEach(n => sel.appendChild(
     Object.assign(document.createElement("option"), {value:String(n), textContent:n + " steps"})));
   sel.value = String(cfg.steps);
 }
 function renderSteps(el, cfg){
   el.innerHTML = "";
   /* Anything over 8 splits into two equal rows rather than wrapping wherever the width
-     runs out — 16 reads as 2x8, which is also two beats per row. */
-  const cols = cfg.steps > 8 ? cfg.steps / 2 : cfg.steps;
+     runs out — 16 reads as 2x8, which is also two beats per row. Past 16 it caps at 16
+     across, because a 64-step row at this width is a line of slivers. */
+  const cols = cfg.steps > 16 ? 16 : (cfg.steps > 8 ? cfg.steps / 2 : cfg.steps);
   el.style.gridTemplateColumns = "repeat(" + cols + ", auto)";
   const perBeat = cfg.steps / 4;
   for (let s = 0; s < cfg.steps; s++){
@@ -6793,6 +6797,7 @@ const SEQ = {
   lane:"on",
   steps:[]
 };
+const MAX_STEPS = 64;
 const S = (on,p,o,g,a,sl,ti) => ({on, pitch:p, oct:o, gate:g, accent:a, slide:sl, tie:ti});
 /* Turn a played note into a step. The distance from the root is split across `oct` and
    `pitch` rather than crammed into pitch alone — pitch is only +-24, so forcing oct to 0
@@ -6814,7 +6819,9 @@ const DEFAULT_STEPS = [
 ];
 function resetSteps(){
   SEQ.steps = [];
-  for (let i = 0; i < 32; i++)
+  /* MAX_STEPS is allocated regardless of the current length, so changing length never
+     has to reallocate and a pattern written at 64 survives a trip down to 16 and back. */
+  for (let i = 0; i < MAX_STEPS; i++)
     SEQ.steps.push(i < 16 ? Object.assign({}, DEFAULT_STEPS[i]) : S(0,0,0,.5,0,0,0));
 }
 resetSteps();
@@ -7865,7 +7872,7 @@ function paintSeqKey(){
   paintSteps();                     // the pad labels are key-dependent
 }
 
-[8,12,16,32].forEach(n => seqLenSel.appendChild(
+[8,12,16,24,32,48,64].forEach(n => seqLenSel.appendChild(
   Object.assign(document.createElement("option"), {value:String(n), textContent:n+" steps"})));
 Object.keys(RATES).forEach(r => seqRateSel.appendChild(
   Object.assign(document.createElement("option"), {value:r, textContent:r})));
@@ -8372,7 +8379,7 @@ function restore(s){
   SEQ.accentAmt = numOr(q.accentAmt, 0, 1, .8);
   if (Array.isArray(q.steps) && q.steps.length){
     SEQ.steps = [];
-    for (let i = 0; i < 32; i++){
+    for (let i = 0; i < MAX_STEPS; i++){
       const a = q.steps[i];
       const st = Array.isArray(a)
         ? S(a[0]?1:0, numOr(a[1],-24,24,0)|0, numOr(a[2],-2,2,0)|0,
@@ -9442,7 +9449,8 @@ const SEQ = {
 /* steps[voice][i] = 0 off, 1 on, 2 on+accent. A flat integer per step rather than an
    object, because there are 128 of them and two states beyond off. */
 const steps = {};
-ORDER.forEach(k => { steps[k] = new Array(32).fill(0); });
+const MAX_STEPS = 64;
+ORDER.forEach(k => { steps[k] = new Array(MAX_STEPS).fill(0); });
 
 const RATES = {"1/8": 2, "1/8t": 3, "1/16": 4, "1/16t": 6, "1/32": 8};
 
@@ -9548,7 +9556,7 @@ function buildLanes(){
     row.appendChild(nm);
     const pads = document.createElement("div");
     pads.className = "pads";
-    for (let i = 0; i < 32; i++){
+    for (let i = 0; i < MAX_STEPS; i++){
       const b = document.createElement("button");
       b.className = "pad";
       b.dataset.v = id; b.dataset.i = i;
@@ -9564,7 +9572,11 @@ function buildLanes(){
 function paintPads(){
   /* the grid's column count follows the pattern length, so 8 steps fill the row rather
      than leaving half of it empty */
-  $$(".pads").forEach(p => p.style.setProperty("--steps", SEQ.len));
+  /* Sixteen columns is the widest a lane stays hittable at a panel's width, so anything
+     longer wraps into rows of 16 inside the same grid rather than shrinking the pads to
+     slivers. 64 steps is four rows per lane, which is what 64 steps looks like. */
+  const cols = Math.min(16, SEQ.len);
+  $$(".pads").forEach(p => p.style.setProperty("--steps", cols));
   $$(".pad").forEach(b => {
     const id = b.dataset.v, i = +b.dataset.i;
     b.hidden = i >= SEQ.len;

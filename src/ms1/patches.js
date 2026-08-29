@@ -76,7 +76,7 @@ function restore(s){
   SEQ.accentAmt = numOr(q.accentAmt, 0, 1, .8);
   if (Array.isArray(q.steps) && q.steps.length){
     SEQ.steps = [];
-    for (let i = 0; i < 32; i++){
+    for (let i = 0; i < MAX_STEPS; i++){
       const a = q.steps[i];
       const st = Array.isArray(a)
         ? S(a[0]?1:0, numOr(a[1],-24,24,0)|0, numOr(a[2],-2,2,0)|0,

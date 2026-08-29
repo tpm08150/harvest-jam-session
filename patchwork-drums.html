@@ -328,7 +328,10 @@ input[type="text"]::placeholder{color:#5a646a}
             <option value="8">8</option>
             <option value="12">12</option>
             <option value="16" selected>16</option>
+            <option value="24">24</option>
             <option value="32">32</option>
+            <option value="48">48</option>
+            <option value="64">64</option>
           </select>
         </div>
         <div class="hfader" id="swingF">
@@ -1213,7 +1216,8 @@ const SEQ = {
 /* steps[voice][i] = 0 off, 1 on, 2 on+accent. A flat integer per step rather than an
    object, because there are 128 of them and two states beyond off. */
 const steps = {};
-ORDER.forEach(k => { steps[k] = new Array(32).fill(0); });
+const MAX_STEPS = 64;
+ORDER.forEach(k => { steps[k] = new Array(MAX_STEPS).fill(0); });
 
 const RATES = {"1/8": 2, "1/8t": 3, "1/16": 4, "1/16t": 6, "1/32": 8};
 
@@ -1319,7 +1323,7 @@ function buildLanes(){
     row.appendChild(nm);
     const pads = document.createElement("div");
     pads.className = "pads";
-    for (let i = 0; i < 32; i++){
+    for (let i = 0; i < MAX_STEPS; i++){
       const b = document.createElement("button");
       b.className = "pad";
       b.dataset.v = id; b.dataset.i = i;
@@ -1335,7 +1339,11 @@ function buildLanes(){
 function paintPads(){
   /* the grid's column count follows the pattern length, so 8 steps fill the row rather
      than leaving half of it empty */
-  $$(".pads").forEach(p => p.style.setProperty("--steps", SEQ.len));
+  /* Sixteen columns is the widest a lane stays hittable at a panel's width, so anything
+     longer wraps into rows of 16 inside the same grid rather than shrinking the pads to
+     slivers. 64 steps is four rows per lane, which is what 64 steps looks like. */
+  const cols = Math.min(16, SEQ.len);
+  $$(".pads").forEach(p => p.style.setProperty("--steps", cols));
   $$(".pad").forEach(b => {
     const id = b.dataset.v, i = +b.dataset.i;
     b.hidden = i >= SEQ.len;

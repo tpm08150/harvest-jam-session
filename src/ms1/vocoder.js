@@ -371,7 +371,7 @@ function paintSeqKey(){
   paintSteps();                     // the pad labels are key-dependent
 }
 
-[8,12,16,32].forEach(n => seqLenSel.appendChild(
+[8,12,16,24,32,48,64].forEach(n => seqLenSel.appendChild(
   Object.assign(document.createElement("option"), {value:String(n), textContent:n+" steps"})));
 Object.keys(RATES).forEach(r => seqRateSel.appendChild(
   Object.assign(document.createElement("option"), {value:r, textContent:r})));

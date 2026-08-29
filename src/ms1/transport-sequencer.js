@@ -14,6 +14,7 @@ const SEQ = {
   lane:"on",
   steps:[]
 };
+const MAX_STEPS = 64;
 const S = (on,p,o,g,a,sl,ti) => ({on, pitch:p, oct:o, gate:g, accent:a, slide:sl, tie:ti});
 /* Turn a played note into a step. The distance from the root is split across `oct` and
    `pitch` rather than crammed into pitch alone — pitch is only +-24, so forcing oct to 0
@@ -35,7 +36,9 @@ const DEFAULT_STEPS = [
 ];
 function resetSteps(){
   SEQ.steps = [];
-  for (let i = 0; i < 32; i++)
+  /* MAX_STEPS is allocated regardless of the current length, so changing length never
+     has to reallocate and a pattern written at 64 survives a trip down to 16 and back. */
+  for (let i = 0; i < MAX_STEPS; i++)
     SEQ.steps.push(i < 16 ? Object.assign({}, DEFAULT_STEPS[i]) : S(0,0,0,.5,0,0,0));
 }
 resetSteps();
