@@ -7,12 +7,24 @@ body{
   display:block;
   padding:0 0 48px;
 }
+/* A grid rather than wrapping flex, and the launcher is an item in it.
+
+   Flex-wrap centred each row independently, so a launcher on its own line left a band of
+   empty space beside it while a panel that would have fitted there wrapped below the
+   fold. auto-fit packs every item — launcher included — into as many equal columns as
+   the window has room for, which is what makes the whole studio fit one screen on a wide
+   display without anything being told where to go. */
 .st-rack{
-  display:flex;flex-wrap:wrap;gap:18px;
-  align-items:flex-start;justify-content:center;
-  padding:18px 14px 0;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(350px,1fr));
+  gap:16px;align-items:start;
+  padding:16px 14px 0;
+  max-width:2560px;margin:0 auto;
 }
-.st-rack > .unit{flex:1 1 620px;max-width:760px}
+/* Full panels need more room than faces do, so the column floor follows what is showing.
+   :has() rather than a class the shell has to remember to keep in sync. */
+.st-rack:has(> .unit:not(.face)){grid-template-columns:repeat(auto-fit,minmax(620px,1fr))}
+.st-rack > .unit{max-width:none;width:100%}
 
 /* Which instrument the computer keyboard is talking to. The shell only marks this when
    there is more than one panel, so a standalone build never shows a ring it cannot
@@ -38,12 +50,10 @@ body{
 }
 
 /* ---- scene launcher ---- */
-.st-scenes{
-  max-width:1556px;margin:0 auto;padding:4px 20px 16px;
-}
+.st-scenes{padding:0}
 .st-scenes-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:9px}
 .st-grid{
-  display:inline-block;
+  display:block;max-width:380px;
   background:linear-gradient(180deg,var(--panel-hi),var(--panel-lo));
   border:1px solid var(--edge);border-radius:8px;
   padding:10px 12px;
@@ -51,7 +61,7 @@ body{
 }
 .st-row{
   display:grid;
-  grid-template-columns:26px repeat(var(--cols,3),86px) 34px;
+  grid-template-columns:26px repeat(var(--cols,3),minmax(0,1fr)) 34px;
   gap:5px;align-items:center;
 }
 .st-row + .st-row{margin-top:5px}
@@ -123,7 +133,7 @@ body{
   .st-scenes-head{margin-bottom:6px}
   .st-scenes-head .st-hint{display:none}     /* the gesture is discoverable by trying it */
   .st-grid{padding:7px 9px}
-  .st-row{grid-template-columns:20px repeat(var(--cols,3),72px) 28px;gap:4px}
+  .st-row{grid-template-columns:20px repeat(var(--cols,3),minmax(0,1fr)) 28px;gap:4px}
   .st-row + .st-row{margin-top:4px}
   .st-cell,.st-fire{height:18px}
   .st-cell::after{width:5px;height:5px}

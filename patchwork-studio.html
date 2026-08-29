@@ -155,9 +155,13 @@ input[type="text"]::placeholder{color:#5a646a}
    A face hides the blocks an instrument does not mark as worth having while playing.
    Everything hidden is still in the DOM and still bound — see shell/faces.js. */
 :scope.face > :not([data-face]){display:none}
+/* ...and data-deep trims INSIDE a block the face keeps, so a face can carry the useful
+   half of a row — the patch selector without its MIDI-trigger plumbing — rather than
+   having to take all of it or none. */
 .face-toggle{margin-left:auto}
 /* The plate is a flex row ending in the screws; the toggle sits before them. */
 :scope.face .plate,:scope .plate{align-items:center}
+:scope.face [data-deep]{display:none}
 }
 /* Everything below is scoped to this instrument's panel. @scope rather than
    nesting because it adds no specificity, so the relative weight of every rule
@@ -917,12 +921,24 @@ body{
   display:block;
   padding:0 0 48px;
 }
+/* A grid rather than wrapping flex, and the launcher is an item in it.
+
+   Flex-wrap centred each row independently, so a launcher on its own line left a band of
+   empty space beside it while a panel that would have fitted there wrapped below the
+   fold. auto-fit packs every item — launcher included — into as many equal columns as
+   the window has room for, which is what makes the whole studio fit one screen on a wide
+   display without anything being told where to go. */
 .st-rack{
-  display:flex;flex-wrap:wrap;gap:18px;
-  align-items:flex-start;justify-content:center;
-  padding:18px 14px 0;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(350px,1fr));
+  gap:16px;align-items:start;
+  padding:16px 14px 0;
+  max-width:2560px;margin:0 auto;
 }
-.st-rack > .unit{flex:1 1 620px;max-width:760px}
+/* Full panels need more room than faces do, so the column floor follows what is showing.
+   :has() rather than a class the shell has to remember to keep in sync. */
+.st-rack:has(> .unit:not(.face)){grid-template-columns:repeat(auto-fit,minmax(620px,1fr))}
+.st-rack > .unit{max-width:none;width:100%}
 
 /* Which instrument the computer keyboard is talking to. The shell only marks this when
    there is more than one panel, so a standalone build never shows a ring it cannot
@@ -948,12 +964,10 @@ body{
 }
 
 /* ---- scene launcher ---- */
-.st-scenes{
-  max-width:1556px;margin:0 auto;padding:4px 20px 16px;
-}
+.st-scenes{padding:0}
 .st-scenes-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:9px}
 .st-grid{
-  display:inline-block;
+  display:block;max-width:380px;
   background:linear-gradient(180deg,var(--panel-hi),var(--panel-lo));
   border:1px solid var(--edge);border-radius:8px;
   padding:10px 12px;
@@ -961,7 +975,7 @@ body{
 }
 .st-row{
   display:grid;
-  grid-template-columns:26px repeat(var(--cols,3),86px) 34px;
+  grid-template-columns:26px repeat(var(--cols,3),minmax(0,1fr)) 34px;
   gap:5px;align-items:center;
 }
 .st-row + .st-row{margin-top:5px}
@@ -1033,7 +1047,7 @@ body{
   .st-scenes-head{margin-bottom:6px}
   .st-scenes-head .st-hint{display:none}     /* the gesture is discoverable by trying it */
   .st-grid{padding:7px 9px}
-  .st-row{grid-template-columns:20px repeat(var(--cols,3),72px) 28px;gap:4px}
+  .st-row{grid-template-columns:20px repeat(var(--cols,3),minmax(0,1fr)) 28px;gap:4px}
   .st-row + .st-row{margin-top:4px}
   .st-cell,.st-fire{height:18px}
   .st-cell::after{width:5px;height:5px}
@@ -1052,6 +1066,8 @@ body{
   </div>
 </div>
 
+<div class="st-rack">
+
 <div class="st-scenes">
   <div class="st-scenes-head">
     <span class="st-brand">Scenes</span>
@@ -1059,8 +1075,6 @@ body{
   </div>
   <div class="st-grid" id="stGrid"></div>
 </div>
-
-<div class="st-rack">
 <div class="unit cs1" data-instrument="cs1">
 
   <div data-face class="plate">
@@ -1084,7 +1098,7 @@ body{
     <button class="btn play" id="play">▶ Play</button>
   </div>
 
-  <div class="row">
+  <div data-face class="row">
     <div class="field">
       <label for="patchSel">Patch</label>
       <select id="patchSel"></select>
@@ -1093,17 +1107,17 @@ body{
       <label for="patchName">Name</label>
       <input type="text" id="patchName" placeholder="Untitled" autocomplete="off">
     </div>
-    <div class="field" style="flex:0 0 118px">
+    <div data-deep class="field" style="flex:0 0 118px">
       <label for="patchTrig">Trigger note</label>
       <!-- sized to the selects beside it: 42px tall, 14px text, 4px radius -->
       <button class="btn ghost sm" id="patchTrig"
               style="width:100%;height:42px;font-size:14px;border-radius:4px">— none —</button>
     </div>
-    <div class="field" style="flex:0 0 104px">
+    <div data-deep class="field" style="flex:0 0 104px">
       <label for="patchProg">Program</label>
       <select id="patchProg" title="Recall the selected patch when this MIDI program change arrives"></select>
     </div>
-    <div class="field" style="flex:0 0 126px">
+    <div data-deep class="field" style="flex:0 0 126px">
       <label for="recallWhen">Recall on</label>
       <select id="recallWhen" title="When a triggered patch actually takes effect">
         <option value="instant">Instant</option>
@@ -1114,8 +1128,8 @@ body{
     <div class="patch-actions">
       <button class="btn ghost sm" id="patchSave">Save</button>
       <button class="btn ghost sm" id="patchDelete">Delete</button>
-      <button class="btn ghost sm" id="patchExport">Export</button>
-      <button class="btn ghost sm" id="patchImport">Import</button>
+      <button data-deep class="btn ghost sm" id="patchExport">Export</button>
+      <button data-deep class="btn ghost sm" id="patchImport">Import</button>
       <input type="file" id="patchFile" accept="application/json,.json" hidden>
     </div>
   </div>

@@ -19,8 +19,8 @@ dr1/_panel-close.css
 studio/page.css
 shell/page-open.html
 studio/head-bar.html
-studio/scenes.html
 studio/rack-open.html
+studio/scenes.html
 cs1/panel.html
 ms1/panel.html
 dr1/panel.html

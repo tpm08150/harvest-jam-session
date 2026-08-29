@@ -155,9 +155,13 @@ input[type="text"]::placeholder{color:#5a646a}
    A face hides the blocks an instrument does not mark as worth having while playing.
    Everything hidden is still in the DOM and still bound — see shell/faces.js. */
 :scope.face > :not([data-face]){display:none}
+/* ...and data-deep trims INSIDE a block the face keeps, so a face can carry the useful
+   half of a row — the patch selector without its MIDI-trigger plumbing — rather than
+   having to take all of it or none. */
 .face-toggle{margin-left:auto}
 /* The plate is a flex row ending in the screws; the toggle sits before them. */
 :scope.face .plate,:scope .plate{align-items:center}
+:scope.face [data-deep]{display:none}
 }
 /* Everything below is scoped to this instrument's panel. @scope rather than
    nesting because it adds no specificity, so the relative weight of every rule
@@ -496,7 +500,7 @@ input[type="text"]::placeholder{color:#5a646a}
     <button class="btn play" id="play">▶ Play</button>
   </div>
 
-  <div class="row">
+  <div data-face class="row">
     <div class="field">
       <label for="patchSel">Patch</label>
       <select id="patchSel"></select>
@@ -505,17 +509,17 @@ input[type="text"]::placeholder{color:#5a646a}
       <label for="patchName">Name</label>
       <input type="text" id="patchName" placeholder="Untitled" autocomplete="off">
     </div>
-    <div class="field" style="flex:0 0 118px">
+    <div data-deep class="field" style="flex:0 0 118px">
       <label for="patchTrig">Trigger note</label>
       <!-- sized to the selects beside it: 42px tall, 14px text, 4px radius -->
       <button class="btn ghost sm" id="patchTrig"
               style="width:100%;height:42px;font-size:14px;border-radius:4px">— none —</button>
     </div>
-    <div class="field" style="flex:0 0 104px">
+    <div data-deep class="field" style="flex:0 0 104px">
       <label for="patchProg">Program</label>
       <select id="patchProg" title="Recall the selected patch when this MIDI program change arrives"></select>
     </div>
-    <div class="field" style="flex:0 0 126px">
+    <div data-deep class="field" style="flex:0 0 126px">
       <label for="recallWhen">Recall on</label>
       <select id="recallWhen" title="When a triggered patch actually takes effect">
         <option value="instant">Instant</option>
@@ -526,8 +530,8 @@ input[type="text"]::placeholder{color:#5a646a}
     <div class="patch-actions">
       <button class="btn ghost sm" id="patchSave">Save</button>
       <button class="btn ghost sm" id="patchDelete">Delete</button>
-      <button class="btn ghost sm" id="patchExport">Export</button>
-      <button class="btn ghost sm" id="patchImport">Import</button>
+      <button data-deep class="btn ghost sm" id="patchExport">Export</button>
+      <button data-deep class="btn ghost sm" id="patchImport">Import</button>
       <input type="file" id="patchFile" accept="application/json,.json" hidden>
     </div>
   </div>

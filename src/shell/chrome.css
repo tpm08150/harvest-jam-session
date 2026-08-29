@@ -79,7 +79,11 @@ input[type="text"]::placeholder{color:#5a646a}
    A face hides the blocks an instrument does not mark as worth having while playing.
    Everything hidden is still in the DOM and still bound — see shell/faces.js. */
 :scope.face > :not([data-face]){display:none}
+/* ...and data-deep trims INSIDE a block the face keeps, so a face can carry the useful
+   half of a row — the patch selector without its MIDI-trigger plumbing — rather than
+   having to take all of it or none. */
 .face-toggle{margin-left:auto}
 /* The plate is a flex row ending in the screws; the toggle sits before them. */
 :scope.face .plate,:scope .plate{align-items:center}
+:scope.face [data-deep]{display:none}
 }
