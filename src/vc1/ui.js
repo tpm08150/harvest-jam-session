@@ -159,7 +159,7 @@ $("#bpmDown").addEventListener("click", () => setBpm(Patchwork.clock.bpm - 1));
 function fader(sel, get, set, fmt, min, max, id){
   const el = $(sel), slot = el.querySelector(".hslot"),
         cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
-  if (id) faderReg[id] = el;
+  if (id) faderReg[id] = {el: el, paint: null};
   function paintF(){
     cap.style.left = (clampf((get() - min) / (max - min), 0, 1) * 100) + "%";
     val.textContent = fmt(get());
@@ -185,6 +185,7 @@ function fader(sel, get, set, fmt, min, max, id){
   el.addEventListener("dblclick", () => {
     if (id && seq.SEQ.mode === "program" && seq.unlock(id)) paintSeqEdit();
   });
+  if (id) faderReg[id].paint = paintF;
   paintF();
 }
 fader("#qF",    () => P.q,       v => { P.q = v; },       v => v.toFixed(1), .5, 12, "q");
@@ -225,8 +226,8 @@ function paintLocked(){
   /* Which controls hold a lock for the SELECTED step, so a p-lock is something you can see
      rather than remember — PM·1 marks its knobs the same way. */
   Object.keys(faderReg).forEach(id => {
-    const el = faderReg[id];
-    if (el) el.classList.toggle("locked", seq.SEQ.mode === "program" && seq.isLocked(id));
+    const f = faderReg[id];
+    if (f && f.el) f.el.classList.toggle("locked", seq.SEQ.mode === "program" && seq.isLocked(id));
   });
 }
 function paintSeqEdit(){
@@ -262,3 +263,26 @@ onKey("keydown", e => {
 });
 
 paintNow();
+
+/* ---- the patch, for a shared jam ---- see BS·1's for why this is separate from a scene. */
+function refreshAllControls(){
+  Object.keys(faderReg).forEach(id => { const f = faderReg[id]; if (f && f.paint) f.paint(); });
+  $$("#bands button").forEach(x => x.classList.toggle("on", +x.dataset.b === P.bands));
+  $$("#wave button").forEach(x => x.classList.toggle("on", x.dataset.w === P.wave));
+  applyVocoder();
+}
+Patchwork.session.registerPatch("vc1", {
+  capture: () => {
+    const out = Object.assign({}, P);
+    /* the modulator input is a DEVICE on this machine and names nothing on another */
+    delete out.input;
+    return out;
+  },
+  apply: src => {
+    Object.keys(DEFAULT).forEach(k => {
+      if (k === "input") return;
+      if (src && src[k] !== undefined) P[k] = src[k];
+    });
+    refreshAllControls();
+  }
+});

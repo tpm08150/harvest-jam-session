@@ -181,7 +181,7 @@ $("#bpmDown").addEventListener("click", () => setBpm(Patchwork.clock.bpm - 1));
 function fader(sel, get, set, fmt, min, max, id){
   const el = $(sel), slot = el.querySelector(".hslot"),
         cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
-  if (id) faderReg[id] = el;
+  if (id) faderReg[id] = {el: el, paint: null};
   function paintF(){
     cap.style.left = (clampf((get() - min) / (max - min), 0, 1) * 100) + "%";
     val.textContent = fmt(get());
@@ -207,6 +207,7 @@ function fader(sel, get, set, fmt, min, max, id){
   el.addEventListener("dblclick", () => {
     if (id && seq.SEQ.mode === "program" && seq.unlock(id)){ paintSeqEdit(); return; }
   });
+  if (id) faderReg[id].paint = paintF;
   paintF();
 }
 /* cutoff is exponential — a linear Hz fader spends most of its travel above where a bass
@@ -221,10 +222,13 @@ fader("#subF", () => P.sub, v => { P.sub = v; }, v => Math.round(v*100) + "%", 0
 fader("#lvlF", () => P.level, v => { P.level = v; }, v => Math.round(v*100) + "%", 0, 1, "level");
 fader("#glideF", () => P.glide, v => { P.glide = v; }, v => (v*1000).toFixed(0) + " ms", 0, .4, "glide");
 
+function setWave(w){
+  P.wave = w === "square" ? "square" : "saw";
+  $$("#wave button").forEach(x => x.classList.toggle("on", x.dataset.w === P.wave));
+}
 $("#wave").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  P.wave = b.dataset.w;
-  $$("#wave button").forEach(x => x.classList.toggle("on", x === b));
+  setWave(b.dataset.w);
 });
 const OCTS = [-2, -1, 0];
 function setOct(v){
@@ -270,8 +274,8 @@ function paintLocked(){
   /* Which controls hold a lock for the SELECTED step, so a p-lock is something you can see
      rather than remember — PM·1 marks its knobs the same way. */
   Object.keys(faderReg).forEach(id => {
-    const el = faderReg[id];
-    if (el) el.classList.toggle("locked", seq.SEQ.mode === "program" && seq.isLocked(id));
+    const f = faderReg[id];
+    if (f && f.el) f.el.classList.toggle("locked", seq.SEQ.mode === "program" && seq.isLocked(id));
   });
 }
 function paintSeqEdit(){
@@ -307,3 +311,24 @@ onKey("keydown", e => {
 });
 
 paintNow();
+
+/* ---- the patch, for a shared jam ----
+   The SOUND, not the pattern. scenes.register() has always carried the pattern and left the
+   filter you just dialled alone; this is the other half, and it is a separate registration
+   for that reason — see registerPatch() in shell/session.js.
+
+   Every control is repainted on the way in, or the panel would show one thing and play
+   another. */
+function refreshAllControls(){
+  Object.keys(faderReg).forEach(id => { const f = faderReg[id]; if (f && f.paint) f.paint(); });
+  setWave(P.wave);
+  setOct(P.oct);
+  applyLive();
+}
+Patchwork.session.registerPatch("bs1", {
+  capture: () => Object.assign({}, P),
+  apply: src => {
+    Object.keys(DEFAULT).forEach(k => { if (src && src[k] !== undefined) P[k] = src[k]; });
+    refreshAllControls();
+  }
+});

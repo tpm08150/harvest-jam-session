@@ -232,3 +232,27 @@ Patchwork.keys.mount(root, {
 
 buildLanes();
 syncVoice();
+
+/* ---- the kit, for a shared jam ----
+   Eight voices of four numbers. Not the pattern — that is the scene's — and not the trims,
+   which are measured constants rather than anything you dial. */
+Patchwork.session.registerPatch("dr1", {
+  capture: () => {
+    const out = {};
+    ORDER.forEach(id => {
+      const v = P[id];
+      out[id] = {tune: v.tune, tone: v.tone, decay: v.decay, level: v.level};
+    });
+    return out;
+  },
+  apply: src => {
+    if (!src) return;
+    ORDER.forEach(id => {
+      const got = src[id]; if (!got) return;
+      ["tune", "tone", "decay", "level"].forEach(k => {
+        if (typeof got[k] === "number" && isFinite(got[k])) P[id][k] = got[k];
+      });
+    });
+    syncVoice();
+  }
+});

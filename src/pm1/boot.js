@@ -9,6 +9,14 @@ refreshPatchList();
 refreshBinds();
 paintMeta();
 paintNow();
+/* ---- the patch, for a shared jam ----
+   PM·1 already had both halves — applyParams() writes every parameter and repaints every
+   control — because it has had patch save and load since it was MS·1. */
+Patchwork.session.registerPatch("pm1", {
+  capture: () => Object.assign({}, P),
+  apply: src => applyParams(src)
+});
+
 initMidi();
 
 /* ---- offline render, for measurement ----

@@ -1600,10 +1600,39 @@ whole of what a shared clock needs from `clock.js`.
   out — a lock needs an authority to arbitrate it, and two people claiming at once would
   just disagree.
 
+### Patch parameters are POLLED, not pushed
+
+An instrument's SOUND, as opposed to its pattern. `scenes.register()` has always been
+explicit that a scene carries the pattern and leaves the filter you just dialled alone, so
+sharing the sound is a separate registration — `session.registerPatch(id, {capture, apply})`
+— rather than a wider scene.
+
+⚠️ **Polling is the design, not a shortcut.** A knob move is a `pointermove` per frame, so
+pushing would mean throttling every control on every instrument; and there is no single
+place a parameter changes — a fader, a segment, a MIDI CC, a patch load and a step's p-lock
+all write the same object. One snapshot compared against the last one sent catches every one
+of them, including the ones added later that nobody remembers to hook. The cost is up to one
+220 ms tick of latency on a knob, which does not matter: a filter sweep is not a note, and
+nothing here lands on a seam.
+
+- **`patchSeen` is updated on RECEIVE as well as send**, or the next poll would see a
+  difference and bounce the change straight back. Verified: two clients settle and stay
+  settled.
+- **Joining seeds `patchSeen` from what everything currently sounds like**, so a join does
+  not immediately broadcast six unchanged patches.
+- **Every control is repainted on the way in.** Without it the panel shows one thing and
+  plays another — which is why `refreshAllControls()` exists on BS·1 and VC·1, and why PM·1
+  needed nothing: `applyParams()` has repainted everything since it was MS·1.
+- **VC·1 does not share its modulator `input`.** It names a device on one machine and means
+  nothing on another.
+- **DR·1 shares the kit, not the trims.** The trims are measured constants, not something
+  you dial.
+- **CS·1 has no patch here.** Its progression, key and mood *are* its pattern, and the scene
+  already carries them. LP·1's takes are audio and are still not shared.
+
 ### Not yet
 
-Patch parameters (each instrument already serialises itself, so it is additive), an
-ownership UI, live notes, and the looper push.
+An ownership UI, live notes, and the looper push.
 
 ### ⚠️ A sequencer must not drive a keyboard
 

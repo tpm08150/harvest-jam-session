@@ -2112,6 +2112,52 @@ function adoptEpoch(ms){
    pushed at join time: the mapping needs an AudioContext, and there is rarely one yet. */
 Patchwork.clock.setOriginSource(() => (tx ? originFromEpoch() : null));
 
+/* ---- patch parameters ----
+   An instrument's SOUND, as opposed to its pattern. scenes.register() has always been
+   explicit that a scene carries the pattern and not the sound — firing a row changes the
+   line and leaves the filter you just dialled alone — so sharing the sound is a separate
+   registration rather than a wider scene.
+
+   ⚠️ POLLED, not pushed, and that is the whole design. A knob move is a pointermove per
+   frame, so pushing would mean throttling every control on every instrument; and there is
+   no single place a parameter changes — a fader, a segment, a MIDI CC, a patch load and a
+   step's p-lock all write the same object. One snapshot compared against the last one sent
+   catches every one of them, including the ones added later that nobody remembers to hook.
+
+   The cost is up to one tick of latency on a knob, which does not matter: a filter sweep
+   is not a note, and nothing here lands on a seam. */
+const patchKit = [];             // {id, capture, apply}
+const patchSeen = new Map();     // id -> the JSON last sent or received
+function registerPatch(id, spec){
+  if (!spec || !spec.capture || !spec.apply) return;
+  patchKit.push({id, capture: spec.capture, apply: spec.apply});
+}
+function patchSnapshot(){
+  const out = {};
+  patchKit.forEach(it => { try{ out[it.id] = it.capture(); }catch(e){} });
+  return out;
+}
+function applyPatch(id, params){
+  const it = patchKit.find(x => x.id === id);
+  if (!it) return;
+  applying = true;
+  try{ it.apply(params); }catch(e){}
+  finally { applying = false; }
+  /* remember what we just took, or the next poll sees a difference and sends it back */
+  try{ patchSeen.set(id, JSON.stringify(it.capture())); }catch(e){}
+}
+function pollPatches(){
+  if (!tx || applying) return;
+  patchKit.forEach(it => {
+    let snap;
+    try{ snap = JSON.stringify(it.capture()); }catch(e){ return; }
+    if (patchSeen.get(it.id) === snap) return;
+    patchSeen.set(it.id, snap);
+    send("patch", {inst: it.id, params: JSON.parse(snap)});
+  });
+}
+setInterval(pollPatches, 220);
+
 /* ---- what a session shares ----
    The whole musical state, small enough to send entire on join. Patch parameters are NOT
    here yet: they are per-instrument and each one already knows how to serialise itself,
@@ -2123,6 +2169,7 @@ function snapshot(){
     quantum: Patchwork.scenes.quantum,
     patternBars: Patchwork.scenes.patternBars,
     rows: Patchwork.scenes.rows.map(r => ({name: r.name, cells: r.cells})),
+    patches: patchSnapshot(),
     owners: [...owners]
   };
 }
@@ -2134,6 +2181,11 @@ function applySnapshot(s){
     if (s.quantum) Patchwork.scenes.setQuantum(s.quantum);
     if (s.patternBars) Patchwork.scenes.setPatternBars(s.patternBars);
     if (s.rows) Patchwork.scenes.loadRows(s.rows);
+    if (s.patches) Object.keys(s.patches).forEach(id => {
+      const it = patchKit.find(x => x.id === id);
+      if (!it) return;
+      try{ it.apply(s.patches[id]); patchSeen.set(id, JSON.stringify(it.capture())); }catch(e){}
+    });
     if (s.owners){ owners.clear(); s.owners.forEach(([k, v]) => owners.set(k, v)); }
   } finally { applying = false; }
   notify();
@@ -2204,6 +2256,10 @@ function onMessage(m){
     finally { applying = false; }
     notify();
     return;
+  }
+  if (m.kind === "patch"){
+    applyPatch(m.inst, m.params);
+    return;                                   // no notify: a knob move is not a roster change
   }
   if (m.kind === "own"){
     if (m.owner) owners.set(m.inst, m.owner); else owners.delete(m.inst);
@@ -2313,6 +2369,9 @@ function join(name, who){
   if (!tx){ room = null; notify(); return false; }
   tx.onMessage(onMessage);
   offsetMs = 0; bestRtt = Infinity; synced = !tx.ping;
+  /* seed the poll with what everything currently sounds like, so joining does not
+     immediately broadcast six unchanged patches */
+  patchKit.forEach(it => { try{ patchSeen.set(it.id, JSON.stringify(it.capture())); }catch(e){} });
   /* ⚠️ Only a BroadcastChannel session stamps its own beat 0, and only because two tabs
      share one Date.now() exactly. A relay session waits to be told: at this moment the
      offset has not been measured, so any number produced here would be in this tab's
@@ -2358,7 +2417,8 @@ function ownerName(inst){
 Patchwork.scenes.onChange(pushScenes);
 Patchwork.clock.onTempo("session", pushTransport, null);
 
-return {join, leave, browse, claim, release, ownerName, onChange: fn => subs.push(fn),
+return {join, leave, browse, claim, release, ownerName, registerPatch,
+        onChange: fn => subs.push(fn),
         fired: row => send("fire", {row}),
         get active(){ return !!tx; },
         get room(){ return room; },
@@ -6051,6 +6111,14 @@ refreshPatchList();
 refreshBinds();
 paintMeta();
 paintNow();
+/* ---- the patch, for a shared jam ----
+   PM·1 already had both halves — applyParams() writes every parameter and repaints every
+   control — because it has had patch save and load since it was MS·1. */
+Patchwork.session.registerPatch("pm1", {
+  capture: () => Object.assign({}, P),
+  apply: src => applyParams(src)
+});
+
 initMidi();
 
 /* ---- offline render, for measurement ----
