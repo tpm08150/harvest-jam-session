@@ -542,10 +542,6 @@ input[type="text"]::placeholder{color:#5a646a}
   border:1px solid rgba(0,0,0,.6);border-radius:0 0 3px 3px;
   left:calc((var(--w) + .69) * (100%/14))}
 /* faint tint = where the LOCAL keyboard is currently pointed */
-.kw.tint-voc{background:linear-gradient(180deg,#f6e6f0,#e0c8da)}
-.kb.tint-voc{background:linear-gradient(180deg,#4a3a45,#2a2028)}
-.kw.tint-bass{background:linear-gradient(180deg,#f7ece1,#e2d0bd)}
-.kb.tint-bass{background:linear-gradient(180deg,#463a30,#28201a)}
 /* lit = a section is actually sounding this note, coloured by WHICH one, so a glance at
    the keyboard says where an incoming MIDI note landed */
 .kw.on{background:linear-gradient(180deg,#cfe0f2,#a9c6e4)}
@@ -629,8 +625,6 @@ input[type="text"]::placeholder{color:#5a646a}
 .r-osc{--stripe:var(--stripe-osc)}
 .r-flt{--stripe:var(--stripe-flt)}
 .r-amp{--stripe:var(--stripe-amp)}
-.r-voc{--stripe:var(--stripe-voc)}
-.r-bass{--stripe:var(--stripe-bass)}
 
 /* ---------- knobs ---------- */
 .knobs{display:grid;grid-template-columns:repeat(var(--kc,4),1fr);gap:8px 6px}
@@ -641,12 +635,10 @@ input[type="text"]::placeholder{color:#5a646a}
 .kface svg{display:block;width:100%;height:100%;overflow:visible}
 .ktrack{fill:none;stroke:var(--groove-deep);stroke-width:4;stroke-linecap:round;stroke-dasharray:75 100}
 .karc{fill:none;stroke:var(--stripe,var(--accent));stroke-width:4;stroke-linecap:round}
-.kbody{fill:url(#kcap);stroke:var(--cap-edge);stroke-width:1}
 .kptr{stroke:var(--chrome-hi);stroke-width:2;stroke-linecap:round}
 .klab{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--silk-dim);text-align:center;line-height:1.2;min-height:22px}
 .kval{font-family:"DM Mono";font-size:10px;color:var(--read);min-height:13px;text-align:center;font-variant-numeric:tabular-nums}
 .kval.fine{color:var(--mint)}
-.knob.dragging .kbody{stroke:var(--mint)}
 .knob .bind{position:absolute;top:-2px;right:-4px;font-family:"DM Mono";font-size:8.5px;color:var(--cap-yellow)}
 .knob.arm{box-shadow:0 0 0 2px var(--cap-yellow) inset}
 
@@ -730,7 +722,6 @@ input[type="text"]::placeholder{color:#5a646a}
   border-top:5px solid var(--stripe-voc);border-left:5px solid transparent}
 .step.sld.lock::after{border-top-color:var(--stripe-voc)}
 /* a knob holding a lock for the selected step */
-.knob.locked .kbody{stroke:var(--stripe-voc);stroke-width:2}
 .knob.locked .klab{color:var(--stripe-voc)}
 .seqlegend{display:flex;gap:14px;flex-wrap:wrap;font-family:"DM Mono";font-size:9px;letter-spacing:.04em;color:var(--read-dim);margin-top:8px}
 .seqlegend i{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:-1px;margin-right:5px}
@@ -5915,36 +5906,10 @@ const FACTORY_DEFAULT = {
   mode:"mono", uni:1, unidet:0, unispread:0, prio:"low", bend:2,
   vela:.3, velf:0,
   chorus:"off", ddiv:"off", dtime:250, dfb:.25, dmix:0, rmix:0,
-  trim:0,
-  /* --- vocoder section. Added in patch v2; older patches simply get these defaults,
-     which is the same "a missing key RESETS it" rule everything else obeys. --- */
-  /* ⚠️ voc* and bass* are PINNED OFF and unreachable — the vocoder is VC·1 and the bass
-     is BS·1. The keys stay so a patch exported from MS·1 still loads and clamps, and the
-     engine behind them is still in this file's neighbours but nothing can reach it. See
-     the handoff: removing it safely is a job of its own, because the three sections were
-     interwoven through the UI layer rather than stacked. */
-  voc:0,               // PINNED OFF — the vocoder is VC·1
-  vocbands:16,         // 8 | 16 | 24 analysis/synthesis pairs
-  vocq:4.5,            // band Q, both banks
-  vocresp:22,          // follower smoothing, Hz — low is smooth, high is articulate
-  vocsib:.35,          // unvoiced path: a pitched carrier cannot make "s" or "t"
-  vocmix:.9,           // vocoder output level
-  vocmod:1,            // modulator input gain
-  voccomp:.75,         // modulator compression — what stops the vocoder needing a hot input
-  carlvl:.8,           // carrier level into the bank
-  /* --- bass section (patch v3). A pedal synth, not a third general-purpose voice: one
-     oscillator plus a square sub, a ladder, and a contour. No LFO, no PWM, no effects
-     sends — a Taurus has none of that either, and a bass wants to stay dry and centred. */
-  bass:0,              // PINNED OFF — the bass is BS·1
-  bwave:"saw",         // saw | square
-  boct:-1,             // octaves below the played note
-  blvl:.85,            // output level
-  bsub:.6,             // square sub, one octave under the oscillator
-  bcut:420,            // ladder cutoff, Hz
-  bres:5,              // resonance, dB into the same mapping the main filter uses
-  benv:2.4,            // filter contour depth, octaves
-  bdec:.35,            // contour decay — the whole shape, filter and release together
-  bglide:0             // seconds per octave
+  trim:0
+  /* The vocoder's and the bass's keys left with their sections. A patch exported from
+     MS·1 still loads — restore() only reads keys this schema declares, so the extras are
+     ignored rather than rejected. */
 };
 
 const FACTORY = {
@@ -6339,26 +6304,13 @@ let ctx = null, master = null, comp = null, voiceBus = null, fxBus = null,
     analyser = null;
 /* Modulation buses. A mono synth has one voice sounding, so these are global rather than
    per-voice: one LFO, one fade-in, one bend, summed once and read by every oscillator.
-     pitchMod  cents -> the synth voice's oscillators   (LFO vibrato + its own bend)
-     pitchVoc  cents -> the vocoder carrier's oscillators (same LFO, its own bend) —
-               separate because on separate MIDI channels, bending the lead must not
-               drag the vocoder chord with it
+     pitchMod  cents -> the voice's oscillators   (LFO vibrato + bend)
      filtMod   cents -> both biquads' .detune     (LFO -> cutoff)
      pwmBus    +-1   -> every pulse delay line    (its own LFO, independent of the main one)
      ampMod    0..1  -> the VCA's tremolo gain */
-let pitchMod = null, pitchVoc = null, filtMod = null, pwmBus = null, pwmLfo = null,
-    ampMod = null, lfoFade = null, bendSrc = null, bendVoc = null,
+let pitchMod = null, filtMod = null, pwmBus = null, pwmLfo = null,
+    ampMod = null, lfoFade = null, bendSrc = null,
     lfoPitchG = null, lfoFiltG = null, lfoAmpG = null, chorusDry = null;
-/* ---- vocoder ----
-     vocBus   every carrier note sums here, PRE-filter: the bank does its own filtering,
-              and running the carrier through the ladder first would eat the very bands
-              the vocoder needs to reproduce
-     modGain  the modulator (mic or line in) after its input trim
-     vocBank  one {analysis, synthesis} pair per band, rebuilt when the count changes */
-let vocBus = null, vocOut = null, modGain = null, modSrc = null, modStream = null,
-    vocBank = [], sibGain = null, sibNoise = null, absCurve = null,
-    modMeter = null, modMeterTimer = null, modPeakHold = 0, modPeakAt = 0,
-    modComp = null, modMakeup = null, modPost = null, driveMeter = null;
 const active = new Set();
 
 /* MS1_UNITY is the linear gain one oscillator at full level reaches at the voice output
@@ -6526,51 +6478,12 @@ function initAudio(useCtx){
   noiseBuf.pink  = makeNoise("pink");
   noiseBuf.sh    = makeSH();
 
-  /* ---- vocoder buses ----
-     vocOut lands on voiceBus, so the vocoder gets the chorus, delay and reverb the synth
-     voice does — a chorused vocoder is most of the sound. */
-  absCurve = mkAbsCurve(1025);
-  vocBus = ctx.createGain(); vocBus.gain.value = 1;
-  vocOut = ctx.createGain(); vocOut.gain.value = 0;
-  modGain = ctx.createGain(); modGain.gain.value = 0;
-  /* Tapped off the RAW input, before modGain and before the section's on/off — so the
-     meter answers "is signal arriving?" independently of whether the vocoder is set up
-     to use it. It only reads the signal; it never routes it to the output, so watching
-     the meter cannot feed back. Straight out of CS·1's input-meter reasoning. */
-  /* the bass goes straight to the compressor — no chorus, no delay, no reverb. A bass
-     wants to stay dry and centred, and every send here is a way to smear it. */
-  bassOut = ctx.createGain(); bassOut.gain.value = 1;
-  bassOut.connect(comp);
-
-  modMeter = ctx.createAnalyser();
-  modMeter.fftSize = 1024;
-
-  /* ---- modulator compression ----
-     A band follower opens IN PROPORTION to the energy in its band, so without this the
-     vocoder's whole output level tracks how loudly you happen to be speaking — and a quiet
-     line input simply never opens the bands. That is what forces people to crank their
-     preamp. Squashing the modulator first is what every hardware vocoder does, and it buys
-     consistent intelligibility rather than just loudness.
-     A compressor alone only holds peaks DOWN; bringing quiet material UP is the makeup
-     gain, which is why the two are computed together in applyVocoder(). */
-  modComp = ctx.createDynamicsCompressor();
-  modComp.knee.value = 6;
-  modComp.attack.value = .003;
-  modComp.release.value = .10;
-  modMakeup = ctx.createGain(); modMakeup.gain.value = 1;
-  modPost = ctx.createGain(); modPost.gain.value = 1;
-  modGain.connect(modComp); modComp.connect(modMakeup); modMakeup.connect(modPost);
-  /* what actually reaches the band followers, so gain staging is visible not guessed */
-  driveMeter = ctx.createAnalyser(); driveMeter.fftSize = 1024;
-  modPost.connect(driveMeter);
-
-  vocOut.connect(voiceBus);
-  buildVocoder();
-  buildSibilance();
+  /* The vocoder's buses and the bass's dry path both left with their sections — see
+     VC·1 and BS·1. What used to sit here was the only reason this graph knew about
+     either of them. */
 
   /* ---- modulation buses ---- */
   pitchMod = ctx.createGain(); pitchMod.gain.value = 1;
-  pitchVoc = ctx.createGain(); pitchVoc.gain.value = 1;
   filtMod  = ctx.createGain(); filtMod.gain.value = 1;
   ampMod   = ctx.createGain(); ampMod.gain.value = 1;
   /* the LFO's fade-in, ramped from note-on. One voice sounds at a time, so one fade. */
@@ -6578,8 +6491,6 @@ function initAudio(useCtx){
   /* pitch bend, in cents, summed straight into the pitch bus */
   bendSrc  = ctx.createConstantSource(); bendSrc.offset.value = 0; bendSrc.start();
   bendSrc.connect(pitchMod);
-  bendVoc  = ctx.createConstantSource(); bendVoc.offset.value = 0; bendVoc.start();
-  bendVoc.connect(pitchVoc);
   /* PWM gets its own free-running triangle: a Juno's PWM is not the same LFO that does
      the vibrato, and sharing one makes every pulse patch wobble in pitch too. */
   pwmBus = ctx.createGain(); pwmBus.gain.value = 1;
@@ -6590,7 +6501,7 @@ function initAudio(useCtx){
   /* LFO destination depths. These hang off lfoFade rather than off the LFO source, so
      startLfo() can rebuild the source for a shape change without re-patching them. */
   lfoPitchG = ctx.createGain(); lfoPitchG.gain.value = P.lfop;          // cents
-  lfoFade.connect(lfoPitchG); lfoPitchG.connect(pitchMod); lfoPitchG.connect(pitchVoc);
+  lfoFade.connect(lfoPitchG); lfoPitchG.connect(pitchMod);
   lfoFiltG = ctx.createGain(); lfoFiltG.gain.value = P.lfof * 1200;     // cents
   lfoFade.connect(lfoFiltG); lfoFiltG.connect(filtMod);
   /* tremolo: ampMod sits at unity and the LFO adds +-lfoa around it */
@@ -6602,7 +6513,6 @@ function initAudio(useCtx){
   applyChorus();
   applyDelay();
   applySends();
-  applyVocoder();
 }
 
 /* iOS parks the context in "suspended" until a gesture and in "interrupted" after a call
@@ -6707,7 +6617,7 @@ function schedRelease(param, e, t){
    glide — a linear ramp wanders the width by ~19% and collapses the tone toward a square. */
 function mkStack(voice, det, panPos, f0){
   /* a carrier reads the vocoder's pitch bus, the synth voice reads its own */
-  const pbus = voice.voc ? pitchVoc : pitchMod;
+  const pbus = pitchMod;      // there is one voice type here now
   const out = ctx.createGain(); out.gain.value = 1;
   const pan = ctx.createStereoPanner();
   pan.pan.value = panPos;
@@ -7043,137 +6953,11 @@ const downKeys = new Set();
 /* Always the synth: MS·1 needed a choice because one keyboard served three sections, and
    PM·1 has one voice. Kept as a variable rather than inlined so the routing code below
    reads unchanged against MS·1, which is what makes this diff reviewable. */
-let keysTo = "syn";
+
 /* While the arpeggiator runs, held notes are INPUT to it, not notes in their own right:
    the arp is already mirroring what actually sounds, so sending the held keys as well
    would put a sustained note out under it that nothing ever releases. */
-/* ---- the bass section ----
-   A pedal synth: one oscillator, a square sub an octave under it, the same ladder as the
-   main filter, and one contour knob that shapes filter and release together. Monophonic
-   and lowest-note priority, because that is what a pedalboard is. It bypasses the chorus,
-   delay and reverb entirely — a bass wants to stay dry and centred, and a Taurus has no
-   sends either. */
-/* Measured: 0.22 put the section at -23.8 dBFS, about 1.8 dB under the -22 the bass
-   presets are trimmed to, so the pedal voice sat quietly under everything else. */
-const BASS_UNITY = 0.27;
-let bassOut = null, bassVoice = null;
-const bassHeld = [];
-
-function buildBass(midi, vel, t){
-  const v = {t0:t, midi, released:false};
-  const f0 = mtof(midi) * Math.pow(2, P.boct);
-  const mix = ctx.createGain(); mix.gain.value = 1;
-
-  const o = ctx.createOscillator();
-  o.type = P.bwave === "square" ? "square" : "sawtooth";
-  o.frequency.value = f0;
-  const og = ctx.createGain(); og.gain.value = BASS_UNITY;
-  o.connect(og); og.connect(mix); o.start(t);
-
-  const sub = ctx.createOscillator();
-  sub.type = "square"; sub.frequency.value = f0/2;
-  const sg = ctx.createGain(); sg.gain.value = BASS_UNITY * P.bsub;
-  sub.connect(sg); sg.connect(mix); sub.start(t);
-
-  const L = ladder(clampf(P.bres/20, 0, 1));
-  const b1 = ctx.createBiquadFilter(); b1.type = "lowpass"; b1.Q.value = L.Q1dB;
-  const b2 = ctx.createBiquadFilter(); b2.type = "lowpass"; b2.Q.value = L.Q2dB;
-  const rg = ctx.createGain(); rg.gain.value = Math.pow(1 + L.k, RCOMP - 1);
-  const vca = ctx.createGain(); vca.gain.value = 0;
-  mix.connect(b1); b1.connect(b2); b2.connect(rg); rg.connect(vca); vca.connect(bassOut);
-
-  v.setCutoff = function(t2){
-    const base = clampf(P.bcut, 20, ctx.sampleRate * 0.45 / L.rho2);
-    b1.frequency.setTargetAtTime(base * L.rho1, t2, .01);
-    b2.frequency.setTargetAtTime(base * L.rho2, t2, .01);
-  };
-  v.setCutoff(t);
-
-  /* contour -> cutoff, in cents, exactly as the main filter does it */
-  const fEG = ctx.createConstantSource(); fEG.offset.value = 0; fEG.start(t);
-  const fAmt = ctx.createGain(); fAmt.gain.value = P.benv * 1200;
-  fEG.connect(fAmt); fAmt.connect(b1.detune); fAmt.connect(b2.detune);
-
-  const aEG = ctx.createConstantSource(); aEG.offset.value = 0; aEG.start(t);
-  const pk = ctx.createGain();
-  pk.gain.value = P.blvl * (0.7 + 0.3 * (vel/127));
-  aEG.connect(pk); pk.connect(vca.gain);
-
-  /* One Decay knob drives both: the filter plucks down to a low sustain, the amp holds
-     while the pedal is down and releases in proportion. That is the whole contour. */
-  const fEnv = {A:.004, D:Math.max(.01, P.bdec), S:.12,
-                R:Math.max(.03, P.bdec*.6), t0:t, tOff:null, vOff:0};
-  const aEnv = {A:.004, D:Math.max(.05, P.bdec*2), S:1,
-                R:Math.max(AMP_REL_MIN, P.bdec*.6), t0:t, tOff:null, vOff:0};
-  schedEnv(fEG.offset, fEnv, t, 0);
-  schedEnv(aEG.offset, aEnv, t, 0);
-
-  v.nodes = [mix, og, sg, b1, b2, rg, vca, pk, fAmt];
-  v.o = o; v.sub = sub; v.og = og; v.sg = sg; v.b1 = b1; v.b2 = b2; v.rg = rg;
-  v.pk = pk; v.fAmt = fAmt; v.fEG = fEG; v.aEG = aEG; v.fEnv = fEnv; v.aEnv = aEnv;
-
-  v.setPitch = function(t2, m, glideT){
-    v.midi = m;
-    const f = mtof(m) * Math.pow(2, P.boct);
-    if (glideT > 0){
-      [[o, f], [sub, f/2]].forEach(([node, target]) => {
-        node.frequency.cancelScheduledValues(t2);
-        node.frequency.setValueAtTime(Math.max(1e-4, node.frequency.value), t2);
-        node.frequency.exponentialRampToValueAtTime(Math.max(1e-4, target), t2 + glideT);
-      });
-    } else { o.frequency.setValueAtTime(f, t2); sub.frequency.setValueAtTime(f/2, t2); }
-  };
-  v.retrigger = function(t2, m, vel2, glideT){
-    v.setPitch(t2, m, glideT);
-    pk.gain.setTargetAtTime(P.blvl * (0.7 + 0.3*(vel2/127)), t2, .005);
-    const a0 = envValueAt(aEnv, t2), f0v = envValueAt(fEnv, t2);
-    aEnv.t0 = t2; aEnv.tOff = null; fEnv.t0 = t2; fEnv.tOff = null;
-    schedEnv(aEG.offset, aEnv, t2, a0);
-    schedEnv(fEG.offset, fEnv, t2, f0v);
-  };
-  v.release = function(t2){
-    if (v.released) return;
-    v.released = true;
-    aEnv.R = Math.max(AMP_REL_MIN, P.bdec*.6);      // read at release, like everything else
-    fEnv.R = Math.max(.03, P.bdec*.6);
-    beginRelease(aEnv, t2); beginRelease(fEnv, t2);
-    schedRelease(aEG.offset, aEnv, t2);
-    schedRelease(fEG.offset, fEnv, t2);
-    const end = t2 + 2*aEnv.R + .05;
-    try{ o.stop(end); sub.stop(end); fEG.stop(end); aEG.stop(end); }catch(e){}
-    setTimeout(() => v.nodes.forEach(n => { try{ n.disconnect(); }catch(e){} }),
-      Math.max(60, (end - ctx.currentTime)*1000 + 120));
-  };
-  return v;
-}
-
-const bassPick = () => bassHeld.length ? bassHeld.slice().sort((a,b)=>a.midi-b.midi)[0] : null;
-
-function bassOn(m, vel, t){
-  ensureAudio();
-  if (bassHeld.some(n => n.midi === m)) return;
-  bassHeld.push({midi:m, vel:vel});
-  const target = bassPick();
-  if (!bassVoice || bassVoice.released) bassVoice = buildBass(target.midi, target.vel, t);
-  else bassVoice.retrigger(t, target.midi, target.vel,
-         P.bglide > 0 ? P.bglide * Math.abs(target.midi - bassVoice.midi)/12 : 0);
-  if (mirrorSyn()) sendNoteOn(m, t, vel);
-}
-function bassOff(m, t){
-  const i = bassHeld.findIndex(n => n.midi === m);
-  if (i >= 0) bassHeld.splice(i, 1);
-  sendNoteOff(m, t);
-  const target = bassPick();
-  if (!target){ if (bassVoice) bassVoice.release(t); bassVoice = null; }
-  else if (bassVoice && !bassVoice.released)
-    bassVoice.setPitch(t, target.midi,
-      P.bglide > 0 ? P.bglide * Math.abs(target.midi - bassVoice.midi)/12 : 0);
-}
-function allBassOff(t){
-  bassHeld.length = 0;
-  if (bassVoice) bassVoice.release(t);
-  bassVoice = null;
-}
+/* The bass section is BS·1 now. */
 
 /* ---- polyphony ----
    The mono path keeps ONE voice and re-pitches it; poly keeps one per held note. They are
@@ -7247,86 +7031,8 @@ const pick = () => {
 const glideTime = (from, to) =>
   (P.gmode === "off" || !P.glide) ? 0 : P.glide * Math.abs(to - from)/12;
 
-/* ---- the vocoder carrier ----
-   Paraphonic, not polyphonic: every note gets its own oscillators and amp envelope, but
-   they all sum into ONE bank. That is how the hardware ones work, and it is why six-note
-   vocoder chords cost the same as one note — the expensive part is the bank, and it is
-   shared. There is no ladder here on purpose; the bank is the filter. */
-const MAX_CARRIERS = 6;
-const carriers = new Map();          // midi -> carrier record, in press order
+/* The vocoder carrier is VC·1 now. */
 
-function buildCarrier(midi, vel, t){
-  const v = {t0:t, midi, released:false, voc:true};
-  const st = mkStack(v, 0, 0, mtof(midi));
-  const env = ctx.createGain(); env.gain.value = 0;
-  st.pan.connect(env);
-  const lvl = ctx.createGain(); lvl.gain.value = P.carlvl;
-  env.connect(lvl); lvl.connect(vocBus);
-
-  const eg = ctx.createConstantSource(); eg.offset.value = 0; eg.start(t);
-  const pk = ctx.createGain();
-  pk.gain.value = 1 - P.vela + P.vela*(vel/127);
-  eg.connect(pk); pk.connect(env.gain);
-
-  const e = {A:Math.max(.0005, P.aa), D:Math.max(.005, P.ad), S:clampf(P.as,0,1),
-             R:Math.max(AMP_REL_MIN, P.ar), t0:t, tOff:null, vOff:0};
-  schedEnv(eg.offset, e, t, 0);
-
-  v.stack = st; v.stacks = [st]; v.eg = eg; v.ampEG = eg; v.e = e; v.lvl = lvl; v.aEnv = e;
-  v.release = function(t2){
-    if (v.released) return;
-    v.released = true;
-    e.R = Math.max(AMP_REL_MIN, P.ar);          // read at release, not at note-on
-    beginRelease(e, t2);
-    schedRelease(eg.offset, e, t2);
-    const end = t2 + 2*e.R + .05;
-    st.stop(end);
-    try{ eg.stop(end); }catch(err){}
-    setTimeout(() => {
-      try{ st.pan.disconnect(); }catch(err){}
-      st.parts.forEach(pt => {
-        try{ if (pt.pwmDepth) pwmBus.disconnect(pt.pwmDepth); }catch(err){}
-        try{ if (pt.o) (pt.pbus||pitchVoc).disconnect(pt.o.detune); }catch(err){}
-      });
-      [env, lvl, pk].forEach(n => { try{ n.disconnect(); }catch(err){} });
-    }, Math.max(60, (end - ctx.currentTime)*1000 + 120));
-  };
-  return v;
-}
-
-function carrierOn(midi, vel, t){
-  ensureAudio();
-  const old = carriers.get(midi);
-  if (old) old.release(t);
-  if (carriers.size >= MAX_CARRIERS){
-    const oldest = carriers.keys().next().value;   // Map keeps insertion order
-    const c = carriers.get(oldest);
-    if (c) c.release(t);
-    carriers.delete(oldest);
-    sendNoteOff(oldest, t);                        // stolen voices have to be released out too
-  }
-  carriers.set(midi, buildCarrier(midi, vel, t));
-  /* The carrier chord goes out as well — it is played, it is sounding, and doubling a
-     vocoder chord on external gear is worth having. Everything leaves on the one Out ch. */
-  sendNoteOn(midi, t, vel);
-}
-function carrierOff(midi, t){
-  const c = carriers.get(midi);
-  if (!c) return;
-  c.release(t);
-  carriers.delete(midi);
-  sendNoteOff(midi, t);
-}
-function allCarriersOff(t){
-  carriers.forEach((c, n) => { try{ c.release(t); sendNoteOff(n, t); }catch(e){} });
-  carriers.clear();
-}
-
-/* Hold ACCUMULATES only where more than one note can actually be heard: poly, the vocoder's
-   paraphonic carrier, and the arp — whose entire purpose is to read a held chord. With a
-   single mono voice, or a sequencer that takes exactly one transposition, latching a second
-   note only adds an entry that fights the first over one voice, and the older one becomes
-   unreachable. There it REPLACES instead. */
 const latchReplaces = () => P.mode !== "poly" && SEQ.motion !== "arp";
 
 /* Drop notes that are latched — sounding but no longer physically held. Keys still under a
@@ -7340,27 +7046,20 @@ function releaseLatched(t, keep){
   });
 }
 
-/* Is this note already sounding in the section the key would reach? */
-function isLatched(m, sec){
-  const inSyn = heldNotes.some(n => n.midi === m) || polyVoices.has(m);
-  const inVoc = carriers.has(m);
-  if (sec === "bass") return bassHeld.some(n => n.midi === m);
-  if (sec === "voc") return inVoc;
-  if (sec === "both") return inVoc || inSyn;
-  return inSyn;
+/* Is this note already sounding? One voice now, so there is one place to look. */
+function isLatched(m){
+  return heldNotes.some(n => n.midi === m) || polyVoices.has(m);
 }
 function noteOn(midi, vel, when, forceSec){
   ensureAudio();
   const t = when == null ? ctx.currentTime + .002 : when;
   const m = clampf(midi + octave*12, 0, 127);
-  /* forceSec is what MIDI decided from the channel; without one this is a local key. */
-  const sec = forceSec || keysTo;
   const wasDown = downKeys.has(m);
   downKeys.add(m);
   /* Hold is a toggle PER NOTE: pressing a note that is already latched releases just that
      one. Done by running the ordinary note-off path with latch momentarily off, so there
      is one release routine rather than a second copy of it here. */
-  if (latch && !wasDown && isLatched(m, sec)){
+  if (latch && !wasDown && isLatched(m)){
     latch = false;
     noteOff(midi, when, forceSec);
     latch = true;
@@ -7370,15 +7069,6 @@ function noteOn(midi, vel, when, forceSec){
   /* A key that is already down cannot be pressed again — a second note-on for the same
      pitch is a duplicate message, not a new gesture, and some controllers do send them.
      `wasDown` is what distinguishes that from a deliberate re-press of a latched note. */
-  if (sec === "bass"){
-    if (P.bass) bassOn(m, vel, t);
-    paintNow(); paintKeys(); return;
-  }
-  if (sec === "voc" || sec === "both"){
-    if (!carriers.has(m)) carrierOn(m, vel, t);
-    if (sec === "voc"){ paintKeys(); return; }
-    /* "both" falls through: the same note also sounds the synth section */
-  }
   if (heldNotes.some(n => n.midi === m)) return;
   if (latch && latchReplaces()) releaseLatched(t, m);
   heldNotes.push({midi:m, vel:vel});
@@ -7438,22 +7128,6 @@ function noteOff(midi, when, forceSec){
   const t = when == null ? ctx.currentTime + .002 : when;
   const m = clampf(midi + octave*12, 0, 127);
   downKeys.delete(m);          // cleared even when Hold swallows the release
-  /* The same pitch can be sounding in BOTH sections at once, so an explicit section has to
-     win over "is there a carrier on this note" — otherwise the synth's note-off gets eaten
-     by the vocoder's copy of the same pitch. */
-  const sec = forceSec || keysTo;
-  if (sec === "bass"){
-    if (!latch) bassOff(m, t);
-    paintNow(); paintKeys(); return;
-  }
-  if (sec === "voc" || sec === "both"){
-    if (!latch) carrierOff(m, t);
-    if (sec === "voc"){ paintKeys(); return; }
-  } else if (!forceSec && carriers.has(m)){
-    /* a carrier left over from a previous Keys-play setting still has to be releasable */
-    if (!latch) carrierOff(m, t);
-    paintKeys(); return;
-  }
   /* Hold keeps the note in the HELD set, not merely sounding: an arp latches by continuing
      to read heldNotes, so removing it here would silently empty the arp's input. */
   if (latch){ paintKeys(); return; }
@@ -7497,9 +7171,7 @@ function allNotesOff(){
   if (SEQ.autoStart && SEQ.playing){ stopPlay(); SEQ.autoStart = false; }
   latch = false;
   const t = ctx ? ctx.currentTime : 0;
-  allCarriersOff(t);
   allPolyOff(t);
-  allBassOff(t);
   sendAllOff(t);
   synOut = null;
   if (curVoice) curVoice.release(t);
@@ -8071,10 +7743,8 @@ Object.keys(KNOBS).forEach(host => {
    Anything that changes the SHAPE of the graph (which waveform, whether a sub exists)
    takes effect on the next note, which is how a real DCO board behaves too. Everything
    that is just a number on a running node moves under the note. */
-/* Both sections' voices, so a knob move reaches the vocoder carrier as well as the synth. */
 function eachVoice(fn){
   active.forEach(v => { try{ fn(v); }catch(e){} });
-  carriers.forEach(c => { try{ fn(c); }catch(e){} });
 }
 function eachStack(fn){
   eachVoice(v => (v.stacks || []).forEach(st => { try{ fn(st); }catch(e){} }));
@@ -8160,31 +7830,8 @@ function applyParam(id){
     }
     case "dtime": case "dfb": case "dmix": applyDelay(); break;
     case "rmix": applySends(); break;
-    case "vocq": case "vocresp": case "vocmix": case "vocmod": case "vocsib":
-    case "voccomp":
-      applyVocoder(); break;
-    /* the bass has one voice, so these are a handful of direct writes rather than a sweep */
-    case "blvl":
-      if (bassVoice) bassVoice.pk.gain.setTargetAtTime(P.blvl, t, .02); break;
-    case "bsub":
-      if (bassVoice) bassVoice.sg.gain.setTargetAtTime(BASS_UNITY * P.bsub, t, .02); break;
-    case "bcut":
-      if (bassVoice) bassVoice.setCutoff(t); break;
-    case "bres":
-      if (bassVoice){
-        const BL = ladder(clampf(P.bres/20, 0, 1));
-        bassVoice.b1.Q.setTargetAtTime(BL.Q1dB, t, .01);
-        bassVoice.b2.Q.setTargetAtTime(BL.Q2dB, t, .01);
-        bassVoice.rg.gain.setTargetAtTime(Math.pow(1 + BL.k, RCOMP - 1), t, .02);
-        bassVoice.setCutoff(t);
-      }
-      break;
-    case "benv":
-      if (bassVoice) bassVoice.fAmt.gain.setTargetAtTime(P.benv*1200, t, .02); break;
-    case "boct":
-      if (bassVoice) bassVoice.setPitch(t, bassVoice.midi, 0); break;
+    /* the vocoder's and the bass's parameters left with their sections — VC·1 and BS·1 */
     case "carlvl":
-      carriers.forEach(c => { try{ c.lvl.gain.setTargetAtTime(P.carlvl, t, .02); }catch(e){} });
       break;
     default: break;
   }
@@ -8233,174 +7880,12 @@ function applySends(){
   verbWet.gain.setTargetAtTime(P.rmix * 2.2, ctx.currentTime, .02);
 }
 
-/* ============ vocoder ============ */
-/* No AudioWorklet anywhere in here. The one thing that had to be proved is that a control
-   signal can be built from audio and connected to a GainNode's gain: rectify the band with
-   a WaveShaper, smooth it with two lowpasses, connect the result to gain.gain. Measured on
-   a gated tone that gives 651:1 between open and closed, and a formant sweep transfers
-   -5.8 dB at 700 Hz / +4.7 dB at 2400 Hz onto a saw carrier. That is a real vocoder. */
-const VOC_LO = 150, VOC_HI = 5000;      // the span that carries intelligibility
-const VOC_DRIVE = 9;                     // followers come out small; this is the makeup
-/* Sixteen band gains summing, plus the unvoiced path, plus chorus and reverb, put the
-   vocoder bus about 14 dB hotter than the synth voice — measured peaks of 1.7-1.8, i.e.
-   clipping, on a realistic patch. This is the fixed trim that lands it on the same
-   -24 dBFS target everything else is trimmed to. The Level knob rides on top of it. */
-const VOC_TRIM = 0.2;
-const SIB_HZ = 3800;                     // above here is unvoiced, and unpitchable
-/* Scales the carrier-presence follower so a normally-sounding carrier opens the unvoiced
-   gate fully. Set by measurement — see the sibilance note in HANDOFF.md. */
-const SIB_CARR_DRIVE = 14;
+/* ============ panel ============ */
+/* The keyboard, the step grid, the arp roll, the faders and the readouts.
 
-/* MUST be an odd length. A WaveShaper maps input 0 to curve index (n-1)/2, and with an
-   even n that index is fractional — so it interpolates between the two samples either side
-   of zero and returns |+-1/(n-1)| instead of 0. At n=1024 that is a permanent floor of
-   9.8e-4, which after the follower's drive becomes about -37 dB of gate that never closes.
-   Harmless for the voiced bands, since the carrier itself stops, but the unvoiced path has
-   its own noise source and leaked audibly. */
-function mkAbsCurve(n){
-  const size = n % 2 ? n : n + 1;
-  const c = new Float32Array(size);
-  for (let i = 0; i < size; i++){ const x = (i/(size-1))*2 - 1; c[i] = Math.abs(x); }
-  return c;
-}
-function bandFreq(i, n){ return VOC_LO * Math.pow(VOC_HI/VOC_LO, n < 2 ? 0 : i/(n-1)); }
-
-/* One band: analysis on the modulator, synthesis on the carrier, joined by the follower. */
-function mkBand(f){
-  const abp = ctx.createBiquadFilter(); abp.type = "bandpass";
-  abp.frequency.value = f; abp.Q.value = P.vocq;
-  const rect = ctx.createWaveShaper(); rect.curve = absCurve; rect.oversample = "2x";
-  const lp1 = ctx.createBiquadFilter(); lp1.type = "lowpass";
-  lp1.frequency.value = P.vocresp; lp1.Q.value = .7;
-  const lp2 = ctx.createBiquadFilter(); lp2.type = "lowpass";
-  lp2.frequency.value = P.vocresp; lp2.Q.value = .7;
-  const drive = ctx.createGain(); drive.gain.value = VOC_DRIVE;
-  modPost.connect(abp); abp.connect(rect); rect.connect(lp1); lp1.connect(lp2); lp2.connect(drive);
-
-  const sbp = ctx.createBiquadFilter(); sbp.type = "bandpass";
-  sbp.frequency.value = f; sbp.Q.value = P.vocq;
-  /* gain starts CLOSED and is opened only by the follower — connections sum with the value */
-  const g = ctx.createGain(); g.gain.value = 0;
-  drive.connect(g.gain);
-  vocBus.connect(sbp); sbp.connect(g); g.connect(vocOut);
-  return {abp, rect, lp1, lp2, drive, sbp, g, f};
-}
-function buildVocoder(){
-  if (!ctx || !vocBus) return;
-  vocBank.forEach(b => [b.abp,b.rect,b.lp1,b.lp2,b.drive,b.sbp,b.g]
-    .forEach(n => { try{ n.disconnect(); }catch(e){} }));
-  vocBank = [];
-  const n = P.vocbands|0;
-  for (let i = 0; i < n; i++) vocBank.push(mkBand(bandFreq(i, n)));
-}
-/* Q and response move under the sound; the band COUNT needs a rebuild. */
-function applyVocoder(){
-  if (!ctx || !vocOut) return;
-  const t = ctx.currentTime;
-  if (vocBank.length !== (P.vocbands|0)) buildVocoder();
-  vocBank.forEach(b => {
-    b.abp.Q.setTargetAtTime(P.vocq, t, .02);
-    b.sbp.Q.setTargetAtTime(P.vocq, t, .02);
-    b.lp1.frequency.setTargetAtTime(P.vocresp, t, .02);
-    b.lp2.frequency.setTargetAtTime(P.vocresp, t, .02);
-  });
-  modGain.gain.setTargetAtTime(P.voc ? P.vocmod : 0, t, .02);
-  if (modComp && modMakeup){
-    /* threshold sweeps down and ratio up together, so one knob reads as "how hard".
-       Makeup restores what the compression took out: for a signal at 0 dBFS the reduction
-       is |thr|*(1 - 1/ratio), and that is exactly what quiet material needs lifting by. */
-    const c = clampf(P.voccomp, 0, 1);
-    const thr = -6 - 34*c;                 //  -6 dB .. -40 dB
-    const ratio = 1.5 + 10.5*c;            //  1.5:1 .. 12:1
-    const makeupDb = Math.min(30, -thr * (1 - 1/ratio));
-    modComp.threshold.setTargetAtTime(thr, t, .02);
-    modComp.ratio.setTargetAtTime(ratio, t, .02);
-    modMakeup.gain.setTargetAtTime(db2lin(makeupDb), t, .02);
-  }
-  vocOut.gain.setTargetAtTime(P.voc ? P.vocmix * VOC_TRIM : 0, t, .02);
-  if (sibGain) sibGain.gain.setTargetAtTime(P.vocsib * 0.35, t, .02);
-}
-
-/* The unvoiced path. A pitched carrier physically cannot produce "s" or "t", so without
-   this the vocoder is mush at the top and barely intelligible. Detect energy above
-   SIB_HZ in the modulator and let it gate a band of noise. */
-function buildSibilance(){
-  const hp = ctx.createBiquadFilter(); hp.type = "highpass";
-  hp.frequency.value = SIB_HZ; hp.Q.value = .7;
-  const rect = ctx.createWaveShaper(); rect.curve = absCurve; rect.oversample = "2x";
-  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 40;
-  /* Measured: at the original drive the gate ran far past unity, which both slammed the
-     level (+19.7 dB at sibilance 0.35, peaking 2.35) and saturated the gate so it stopped
-     tracking. Sibilance has to sit UNDER the voiced bands, not on top of them. */
-  const drive = ctx.createGain(); drive.gain.value = VOC_DRIVE * 0.4;
-  modPost.connect(hp); hp.connect(rect); rect.connect(lp); lp.connect(drive);
-
-  sibNoise = ctx.createBufferSource();
-  sibNoise.buffer = noiseBuf.white; sibNoise.loop = true;
-  const nhp = ctx.createBiquadFilter(); nhp.type = "highpass";
-  nhp.frequency.value = SIB_HZ; nhp.Q.value = .7;
-  const gate = ctx.createGain(); gate.gain.value = 0;
-  drive.connect(gate.gain);
-
-  /* ---- and a SECOND gate, from the carrier ----
-     The voiced bands are gated by the note for free, because the carrier is what flows
-     through them. This path has its own noise source, so without an explicit gate it sings
-     whenever the modulator has any HF in it — with or without a note held. Measured: the
-     output sat at -28 dBFS after a note had fully released, where it should be silence,
-     and losing the voiced part against that standing noise bed is exactly what reads as a
-     click on release.
-     Following the carrier BUS rather than counting voices keeps this self-maintaining:
-     it is right for one note, six notes, or a note in mid-release. */
-  const carrAbs = ctx.createWaveShaper();
-  carrAbs.curve = absCurve; carrAbs.oversample = "2x";
-  const carrLp1 = ctx.createBiquadFilter(); carrLp1.type = "lowpass";
-  carrLp1.frequency.value = 30; carrLp1.Q.value = .7;
-  const carrLp2 = ctx.createBiquadFilter(); carrLp2.type = "lowpass";
-  carrLp2.frequency.value = 30; carrLp2.Q.value = .7;
-  const carrDrive = ctx.createGain(); carrDrive.gain.value = SIB_CARR_DRIVE;
-  vocBus.connect(carrAbs); carrAbs.connect(carrLp1); carrLp1.connect(carrLp2);
-  carrLp2.connect(carrDrive);
-  const carrGate = ctx.createGain(); carrGate.gain.value = 0;
-  carrDrive.connect(carrGate.gain);
-
-  sibGain = ctx.createGain(); sibGain.gain.value = 0;
-  sibNoise.connect(nhp); nhp.connect(gate); gate.connect(carrGate);
-  carrGate.connect(sibGain); sibGain.connect(vocOut);
-  sibNoise.start();
-}
-
-/* getUserMedia needs a gesture and a secure context. The three processing flags MUST be
-   off: echo cancellation and noise suppression are built to remove exactly the signal a
-   vocoder wants, and AGC pumps the band envelopes. */
-async function startModulator(deviceId){
-  ensureAudio();
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    vocSay("This browser can't open an audio input.", true); return false;
-  }
-  stopModulator();
-  try{
-    modStream = await navigator.mediaDevices.getUserMedia({audio:{
-      deviceId: deviceId ? {exact:deviceId} : undefined,
-      echoCancellation:false, noiseSuppression:false, autoGainControl:false
-    }});
-    modSrc = ctx.createMediaStreamSource(modStream);
-    modSrc.connect(modGain);
-    if (modMeter) modSrc.connect(modMeter);
-    startModMeter();
-    vocSay("Listening on <b>" + modLabel(deviceId) + "</b>. "
-      + "Play notes to sound them through your voice — <b>use headphones</b>, a microphone "
-      + "into speakers will feed back.");
-    return true;
-  }catch(e){
-    vocSay("Couldn't open that input (" + ((e && e.name) || e) + ").", true);
-    return false;
-  }
-}
-function stopModulator(){
-  stopModMeter();
-  if (modSrc){ try{ modSrc.disconnect(); }catch(e){} modSrc = null; }
-  if (modStream){ try{ modStream.getTracks().forEach(t => t.stop()); }catch(e){} modStream = null; }
-}
+   This was MS·1's vocoder.js, which had grown to hold the panel as well because that is
+   where it happened to be written. With the vocoder gone to VC·1 what is left is the
+   panel, so the file is named for what it is. */
 
 /* ---- segmented buttons ---- */
 function seg(sel, attr, get, set){
@@ -8463,39 +7948,8 @@ segPaint.arpOct = seg("#arpOct","o", () => String(SEQ.octaves), v => { SEQ.octav
 segPaint.seqLane = seg("#seqLane","l", () => SEQ.lane, v => { SEQ.lane = v; renderSteps(); });
 segPaint.noteOut = seg("#noteOut","o", () => MIDI.noteOut ? "on":"off",
   v => { MIDI.noteOut = v === "on"; if (!MIDI.noteOut) midiPanic(); });
-segPaint.bassOn = seg("#bassOn","b", () => String(P.bass), v => {
-  P.bass = +v;
-  if (!P.bass && ctx) allBassOff(ctx.currentTime);
-  paintBassNote(); paintMeta();
-  if (typeof paintRoute === "function") paintRoute();
-  if (typeof paintKeysNote === "function") paintKeysNote();
-});
-segPaint.bassWave = seg("#bassWave","w", () => P.bwave, v => { P.bwave = v; });
-segPaint.vocOn = seg("#vocOn","v", () => String(P.voc), v => {
-  P.voc = +v;
-  applyVocoder(); paintKeys(); paintMeta();
-  if (typeof paintRoute === "function") paintRoute();   // the note mentions this state
-  if (typeof paintKeysNote === "function") paintKeysNote();
-  if (P.voc && !modSrc) vocSay("Vocoder is on — hit <b>Listen</b> to open an input. "
-    + "Until then the carrier has nothing to shape it, so those notes stay silent.");
-});
-segPaint.vocBands = seg("#vocBands","b", () => String(P.vocbands), v => {
-  P.vocbands = +v; applyVocoder();
-});
-segPaint.keysTo = seg("#keysTo","k", () => keysTo, v => {
-  keysTo = v; allNotesOff(); saveMap(); paintKeys(); paintMeta(); paintKeysNote();
-});
-/* The bass path already refused to play into a section that was switched off; the vocoder
-   path did not, and silently swallowed the notes. Say so instead of eating them. */
-function paintKeysNote(){
-  const el = root.querySelector("#keysNote"); if (!el) return;
-  const dead = (keysTo === "voc" || keysTo === "both") && !P.voc ? "vocoder"
-             : keysTo === "bass" && !P.bass ? "bass" : null;
-  el.innerHTML = dead
-    ? "the <b>" + dead + "</b> section is off, so these notes make no sound"
-    : "on-screen and computer keys only — incoming MIDI routes by channel";
-  el.classList.toggle("bad", !!dead);
-}
+/* bassOn, bassWave, vocOn, vocBands and keysTo drove sections that are now BS·1 and
+   VC·1, and the keyboard here has one destination. Their segments went with the racks. */
 
 /* ---- keyboard ----
    Two octaves from C3. Black keys are placed against the white index they follow, so the
@@ -8574,17 +8028,14 @@ keysEl.addEventListener("keyup", e => {
 });
 function paintKeys(){
   const syn = new Set(heldNotes.map(n => n.midi).concat([...polyVoices.keys()]));
-  const bass = new Set(bassHeld.map(n => n.midi));
   keysEl.querySelectorAll(".kw,.kb").forEach(k => {
     const m = +k.dataset.n + octave*12;
     /* One key, one colour. Bass and vocoder win over the synth when a note is in more than
        one section, because they are the ones you would otherwise not notice. */
-    const isBass = bass.has(m), isVoc = carriers.has(m), isSyn = syn.has(m);
-    k.classList.toggle("on-bass", isBass);
-    k.classList.toggle("on-voc",  !isBass && isVoc);
-    k.classList.toggle("on",      !isBass && !isVoc && isSyn);
-    k.classList.toggle("tint-voc",  keysTo === "voc"  || keysTo === "both");
-    k.classList.toggle("tint-bass", keysTo === "bass");
+    const isSyn = syn.has(m);
+    k.classList.toggle("on-bass", false);
+    k.classList.toggle("on-voc",  !false && false);
+    k.classList.toggle("on",      !false && !false && isSyn);
   });
 }
 
@@ -8835,18 +8286,11 @@ function startModMeter(){}
 function stopModMeter(){}
 function paintModMeter(){}
 
-/* The vocoder's controls went with its rack — see VC·1. The engine below them is still
-   here and is unreachable: nothing on this panel can set P.voc, and the schema pins it to
-   0. Taking the engine out is a separate job, because MS·1's three sections were
-   interwoven through the UI layer rather than stacked, and the safe order is to make it
-   unreachable first and prove that, which is what the patch-render comparison does. */
-
 /* ---- readouts ----
    rAF is paused in a hidden tab (and never fires at all in a headless pane), so anything
    that MUST be correct is also written on the event that changed it, not only here. */
 function paintNow(){
-  /* everything sounding, both sections — a vocoder chord is still a chord */
-  const sounding = heldNotes.map(n => n.midi).concat([...carriers.keys()]);
+  const sounding = heldNotes.map(n => n.midi);
   const uniq = [...new Set(sounding)];
   if (!uniq.length){
     nowNote.firstChild.nodeValue = "—";
@@ -8869,9 +8313,6 @@ function paintMeta(){
     P.gmode === "off" ? "no glide" : P.gmode,
     SEQ.motion === "off" ? "free" : SEQ.motion
   ];
-  if (P.voc) bits.push("vocoder " + P.vocbands + "b");
-  if (P.bass) bits.push("bass " + P.boct + " oct");
-  bits.push("keys → " + keysTo);
   if (SEQ.mode === "program") bits.push("PROGRAM step " + (SEQ.sel + 1));
   voiceMeta.textContent = bits.join(" · ");
 }
@@ -9275,7 +8716,7 @@ function midiPanic(){
 function saveMap(){
   try{ localStorage.setItem(MAP_KEY, JSON.stringify({ccs:[...ccMap],
     synCh:MIDI.synCh, vocCh:MIDI.vocCh, ccCh:MIDI.ccCh, bassCh:MIDI.bassCh,
-    keysTo:keysTo})); }catch(e){}
+  })); }catch(e){}
 }
 function loadMap(){
   try{
@@ -9286,7 +8727,6 @@ function loadMap(){
     if (typeof o.vocCh === "number" && o.vocCh >= -1 && o.vocCh < 16) MIDI.vocCh = o.vocCh;
     if (typeof o.ccCh  === "number" && o.ccCh  >= -1 && o.ccCh  < 16) MIDI.ccCh  = o.ccCh;
     if (typeof o.bassCh === "number" && o.bassCh >= -1 && o.bassCh < 16) MIDI.bassCh = o.bassCh;
-    if (["syn","voc","bass","both"].indexOf(o.keysTo) >= 0) keysTo = o.keysTo;
   }catch(e){}
 }
 function arm(target, el){
@@ -9333,26 +8773,11 @@ function applyCC(cc, val){
 }
 
 
-/* Which section an incoming note channel belongs to:
-     "syn" | "voc"  — this channel belongs to one section outright
-     "both"         — both sections claim it, so it LAYERS
-     "ignore"       — neither wants it
-   Omni (-1) means "anything the other one has not claimed", so an EXPLICIT channel beats
-   Omni. Both Omni, or both on the same explicit channel, layers them — which is a real
-   sound (dry lead doubling a vocoder line) rather than an error state. */
+/* One voice, so one question: is this channel ours? Omni (-1) answers yes to everything.
+   MS·1 needed a three-way arbitration here because three sections shared an instrument;
+   each of them now answers on a channel of its own. */
 function routeFor(ch){
-  /* The bass claims exactly one channel and never Omni — a pedal voice that quietly
-     answered everything would steal the keyboard the first time you switched it on. */
-  if (P.bass && MIDI.bassCh >= 0 && ch === MIDI.bassCh) return "bass";
-  const sOmni = MIDI.synCh < 0, vOmni = MIDI.vocCh < 0;
-  const sWants = sOmni || ch === MIDI.synCh;
-  const vWants = (vOmni || ch === MIDI.vocCh) && !!P.voc;   // a section that is off wants nothing
-  if (!sWants && !vWants) return "ignore";
-  if (sWants && !vWants) return "syn";
-  if (vWants && !sWants) return "voc";
-  if (!sOmni && vOmni) return "syn";                        // explicit beats omni
-  if (!vOmni && sOmni) return "voc";
-  return "both";
+  return (MIDI.synCh < 0 || ch === MIDI.synCh) ? "syn" : "ignore";
 }
 function onMidi(e){
   const d = e.data; if (!d || !d.length) return;
@@ -9400,9 +8825,8 @@ function onMidi(e){
     const cents = (bend/8192) * P.bend * 100;
     const now = ctx ? ctx.currentTime : 0;
     /* the bend belongs to whichever section owns that channel; "both" bends both */
-    if (sec !== "voc" && bendSrc) bendSrc.offset.setTargetAtTime(cents, now, .01);
-    if (sec !== "syn" && bendVoc) bendVoc.offset.setTargetAtTime(cents, now, .01);
-    if (sec !== "voc"){ bendCents = cents; paintNow(); }
+    if (bendSrc) bendSrc.offset.setTargetAtTime(cents, now, .01);
+    bendCents = cents; paintNow();
   }
 }
 
@@ -9435,7 +8859,6 @@ function describe(){
   const i = ports("inputs").length, o = ports("outputs").length;
   const how = "Synth on <b>" + chName(MIDI.synCh) + "</b>, vocoder on <b>"
     + chName(MIDI.vocCh) + "</b>"
-    + (P.bass ? ", bass on <b>" + (MIDI.bassCh < 0 ? "no channel" : chName(MIDI.bassCh)) + "</b>" : "")
     + ", CC on <b>" + chName(MIDI.ccCh) + "</b>.";
   say(i + " input" + (i === 1 ? "" : "s") + " · " + o + " output" + (o === 1 ? "" : "s")
     + " — " + how + " Learn a knob to any CC. Program change 0–19 recalls the factory bank. "
@@ -9638,8 +9061,7 @@ setOctave(0);
 applyParams(FACTORY_DEFAULT);
 loadMap();
 paintRoute();
-segPaint.keysTo();
-paintKeysNote();        // loadMap may have restored a different destination
+/* keysTo and its hint went with the vocoder and bass sections — one voice, one destination */
 refreshPatchList();
 refreshBinds();
 paintMeta();
@@ -9657,10 +9079,7 @@ async function renderPatch(opts){
   const saved = {ctx, master, comp, voiceBus, fxBus, chorusStage, chorusWet, delayNode,
     delayFb, delayWet, verb, verbWet, noiseBuf, lfo, lfoGain, shSrc, analyser, pitchMod,
     filtMod, pwmBus, pwmLfo, ampMod, lfoFade, bendSrc, lfoPitchG, lfoFiltG, lfoAmpG,
-    chorusDry, vocBus, vocOut, modGain, vocBank, sibGain, sibNoise, absCurve,
-    pitchVoc, bendVoc, modComp, modMakeup, modPost, driveMeter, modMeter, bassOut};
-  const savedCarriers = Array.from(carriers.entries());
-  carriers.clear();
+    chorusDry};
   const savedP = Object.assign({}, P);
   const savedActive = Array.from(active);
   active.clear();
@@ -9678,29 +9097,12 @@ async function renderPatch(opts){
     if (lfoFiltG)  lfoFiltG.gain.value = P.lfof*1200;
     if (lfoAmpG)   lfoAmpG.gain.value = P.lfoa;
     if (pwmLfo)    pwmLfo.frequency.value = P.pwmrate;
-    applyChorus(); applyDelay(); applySends(); applyVocoder();
-    /* there is no microphone in an offline render, so a test supplies its own modulator */
-    if (o.modulator){
-      const m = o.modulator(off);
-      if (m) m.connect(modGain);
-    }
-    if (o.bass != null){
-      const bv = buildBass(o.bass, o.vel == null ? 100 : o.vel, 0);
-      if (gate > 0 && gate < dur) bv.release(gate);
-      return await off.startRendering();
-    }
+    applyChorus(); applyDelay(); applySends();
     if (o.chord){
       /* several voices at once, so the poly level budget can be measured rather than hoped at */
       const vs = o.chord.map(n => buildVoice(n, o.vel == null ? 100 : o.vel, 0));
       if (gate > 0 && gate < dur) vs.forEach(v => v.release(gate));
       return await off.startRendering();
-    }
-    if (o.carrier != null){
-      /* render the vocoder path instead of the synth voice */
-      const c = buildCarrier(o.carrier, o.vel == null ? 100 : o.vel, 0);
-      if (gate > 0 && gate < dur) c.release(gate);
-      const buf0 = await off.startRendering();
-      return buf0;
     }
     const v = buildVoice(o.midi == null ? 69 : o.midi, o.vel == null ? 100 : o.vel, 0);
     if (gate > 0 && gate < dur) v.release(gate);
@@ -9718,14 +9120,6 @@ async function renderPatch(opts){
     pwmLfo = saved.pwmLfo; ampMod = saved.ampMod; lfoFade = saved.lfoFade;
     bendSrc = saved.bendSrc; lfoPitchG = saved.lfoPitchG; lfoFiltG = saved.lfoFiltG;
     lfoAmpG = saved.lfoAmpG; chorusDry = saved.chorusDry;
-    vocBus = saved.vocBus; vocOut = saved.vocOut; modGain = saved.modGain;
-    vocBank = saved.vocBank; sibGain = saved.sibGain; sibNoise = saved.sibNoise;
-    absCurve = saved.absCurve; pitchVoc = saved.pitchVoc; bendVoc = saved.bendVoc;
-    bassOut = saved.bassOut;
-    modComp = saved.modComp; modMakeup = saved.modMakeup; modPost = saved.modPost;
-    driveMeter = saved.driveMeter; modMeter = saved.modMeter;
-    carriers.clear();
-    savedCarriers.forEach(([k, v2]) => carriers.set(k, v2));
     Object.keys(savedP).forEach(k => P[k] = savedP[k]);
     savedActive.forEach(v2 => active.add(v2));
   }
@@ -9770,16 +9164,12 @@ window.__pm1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
                 stepEvent, nextSounding, stepSeconds, swungAt, envValueAt,
                 arpSequence, stepNote, toDegree, fromDegree, SCALES,
                 selectStep, withLocks, writeStep,
-                buildCarrier, bandFreq, onMidi, routeFor, MIDI,
-                get keysTo(){ return keysTo; }, set keysTo(v){ keysTo = v; },
-                get carriers(){ return carriers; }, get held(){ return heldNotes; },
+                onMidi, routeFor, MIDI,
+                get held(){ return heldNotes; },
                 get poly(){ return polyVoices; }, MAX_POLY, chordName,
-                get bassHeld(){ return bassHeld; }, get bassVoice(){ return bassVoice; },
                 get outNotes(){ return outNotes; },
-                applyParam, get ctlReg(){ return ctlReg; }, get master(){ return master; }, get modMeter(){ return modMeter; }, paintModMeter, startModMeter, stopModMeter,
-                get bend(){ return {syn:bendSrc && bendSrc.offset.value,
-                                    voc:bendVoc && bendVoc.offset.value}; },
-                get buses(){ return {pitchMod, pitchVoc}; },
+                applyParam, get ctlReg(){ return ctlReg; }, get master(){ return master; }, get bend(){ return {syn:bendSrc && bendSrc.offset.value}; },
+                get buses(){ return {pitchMod}; },
                 get ctx(){ return ctx; }, get active(){ return active; }, ensureAudio};
 });
 /* VC·1 — the vocoder, as its own instrument, with a simple carrier of its own and a

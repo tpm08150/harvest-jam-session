@@ -22,36 +22,10 @@ const FACTORY_DEFAULT = {
   mode:"mono", uni:1, unidet:0, unispread:0, prio:"low", bend:2,
   vela:.3, velf:0,
   chorus:"off", ddiv:"off", dtime:250, dfb:.25, dmix:0, rmix:0,
-  trim:0,
-  /* --- vocoder section. Added in patch v2; older patches simply get these defaults,
-     which is the same "a missing key RESETS it" rule everything else obeys. --- */
-  /* ⚠️ voc* and bass* are PINNED OFF and unreachable — the vocoder is VC·1 and the bass
-     is BS·1. The keys stay so a patch exported from MS·1 still loads and clamps, and the
-     engine behind them is still in this file's neighbours but nothing can reach it. See
-     the handoff: removing it safely is a job of its own, because the three sections were
-     interwoven through the UI layer rather than stacked. */
-  voc:0,               // PINNED OFF — the vocoder is VC·1
-  vocbands:16,         // 8 | 16 | 24 analysis/synthesis pairs
-  vocq:4.5,            // band Q, both banks
-  vocresp:22,          // follower smoothing, Hz — low is smooth, high is articulate
-  vocsib:.35,          // unvoiced path: a pitched carrier cannot make "s" or "t"
-  vocmix:.9,           // vocoder output level
-  vocmod:1,            // modulator input gain
-  voccomp:.75,         // modulator compression — what stops the vocoder needing a hot input
-  carlvl:.8,           // carrier level into the bank
-  /* --- bass section (patch v3). A pedal synth, not a third general-purpose voice: one
-     oscillator plus a square sub, a ladder, and a contour. No LFO, no PWM, no effects
-     sends — a Taurus has none of that either, and a bass wants to stay dry and centred. */
-  bass:0,              // PINNED OFF — the bass is BS·1
-  bwave:"saw",         // saw | square
-  boct:-1,             // octaves below the played note
-  blvl:.85,            // output level
-  bsub:.6,             // square sub, one octave under the oscillator
-  bcut:420,            // ladder cutoff, Hz
-  bres:5,              // resonance, dB into the same mapping the main filter uses
-  benv:2.4,            // filter contour depth, octaves
-  bdec:.35,            // contour decay — the whole shape, filter and release together
-  bglide:0             // seconds per octave
+  trim:0
+  /* The vocoder's and the bass's keys left with their sections. A patch exported from
+     MS·1 still loads — restore() only reads keys this schema declares, so the extras are
+     ignored rather than rejected. */
 };
 
 const FACTORY = {

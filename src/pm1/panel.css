@@ -62,10 +62,6 @@
   border:1px solid rgba(0,0,0,.6);border-radius:0 0 3px 3px;
   left:calc((var(--w) + .69) * (100%/14))}
 /* faint tint = where the LOCAL keyboard is currently pointed */
-.kw.tint-voc{background:linear-gradient(180deg,#f6e6f0,#e0c8da)}
-.kb.tint-voc{background:linear-gradient(180deg,#4a3a45,#2a2028)}
-.kw.tint-bass{background:linear-gradient(180deg,#f7ece1,#e2d0bd)}
-.kb.tint-bass{background:linear-gradient(180deg,#463a30,#28201a)}
 /* lit = a section is actually sounding this note, coloured by WHICH one, so a glance at
    the keyboard says where an incoming MIDI note landed */
 .kw.on{background:linear-gradient(180deg,#cfe0f2,#a9c6e4)}
@@ -149,8 +145,6 @@ input[type="text"]::placeholder{color:#5a646a}
 .r-osc{--stripe:var(--stripe-osc)}
 .r-flt{--stripe:var(--stripe-flt)}
 .r-amp{--stripe:var(--stripe-amp)}
-.r-voc{--stripe:var(--stripe-voc)}
-.r-bass{--stripe:var(--stripe-bass)}
 
 /* ---------- knobs ---------- */
 .knobs{display:grid;grid-template-columns:repeat(var(--kc,4),1fr);gap:8px 6px}
@@ -161,12 +155,10 @@ input[type="text"]::placeholder{color:#5a646a}
 .kface svg{display:block;width:100%;height:100%;overflow:visible}
 .ktrack{fill:none;stroke:var(--groove-deep);stroke-width:4;stroke-linecap:round;stroke-dasharray:75 100}
 .karc{fill:none;stroke:var(--stripe,var(--accent));stroke-width:4;stroke-linecap:round}
-.kbody{fill:url(#kcap);stroke:var(--cap-edge);stroke-width:1}
 .kptr{stroke:var(--chrome-hi);stroke-width:2;stroke-linecap:round}
 .klab{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--silk-dim);text-align:center;line-height:1.2;min-height:22px}
 .kval{font-family:"DM Mono";font-size:10px;color:var(--read);min-height:13px;text-align:center;font-variant-numeric:tabular-nums}
 .kval.fine{color:var(--mint)}
-.knob.dragging .kbody{stroke:var(--mint)}
 .knob .bind{position:absolute;top:-2px;right:-4px;font-family:"DM Mono";font-size:8.5px;color:var(--cap-yellow)}
 .knob.arm{box-shadow:0 0 0 2px var(--cap-yellow) inset}
 
@@ -250,7 +242,6 @@ input[type="text"]::placeholder{color:#5a646a}
   border-top:5px solid var(--stripe-voc);border-left:5px solid transparent}
 .step.sld.lock::after{border-top-color:var(--stripe-voc)}
 /* a knob holding a lock for the selected step */
-.knob.locked .kbody{stroke:var(--stripe-voc);stroke-width:2}
 .knob.locked .klab{color:var(--stripe-voc)}
 .seqlegend{display:flex;gap:14px;flex-wrap:wrap;font-family:"DM Mono";font-size:9px;letter-spacing:.04em;color:var(--read-dim);margin-top:8px}
 .seqlegend i{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:-1px;margin-right:5px}

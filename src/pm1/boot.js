@@ -4,8 +4,7 @@ setOctave(0);
 applyParams(FACTORY_DEFAULT);
 loadMap();
 paintRoute();
-segPaint.keysTo();
-paintKeysNote();        // loadMap may have restored a different destination
+/* keysTo and its hint went with the vocoder and bass sections — one voice, one destination */
 refreshPatchList();
 refreshBinds();
 paintMeta();
@@ -23,10 +22,7 @@ async function renderPatch(opts){
   const saved = {ctx, master, comp, voiceBus, fxBus, chorusStage, chorusWet, delayNode,
     delayFb, delayWet, verb, verbWet, noiseBuf, lfo, lfoGain, shSrc, analyser, pitchMod,
     filtMod, pwmBus, pwmLfo, ampMod, lfoFade, bendSrc, lfoPitchG, lfoFiltG, lfoAmpG,
-    chorusDry, vocBus, vocOut, modGain, vocBank, sibGain, sibNoise, absCurve,
-    pitchVoc, bendVoc, modComp, modMakeup, modPost, driveMeter, modMeter, bassOut};
-  const savedCarriers = Array.from(carriers.entries());
-  carriers.clear();
+    chorusDry};
   const savedP = Object.assign({}, P);
   const savedActive = Array.from(active);
   active.clear();
@@ -44,29 +40,12 @@ async function renderPatch(opts){
     if (lfoFiltG)  lfoFiltG.gain.value = P.lfof*1200;
     if (lfoAmpG)   lfoAmpG.gain.value = P.lfoa;
     if (pwmLfo)    pwmLfo.frequency.value = P.pwmrate;
-    applyChorus(); applyDelay(); applySends(); applyVocoder();
-    /* there is no microphone in an offline render, so a test supplies its own modulator */
-    if (o.modulator){
-      const m = o.modulator(off);
-      if (m) m.connect(modGain);
-    }
-    if (o.bass != null){
-      const bv = buildBass(o.bass, o.vel == null ? 100 : o.vel, 0);
-      if (gate > 0 && gate < dur) bv.release(gate);
-      return await off.startRendering();
-    }
+    applyChorus(); applyDelay(); applySends();
     if (o.chord){
       /* several voices at once, so the poly level budget can be measured rather than hoped at */
       const vs = o.chord.map(n => buildVoice(n, o.vel == null ? 100 : o.vel, 0));
       if (gate > 0 && gate < dur) vs.forEach(v => v.release(gate));
       return await off.startRendering();
-    }
-    if (o.carrier != null){
-      /* render the vocoder path instead of the synth voice */
-      const c = buildCarrier(o.carrier, o.vel == null ? 100 : o.vel, 0);
-      if (gate > 0 && gate < dur) c.release(gate);
-      const buf0 = await off.startRendering();
-      return buf0;
     }
     const v = buildVoice(o.midi == null ? 69 : o.midi, o.vel == null ? 100 : o.vel, 0);
     if (gate > 0 && gate < dur) v.release(gate);
@@ -84,14 +63,6 @@ async function renderPatch(opts){
     pwmLfo = saved.pwmLfo; ampMod = saved.ampMod; lfoFade = saved.lfoFade;
     bendSrc = saved.bendSrc; lfoPitchG = saved.lfoPitchG; lfoFiltG = saved.lfoFiltG;
     lfoAmpG = saved.lfoAmpG; chorusDry = saved.chorusDry;
-    vocBus = saved.vocBus; vocOut = saved.vocOut; modGain = saved.modGain;
-    vocBank = saved.vocBank; sibGain = saved.sibGain; sibNoise = saved.sibNoise;
-    absCurve = saved.absCurve; pitchVoc = saved.pitchVoc; bendVoc = saved.bendVoc;
-    bassOut = saved.bassOut;
-    modComp = saved.modComp; modMakeup = saved.modMakeup; modPost = saved.modPost;
-    driveMeter = saved.driveMeter; modMeter = saved.modMeter;
-    carriers.clear();
-    savedCarriers.forEach(([k, v2]) => carriers.set(k, v2));
     Object.keys(savedP).forEach(k => P[k] = savedP[k]);
     savedActive.forEach(v2 => active.add(v2));
   }
@@ -136,14 +107,10 @@ window.__pm1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
                 stepEvent, nextSounding, stepSeconds, swungAt, envValueAt,
                 arpSequence, stepNote, toDegree, fromDegree, SCALES,
                 selectStep, withLocks, writeStep,
-                buildCarrier, bandFreq, onMidi, routeFor, MIDI,
-                get keysTo(){ return keysTo; }, set keysTo(v){ keysTo = v; },
-                get carriers(){ return carriers; }, get held(){ return heldNotes; },
+                onMidi, routeFor, MIDI,
+                get held(){ return heldNotes; },
                 get poly(){ return polyVoices; }, MAX_POLY, chordName,
-                get bassHeld(){ return bassHeld; }, get bassVoice(){ return bassVoice; },
                 get outNotes(){ return outNotes; },
-                applyParam, get ctlReg(){ return ctlReg; }, get master(){ return master; }, get modMeter(){ return modMeter; }, paintModMeter, startModMeter, stopModMeter,
-                get bend(){ return {syn:bendSrc && bendSrc.offset.value,
-                                    voc:bendVoc && bendVoc.offset.value}; },
-                get buses(){ return {pitchMod, pitchVoc}; },
+                applyParam, get ctlReg(){ return ctlReg; }, get master(){ return master; }, get bend(){ return {syn:bendSrc && bendSrc.offset.value}; },
+                get buses(){ return {pitchMod}; },
                 get ctx(){ return ctx; }, get active(){ return active; }, ensureAudio};

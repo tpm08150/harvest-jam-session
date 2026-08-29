@@ -292,10 +292,8 @@ Object.keys(KNOBS).forEach(host => {
    Anything that changes the SHAPE of the graph (which waveform, whether a sub exists)
    takes effect on the next note, which is how a real DCO board behaves too. Everything
    that is just a number on a running node moves under the note. */
-/* Both sections' voices, so a knob move reaches the vocoder carrier as well as the synth. */
 function eachVoice(fn){
   active.forEach(v => { try{ fn(v); }catch(e){} });
-  carriers.forEach(c => { try{ fn(c); }catch(e){} });
 }
 function eachStack(fn){
   eachVoice(v => (v.stacks || []).forEach(st => { try{ fn(st); }catch(e){} }));
@@ -381,31 +379,8 @@ function applyParam(id){
     }
     case "dtime": case "dfb": case "dmix": applyDelay(); break;
     case "rmix": applySends(); break;
-    case "vocq": case "vocresp": case "vocmix": case "vocmod": case "vocsib":
-    case "voccomp":
-      applyVocoder(); break;
-    /* the bass has one voice, so these are a handful of direct writes rather than a sweep */
-    case "blvl":
-      if (bassVoice) bassVoice.pk.gain.setTargetAtTime(P.blvl, t, .02); break;
-    case "bsub":
-      if (bassVoice) bassVoice.sg.gain.setTargetAtTime(BASS_UNITY * P.bsub, t, .02); break;
-    case "bcut":
-      if (bassVoice) bassVoice.setCutoff(t); break;
-    case "bres":
-      if (bassVoice){
-        const BL = ladder(clampf(P.bres/20, 0, 1));
-        bassVoice.b1.Q.setTargetAtTime(BL.Q1dB, t, .01);
-        bassVoice.b2.Q.setTargetAtTime(BL.Q2dB, t, .01);
-        bassVoice.rg.gain.setTargetAtTime(Math.pow(1 + BL.k, RCOMP - 1), t, .02);
-        bassVoice.setCutoff(t);
-      }
-      break;
-    case "benv":
-      if (bassVoice) bassVoice.fAmt.gain.setTargetAtTime(P.benv*1200, t, .02); break;
-    case "boct":
-      if (bassVoice) bassVoice.setPitch(t, bassVoice.midi, 0); break;
+    /* the vocoder's and the bass's parameters left with their sections — VC·1 and BS·1 */
     case "carlvl":
-      carriers.forEach(c => { try{ c.lvl.gain.setTargetAtTime(P.carlvl, t, .02); }catch(e){} });
       break;
     default: break;
   }

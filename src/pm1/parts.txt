@@ -24,7 +24,7 @@ pm1/audio.js
 pm1/note-layer.js
 pm1/transport-sequencer.js
 pm1/ui.js
-pm1/vocoder.js
+pm1/panel-ui.js
 pm1/patches.js
 pm1/midi.js
 pm1/audio-io.js

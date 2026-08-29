@@ -5,26 +5,13 @@ let ctx = null, master = null, comp = null, voiceBus = null, fxBus = null,
     analyser = null;
 /* Modulation buses. A mono synth has one voice sounding, so these are global rather than
    per-voice: one LFO, one fade-in, one bend, summed once and read by every oscillator.
-     pitchMod  cents -> the synth voice's oscillators   (LFO vibrato + its own bend)
-     pitchVoc  cents -> the vocoder carrier's oscillators (same LFO, its own bend) —
-               separate because on separate MIDI channels, bending the lead must not
-               drag the vocoder chord with it
+     pitchMod  cents -> the voice's oscillators   (LFO vibrato + bend)
      filtMod   cents -> both biquads' .detune     (LFO -> cutoff)
      pwmBus    +-1   -> every pulse delay line    (its own LFO, independent of the main one)
      ampMod    0..1  -> the VCA's tremolo gain */
-let pitchMod = null, pitchVoc = null, filtMod = null, pwmBus = null, pwmLfo = null,
-    ampMod = null, lfoFade = null, bendSrc = null, bendVoc = null,
+let pitchMod = null, filtMod = null, pwmBus = null, pwmLfo = null,
+    ampMod = null, lfoFade = null, bendSrc = null,
     lfoPitchG = null, lfoFiltG = null, lfoAmpG = null, chorusDry = null;
-/* ---- vocoder ----
-     vocBus   every carrier note sums here, PRE-filter: the bank does its own filtering,
-              and running the carrier through the ladder first would eat the very bands
-              the vocoder needs to reproduce
-     modGain  the modulator (mic or line in) after its input trim
-     vocBank  one {analysis, synthesis} pair per band, rebuilt when the count changes */
-let vocBus = null, vocOut = null, modGain = null, modSrc = null, modStream = null,
-    vocBank = [], sibGain = null, sibNoise = null, absCurve = null,
-    modMeter = null, modMeterTimer = null, modPeakHold = 0, modPeakAt = 0,
-    modComp = null, modMakeup = null, modPost = null, driveMeter = null;
 const active = new Set();
 
 /* MS1_UNITY is the linear gain one oscillator at full level reaches at the voice output
@@ -192,51 +179,12 @@ function initAudio(useCtx){
   noiseBuf.pink  = makeNoise("pink");
   noiseBuf.sh    = makeSH();
 
-  /* ---- vocoder buses ----
-     vocOut lands on voiceBus, so the vocoder gets the chorus, delay and reverb the synth
-     voice does — a chorused vocoder is most of the sound. */
-  absCurve = mkAbsCurve(1025);
-  vocBus = ctx.createGain(); vocBus.gain.value = 1;
-  vocOut = ctx.createGain(); vocOut.gain.value = 0;
-  modGain = ctx.createGain(); modGain.gain.value = 0;
-  /* Tapped off the RAW input, before modGain and before the section's on/off — so the
-     meter answers "is signal arriving?" independently of whether the vocoder is set up
-     to use it. It only reads the signal; it never routes it to the output, so watching
-     the meter cannot feed back. Straight out of CS·1's input-meter reasoning. */
-  /* the bass goes straight to the compressor — no chorus, no delay, no reverb. A bass
-     wants to stay dry and centred, and every send here is a way to smear it. */
-  bassOut = ctx.createGain(); bassOut.gain.value = 1;
-  bassOut.connect(comp);
-
-  modMeter = ctx.createAnalyser();
-  modMeter.fftSize = 1024;
-
-  /* ---- modulator compression ----
-     A band follower opens IN PROPORTION to the energy in its band, so without this the
-     vocoder's whole output level tracks how loudly you happen to be speaking — and a quiet
-     line input simply never opens the bands. That is what forces people to crank their
-     preamp. Squashing the modulator first is what every hardware vocoder does, and it buys
-     consistent intelligibility rather than just loudness.
-     A compressor alone only holds peaks DOWN; bringing quiet material UP is the makeup
-     gain, which is why the two are computed together in applyVocoder(). */
-  modComp = ctx.createDynamicsCompressor();
-  modComp.knee.value = 6;
-  modComp.attack.value = .003;
-  modComp.release.value = .10;
-  modMakeup = ctx.createGain(); modMakeup.gain.value = 1;
-  modPost = ctx.createGain(); modPost.gain.value = 1;
-  modGain.connect(modComp); modComp.connect(modMakeup); modMakeup.connect(modPost);
-  /* what actually reaches the band followers, so gain staging is visible not guessed */
-  driveMeter = ctx.createAnalyser(); driveMeter.fftSize = 1024;
-  modPost.connect(driveMeter);
-
-  vocOut.connect(voiceBus);
-  buildVocoder();
-  buildSibilance();
+  /* The vocoder's buses and the bass's dry path both left with their sections — see
+     VC·1 and BS·1. What used to sit here was the only reason this graph knew about
+     either of them. */
 
   /* ---- modulation buses ---- */
   pitchMod = ctx.createGain(); pitchMod.gain.value = 1;
-  pitchVoc = ctx.createGain(); pitchVoc.gain.value = 1;
   filtMod  = ctx.createGain(); filtMod.gain.value = 1;
   ampMod   = ctx.createGain(); ampMod.gain.value = 1;
   /* the LFO's fade-in, ramped from note-on. One voice sounds at a time, so one fade. */
@@ -244,8 +192,6 @@ function initAudio(useCtx){
   /* pitch bend, in cents, summed straight into the pitch bus */
   bendSrc  = ctx.createConstantSource(); bendSrc.offset.value = 0; bendSrc.start();
   bendSrc.connect(pitchMod);
-  bendVoc  = ctx.createConstantSource(); bendVoc.offset.value = 0; bendVoc.start();
-  bendVoc.connect(pitchVoc);
   /* PWM gets its own free-running triangle: a Juno's PWM is not the same LFO that does
      the vibrato, and sharing one makes every pulse patch wobble in pitch too. */
   pwmBus = ctx.createGain(); pwmBus.gain.value = 1;
@@ -256,7 +202,7 @@ function initAudio(useCtx){
   /* LFO destination depths. These hang off lfoFade rather than off the LFO source, so
      startLfo() can rebuild the source for a shape change without re-patching them. */
   lfoPitchG = ctx.createGain(); lfoPitchG.gain.value = P.lfop;          // cents
-  lfoFade.connect(lfoPitchG); lfoPitchG.connect(pitchMod); lfoPitchG.connect(pitchVoc);
+  lfoFade.connect(lfoPitchG); lfoPitchG.connect(pitchMod);
   lfoFiltG = ctx.createGain(); lfoFiltG.gain.value = P.lfof * 1200;     // cents
   lfoFade.connect(lfoFiltG); lfoFiltG.connect(filtMod);
   /* tremolo: ampMod sits at unity and the LFO adds +-lfoa around it */
@@ -268,7 +214,6 @@ function initAudio(useCtx){
   applyChorus();
   applyDelay();
   applySends();
-  applyVocoder();
 }
 
 /* iOS parks the context in "suspended" until a gesture and in "interrupted" after a call
@@ -373,7 +318,7 @@ function schedRelease(param, e, t){
    glide — a linear ramp wanders the width by ~19% and collapses the tone toward a square. */
 function mkStack(voice, det, panPos, f0){
   /* a carrier reads the vocoder's pitch bus, the synth voice reads its own */
-  const pbus = voice.voc ? pitchVoc : pitchMod;
+  const pbus = pitchMod;      // there is one voice type here now
   const out = ctx.createGain(); out.gain.value = 1;
   const pan = ctx.createStereoPanner();
   pan.pan.value = panPos;

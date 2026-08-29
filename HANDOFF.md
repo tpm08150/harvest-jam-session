@@ -1157,29 +1157,41 @@ modulator levels** — the signature of a constant gain error rather than a beha
 difference. `CARRIER_UNITY` is that offset. With it applied VC·1 matches MS·1 to 0.00 and
 −0.01 dB, landing at −24.84 / −24.18 dBFS.
 
-### ⚠️ PM·1 still contains the vocoder and bass ENGINE, unreachable
+### The orphaned engine is out
 
-This is the one loose end and it is deliberate. The three sections were interwoven through
-MS·1's **UI layer** rather than stacked — roughly 330 references across seven files — and a
-first attempt to excise them by pattern produced two syntax errors and a half-removed
-vocoder before it was abandoned and redone.
+PM·1 shipped for one commit with the vocoder and bass engine present but unreachable, and
+that is now removed. **605 lines out of the built file** (5559 → 4954), and 19 keys out of
+the patch schema (81 → 62).
 
-What PM·1 has now:
+The order mattered, and it is the order to repeat for anything like this:
 
-- the vocoder and bass **racks, channel selectors and keyboard-destination switch removed**
-  from the panel
-- `voc` and `bass` **pinned to 0** in the schema, with nothing on the panel able to set them
-- their knob groups skipped, because their hosts are absent
-- MIDI reduced to one note channel and one control channel
-- the engine code still present behind all of that, and unreachable
+1. **Make it unreachable** — panels, controls, channels, routing — and prove nothing can
+   turn it on.
+2. **Take a measured baseline** while it is still there. Five renders per patch, averaged,
+   because the harness is stochastic.
+3. **Remove it in blocks, building between each**, and let the browser find the next
+   dangling reference rather than guessing at the whole set up front.
+4. **Re-measure against the baseline.**
 
-**Proof it is inert:** all twenty factory patches render within **0.24 dB** of MS·1's, mean
-0.072 dB — comfortably inside the level harness's own stochastic spread. The voice engine
-is untouched.
+Result: all twenty patches within **0.528 dB** of the pre-removal baseline, mean 0.085 —
+both draws from the harness's own spread, which is up to 1.29 dB run to run. Live voice
+plays, no console errors on a fresh tab, and every other instrument and the studio load
+clean.
 
-Removing the orphaned engine is a job of its own. The safe order is what was followed here:
-make it unreachable, prove that by measurement, then delete with the same proof available
-as a regression test.
+⚠️ **What made the first attempt fail was cutting by line and by pattern.** Deleting every
+line that mentioned a symbol broke multi-line statements twice, and a regex that guessed
+where a comment began ate half a function. What worked was matching braces to find whole
+syntactic blocks, and removing one thing at a time with a build after each.
+
+Things the removal simplified rather than merely deleted, each worth keeping:
+
+- `routeFor()` was a three-way arbitration between synth, vocoder and bass over Omni and
+  explicit channels. One voice means one question, and it is one line.
+- `isLatched()` looked in three places for a note; there is one place now.
+- Pitch bend had two destinations, because bending the lead must not drag the vocoder
+  chord. There is one.
+- `seg()` returns a no-op painter when its control is absent — added during the split, and
+  the reason the last few removals did not throw at boot.
 
 ### Other notes
 

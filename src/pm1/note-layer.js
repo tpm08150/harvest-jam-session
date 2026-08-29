@@ -19,137 +19,11 @@ const downKeys = new Set();
 /* Always the synth: MS·1 needed a choice because one keyboard served three sections, and
    PM·1 has one voice. Kept as a variable rather than inlined so the routing code below
    reads unchanged against MS·1, which is what makes this diff reviewable. */
-let keysTo = "syn";
+
 /* While the arpeggiator runs, held notes are INPUT to it, not notes in their own right:
    the arp is already mirroring what actually sounds, so sending the held keys as well
    would put a sustained note out under it that nothing ever releases. */
-/* ---- the bass section ----
-   A pedal synth: one oscillator, a square sub an octave under it, the same ladder as the
-   main filter, and one contour knob that shapes filter and release together. Monophonic
-   and lowest-note priority, because that is what a pedalboard is. It bypasses the chorus,
-   delay and reverb entirely — a bass wants to stay dry and centred, and a Taurus has no
-   sends either. */
-/* Measured: 0.22 put the section at -23.8 dBFS, about 1.8 dB under the -22 the bass
-   presets are trimmed to, so the pedal voice sat quietly under everything else. */
-const BASS_UNITY = 0.27;
-let bassOut = null, bassVoice = null;
-const bassHeld = [];
-
-function buildBass(midi, vel, t){
-  const v = {t0:t, midi, released:false};
-  const f0 = mtof(midi) * Math.pow(2, P.boct);
-  const mix = ctx.createGain(); mix.gain.value = 1;
-
-  const o = ctx.createOscillator();
-  o.type = P.bwave === "square" ? "square" : "sawtooth";
-  o.frequency.value = f0;
-  const og = ctx.createGain(); og.gain.value = BASS_UNITY;
-  o.connect(og); og.connect(mix); o.start(t);
-
-  const sub = ctx.createOscillator();
-  sub.type = "square"; sub.frequency.value = f0/2;
-  const sg = ctx.createGain(); sg.gain.value = BASS_UNITY * P.bsub;
-  sub.connect(sg); sg.connect(mix); sub.start(t);
-
-  const L = ladder(clampf(P.bres/20, 0, 1));
-  const b1 = ctx.createBiquadFilter(); b1.type = "lowpass"; b1.Q.value = L.Q1dB;
-  const b2 = ctx.createBiquadFilter(); b2.type = "lowpass"; b2.Q.value = L.Q2dB;
-  const rg = ctx.createGain(); rg.gain.value = Math.pow(1 + L.k, RCOMP - 1);
-  const vca = ctx.createGain(); vca.gain.value = 0;
-  mix.connect(b1); b1.connect(b2); b2.connect(rg); rg.connect(vca); vca.connect(bassOut);
-
-  v.setCutoff = function(t2){
-    const base = clampf(P.bcut, 20, ctx.sampleRate * 0.45 / L.rho2);
-    b1.frequency.setTargetAtTime(base * L.rho1, t2, .01);
-    b2.frequency.setTargetAtTime(base * L.rho2, t2, .01);
-  };
-  v.setCutoff(t);
-
-  /* contour -> cutoff, in cents, exactly as the main filter does it */
-  const fEG = ctx.createConstantSource(); fEG.offset.value = 0; fEG.start(t);
-  const fAmt = ctx.createGain(); fAmt.gain.value = P.benv * 1200;
-  fEG.connect(fAmt); fAmt.connect(b1.detune); fAmt.connect(b2.detune);
-
-  const aEG = ctx.createConstantSource(); aEG.offset.value = 0; aEG.start(t);
-  const pk = ctx.createGain();
-  pk.gain.value = P.blvl * (0.7 + 0.3 * (vel/127));
-  aEG.connect(pk); pk.connect(vca.gain);
-
-  /* One Decay knob drives both: the filter plucks down to a low sustain, the amp holds
-     while the pedal is down and releases in proportion. That is the whole contour. */
-  const fEnv = {A:.004, D:Math.max(.01, P.bdec), S:.12,
-                R:Math.max(.03, P.bdec*.6), t0:t, tOff:null, vOff:0};
-  const aEnv = {A:.004, D:Math.max(.05, P.bdec*2), S:1,
-                R:Math.max(AMP_REL_MIN, P.bdec*.6), t0:t, tOff:null, vOff:0};
-  schedEnv(fEG.offset, fEnv, t, 0);
-  schedEnv(aEG.offset, aEnv, t, 0);
-
-  v.nodes = [mix, og, sg, b1, b2, rg, vca, pk, fAmt];
-  v.o = o; v.sub = sub; v.og = og; v.sg = sg; v.b1 = b1; v.b2 = b2; v.rg = rg;
-  v.pk = pk; v.fAmt = fAmt; v.fEG = fEG; v.aEG = aEG; v.fEnv = fEnv; v.aEnv = aEnv;
-
-  v.setPitch = function(t2, m, glideT){
-    v.midi = m;
-    const f = mtof(m) * Math.pow(2, P.boct);
-    if (glideT > 0){
-      [[o, f], [sub, f/2]].forEach(([node, target]) => {
-        node.frequency.cancelScheduledValues(t2);
-        node.frequency.setValueAtTime(Math.max(1e-4, node.frequency.value), t2);
-        node.frequency.exponentialRampToValueAtTime(Math.max(1e-4, target), t2 + glideT);
-      });
-    } else { o.frequency.setValueAtTime(f, t2); sub.frequency.setValueAtTime(f/2, t2); }
-  };
-  v.retrigger = function(t2, m, vel2, glideT){
-    v.setPitch(t2, m, glideT);
-    pk.gain.setTargetAtTime(P.blvl * (0.7 + 0.3*(vel2/127)), t2, .005);
-    const a0 = envValueAt(aEnv, t2), f0v = envValueAt(fEnv, t2);
-    aEnv.t0 = t2; aEnv.tOff = null; fEnv.t0 = t2; fEnv.tOff = null;
-    schedEnv(aEG.offset, aEnv, t2, a0);
-    schedEnv(fEG.offset, fEnv, t2, f0v);
-  };
-  v.release = function(t2){
-    if (v.released) return;
-    v.released = true;
-    aEnv.R = Math.max(AMP_REL_MIN, P.bdec*.6);      // read at release, like everything else
-    fEnv.R = Math.max(.03, P.bdec*.6);
-    beginRelease(aEnv, t2); beginRelease(fEnv, t2);
-    schedRelease(aEG.offset, aEnv, t2);
-    schedRelease(fEG.offset, fEnv, t2);
-    const end = t2 + 2*aEnv.R + .05;
-    try{ o.stop(end); sub.stop(end); fEG.stop(end); aEG.stop(end); }catch(e){}
-    setTimeout(() => v.nodes.forEach(n => { try{ n.disconnect(); }catch(e){} }),
-      Math.max(60, (end - ctx.currentTime)*1000 + 120));
-  };
-  return v;
-}
-
-const bassPick = () => bassHeld.length ? bassHeld.slice().sort((a,b)=>a.midi-b.midi)[0] : null;
-
-function bassOn(m, vel, t){
-  ensureAudio();
-  if (bassHeld.some(n => n.midi === m)) return;
-  bassHeld.push({midi:m, vel:vel});
-  const target = bassPick();
-  if (!bassVoice || bassVoice.released) bassVoice = buildBass(target.midi, target.vel, t);
-  else bassVoice.retrigger(t, target.midi, target.vel,
-         P.bglide > 0 ? P.bglide * Math.abs(target.midi - bassVoice.midi)/12 : 0);
-  if (mirrorSyn()) sendNoteOn(m, t, vel);
-}
-function bassOff(m, t){
-  const i = bassHeld.findIndex(n => n.midi === m);
-  if (i >= 0) bassHeld.splice(i, 1);
-  sendNoteOff(m, t);
-  const target = bassPick();
-  if (!target){ if (bassVoice) bassVoice.release(t); bassVoice = null; }
-  else if (bassVoice && !bassVoice.released)
-    bassVoice.setPitch(t, target.midi,
-      P.bglide > 0 ? P.bglide * Math.abs(target.midi - bassVoice.midi)/12 : 0);
-}
-function allBassOff(t){
-  bassHeld.length = 0;
-  if (bassVoice) bassVoice.release(t);
-  bassVoice = null;
-}
+/* The bass section is BS·1 now. */
 
 /* ---- polyphony ----
    The mono path keeps ONE voice and re-pitches it; poly keeps one per held note. They are
@@ -223,86 +97,8 @@ const pick = () => {
 const glideTime = (from, to) =>
   (P.gmode === "off" || !P.glide) ? 0 : P.glide * Math.abs(to - from)/12;
 
-/* ---- the vocoder carrier ----
-   Paraphonic, not polyphonic: every note gets its own oscillators and amp envelope, but
-   they all sum into ONE bank. That is how the hardware ones work, and it is why six-note
-   vocoder chords cost the same as one note — the expensive part is the bank, and it is
-   shared. There is no ladder here on purpose; the bank is the filter. */
-const MAX_CARRIERS = 6;
-const carriers = new Map();          // midi -> carrier record, in press order
+/* The vocoder carrier is VC·1 now. */
 
-function buildCarrier(midi, vel, t){
-  const v = {t0:t, midi, released:false, voc:true};
-  const st = mkStack(v, 0, 0, mtof(midi));
-  const env = ctx.createGain(); env.gain.value = 0;
-  st.pan.connect(env);
-  const lvl = ctx.createGain(); lvl.gain.value = P.carlvl;
-  env.connect(lvl); lvl.connect(vocBus);
-
-  const eg = ctx.createConstantSource(); eg.offset.value = 0; eg.start(t);
-  const pk = ctx.createGain();
-  pk.gain.value = 1 - P.vela + P.vela*(vel/127);
-  eg.connect(pk); pk.connect(env.gain);
-
-  const e = {A:Math.max(.0005, P.aa), D:Math.max(.005, P.ad), S:clampf(P.as,0,1),
-             R:Math.max(AMP_REL_MIN, P.ar), t0:t, tOff:null, vOff:0};
-  schedEnv(eg.offset, e, t, 0);
-
-  v.stack = st; v.stacks = [st]; v.eg = eg; v.ampEG = eg; v.e = e; v.lvl = lvl; v.aEnv = e;
-  v.release = function(t2){
-    if (v.released) return;
-    v.released = true;
-    e.R = Math.max(AMP_REL_MIN, P.ar);          // read at release, not at note-on
-    beginRelease(e, t2);
-    schedRelease(eg.offset, e, t2);
-    const end = t2 + 2*e.R + .05;
-    st.stop(end);
-    try{ eg.stop(end); }catch(err){}
-    setTimeout(() => {
-      try{ st.pan.disconnect(); }catch(err){}
-      st.parts.forEach(pt => {
-        try{ if (pt.pwmDepth) pwmBus.disconnect(pt.pwmDepth); }catch(err){}
-        try{ if (pt.o) (pt.pbus||pitchVoc).disconnect(pt.o.detune); }catch(err){}
-      });
-      [env, lvl, pk].forEach(n => { try{ n.disconnect(); }catch(err){} });
-    }, Math.max(60, (end - ctx.currentTime)*1000 + 120));
-  };
-  return v;
-}
-
-function carrierOn(midi, vel, t){
-  ensureAudio();
-  const old = carriers.get(midi);
-  if (old) old.release(t);
-  if (carriers.size >= MAX_CARRIERS){
-    const oldest = carriers.keys().next().value;   // Map keeps insertion order
-    const c = carriers.get(oldest);
-    if (c) c.release(t);
-    carriers.delete(oldest);
-    sendNoteOff(oldest, t);                        // stolen voices have to be released out too
-  }
-  carriers.set(midi, buildCarrier(midi, vel, t));
-  /* The carrier chord goes out as well — it is played, it is sounding, and doubling a
-     vocoder chord on external gear is worth having. Everything leaves on the one Out ch. */
-  sendNoteOn(midi, t, vel);
-}
-function carrierOff(midi, t){
-  const c = carriers.get(midi);
-  if (!c) return;
-  c.release(t);
-  carriers.delete(midi);
-  sendNoteOff(midi, t);
-}
-function allCarriersOff(t){
-  carriers.forEach((c, n) => { try{ c.release(t); sendNoteOff(n, t); }catch(e){} });
-  carriers.clear();
-}
-
-/* Hold ACCUMULATES only where more than one note can actually be heard: poly, the vocoder's
-   paraphonic carrier, and the arp — whose entire purpose is to read a held chord. With a
-   single mono voice, or a sequencer that takes exactly one transposition, latching a second
-   note only adds an entry that fights the first over one voice, and the older one becomes
-   unreachable. There it REPLACES instead. */
 const latchReplaces = () => P.mode !== "poly" && SEQ.motion !== "arp";
 
 /* Drop notes that are latched — sounding but no longer physically held. Keys still under a
@@ -316,27 +112,20 @@ function releaseLatched(t, keep){
   });
 }
 
-/* Is this note already sounding in the section the key would reach? */
-function isLatched(m, sec){
-  const inSyn = heldNotes.some(n => n.midi === m) || polyVoices.has(m);
-  const inVoc = carriers.has(m);
-  if (sec === "bass") return bassHeld.some(n => n.midi === m);
-  if (sec === "voc") return inVoc;
-  if (sec === "both") return inVoc || inSyn;
-  return inSyn;
+/* Is this note already sounding? One voice now, so there is one place to look. */
+function isLatched(m){
+  return heldNotes.some(n => n.midi === m) || polyVoices.has(m);
 }
 function noteOn(midi, vel, when, forceSec){
   ensureAudio();
   const t = when == null ? ctx.currentTime + .002 : when;
   const m = clampf(midi + octave*12, 0, 127);
-  /* forceSec is what MIDI decided from the channel; without one this is a local key. */
-  const sec = forceSec || keysTo;
   const wasDown = downKeys.has(m);
   downKeys.add(m);
   /* Hold is a toggle PER NOTE: pressing a note that is already latched releases just that
      one. Done by running the ordinary note-off path with latch momentarily off, so there
      is one release routine rather than a second copy of it here. */
-  if (latch && !wasDown && isLatched(m, sec)){
+  if (latch && !wasDown && isLatched(m)){
     latch = false;
     noteOff(midi, when, forceSec);
     latch = true;
@@ -346,15 +135,6 @@ function noteOn(midi, vel, when, forceSec){
   /* A key that is already down cannot be pressed again — a second note-on for the same
      pitch is a duplicate message, not a new gesture, and some controllers do send them.
      `wasDown` is what distinguishes that from a deliberate re-press of a latched note. */
-  if (sec === "bass"){
-    if (P.bass) bassOn(m, vel, t);
-    paintNow(); paintKeys(); return;
-  }
-  if (sec === "voc" || sec === "both"){
-    if (!carriers.has(m)) carrierOn(m, vel, t);
-    if (sec === "voc"){ paintKeys(); return; }
-    /* "both" falls through: the same note also sounds the synth section */
-  }
   if (heldNotes.some(n => n.midi === m)) return;
   if (latch && latchReplaces()) releaseLatched(t, m);
   heldNotes.push({midi:m, vel:vel});
@@ -414,22 +194,6 @@ function noteOff(midi, when, forceSec){
   const t = when == null ? ctx.currentTime + .002 : when;
   const m = clampf(midi + octave*12, 0, 127);
   downKeys.delete(m);          // cleared even when Hold swallows the release
-  /* The same pitch can be sounding in BOTH sections at once, so an explicit section has to
-     win over "is there a carrier on this note" — otherwise the synth's note-off gets eaten
-     by the vocoder's copy of the same pitch. */
-  const sec = forceSec || keysTo;
-  if (sec === "bass"){
-    if (!latch) bassOff(m, t);
-    paintNow(); paintKeys(); return;
-  }
-  if (sec === "voc" || sec === "both"){
-    if (!latch) carrierOff(m, t);
-    if (sec === "voc"){ paintKeys(); return; }
-  } else if (!forceSec && carriers.has(m)){
-    /* a carrier left over from a previous Keys-play setting still has to be releasable */
-    if (!latch) carrierOff(m, t);
-    paintKeys(); return;
-  }
   /* Hold keeps the note in the HELD set, not merely sounding: an arp latches by continuing
      to read heldNotes, so removing it here would silently empty the arp's input. */
   if (latch){ paintKeys(); return; }
@@ -473,9 +237,7 @@ function allNotesOff(){
   if (SEQ.autoStart && SEQ.playing){ stopPlay(); SEQ.autoStart = false; }
   latch = false;
   const t = ctx ? ctx.currentTime : 0;
-  allCarriersOff(t);
   allPolyOff(t);
-  allBassOff(t);
   sendAllOff(t);
   synOut = null;
   if (curVoice) curVoice.release(t);

@@ -101,7 +101,7 @@ function midiPanic(){
 function saveMap(){
   try{ localStorage.setItem(MAP_KEY, JSON.stringify({ccs:[...ccMap],
     synCh:MIDI.synCh, vocCh:MIDI.vocCh, ccCh:MIDI.ccCh, bassCh:MIDI.bassCh,
-    keysTo:keysTo})); }catch(e){}
+  })); }catch(e){}
 }
 function loadMap(){
   try{
@@ -112,7 +112,6 @@ function loadMap(){
     if (typeof o.vocCh === "number" && o.vocCh >= -1 && o.vocCh < 16) MIDI.vocCh = o.vocCh;
     if (typeof o.ccCh  === "number" && o.ccCh  >= -1 && o.ccCh  < 16) MIDI.ccCh  = o.ccCh;
     if (typeof o.bassCh === "number" && o.bassCh >= -1 && o.bassCh < 16) MIDI.bassCh = o.bassCh;
-    if (["syn","voc","bass","both"].indexOf(o.keysTo) >= 0) keysTo = o.keysTo;
   }catch(e){}
 }
 function arm(target, el){
@@ -159,26 +158,11 @@ function applyCC(cc, val){
 }
 
 
-/* Which section an incoming note channel belongs to:
-     "syn" | "voc"  — this channel belongs to one section outright
-     "both"         — both sections claim it, so it LAYERS
-     "ignore"       — neither wants it
-   Omni (-1) means "anything the other one has not claimed", so an EXPLICIT channel beats
-   Omni. Both Omni, or both on the same explicit channel, layers them — which is a real
-   sound (dry lead doubling a vocoder line) rather than an error state. */
+/* One voice, so one question: is this channel ours? Omni (-1) answers yes to everything.
+   MS·1 needed a three-way arbitration here because three sections shared an instrument;
+   each of them now answers on a channel of its own. */
 function routeFor(ch){
-  /* The bass claims exactly one channel and never Omni — a pedal voice that quietly
-     answered everything would steal the keyboard the first time you switched it on. */
-  if (P.bass && MIDI.bassCh >= 0 && ch === MIDI.bassCh) return "bass";
-  const sOmni = MIDI.synCh < 0, vOmni = MIDI.vocCh < 0;
-  const sWants = sOmni || ch === MIDI.synCh;
-  const vWants = (vOmni || ch === MIDI.vocCh) && !!P.voc;   // a section that is off wants nothing
-  if (!sWants && !vWants) return "ignore";
-  if (sWants && !vWants) return "syn";
-  if (vWants && !sWants) return "voc";
-  if (!sOmni && vOmni) return "syn";                        // explicit beats omni
-  if (!vOmni && sOmni) return "voc";
-  return "both";
+  return (MIDI.synCh < 0 || ch === MIDI.synCh) ? "syn" : "ignore";
 }
 function onMidi(e){
   const d = e.data; if (!d || !d.length) return;
@@ -226,9 +210,8 @@ function onMidi(e){
     const cents = (bend/8192) * P.bend * 100;
     const now = ctx ? ctx.currentTime : 0;
     /* the bend belongs to whichever section owns that channel; "both" bends both */
-    if (sec !== "voc" && bendSrc) bendSrc.offset.setTargetAtTime(cents, now, .01);
-    if (sec !== "syn" && bendVoc) bendVoc.offset.setTargetAtTime(cents, now, .01);
-    if (sec !== "voc"){ bendCents = cents; paintNow(); }
+    if (bendSrc) bendSrc.offset.setTargetAtTime(cents, now, .01);
+    bendCents = cents; paintNow();
   }
 }
 
@@ -261,7 +244,6 @@ function describe(){
   const i = ports("inputs").length, o = ports("outputs").length;
   const how = "Synth on <b>" + chName(MIDI.synCh) + "</b>, vocoder on <b>"
     + chName(MIDI.vocCh) + "</b>"
-    + (P.bass ? ", bass on <b>" + (MIDI.bassCh < 0 ? "no channel" : chName(MIDI.bassCh)) + "</b>" : "")
     + ", CC on <b>" + chName(MIDI.ccCh) + "</b>.";
   say(i + " input" + (i === 1 ? "" : "s") + " · " + o + " output" + (o === 1 ? "" : "s")
     + " — " + how + " Learn a knob to any CC. Program change 0–19 recalls the factory bank. "
