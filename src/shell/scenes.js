@@ -43,7 +43,12 @@ const subs = [];
    INSIDE its scheduling loop, so the change is accurate to the grid rather than 200 ms
    late behind the lookahead. */
 let quantum = "pattern";
-let patternBars = 4;                  // CS·1 keeps this current
+/* ⚠️ The pattern length is the PAGE's, set in the Scenes head and drawn by the bar counter
+   there. It used to be whatever CS·1's progression happened to be, which made the boundary
+   circular for CS·1 itself: bringing it in meant waiting for a seam defined by the thing
+   that was not playing yet. A number you set is one every instrument, CS·1 included, can
+   arrive at the same way. */
+let patternBars = 4;
 const lastSeen = new Map();           // id -> the time of the last step it scheduled
 
 function setQuantum(q){
@@ -53,6 +58,7 @@ function setQuantum(q){
 }
 function setPatternBars(n){
   patternBars = Math.max(1, n | 0);
+  notify();
 }
 function quantumSeconds(){
   const bar = 4 * Patchwork.clock.beatSeconds();
@@ -117,6 +123,19 @@ function restore(id){
   if (row == null || !rows[row] || !playing(id)) return;
   if (!rows[row].cells[id]) return;
   put(row, id);
+  notify();
+}
+
+/* Replace the whole bank. A session sends the rows entire rather than diffing them —
+   at this size the diff costs more than the copy, and a full snapshot cannot drift.
+   Deep-copied on the way in for the same reason capture() is: a shared reference would
+   make every client's grid the same object as the message it arrived in. */
+function loadRows(next){
+  if (!Array.isArray(next)) return;
+  rows.forEach((r, i) => {
+    const src = next[i];
+    r.cells = src && src.cells ? JSON.parse(JSON.stringify(src.cells)) : {};
+  });
   notify();
 }
 
@@ -274,6 +293,10 @@ return {register, store, storeAll, clear, fire, take, onChange, playing, start,
         get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
         get queued(){ return new Map(queued); },
         get onRow(){ return new Map(onRow); },
-        live, restore,
+        live, restore, loadRows,
+        /* Nothing here can see an instrument's own Play button. The transports are the
+           instruments' and they change without telling the model, so a caller that has
+           just moved one says so — the same signal record.changed() is. */
+        changed: notify,
         has(row, id){ return !!(rows[row] && rows[row].cells[id]); }};
 })();

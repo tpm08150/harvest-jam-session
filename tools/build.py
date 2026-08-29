@@ -67,7 +67,7 @@ def audit():
 # sizes the rack by it, and a panel has to be allowed to lay ITSELF out differently while
 # it is on — which is a rule about that panel's own blocks, so it belongs in that panel's
 # sheet rather than in the shell reaching in after it.
-PANEL_CLASSES = {"unit", "focused", "armed", "face"} | set(APPS)
+PANEL_CLASSES = {"unit", "focused", "armed", "face", "hosted"} | set(APPS)
 
 
 def collisions():

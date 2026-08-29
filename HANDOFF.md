@@ -1460,6 +1460,62 @@ LP·1 answers for its own column. It has no scene row, so `scenes.onRow` has nev
 it — the record spec grows a `liveSlot()` instead, and the live grid asks a slot track
 which slot it is working out of rather than asking the scene model.
 
+### ⚠️ A sequencer must not drive a keyboard
+
+BS·1's sequencer called `noteOn()`/`noteOff()` — the **live-keyboard** path, with a
+held-note map and lowest-note priority — and scheduled the note-off on a `setTimeout`. That
+runs two time domains at once: note-ons placed on the audio clock up to 200 ms ahead,
+note-offs landing whenever a main-thread timer got round to it.
+
+So the scheduler ran the next step's `noteOn` while the previous note was still in `held`,
+`pick()` returned the lower of the two, and the higher note did not sound until the older
+note's **timer** fired — at wall time, off the grid entirely.
+
+| BS·1 at 1/8, alternating low and high | onset intervals |
+| --- | --- |
+| before | `183, 318, 182, 317, 184, 316…` — spread **136 ms** |
+| after | `252, 247, 253, 250, 249…` — spread **6 ms**, the sampling floor |
+
+Consistently swung, because in a line that alternates it is always the same note of the
+pair that loses the priority comparison — which is why some steps sounded right and the
+fault read as "sometimes it triggers correctly". `held` reached size 2 in **28%** of
+samples; in a monophonic sequencer it is 0 or 1 by definition.
+
+The fix is the shape PM·1's sequencer has always had, which is why PM·1 never had this:
+the sequencer drives the **voice** directly and schedules the release at an audio time.
+Nothing in it touches `held` — that map is the keyboard's, and a sequencer is not a pair of
+hands. Verified with a voice count rather than by ear: two plain steps build 2 voices a
+bar, a slide builds 1 (it glides), a tie builds 1.
+
+**VC·1 had the identical fault** and it was invisible: paraphonic, so nothing loses a
+priority comparison and only note *lengths* wandered. Fixed the same way.
+
+⚠️ **The note readout had to move to the clock too.** `cur` is now built up to 200 ms early
+and marked released the moment its end is scheduled, so it is no longer a description of
+what you can hear. `paintNow()` reads `playingStep()` while the sequencer runs — the same
+source the step grid's playhead uses.
+
+### Arming lives on the plate
+
+Six arm buttons in a row above the live grid put the choice of *what you are recording* six
+columns away from the instrument you were playing, and made the grid's header a control
+panel rather than a set of labels. `record.mount()` injects one per plate instead — the
+arrangement `faces.js` uses for the Panel button, so an instrument added later gets it
+without being told to. It is on the face as well as the panel, because arming is a
+performance decision.
+
+### A stop for the launcher
+
+`Patchwork.launch.stopAll()` presses each instrument's own Play, the way the live page's
+master already did, so whatever a panel does when it stops happens here too. A slot track
+has no Play in the rack sense, so LP·1 offers `stop()` through its record spec — otherwise
+a master stop leaves the looper running.
+
+⚠️ **An instrument's own Play button does not reach the scene model**, so a cell stayed
+ringed after its instrument had stopped. This predates the button — it arrived with the
+ring. `scenes.changed()` covers the explicit case immediately, and the launcher now carries
+the same 400 ms repaint the live page has always had, for the same reason.
+
 ### One computer keyboard, for every instrument
 
 PM·1 grew one and the other four did not, so "playable without hardware" was true of exactly

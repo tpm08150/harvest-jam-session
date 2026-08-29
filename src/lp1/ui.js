@@ -83,7 +83,7 @@ function paintState(){
      without being in the second */
   dubBtn.classList.toggle("on", LP.dubOn);
   dubBtn.classList.toggle("dubbing", m === "dub");
-  $$("#click button").forEach(b => b.classList.toggle("on", (b.dataset.c === "on") === LP.click));
+  $$("#click button").forEach(b => b.classList.toggle("on", (b.dataset.c === "on") === Patchwork.click.on));
   cutEl.textContent = LP.bpmAtRecord ? (LP.bars + " bars · cut at " + LP.bpmAtRecord + " bpm") : "—";
   /* A loop cut at another tempo no longer fits the bar, and silently drifting is worse
      than being told. */
@@ -174,11 +174,12 @@ $("#bars").addEventListener("change", e => {
 
 $("#click").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  setClick(b.dataset.c === "on");
-  say(LP.click
-    ? "Click on. It is on LP·1's strip, so it is never recorded into a take."
+  Patchwork.click.set(b.dataset.c === "on");
+  say(Patchwork.click.on
+    ? "Click on. It is on its own strip, so it is never recorded into a take."
     : "Click off.");
 });
+Patchwork.click.onChange(paintState);
 
 $("#mon").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -245,7 +246,7 @@ mountFader("#levelF", () => LP.level, v => {
 });
 /* The click is loud on purpose — it has to cut through what you are playing to — so it
    gets its own level rather than riding the loop's. */
-mountFader("#clickF", () => LP.clickLevel, setClickLevel);
+mountFader("#clickF", () => Patchwork.click.level, v => Patchwork.click.setLevel(v));
 
 /* Space records, and only when this panel owns the keyboard. */
 onKey("keydown", e => {

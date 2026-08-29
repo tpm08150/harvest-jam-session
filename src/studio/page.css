@@ -58,6 +58,19 @@ body{
   font-size:21px;font-weight:600;letter-spacing:.34em;text-transform:uppercase;
   color:#e4e9ec;
 }
+/* ---- the jam control ----
+   In the page's own chrome, not the launcher's: whether you are playing alone is a fact
+   about the page, the way the view switch and the face toggle are. */
+.st-jam{display:flex;align-items:center;gap:10px;margin-left:auto}
+.st-jam-btn{padding:8px 14px;font-size:11px}
+.st-jam-btn.st-on{
+  background:linear-gradient(180deg,#5fd8b4,var(--mint));color:#06231a;border-color:#2f8f74;
+}
+.st-jam-who{
+  font-family:"DM Mono",ui-monospace,monospace;
+  font-size:10.5px;letter-spacing:.06em;color:var(--silk-dim);
+}
+.st-jam-who b{color:var(--mint);font-weight:400}
 .st-head .st-hint{
   font-family:"DM Mono",ui-monospace,monospace;
   font-size:10.5px;letter-spacing:.06em;color:var(--silk-dim);
@@ -72,6 +85,10 @@ body{
 /* One pip per bar of the pattern, the current one lit. Deliberately not a moving bar:
    what you need to know before firing is WHICH bar, and how many are left — a count is
    read at a glance and a sweep has to be estimated. */
+.st-clickrow{display:flex;gap:8px;align-items:center}
+/* Narrow on purpose: the level is a trim, not a mix control, and the head is already
+   carrying the tempo, the quantum, the pattern length and the bar counter. */
+.st-lvl{width:74px;accent-color:var(--mint);height:22px;cursor:pointer}
 .st-bars{display:flex;gap:4px;align-items:center;height:26px}
 .st-bar{
   display:block;width:14px;height:6px;border-radius:2px;
@@ -229,6 +246,13 @@ body.living .st-seg#stFaces{display:none}
   box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 2px 0 #1c2124;
 }
 .st-xport.st-on{background:linear-gradient(180deg,#5fd8b4,var(--mint));color:#06231a;border-color:#2f8f74}
+/* The launcher's stop. Sized to sit in the head beside the tempo, and inert while nothing
+   is playing — a live control that would do nothing reads worse than a dim one. */
+.st-stop{padding:8px 14px;font-size:11px}
+.st-stop:disabled{opacity:.35;cursor:default;box-shadow:none}
+.st-stop.st-live{border-color:#8c2a17;color:#ffd9d0;
+  background:linear-gradient(180deg,#a83c26,#7d2b19)}
+.st-stop.st-live:hover{border-color:var(--cap-red);color:#fff}
 .st-rec.st-on{
   background:linear-gradient(180deg,#ec6146,var(--cap-red));color:#fff2ee;border-color:#8c2a17;
   animation:st-rec-pulse 1.1s ease-in-out infinite;

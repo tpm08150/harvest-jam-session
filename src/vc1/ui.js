@@ -11,12 +11,14 @@ function say(msg, bad){ vocNote.innerHTML = msg; vocNote.classList.toggle("err",
 /* ---- the sequencer ---- */
 const seq = Patchwork.makeSeq({
   id: "vc1", maxSteps: 64, len: 16, rate: "1/8", root: 48,
+  /* ⚠️ The release is scheduled on the AUDIO clock, not a setTimeout. The old form fired
+     the note-off whenever a main-thread timer got round to it, so note lengths wandered by
+     however late the timer was — see BS·1's fire(), where the same fault displaced onsets
+     rather than lengths because that instrument is monophonic and picks by pitch. */
   fire: (ev, t) => {
     ensureAudio();
     noteOn(ev.n, Math.round(ev.vel * 127), t);
-    const off = t + ev.dur;
-    setTimeout(() => noteOff(ev.n, Patchwork.audio.ctx.currentTime + .003),
-               Math.max(10, (off - Patchwork.audio.ctx.currentTime) * 1000));
+    noteOff(ev.n, t + ev.dur);
   },
   onState: on => {
     playBtn.classList.toggle("on", on);

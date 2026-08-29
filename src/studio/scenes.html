@@ -20,8 +20,32 @@
       </div>
     </div>
     <div class="st-master">
+      <span class="st-lab">Transport</span>
+      <button class="st-xport st-stop" id="stStop">&#9632; Stop</button>
+    </div>
+    <div class="st-master">
+      <span class="st-lab">Pattern</span>
+      <div class="st-seg" id="stBarCount" role="group" aria-label="Pattern length in bars">
+        <button data-b="1">1</button>
+        <button data-b="2">2</button>
+        <button data-b="4" class="st-sel">4</button>
+        <button data-b="8">8</button>
+      </div>
+    </div>
+    <div class="st-master">
       <span class="st-lab">Bar</span>
       <div class="st-bars" id="stBars" title="Where the pattern is"></div>
+    </div>
+    <div class="st-master">
+      <span class="st-lab">Click</span>
+      <div class="st-clickrow">
+        <div class="st-seg" id="stClick" role="group" aria-label="Metronome">
+          <button data-c="on">On</button>
+          <button data-c="off" class="st-sel">Off</button>
+        </div>
+        <input type="range" id="stClickLvl" class="st-lvl" min="0" max="100" value="70"
+               aria-label="Metronome level">
+      </div>
     </div>
     <span class="st-hint">click &#9654; to fire a row &middot; shift-click a cell to capture &middot; &#8984;&#8679;-click to delete &middot; nothing lands until the next loop point</span>
   </div>

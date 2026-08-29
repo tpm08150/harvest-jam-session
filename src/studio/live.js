@@ -24,26 +24,14 @@ function build(){
   const head = document.createElement("div");
   head.className = "st-live-row st-live-head";
   head.appendChild(Object.assign(document.createElement("span"), {className: "st-live-num"}));
+  /* Just labels. Arming moved onto each instrument's plate — see shell/record.js — because
+     a row of six arm buttons put the choice of what you are recording six columns away
+     from the instrument you were playing. */
   cols.forEach(c => {
     const cell = document.createElement("div");
     cell.className = "st-track";
     cell.appendChild(Object.assign(document.createElement("span"),
       {className: "st-track-name", textContent: c.name}));
-    const arm = document.createElement("button");
-    arm.className = "st-arm"; arm.dataset.arm = c.id;
-    arm.textContent = "Arm";
-    arm.setAttribute("aria-pressed", "false");
-    /* Every track can be armed. What differs is whether playing also writes to the grid
-       as you go, which the tooltip says rather than leaving you to find out. */
-    const t = Patchwork.record.tracks.find(x => x.id === c.id);
-    if (!t || !t.canRecord) arm.disabled = true;
-    else if (t.slots)
-      arm.title = "Armed: pressing a row records an audio take into it";
-    else if (t.live)
-      arm.title = "Armed: notes you play land on the grid, and pressing a row puts the pattern there";
-    else
-      arm.title = "Armed: pressing a row puts this instrument's current pattern into it";
-    cell.appendChild(arm);
     head.appendChild(cell);
   });
   head.appendChild(Object.assign(document.createElement("span"), {className: "st-live-num"}));
@@ -73,11 +61,6 @@ function paint(){
   const q = Patchwork.scenes.queued, on = Patchwork.scenes.onRow;
   grid.querySelectorAll(".st-cell").forEach(b =>
     Patchwork.launch.paintCell(b, +b.dataset.row, b.dataset.inst, q, on));
-  grid.querySelectorAll(".st-arm").forEach(b => {
-    const on = Patchwork.record.isArmed(b.dataset.arm);
-    b.classList.toggle("st-on", on);
-    b.setAttribute("aria-pressed", on ? "true" : "false");
-  });
   /* With something armed, the row buttons ARE the record: they take what is on the armed
      tracks now and put it in that row. Nothing armed and they are plain scene fires. */
   const arming = Patchwork.record.armedCount > 0;
@@ -90,7 +73,7 @@ function paint(){
   });
   document.querySelector("#liveHint").textContent = arming
     ? "Armed. Play, then hit ● on a row to put it there — unarmed tracks just play that row."
-    : "Arm a track to record into a scene row.";
+    : "Arm an instrument on its own panel to record into a scene row.";
   const anyPlaying = Patchwork.scenes.instruments.some(i => Patchwork.scenes.playing(i.id));
   const pb = document.querySelector("#livePlay");
   pb.textContent = anyPlaying ? "■ Stop all" : "▶ Play all";
@@ -99,12 +82,10 @@ function paint(){
   quant.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", b.dataset.q === Patchwork.scenes.quantum));
   quant.querySelector('[data-q="pattern"]').title =
-    "When CS·1's progression starts over — " + Patchwork.scenes.patternBars + " bars";
+    "Every " + Patchwork.scenes.patternBars + " bars — the pattern length in the Scenes head";
 }
 
 grid.addEventListener("click", e => {
-  const arm = e.target.closest(".st-arm");
-  if (arm && !arm.disabled){ Patchwork.record.toggleArm(arm.dataset.arm); return; }
   const cell = e.target.closest(".st-cell");
   if (cell){
     if (!cell.disabled) Patchwork.launch.click(e, +cell.dataset.row, cell.dataset.inst);
@@ -115,7 +96,7 @@ grid.addEventListener("click", e => {
   const ri = +fire.dataset.row;
   if (Patchwork.record.armedCount) Patchwork.record.captureRow(ri);
   else if (e.shiftKey) Patchwork.scenes.storeAll(ri);
-  else Patchwork.launch.fireRow(ri);
+  else Patchwork.launch.fireRowShared(ri);
 });
 
 /* Master transport. Presses the instruments' own Play buttons rather than reaching into

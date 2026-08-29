@@ -121,7 +121,6 @@ function mountMeasure(el){
     return ((k % bars) + bars) % bars;
   }
   function tick(){
-    if (bars !== Math.max(1, Patchwork.scenes.patternBars)) build();
     const i = at();
     if (i !== lit){
       lit = i;
@@ -131,10 +130,55 @@ function mountMeasure(el){
     requestAnimationFrame(tick);
   }
   build();
+  /* The pips are rebuilt on the SETTING's notification, not in the animation loop: the
+     loop is rAF, which stops dead in a hidden tab, and a control that only answers while
+     you can see it is not a control. Only the lit pip needs a frame. */
+  Patchwork.scenes.onChange(() => {
+    if (bars !== Math.max(1, Patchwork.scenes.patternBars)) build();
+  });
   requestAnimationFrame(tick);
 }
 
-return {columns, slotted, mark, paintCell, click, fireRow, mountMeasure};
+/* Stop everything the launcher can reach. Scene members are stopped by PRESSING their own
+   Play, the way the live page's master already does it — whatever a panel does when it
+   stops then happens here too, rather than being reimplemented and drifting. A slot track
+   has no Play in the rack sense, so it offers stop() instead. */
+function stopAll(){
+  Patchwork.roots.forEach(r => {
+    const id = r.dataset.instrument;
+    if (!Patchwork.scenes.playing(id)) return;
+    const btn = r.querySelector("#play");
+    if (btn) btn.click();
+  });
+  Patchwork.record.tracks.forEach(t => {
+    const k = slotted(t.id);
+    if (k && k.stop) k.stop();
+  });
+  /* Pressing a panel's Play does not reach the scene model, so say so — otherwise the
+     cells stay ringed after everything has stopped. */
+  Patchwork.scenes.changed();
+}
+
+/* Firing a row is the one gesture that is not implied by the state — the rows themselves
+   are already shared, but "play row 3 now" has to be said. It still lands on the seam at
+   the other end, computed locally, so the message only has to beat the boundary. */
+function fireRowShared(ri){
+  fireRow(ri);
+  if (Patchwork.session && Patchwork.session.active) Patchwork.session.fired(ri);
+}
+
+/* Is anything sounding at all? The stop button reads inert when there is nothing to stop,
+   because a live control that does nothing is worse than no control. */
+function anyPlaying(){
+  if (Patchwork.scenes.instruments.some(i => Patchwork.scenes.playing(i.id))) return true;
+  return Patchwork.record.tracks.some(t => {
+    const k = slotted(t.id);
+    return !!(k && k.liveSlot && k.liveSlot() !== null);
+  });
+}
+
+return {columns, slotted, mark, paintCell, click, fireRow, fireRowShared,
+        mountMeasure, stopAll, anyPlaying};
 })();
 
 (() => {
@@ -208,12 +252,16 @@ grid.addEventListener("click", e => {
   const ri = +fire.dataset.row;
   if (Patchwork.record && Patchwork.record.armedCount) Patchwork.record.captureRow(ri);
   else if (e.shiftKey) Patchwork.scenes.storeAll(ri);
-  else Patchwork.launch.fireRow(ri);
+  else Patchwork.launch.fireRowShared(ri);
 });
 
 Patchwork.scenes.onChange(paint);
 if (window.Patchwork.record) Patchwork.record.onChange(paint);
 build();
+/* ⚠️ An instrument's OWN Play button changes what is playing without telling the scene
+   model, so a cell could stay ringed after its instrument had stopped. The live page has
+   carried the same repaint for the same reason; the launcher needed one too. */
+setInterval(paint, 400);
 })();
 
 /* ---- the master transport ----
@@ -227,8 +275,12 @@ build();
 (() => {
 "use strict";
 const up = document.querySelector("#stUp"), down = document.querySelector("#stDown"),
-      out = document.querySelector("#stBpm"), quant = document.querySelector("#stQuant");
+      out = document.querySelector("#stBpm"), quant = document.querySelector("#stQuant"),
+      stop = document.querySelector("#stStop"), barCount = document.querySelector("#stBarCount"),
+      click = document.querySelector("#stClick"), clickLvl = document.querySelector("#stClickLvl");
 if (!up || !window.Patchwork || !Patchwork.clock) return;
+
+stop.addEventListener("click", () => { Patchwork.launch.stopAll(); setTimeout(paint, 60); });
 
 up.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm + 1));
 down.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm - 1));
@@ -237,19 +289,75 @@ quant.addEventListener("click", e => {
   Patchwork.scenes.setQuantum(b.dataset.q);
 });
 
+/* How long a "pattern" is. This used to be whatever CS·1's progression happened to be,
+   which made the boundary circular for CS·1 itself — bringing it in meant waiting for a
+   seam defined by the thing that was not playing yet. It is a number now, and the bar
+   counter beside it draws the same number. */
+barCount.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  Patchwork.scenes.setPatternBars(+b.dataset.b);
+});
+
+click.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  Patchwork.click.set(b.dataset.c === "on");
+});
+clickLvl.addEventListener("input", () => Patchwork.click.setLevel(clickLvl.value / 100));
+Patchwork.click.onChange(paint);
+
 function paint(){
   out.textContent = Patchwork.clock.bpm;
+  const live = Patchwork.launch.anyPlaying();
+  stop.classList.toggle("st-live", live);
+  stop.disabled = !live;
   quant.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", b.dataset.q === Patchwork.scenes.quantum));
+  barCount.querySelectorAll("button").forEach(b =>
+    b.classList.toggle("st-sel", +b.dataset.b === Patchwork.scenes.patternBars));
+  click.querySelectorAll("button").forEach(b =>
+    b.classList.toggle("st-sel", (b.dataset.c === "on") === Patchwork.click.on));
   quant.querySelector('[data-q="pattern"]').title =
-    "When CS·1's progression starts over — " + Patchwork.scenes.patternBars + " bars";
+    "Every " + Patchwork.scenes.patternBars + " bars — the pattern length in the Scenes head";
 }
 /* no initial: the instruments decide the page's starting tempo between them, and this
    only ever reports it */
 Patchwork.clock.onTempo("studio", paint, null);
 Patchwork.scenes.onChange(paint);
+Patchwork.record.onChange(paint);
 paint();
 Patchwork.launch.mountMeasure(document.querySelector("#stBars"));
+})();
+
+/* ---- the jam ----
+   Join a room by name and you are playing the same grid as everyone else on it. The prompt
+   is deliberately the whole interface for now: a room is a string, and inventing a lobby
+   before the model is proven would be building the second thing first. */
+(() => {
+"use strict";
+const btn = document.querySelector("#stJamBtn"), who = document.querySelector("#stJamWho");
+if (!btn || !window.Patchwork || !Patchwork.session) return;
+
+btn.addEventListener("click", () => {
+  if (Patchwork.session.active){ Patchwork.session.leave(); return; }
+  const room = window.prompt("Jam name — anyone who joins the same one plays with you", "jam");
+  if (room == null) return;
+  const name = window.prompt("What should they call you?", "") || "";
+  if (!Patchwork.session.join(room, name))
+    who.textContent = "this browser cannot open a session";
+});
+
+function paint(){
+  const on = Patchwork.session.active;
+  btn.textContent = on ? "Leave jam" : "Start a jam";
+  btn.classList.toggle("st-on", on);
+  if (!on){ who.textContent = ""; return; }
+  const peers = Patchwork.session.peers;
+  who.innerHTML = "<b>" + Patchwork.session.room + "</b> · "
+    + (peers.length ? "you and " + peers.length + " other" + (peers.length > 1 ? "s" : "")
+                    : "waiting for someone to join");
+}
+Patchwork.session.onChange(paint);
+paint();
 })();
 
 /* ---- faces / full panels, for every instrument at once ----

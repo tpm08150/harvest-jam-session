@@ -8,18 +8,37 @@ const noteName = n => NOTES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
 /* ---- the sequencer ---- */
 const seq = Patchwork.makeSeq({
   id: "bs1", maxSteps: 64, len: 16, rate: "1/16", root: 36,
+  /* ⚠️ The sequencer drives the VOICE, and touches nothing the keyboard owns.
+
+     It used to call noteOn()/noteOff() — the live-keyboard path, with a held-note map and
+     lowest-note priority — and schedule the note-off on a setTimeout. That runs two time
+     domains at once: note-ons placed on the audio clock up to 200 ms ahead, note-offs
+     landing whenever a main-thread timer got round to it. So the scheduler would run the
+     NEXT step's noteOn while the previous note was still in `held`, pick() would return
+     the lower of the two, and the higher note would not sound until the older note's timer
+     fired — at wall time, off the grid entirely.
+
+     Measured at 1/8, alternating low and high: onsets at 183 / 318 ms where 250 / 250 was
+     wanted, and consistently so, because it is always the same note of the pair that loses
+     the priority comparison. That is why some steps sounded right. `held` reached size 2
+     for 28% of samples; in a monophonic sequencer it is 0 or 1 by definition.
+
+     The release is scheduled at an audio time now — the shape PM·1's sequencer has always
+     used, which is why it never had this. */
   fire: (ev, t) => {
     ensureAudio();
+    const vel = Math.round(ev.vel * 127);
     /* Slide glides into a step without re-attacking it — a 303 line, and the reason the
        bass needed a sequencer of its own rather than borrowing notes from elsewhere. */
-    if (ev.slide && cur && !cur.released){
-      cur.setPitch(t, ev.n, Math.max(.02, P.glide || .06));
-      return;
+    if (ev.slide && cur && !cur.released) cur.setPitch(t, ev.n, Math.max(.02, P.glide || .06));
+    else if (cur && !cur.released) cur.retrigger(t, ev.n, vel, glideTime(cur.midi, ev.n));
+    else cur = buildVoice(ev.n, vel, t);
+    /* Hold the voice through a step that slides INTO this one: a slide is one continuous
+       gesture, and releasing here would re-attack the next note instead of gliding. */
+    if (!slidesAfter(ev.i)){
+      cur.release(t + ev.dur);
+      cur = null;
     }
-    noteOn(ev.n, Math.round(ev.vel * 127), t);
-    const off = t + ev.dur;
-    setTimeout(() => noteOff(ev.n, Patchwork.audio.ctx.currentTime + .003),
-               Math.max(10, (off - Patchwork.audio.ctx.currentTime) * 1000));
   },
   onState: on => {
     playBtn.classList.toggle("on", on);
@@ -28,6 +47,19 @@ const seq = Patchwork.makeSeq({
   }
 });
 const grid = Patchwork.mountSeqGrid($("#seqWrap"), seq);
+
+/* Does the next SOUNDING step glide into this one? Ties are skipped, because a tie extends
+   the note before it rather than sounding on its own — the same rule stepEvent() uses when
+   it works out how long a note is held. */
+function slidesAfter(i){
+  const st = seq.steps, len = seq.SEQ.len;
+  for (let k = 1; k <= len; k++){
+    const nx = st[(i + k) % len];
+    if (!nx || !nx.on || nx.tie) continue;
+    return !!nx.slide;
+  }
+  return false;
+}
 
 /* selects */
 const lenSel = $("#seqLen"), rateSel = $("#seqRate"), keySel = $("#seqKey"), scaleSel = $("#seqScale");
@@ -88,13 +120,30 @@ keysEl.addEventListener("pointerdown", e => {
 window.addEventListener("pointerup", () => { if (!latch) allNotesOff(); });
 
 function paintNow(){
-  const n = cur && !cur.released ? cur.midi : null;
+  let n = cur && !cur.released ? cur.midi : null;
+  /* While the sequencer runs, what is SOUNDING is the step the audio clock is on — not the
+     voice object, which is built up to 200 ms early and marked released the moment its end
+     is scheduled. playingStep() is looked up against the clock, so it is the honest answer,
+     and it is the same source the step grid's playhead uses. */
+  if (seq.SEQ.playing){
+    const i = seq.playingStep();
+    const st = i >= 0 ? seq.steps[i] : null;
+    n = (st && st.on && !st.tie) ? seq.stepNote(st) : null;
+  }
   nowNote.textContent = n == null ? "—" : noteName(n);
-  keysEl.querySelectorAll(".k").forEach(k => k.classList.toggle("on", held.has(+k.dataset.n)));
+  keysEl.querySelectorAll(".k").forEach(k => {
+    const kn = +k.dataset.n;
+    k.classList.toggle("on", held.has(kn) || kn === n);
+  });
 }
 
 /* the playhead, from the audio clock */
-(function paintLoop(){ grid.paint(); requestAnimationFrame(paintLoop); })();
+(function paintLoop(){
+  grid.paint();
+  /* the note readout is now clock-derived too, so it has to repaint with the playhead */
+  if (seq.SEQ.playing) paintNow();
+  requestAnimationFrame(paintLoop);
+})();
 
 /* ---- tempo ---- */
 function setBpm(v, fromShell){

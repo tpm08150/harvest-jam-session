@@ -49,18 +49,20 @@ function strip(id){
    until it clips. Taps are kept and re-wired when a new strip appears, because an
    instrument can be built after the tap was made. */
 const taps = [];
-function tap(excludeId){
+/* `exclude` is one id or several. The looper needs two — its own strip and the metronome's
+   — because a click on the bus would be printed into every take. */
+function tap(exclude){
   context();
   const g = ctx.createGain();
   g.gain.value = 1;
-  const t = {node: g, exclude: excludeId, wired: new Set()};
+  const t = {node: g, exclude: [].concat(exclude || []), wired: new Set()};
   taps.push(t);
   wireTap(t);
   return g;
 }
 function wireTap(t){
   strips.forEach((strip, id) => {
-    if (id === t.exclude || t.wired.has(id)) return;
+    if (t.exclude.indexOf(id) >= 0 || t.wired.has(id)) return;
     strip.connect(t.node);
     t.wired.add(id);
   });

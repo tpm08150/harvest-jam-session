@@ -14,8 +14,6 @@ const LP = {
   input: "__bus",           // device id, or __bus for the studio's own output
   mode: "idle",             // idle | armed | rec | play | dub
   dubOn: false,             // the overdub LATCH — see setDub()
-  click: false,             // the metronome — see setClick()
-  clickLevel: .7,           // ...and how loud. 70% leaves room in both directions
   pos: 0, len: 0, peak: 0,
   slot: 0, filled: [],      // one take per scene row — see the live page
 
@@ -118,7 +116,8 @@ async function openInput(deviceId){
      instrument's own strip. */
   if (deviceId === BUS){
     closeInput();
-    src = Patchwork.audio.tap("lp1");
+    /* the metronome's strip is excluded too — a click on the bus prints into every take */
+    src = Patchwork.audio.tap(["lp1", Patchwork.click.STRIP]);
     src.connect(inGain);
     stream = BUS;                   // "an input is open", without a MediaStream
     say("Recording the <b>studio output</b> — everything the other instruments play, but "
@@ -196,71 +195,6 @@ function stopLoop(){
      coming to say so — this transition is entirely ours */
   releaseLength();
 }
-/* ---- the metronome ----
-   ⚠️ It is routed into LP·1's OWN strip, and that is not a detail. The looper records
-   `Patchwork.audio.tap("lp1")`, a sum of every strip except its own, so a click anywhere
-   else on the bus would be printed into every take — you would hear it in the loop for the
-   rest of the session, and an overdub would stack a second copy on top. On this strip it
-   is audible and unrecordable, which is the only combination a metronome can have here.
-
-   It runs on the shared clock like any other voice, so it IS the tempo the instruments
-   play at rather than a second opinion about it. Started alone it claims the grid, and
-   whatever starts next lands in phase with the click — which is what a metronome is for.
-
-   The accent is computed from the grid ORIGIN rather than counted from the first blip:
-   claim(1) lands on the next beat, not the next bar, so counting would put the accent
-   wherever you happened to press the button. */
-let clickGain = null, clickNext = 0;
-
-function blip(t, accent){
-  const o = ctx.createOscillator(), g = ctx.createGain();
-  o.type = "square";
-  o.frequency.setValueAtTime(accent ? 1560 : 1040, t);
-  /* a 2 ms rise, because a square starting at full level clicks in a way that reads as a
-     fault rather than as a click track */
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(accent ? .5 : .28, t + .002);
-  g.gain.exponentialRampToValueAtTime(.0004, t + .042);
-  o.connect(g); g.connect(clickGain);
-  o.start(t); o.stop(t + .06);
-}
-
-function setClickLevel(v){
-  LP.clickLevel = Math.max(0, Math.min(1, v));
-  if (clickGain) clickGain.gain.setTargetAtTime(LP.clickLevel, ctx.currentTime, .01);
-}
-
-function clickTick(){
-  if (!LP.click || !ctx) return;
-  const beat = 60 / (Patchwork.clock.bpm || 120);
-  const origin = Patchwork.clock.origin;
-  while (clickNext < ctx.currentTime + .2){
-    const at = Math.max(ctx.currentTime + .005, clickNext);
-    const n = origin == null ? 0 : Math.round((at - origin) / beat);
-    blip(at, (((n % 4) + 4) % 4) === 0);
-    clickNext += beat * Patchwork.clock.rate;
-  }
-}
-
-function setClick(on){
-  LP.click = !!on;
-  if (LP.click){
-    initAudio();
-    Patchwork.audio.resume();
-    if (!clickGain){
-      clickGain = ctx.createGain();
-      clickGain.gain.value = LP.clickLevel;
-      clickGain.connect(out);            // lp1's strip — excluded from lp1's own tap
-    }
-    clickNext = Patchwork.clock.claim(1);
-    clickTick();
-    Patchwork.clock.run(clickTick);
-  } else {
-    Patchwork.clock.stop(clickTick);
-  }
-  paintState();
-}
-
 /* ---- overdub, as a switch ----
    It used to be a scheduled mode like record: press it, wait for a boundary, and the take
    restarted from the top. As a latch it is three things at once, which is what makes it

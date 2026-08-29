@@ -21,11 +21,12 @@ Patchwork.record.register("lp1", {
   /* armed is not yet a row — it is a row about to start on the bar line, and the launcher
      already draws that as the queued state */
   liveSlot: () => (LP.mode === "idle" || LP.mode === "armed") ? null : LP.slot,
-  disarm: () => { if (LP.mode === "rec" || LP.mode === "armed") stopLoop(); }
+  disarm: () => { if (LP.mode === "rec" || LP.mode === "armed") stopLoop(); },
+  stop: () => stopLoop()
 });
 
 window.__lp1 = {LP, arm, play, fireSlot, selectSlot, hasSlot, clearSlot, stopLoop, clearLoop, undo,
-                setDub, setClick, setClickLevel, queueSlot,
+                setDub, queueSlot,
                 openInput, closeInput,
                 ensureNode, allocate, loopFrames,
                 get ctx(){ return ctx; }, get node(){ return node; }};

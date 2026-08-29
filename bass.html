@@ -176,13 +176,22 @@ input[type="text"]::placeholder{color:#5a646a}
    half of a row — the patch selector without its MIDI-trigger plumbing — rather than
    having to take all of it or none. */
 .face-toggle{margin-left:auto;align-self:flex-start}
+/* Arming reads red, the same red the row buttons turn when anything is armed, so the two
+   halves of one gesture are the same colour in both places. */
+.arm-toggle{align-self:flex-start;flex:0 0 auto}
+.arm-toggle.on{
+  background:linear-gradient(180deg,#ec6146,var(--cap-red));
+  border-color:#8c2a17;color:#fff2ee;
+}
 /* The plate is a flex row ending in the screws; the toggle sits before them. */
 :scope.face .plate,:scope .plate{align-items:center}
 :scope.face [data-deep]{display:none}
-/* ...and `data-tempo` comes out whenever the page has a master to own it — see
-   shell/boot.js. Not tied to face mode: six tempo controls are as redundant on the full
-   panels as they are on the faces. */
-:scope.tempo-shared [data-tempo]{display:none}
+/* ...and `data-hosted` marks a control the PAGE owns once there is a page to own it — the
+   tempo, the metronome. It comes out whenever the panel is hosted alongside others; see
+   shell/boot.js. Not tied to face mode: six copies of one control are as redundant on the
+   full panels as they are on the faces, and a standalone build keeps its own because
+   nothing else is there to hold it. */
+:scope.hosted [data-hosted]{display:none}
 
 /* ---------- the plate ----------
    Only CS·1 and PM·1 ever defined this, so on every other panel the header had no layout
@@ -335,7 +344,7 @@ input[type="text"]::placeholder{color:#5a646a}
   <div data-face class="transport">
     <button class="btn primary" id="play">▶ Play</button>
     <button class="btn ghost" id="hold">Hold</button>
-    <div class="tempo" data-tempo>
+    <div class="tempo" data-hosted>
       <button id="bpmDown" aria-label="Slower">−</button>
       <span id="tempoOut">120</span>
       <button id="bpmUp" aria-label="Faster">+</button>
@@ -555,18 +564,20 @@ function strip(id){
    until it clips. Taps are kept and re-wired when a new strip appears, because an
    instrument can be built after the tap was made. */
 const taps = [];
-function tap(excludeId){
+/* `exclude` is one id or several. The looper needs two — its own strip and the metronome's
+   — because a click on the bus would be printed into every take. */
+function tap(exclude){
   context();
   const g = ctx.createGain();
   g.gain.value = 1;
-  const t = {node: g, exclude: excludeId, wired: new Set()};
+  const t = {node: g, exclude: [].concat(exclude || []), wired: new Set()};
   taps.push(t);
   wireTap(t);
   return g;
 }
 function wireTap(t){
   strips.forEach((strip, id) => {
-    if (id === t.exclude || t.wired.has(id)) return;
+    if (t.exclude.indexOf(id) >= 0 || t.wired.has(id)) return;
     strip.connect(t.node);
     t.wired.add(id);
   });
@@ -625,12 +636,23 @@ function claim(quantumBeats){
   const ctx = Patchwork.audio.context();
   const soon = ctx.currentTime + .03;
   if (origin === null || running.size === 0){
-    origin = soon;
-    return soon;
+    /* ⚠️ A session IMPOSES the grid: whoever opened the jam defined beat 0, and a client
+       that starts playing an hour later has to land on that grid rather than starting a
+       fresh one under everyone. Asked for here rather than pushed in from outside because
+       this is the one moment a fresh origin would be invented — and because the mapping
+       needs an AudioContext, which does not exist when the session is joined. */
+    const shared = originSource && originSource();
+    if (shared == null){ origin = soon; return soon; }
+    origin = shared;
   }
   const q = Math.max(1e-6, quantumBeats * beatSeconds());
   return origin + Math.ceil((soon - origin) / q) * q;
 }
+
+/* Where a shared grid comes from — see shell/session.js. Returns null when playing alone,
+   which is every standalone build and the studio until someone starts a jam. */
+let originSource = null;
+function setOriginSource(fn){ originSource = fn; }
 
 function pump(){
   /* A tick that throws must not take the other instruments' transports down with it. */
@@ -690,11 +712,95 @@ function onTempo(id, fn, initial){
   return bpm;
 }
 
-return {claim, run, stop, setBpm, onTempo, beatSeconds, setRate,
+return {claim, run, stop, setBpm, onTempo, beatSeconds, setRate, setOriginSource,
         get rate(){ return rate; },
         get bpm(){ return bpm; },
         get origin(){ return origin; },
         get running(){ return running.size; }};
+})();
+
+/* The metronome.
+
+   It belongs to the page, not to an instrument. It started inside LP·1 because that is
+   where you need it — you play a take to a click — but a click is the same thing the whole
+   rack is counting against, so it sits beside the tempo in the Scenes head and lives here.
+
+   ⚠️ It has its OWN strip, and the looper's tap excludes it. LP·1 records a sum of every
+   strip except the ones it names; a click anywhere else on the bus would be printed into
+   every take, audible in the loop for the rest of the session and doubled by the first
+   overdub. Measured before the move and again after: a take cut with only the click
+   running has an input peak of 0.
+
+   It runs on the shared clock like any other voice, so it IS the tempo rather than a second
+   opinion about it. Started alone it claims the grid, and whatever starts next lands in
+   phase with the click — which is what a metronome is for. */
+Patchwork.click = (() => {
+"use strict";
+
+let ctx = null, gain = null, on = false, level = .7, nextAt = 0;
+const subs = [];
+function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
+
+/* The strip id, so LP·1 can name it in its exclusion list. */
+const STRIP = "click";
+
+function blip(t, accent){
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = "square";
+  o.frequency.setValueAtTime(accent ? 1560 : 1040, t);
+  /* a 2 ms rise, because a square starting at full level clicks in a way that reads as a
+     fault rather than as a click track */
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(accent ? .5 : .28, t + .002);
+  g.gain.exponentialRampToValueAtTime(.0004, t + .042);
+  o.connect(g); g.connect(gain);
+  o.start(t); o.stop(t + .06);
+}
+
+function tick(){
+  if (!on || !ctx) return;
+  const beat = 60 / (Patchwork.clock.bpm || 120);
+  const origin = Patchwork.clock.origin;
+  while (nextAt < ctx.currentTime + .2){
+    const at = Math.max(ctx.currentTime + .005, nextAt);
+    /* The accent comes from the grid ORIGIN, not from counting blips: claim(1) lands on the
+       next beat, not the next bar, so counting would put the downbeat wherever you happened
+       to press the button. */
+    const n = origin == null ? 0 : Math.round((at - origin) / beat);
+    blip(at, (((n % 4) + 4) % 4) === 0);
+    nextAt += beat * Patchwork.clock.rate;
+  }
+}
+
+function set(want){
+  on = !!want;
+  if (on){
+    ctx = Patchwork.audio.context();
+    Patchwork.audio.resume();
+    if (!gain){
+      gain = ctx.createGain();
+      gain.gain.value = level;
+      gain.connect(Patchwork.audio.strip(STRIP));
+    }
+    nextAt = Patchwork.clock.claim(1);
+    tick();
+    Patchwork.clock.run(tick);
+  } else {
+    Patchwork.clock.stop(tick);
+  }
+  notify();
+}
+
+function setLevel(v){
+  level = Math.max(0, Math.min(1, v));
+  if (gain) gain.gain.setTargetAtTime(level, ctx.currentTime, .01);
+  notify();
+}
+
+return {set, setLevel, toggle: () => set(!on), STRIP,
+        onChange: fn => subs.push(fn),
+        get on(){ return on; },
+        get level(){ return level; }};
 })();
 
 /* One MIDI router for the page.
@@ -807,7 +913,12 @@ const subs = [];
    INSIDE its scheduling loop, so the change is accurate to the grid rather than 200 ms
    late behind the lookahead. */
 let quantum = "pattern";
-let patternBars = 4;                  // CS·1 keeps this current
+/* ⚠️ The pattern length is the PAGE's, set in the Scenes head and drawn by the bar counter
+   there. It used to be whatever CS·1's progression happened to be, which made the boundary
+   circular for CS·1 itself: bringing it in meant waiting for a seam defined by the thing
+   that was not playing yet. A number you set is one every instrument, CS·1 included, can
+   arrive at the same way. */
+let patternBars = 4;
 const lastSeen = new Map();           // id -> the time of the last step it scheduled
 
 function setQuantum(q){
@@ -817,6 +928,7 @@ function setQuantum(q){
 }
 function setPatternBars(n){
   patternBars = Math.max(1, n | 0);
+  notify();
 }
 function quantumSeconds(){
   const bar = 4 * Patchwork.clock.beatSeconds();
@@ -881,6 +993,19 @@ function restore(id){
   if (row == null || !rows[row] || !playing(id)) return;
   if (!rows[row].cells[id]) return;
   put(row, id);
+  notify();
+}
+
+/* Replace the whole bank. A session sends the rows entire rather than diffing them —
+   at this size the diff costs more than the copy, and a full snapshot cannot drift.
+   Deep-copied on the way in for the same reason capture() is: a shared reference would
+   make every client's grid the same object as the message it arrived in. */
+function loadRows(next){
+  if (!Array.isArray(next)) return;
+  rows.forEach((r, i) => {
+    const src = next[i];
+    r.cells = src && src.cells ? JSON.parse(JSON.stringify(src.cells)) : {};
+  });
   notify();
 }
 
@@ -1038,7 +1163,11 @@ return {register, store, storeAll, clear, fire, take, onChange, playing, start,
         get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
         get queued(){ return new Map(queued); },
         get onRow(){ return new Map(onRow); },
-        live, restore,
+        live, restore, loadRows,
+        /* Nothing here can see an instrument's own Play button. The transports are the
+           instruments' and they change without telling the model, so a caller that has
+           just moved one says so — the same signal record.changed() is. */
+        changed: notify,
         has(row, id){ return !!(rows[row] && rows[row].cells[id]); }};
 })();
 
@@ -1266,6 +1395,10 @@ function register(id, spec){
             /* which slot it is working out of right now, or null. A slot track has no
                scene row, so the launcher cannot ask scenes.onRow which cell to ring. */
             liveSlot: spec.liveSlot || null,
+            /* stop this track's own transport. A scene member is stopped through
+               scenes.stop(); a slot track keeps its transport privately, so it has to
+               offer one or a master stop would leave the looper running. */
+            stop: spec.stop || null,
             /* Armable by default. Arming means "put what you have into the row I press",
                which every registered track can do — CS·1's progression captures as readily
                as a step grid. write() is a SEPARATE, narrower capability: taking notes you
@@ -1340,7 +1473,53 @@ function note(id, midi, vel, when){
   return i;
 }
 
-return {register, setArmed, toggleArm, captureRow, note, onChange, track,
+/* ---- the arm control ----
+   Injected, not written into six panel.html files — the arrangement faces.js uses for the
+   Panel button, and for the same reason: one implementation, and an instrument added later
+   gets it without being told to.
+
+   It used to live as a row above the live grid. That put the choice of WHAT you are
+   recording six columns away from the instrument you were playing, and made the grid's
+   header a control panel rather than a set of labels. On the plate it sits on whichever
+   instrument you are looking at, and it is on the face as well as the panel — arming is a
+   performance decision. */
+function mount(){
+  Patchwork.roots.forEach(root => {
+    if (root.querySelector(".arm-toggle")) return;
+    const id = root.dataset.instrument;
+    const it = kit.find(x => x.id === id);
+    if (!it || !it.canRecord) return;
+    const plate = root.querySelector(".plate");
+    if (!plate) return;
+    const b = document.createElement("button");
+    b.className = "btn ghost sm arm-toggle";
+    b.type = "button";
+    b.dataset.arm = id;
+    b.textContent = "Arm";
+    /* Every track can be armed. What differs is whether playing also writes to the grid as
+       you go, which the tooltip says rather than leaving you to find out. */
+    b.title = it.slots ? "Armed: pressing a row records an audio take into it"
+            : it.live  ? "Armed: notes you play land on the grid, and pressing a row puts the pattern there"
+                       : "Armed: pressing a row puts this instrument's current pattern into it";
+    b.addEventListener("click", () => toggleArm(id));
+    const screws = plate.querySelector(".screws");
+    if (screws) plate.insertBefore(b, screws); else plate.appendChild(b);
+  });
+  paintArms();
+}
+function paintArms(){
+  Patchwork.roots.forEach(root => {
+    const b = root.querySelector(".arm-toggle");
+    if (!b) return;
+    const on = armed.has(b.dataset.arm);
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.textContent = on ? "Armed" : "Arm";
+  });
+}
+subs.push(paintArms);
+
+return {register, setArmed, toggleArm, captureRow, note, onChange, track, mount,
         /* A track saying its OWN state moved — the looper starting, stopping, filling or
            emptying a slot. Arming is the shell's and notifies itself; a slot track keeps
            its transport privately, so without this the launcher had no way to know a take
@@ -1352,6 +1531,245 @@ return {register, setArmed, toggleArm, captureRow, note, onChange, track,
                                             canRecord: k.canRecord, live: k.live,
                                             slots: k.slots})); },
         get armedCount(){ return armed.size; }};
+})();
+
+/* Shared jam sessions.
+
+   Everyone plays the same grid. Nobody streams audio — every browser synthesises its own
+   sound from patterns and parameters, which are a few KB, so what crosses the wire is
+   state. That is only possible because of the seam: nothing in this app says "change now",
+   it says "change at boundary N", and each client works out when that is on its own. A
+   message that takes 150 ms to arrive still lands on the same bar line for everyone, as
+   long as it beats the boundary — the 200 ms scheduling lookahead is a jitter buffer this
+   app already paid for.
+
+   ---
+
+   THE TRANSPORT IS PLUGGABLE, and this file must never know which one it has. Today it is
+   a BroadcastChannel, which reaches other TABS on this machine and nothing else — that is
+   not a toy, it is how the model gets tested with two real players before a server exists.
+   A WebSocket adapter is the same four methods.
+
+   A transport is: {send(msg), close(), onMessage(fn)}.
+
+   ---
+
+   EVERY MESSAGE CARRIES ITS SENDER, and you ignore your own. Applying a remote op also sets
+   `applying`, because the models here are notification-based: scenes.store() tells its
+   subscribers, this file is one of them, and without the guard every remote change would
+   bounce straight back out. That is the same reason clock.setBpm() has always taken a
+   `from`. */
+Patchwork.session = (() => {
+"use strict";
+
+const subs = [];
+function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
+
+let tx = null;                 // the transport, or null when playing alone
+let room = null;
+let applying = false;          // a remote op is being applied — do not echo it
+let epoch = null;              // Date.now() of the session's beat 0
+const peers = new Map();       // id -> {id, name, seen}
+const owners = new Map();      // instrument id -> peer id
+
+/* A peer id that survives nothing and needs to: it identifies this tab for the length of
+   this session and no longer. */
+const me = {id: Math.random().toString(36).slice(2, 10), name: ""};
+
+/* ---- transports ---- */
+function broadcastChannel(name){
+  if (typeof BroadcastChannel === "undefined") return null;
+  const ch = new BroadcastChannel("patchwork-jam-" + name);
+  return {
+    send: msg => ch.postMessage(msg),
+    close: () => ch.close(),
+    onMessage: fn => { ch.onmessage = e => fn(e.data); }
+  };
+}
+
+/* ---- the clock ----
+   Two browsers have unrelated ctx.currentTime origins, so the session carries a shared
+   WALL-CLOCK epoch and each client maps it onto its own audio clock. Date.now() is the
+   only clock two tabs already agree on; a real session would take the epoch from the
+   server and estimate the offset, which is the same arithmetic with a correction term.
+
+   ⚠️ This is the make-or-break part. Get it slightly wrong and it sounds NEARLY right,
+   which is worse than obviously broken. */
+function originFromEpoch(){
+  if (epoch == null) return null;
+  const ctx = Patchwork.audio && Patchwork.audio.ctx;
+  if (!ctx) return null;
+  return ctx.currentTime - (Date.now() - epoch) / 1000;
+}
+function adoptEpoch(ms){
+  epoch = ms;
+}
+/* The clock asks for this the moment it would otherwise define a fresh grid. It cannot be
+   pushed at join time: the mapping needs an AudioContext, and there is rarely one yet. */
+Patchwork.clock.setOriginSource(() => (tx ? originFromEpoch() : null));
+
+/* ---- what a session shares ----
+   The whole musical state, small enough to send entire on join. Patch parameters are NOT
+   here yet: they are per-instrument and each one already knows how to serialise itself,
+   so they are the next thing to add rather than a different problem. */
+function snapshot(){
+  return {
+    epoch: epoch,
+    bpm: Patchwork.clock.bpm,
+    quantum: Patchwork.scenes.quantum,
+    patternBars: Patchwork.scenes.patternBars,
+    rows: Patchwork.scenes.rows.map(r => ({name: r.name, cells: r.cells})),
+    owners: [...owners]
+  };
+}
+function applySnapshot(s){
+  applying = true;
+  try{
+    if (s.epoch != null) adoptEpoch(s.epoch);
+    if (s.bpm) Patchwork.clock.setBpm(s.bpm, "session");
+    if (s.quantum) Patchwork.scenes.setQuantum(s.quantum);
+    if (s.patternBars) Patchwork.scenes.setPatternBars(s.patternBars);
+    if (s.rows) Patchwork.scenes.loadRows(s.rows);
+    if (s.owners){ owners.clear(); s.owners.forEach(([k, v]) => owners.set(k, v)); }
+  } finally { applying = false; }
+  notify();
+}
+
+/* ---- sending ---- */
+function send(kind, body){
+  if (!tx || applying) return;
+  tx.send(Object.assign({kind, from: me.id}, body));
+}
+
+/* Called by the models when something local changed. Deliberately a push from the shell's
+   own notifications rather than a wrapper around every mutator: there is one place that
+   knows the whole state, and re-sending it is cheap at this size. */
+function pushScenes(){
+  if (!tx || applying) return;
+  send("rows", {rows: Patchwork.scenes.rows.map(r => ({name: r.name, cells: r.cells}))});
+}
+function pushTransport(){
+  if (!tx || applying) return;
+  send("transport", {bpm: Patchwork.clock.bpm,
+                     quantum: Patchwork.scenes.quantum,
+                     patternBars: Patchwork.scenes.patternBars});
+}
+
+/* ---- receiving ---- */
+function onMessage(m){
+  if (!m || m.from === me.id) return;         // never act on your own echo
+  const p = peers.get(m.from) || {id: m.from, name: m.name || m.from.slice(0, 4)};
+  p.seen = Date.now();
+  if (m.name) p.name = m.name;
+  peers.set(m.from, p);
+
+  if (m.kind === "hello"){
+    /* Whoever is already here answers with the state, so a joiner does not need a server
+       to be told what is going on. Several answers are harmless: they are identical. */
+    send("welcome", {to: m.from, name: me.name, state: snapshot()});
+    notify();
+    return;
+  }
+  if (m.kind === "welcome"){
+    if (m.to === me.id && m.state) applySnapshot(m.state);
+    notify();
+    return;
+  }
+  if (m.kind === "rows"){
+    applying = true;
+    try{ Patchwork.scenes.loadRows(m.rows); } finally { applying = false; }
+    notify();
+    return;
+  }
+  if (m.kind === "transport"){
+    applying = true;
+    try{
+      if (m.bpm) Patchwork.clock.setBpm(m.bpm, "session");
+      if (m.quantum) Patchwork.scenes.setQuantum(m.quantum);
+      if (m.patternBars) Patchwork.scenes.setPatternBars(m.patternBars);
+    } finally { applying = false; }
+    notify();
+    return;
+  }
+  if (m.kind === "fire"){
+    /* A row fired by someone else lands on the seam here too, because the seam is computed
+       locally from the shared origin rather than signalled. The message only has to arrive
+       before the boundary, not at it. */
+    applying = true;
+    try{ Patchwork.launch ? Patchwork.launch.fireRow(m.row) : Patchwork.scenes.fire(m.row); }
+    finally { applying = false; }
+    notify();
+    return;
+  }
+  if (m.kind === "own"){
+    if (m.owner) owners.set(m.inst, m.owner); else owners.delete(m.inst);
+    notify();
+    return;
+  }
+  if (m.kind === "bye"){
+    peers.delete(m.from);
+    owners.forEach((v, k) => { if (v === m.from) owners.delete(k); });
+    notify();
+    return;
+  }
+  notify();
+}
+
+/* ---- joining and leaving ---- */
+function join(name, who){
+  leave();
+  room = String(name || "jam").trim().toLowerCase();
+  me.name = String(who || "").trim() || ("player " + me.id.slice(0, 3));
+  tx = broadcastChannel(room);
+  if (!tx){ room = null; notify(); return false; }
+  tx.onMessage(onMessage);
+  /* The first one in defines the grid. Anyone already here overrides it in their welcome. */
+  if (epoch == null) adoptEpoch(Date.now());
+  send("hello", {name: me.name});
+  notify();
+  return true;
+}
+function leave(){
+  if (tx){ send("bye", {}); tx.close(); }
+  tx = null; room = null; epoch = null;
+  peers.clear(); owners.clear();
+  notify();
+}
+
+/* ---- ownership ----
+   Advisory, and deliberately so for now: it says who is holding an instrument, it does not
+   lock anyone out. A lock needs an authority to arbitrate it, and there is no server yet —
+   two people claiming at once would just disagree. Showing it is most of the value. */
+function claim(inst){
+  owners.set(inst, me.id);
+  send("own", {inst, owner: me.id});
+  notify();
+}
+function release(inst){
+  owners.delete(inst);
+  send("own", {inst, owner: null});
+  notify();
+}
+function ownerName(inst){
+  const id = owners.get(inst);
+  if (!id) return null;
+  if (id === me.id) return me.name;
+  const p = peers.get(id);
+  return p ? p.name : "someone";
+}
+
+/* Local changes go out. Subscribing to the models rather than wrapping their mutators
+   means a call site added later is shared without being told to. */
+Patchwork.scenes.onChange(pushScenes);
+Patchwork.clock.onTempo("session", pushTransport, null);
+
+return {join, leave, claim, release, ownerName, onChange: fn => subs.push(fn),
+        fired: row => send("fire", {row}),
+        get active(){ return !!tx; },
+        get room(){ return room; },
+        get me(){ return {id: me.id, name: me.name}; },
+        get owners(){ return new Map(owners); },
+        get peers(){ return [...peers.values()].map(p => ({id: p.id, name: p.name})); }};
 })();
 
 /* The synth core every instrument shares.
@@ -1945,18 +2363,37 @@ const noteName = n => NOTES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
 /* ---- the sequencer ---- */
 const seq = Patchwork.makeSeq({
   id: "bs1", maxSteps: 64, len: 16, rate: "1/16", root: 36,
+  /* ⚠️ The sequencer drives the VOICE, and touches nothing the keyboard owns.
+
+     It used to call noteOn()/noteOff() — the live-keyboard path, with a held-note map and
+     lowest-note priority — and schedule the note-off on a setTimeout. That runs two time
+     domains at once: note-ons placed on the audio clock up to 200 ms ahead, note-offs
+     landing whenever a main-thread timer got round to it. So the scheduler would run the
+     NEXT step's noteOn while the previous note was still in `held`, pick() would return
+     the lower of the two, and the higher note would not sound until the older note's timer
+     fired — at wall time, off the grid entirely.
+
+     Measured at 1/8, alternating low and high: onsets at 183 / 318 ms where 250 / 250 was
+     wanted, and consistently so, because it is always the same note of the pair that loses
+     the priority comparison. That is why some steps sounded right. `held` reached size 2
+     for 28% of samples; in a monophonic sequencer it is 0 or 1 by definition.
+
+     The release is scheduled at an audio time now — the shape PM·1's sequencer has always
+     used, which is why it never had this. */
   fire: (ev, t) => {
     ensureAudio();
+    const vel = Math.round(ev.vel * 127);
     /* Slide glides into a step without re-attacking it — a 303 line, and the reason the
        bass needed a sequencer of its own rather than borrowing notes from elsewhere. */
-    if (ev.slide && cur && !cur.released){
-      cur.setPitch(t, ev.n, Math.max(.02, P.glide || .06));
-      return;
+    if (ev.slide && cur && !cur.released) cur.setPitch(t, ev.n, Math.max(.02, P.glide || .06));
+    else if (cur && !cur.released) cur.retrigger(t, ev.n, vel, glideTime(cur.midi, ev.n));
+    else cur = buildVoice(ev.n, vel, t);
+    /* Hold the voice through a step that slides INTO this one: a slide is one continuous
+       gesture, and releasing here would re-attack the next note instead of gliding. */
+    if (!slidesAfter(ev.i)){
+      cur.release(t + ev.dur);
+      cur = null;
     }
-    noteOn(ev.n, Math.round(ev.vel * 127), t);
-    const off = t + ev.dur;
-    setTimeout(() => noteOff(ev.n, Patchwork.audio.ctx.currentTime + .003),
-               Math.max(10, (off - Patchwork.audio.ctx.currentTime) * 1000));
   },
   onState: on => {
     playBtn.classList.toggle("on", on);
@@ -1965,6 +2402,19 @@ const seq = Patchwork.makeSeq({
   }
 });
 const grid = Patchwork.mountSeqGrid($("#seqWrap"), seq);
+
+/* Does the next SOUNDING step glide into this one? Ties are skipped, because a tie extends
+   the note before it rather than sounding on its own — the same rule stepEvent() uses when
+   it works out how long a note is held. */
+function slidesAfter(i){
+  const st = seq.steps, len = seq.SEQ.len;
+  for (let k = 1; k <= len; k++){
+    const nx = st[(i + k) % len];
+    if (!nx || !nx.on || nx.tie) continue;
+    return !!nx.slide;
+  }
+  return false;
+}
 
 /* selects */
 const lenSel = $("#seqLen"), rateSel = $("#seqRate"), keySel = $("#seqKey"), scaleSel = $("#seqScale");
@@ -2025,13 +2475,30 @@ keysEl.addEventListener("pointerdown", e => {
 window.addEventListener("pointerup", () => { if (!latch) allNotesOff(); });
 
 function paintNow(){
-  const n = cur && !cur.released ? cur.midi : null;
+  let n = cur && !cur.released ? cur.midi : null;
+  /* While the sequencer runs, what is SOUNDING is the step the audio clock is on — not the
+     voice object, which is built up to 200 ms early and marked released the moment its end
+     is scheduled. playingStep() is looked up against the clock, so it is the honest answer,
+     and it is the same source the step grid's playhead uses. */
+  if (seq.SEQ.playing){
+    const i = seq.playingStep();
+    const st = i >= 0 ? seq.steps[i] : null;
+    n = (st && st.on && !st.tie) ? seq.stepNote(st) : null;
+  }
   nowNote.textContent = n == null ? "—" : noteName(n);
-  keysEl.querySelectorAll(".k").forEach(k => k.classList.toggle("on", held.has(+k.dataset.n)));
+  keysEl.querySelectorAll(".k").forEach(k => {
+    const kn = +k.dataset.n;
+    k.classList.toggle("on", held.has(kn) || kn === n);
+  });
 }
 
 /* the playhead, from the audio clock */
-(function paintLoop(){ grid.paint(); requestAnimationFrame(paintLoop); })();
+(function paintLoop(){
+  grid.paint();
+  /* the note readout is now clock-derived too, so it has to repaint with the playhead */
+  if (seq.SEQ.playing) paintNow();
+  requestAnimationFrame(paintLoop);
+})();
 
 /* ---- tempo ---- */
 function setBpm(v, fromShell){
@@ -2259,6 +2726,8 @@ window.__bs1 = {P, seq, noteOn, noteOff, allNotesOff, ensureAudio, renderNote, M
 (() => {
 "use strict";
 Patchwork.faces.mount();
+/* after faces, so the two plate buttons land in a stable order */
+Patchwork.record.mount();
 
 /* The default derives from the page rather than from a per-build flag: a lone instrument
    is its whole self, and a page with several opens on faces, because three full panels is
@@ -2269,13 +2738,13 @@ if (Patchwork.roots.length > 1) Patchwork.faces.setAll(true);
 /* One tempo for the page means ONE control for it. Every panel grew its own, and since
    the clock has been shared they all show the same number and all move together — five of
    the six were noise, and a row of disagreeing-looking readouts is worse than noise. Each
-   panel marks its block with `data-tempo`; with more than one instrument on the page the
+   panel marks its block with `data-hosted`; with more than one instrument on the page the
    studio's master takes over and the panels' come out.
 
    Derived from the page, exactly like the faces default above: a STANDALONE build keeps
    its own tempo control, because there is nothing else on that page to own it. */
 if (Patchwork.roots.length > 1)
-  Patchwork.roots.forEach(r => r.classList.add("tempo-shared"));
+  Patchwork.roots.forEach(r => r.classList.add("hosted"));
 })();
 </script>
 </body>

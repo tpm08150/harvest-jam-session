@@ -264,7 +264,8 @@ function relabelKeys(){
 function reportPatternBars(){
   if (!state.prog || !window.Patchwork || !Patchwork.scenes) return;
   const bars = state.prog.chords.reduce((n, c) => n + (c.bars || 1), 0);
-  Patchwork.scenes.setPatternBars(Math.max(1, Math.round(bars)));
+  /* CS·1 no longer sets the page's pattern length. It is a setting in the Scenes head now,
+     and the bar counter there draws it — see shell/scenes.js. */
 }
 function renderProgression(){
   reportPatternBars();

@@ -33,6 +33,10 @@ function register(id, spec){
             /* which slot it is working out of right now, or null. A slot track has no
                scene row, so the launcher cannot ask scenes.onRow which cell to ring. */
             liveSlot: spec.liveSlot || null,
+            /* stop this track's own transport. A scene member is stopped through
+               scenes.stop(); a slot track keeps its transport privately, so it has to
+               offer one or a master stop would leave the looper running. */
+            stop: spec.stop || null,
             /* Armable by default. Arming means "put what you have into the row I press",
                which every registered track can do — CS·1's progression captures as readily
                as a step grid. write() is a SEPARATE, narrower capability: taking notes you
@@ -107,7 +111,53 @@ function note(id, midi, vel, when){
   return i;
 }
 
-return {register, setArmed, toggleArm, captureRow, note, onChange, track,
+/* ---- the arm control ----
+   Injected, not written into six panel.html files — the arrangement faces.js uses for the
+   Panel button, and for the same reason: one implementation, and an instrument added later
+   gets it without being told to.
+
+   It used to live as a row above the live grid. That put the choice of WHAT you are
+   recording six columns away from the instrument you were playing, and made the grid's
+   header a control panel rather than a set of labels. On the plate it sits on whichever
+   instrument you are looking at, and it is on the face as well as the panel — arming is a
+   performance decision. */
+function mount(){
+  Patchwork.roots.forEach(root => {
+    if (root.querySelector(".arm-toggle")) return;
+    const id = root.dataset.instrument;
+    const it = kit.find(x => x.id === id);
+    if (!it || !it.canRecord) return;
+    const plate = root.querySelector(".plate");
+    if (!plate) return;
+    const b = document.createElement("button");
+    b.className = "btn ghost sm arm-toggle";
+    b.type = "button";
+    b.dataset.arm = id;
+    b.textContent = "Arm";
+    /* Every track can be armed. What differs is whether playing also writes to the grid as
+       you go, which the tooltip says rather than leaving you to find out. */
+    b.title = it.slots ? "Armed: pressing a row records an audio take into it"
+            : it.live  ? "Armed: notes you play land on the grid, and pressing a row puts the pattern there"
+                       : "Armed: pressing a row puts this instrument's current pattern into it";
+    b.addEventListener("click", () => toggleArm(id));
+    const screws = plate.querySelector(".screws");
+    if (screws) plate.insertBefore(b, screws); else plate.appendChild(b);
+  });
+  paintArms();
+}
+function paintArms(){
+  Patchwork.roots.forEach(root => {
+    const b = root.querySelector(".arm-toggle");
+    if (!b) return;
+    const on = armed.has(b.dataset.arm);
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.textContent = on ? "Armed" : "Arm";
+  });
+}
+subs.push(paintArms);
+
+return {register, setArmed, toggleArm, captureRow, note, onChange, track, mount,
         /* A track saying its OWN state moved — the looper starting, stopping, filling or
            emptying a slot. Arming is the shell's and notifies itself; a slot track keeps
            its transport privately, so without this the launcher had no way to know a take

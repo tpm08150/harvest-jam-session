@@ -34,12 +34,23 @@ function claim(quantumBeats){
   const ctx = Patchwork.audio.context();
   const soon = ctx.currentTime + .03;
   if (origin === null || running.size === 0){
-    origin = soon;
-    return soon;
+    /* ⚠️ A session IMPOSES the grid: whoever opened the jam defined beat 0, and a client
+       that starts playing an hour later has to land on that grid rather than starting a
+       fresh one under everyone. Asked for here rather than pushed in from outside because
+       this is the one moment a fresh origin would be invented — and because the mapping
+       needs an AudioContext, which does not exist when the session is joined. */
+    const shared = originSource && originSource();
+    if (shared == null){ origin = soon; return soon; }
+    origin = shared;
   }
   const q = Math.max(1e-6, quantumBeats * beatSeconds());
   return origin + Math.ceil((soon - origin) / q) * q;
 }
+
+/* Where a shared grid comes from — see shell/session.js. Returns null when playing alone,
+   which is every standalone build and the studio until someone starts a jam. */
+let originSource = null;
+function setOriginSource(fn){ originSource = fn; }
 
 function pump(){
   /* A tick that throws must not take the other instruments' transports down with it. */
@@ -99,7 +110,7 @@ function onTempo(id, fn, initial){
   return bpm;
 }
 
-return {claim, run, stop, setBpm, onTempo, beatSeconds, setRate,
+return {claim, run, stop, setBpm, onTempo, beatSeconds, setRate, setOriginSource,
         get rate(){ return rate; },
         get bpm(){ return bpm; },
         get origin(){ return origin; },

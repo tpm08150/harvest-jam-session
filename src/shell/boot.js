@@ -7,6 +7,8 @@
 (() => {
 "use strict";
 Patchwork.faces.mount();
+/* after faces, so the two plate buttons land in a stable order */
+Patchwork.record.mount();
 
 /* The default derives from the page rather than from a per-build flag: a lone instrument
    is its whole self, and a page with several opens on faces, because three full panels is
@@ -17,11 +19,11 @@ if (Patchwork.roots.length > 1) Patchwork.faces.setAll(true);
 /* One tempo for the page means ONE control for it. Every panel grew its own, and since
    the clock has been shared they all show the same number and all move together — five of
    the six were noise, and a row of disagreeing-looking readouts is worse than noise. Each
-   panel marks its block with `data-tempo`; with more than one instrument on the page the
+   panel marks its block with `data-hosted`; with more than one instrument on the page the
    studio's master takes over and the panels' come out.
 
    Derived from the page, exactly like the faces default above: a STANDALONE build keeps
    its own tempo control, because there is nothing else on that page to own it. */
 if (Patchwork.roots.length > 1)
-  Patchwork.roots.forEach(r => r.classList.add("tempo-shared"));
+  Patchwork.roots.forEach(r => r.classList.add("hosted"));
 })();

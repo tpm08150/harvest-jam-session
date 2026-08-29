@@ -12,11 +12,13 @@ shell/script-open.html
 shell/host.js
 shell/bus.js
 shell/clock.js
+shell/click.js
 shell/midi.js
 shell/scenes.js
 shell/faces.js
 shell/keys.js
 shell/record.js
+shell/session.js
 voice/core.js
 seq/step-seq.js
 vc1/_open.js

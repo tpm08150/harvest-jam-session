@@ -100,13 +100,22 @@ input[type="text"]::placeholder{color:#5a646a}
    half of a row — the patch selector without its MIDI-trigger plumbing — rather than
    having to take all of it or none. */
 .face-toggle{margin-left:auto;align-self:flex-start}
+/* Arming reads red, the same red the row buttons turn when anything is armed, so the two
+   halves of one gesture are the same colour in both places. */
+.arm-toggle{align-self:flex-start;flex:0 0 auto}
+.arm-toggle.on{
+  background:linear-gradient(180deg,#ec6146,var(--cap-red));
+  border-color:#8c2a17;color:#fff2ee;
+}
 /* The plate is a flex row ending in the screws; the toggle sits before them. */
 :scope.face .plate,:scope .plate{align-items:center}
 :scope.face [data-deep]{display:none}
-/* ...and `data-tempo` comes out whenever the page has a master to own it — see
-   shell/boot.js. Not tied to face mode: six tempo controls are as redundant on the full
-   panels as they are on the faces. */
-:scope.tempo-shared [data-tempo]{display:none}
+/* ...and `data-hosted` marks a control the PAGE owns once there is a page to own it — the
+   tempo, the metronome. It comes out whenever the panel is hosted alongside others; see
+   shell/boot.js. Not tied to face mode: six copies of one control are as redundant on the
+   full panels as they are on the faces, and a standalone build keeps its own because
+   nothing else is there to hold it. */
+:scope.hosted [data-hosted]{display:none}
 
 /* ---------- the plate ----------
    Only CS·1 and PM·1 ever defined this, so on every other panel the header had no layout
