@@ -170,7 +170,9 @@ async function openInput(deviceId){
   if (deviceId === BUS){
     closeInput();
     /* the metronome's strip is excluded too — a click on the bus prints into every take */
-    src = Patchwork.audio.tap(["lp1", Patchwork.click.STRIP]);
+    /* the metronome's strip and the talkback's are excluded too — a click or a voice on
+       the bus would be printed into every take from then on */
+    src = Patchwork.audio.tap(["lp1", Patchwork.click.STRIP, Patchwork.talk.STRIP]);
     src.connect(inGain);
     stream = BUS;                   // "an input is open", without a MediaStream
     say("Recording the <b>studio output</b> — everything the other instruments play, but "

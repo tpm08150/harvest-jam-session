@@ -49,6 +49,7 @@ shell/faces.js
 shell/keys.js
 shell/record.js
 shell/codec.js
+shell/talk.js
 shell/session.js
 voice/core.js
 seq/step-seq.js

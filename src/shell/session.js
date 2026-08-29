@@ -355,12 +355,17 @@ function onMessage(m){
     takeTake(m);
     return;
   }
+  if (m.kind === "talk"){
+    if (Patchwork.talk) Patchwork.talk.heard(m.from, m.d);
+    return;                                   // a voice is not a roster change either
+  }
   if (m.kind === "own"){
     if (m.owner) owners.set(m.inst, m.owner); else owners.delete(m.inst);
     notify();
     return;
   }
   if (m.kind === "bye"){
+    if (Patchwork.talk) Patchwork.talk.forget(m.from);
     peers.delete(m.from);
     owners.forEach((v, k) => { if (v === m.from) owners.delete(k); });
     notify();
@@ -479,6 +484,7 @@ function join(name, who){
   return true;
 }
 function leave(){
+  if (Patchwork.talk && Patchwork.talk.on) Patchwork.talk.stop();
   if (tx){ send("bye", {}); tx.close(); }
   clearInterval(trickle); trickle = null;
   tx = null; room = null; epoch = null;
@@ -636,6 +642,7 @@ Patchwork.clock.onTempo("session", pushTransport, null);
 
 return {join, leave, browse, claim, release, ownerName, registerPatch, mountOwners,
         registerVoice, played, pushTake,
+        talk: (d, n) => send("talk", {d, n}),
         onChange: fn => subs.push(fn),
         fired: row => send("fire", {row}),
         get active(){ return !!tx; },

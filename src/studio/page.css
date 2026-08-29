@@ -72,6 +72,8 @@ body{
 }
 .st-jam-who b{color:var(--mint);font-weight:400}
 .st-jam-who em{font-style:normal;color:var(--cap-yellow)}
+/* live and open, in the red the studio uses for anything that is recording or transmitting */
+#stTalk.st-live{background:linear-gradient(180deg,#a83c26,#7d2b19);border-color:#8c2a17;color:#ffd9d0}
 /* the list of jams, anchored under the button that opened it */
 .st-jam{position:relative}
 .st-jam-list{

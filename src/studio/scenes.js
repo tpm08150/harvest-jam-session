@@ -403,6 +403,30 @@ document.addEventListener("click", e => {
   if (!list.hidden && !e.target.closest("#stJam")) list.hidden = true;
 });
 
+/* ---- talkback ----
+   Open, not push-to-talk: you are playing with both hands, and a button you have to hold
+   is a button you cannot use while playing. Off by default, because a microphone that
+   opens itself is nobody's idea of a good time. */
+const talkBtn = document.querySelector("#stTalk");
+talkBtn.addEventListener("click", async () => {
+  talkBtn.disabled = true;
+  const r = await Patchwork.talk.toggle();
+  talkBtn.disabled = false;
+  if (!r.ok) who.innerHTML = who.innerHTML + " &middot; <em>" + r.why + "</em>";
+});
+function paintTalk(){
+  const inJam = Patchwork.session.active;
+  talkBtn.hidden = !inJam || !Patchwork.talk.supported;
+  talkBtn.classList.toggle("st-live", Patchwork.talk.on);
+  talkBtn.textContent = Patchwork.talk.on ? "\u{1F534} Live" : "\u{1F3A4} Talk";
+  talkBtn.title = Patchwork.talk.on
+    ? "Your microphone is open to the jam — click to close it"
+    : "Open your microphone to the jam";
+}
+Patchwork.talk.onChange(paintTalk);
+Patchwork.session.onChange(paintTalk);
+paintTalk();
+
 function paint(){
   const on = Patchwork.session.active;
   btn.textContent = on ? "Leave jam" : "Start a jam";
