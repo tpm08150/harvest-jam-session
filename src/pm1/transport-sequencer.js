@@ -222,12 +222,12 @@ function tick(){
     const at = Math.max(ctx.currentTime + .005, nextTime);
     /* a queued scene lands on the loop point, ahead of this step being scheduled — see
        shell/scenes.js for why this cannot be done on wall time */
-    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("ms1");
+    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("pm1");
     const ai = scheduleStep(stepIndex, at);
     marks.push({i:stepIndex % SEQ.len, ai:ai, t:at, end:at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
        pair, so the pattern's total length is unchanged however hard it shuffles */
-    /* the shared rate trim: MS·1 has no clock follow of its own, so this is how it
+    /* the shared rate trim: PM·1 has no clock follow of its own, so this is how it
        follows external clock at all — it runs at whatever rate the lock has settled on */
     const r = Patchwork.clock.rate;
     nextTime += r * ((stepIndex % 2 === 0) ? 2*SEQ.swing*step : (2 - 2*SEQ.swing)*step);

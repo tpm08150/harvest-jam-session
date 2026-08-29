@@ -30,7 +30,7 @@ const active = new Set();
 /* MS1_UNITY is the linear gain one oscillator at full level reaches at the voice output
    when trim is 0. Set by measurement, not taste: CS·1's twelve voices average -30.1 dBFS
    for a single note and it sounds 3-4 at once, so a CS·1 chord lands near -24 dBFS. A mono
-   synth has no chord to hide behind, so MS·1 aims a single note at that same -24 dBFS. */
+   synth has no chord to hide behind, so PM·1 aims a single note at that same -24 dBFS. */
 const MS1_UNITY = 0.20;
 /* Applied after the per-patch trim, so `trim` stays a pure timbre-compensation number and
    stays comparable between a bass and a lead. The pad's -6 is the "sits under CS·1"
@@ -126,7 +126,7 @@ function initAudio(useCtx){
      handoff is blunt about why that matters: a detector validated against nothing gave
      confident wrong answers, and a rig that reimplements the engine measures the rig. */
   ctx = useCtx || Patchwork.audio.context();
-  const out = useCtx ? ctx.destination : Patchwork.audio.strip("ms1");
+  const out = useCtx ? ctx.destination : Patchwork.audio.strip("pm1");
 
   master = ctx.createGain(); master.gain.value = 1;
   comp = ctx.createDynamicsCompressor();
@@ -471,7 +471,7 @@ function mkStack(voice, det, panPos, f0){
 
   return {out, pan, parts, det, curF:f0,
     /* Everything below moves under a sounding note. CS·1's whole fader design is built on
-       that and MS·1 fell short of it: half the panel used to wait for the next note. */
+       that and PM·1 fell short of it: half the panel used to wait for the next note. */
     setLevels(t){
       const L = LVL();
       parts.forEach(p => { if (p.key && L[p.key] != null)

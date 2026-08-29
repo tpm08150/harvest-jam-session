@@ -9,11 +9,44 @@
   to = "/patchwork-chord-synth.html"
   status = 200
 
-# The second instrument gets a clean path of its own. Same rewrite trick, and the root
-# still belongs to CS-1 so existing links and bookmarks keep working.
+# Each instrument gets a clean path of its own. Same rewrite trick, and the root still
+# belongs to CS-1 so existing links and bookmarks keep working.
+#
+# /mono was MS-1, which split into PM-1, VC-1 and BS-1. It points at the poly synth, which
+# is what MS-1 mostly was, rather than 404ing a link someone may have saved.
 [[redirects]]
   from = "/mono"
-  to = "/patchwork-mono-synth.html"
+  to = "/patchwork-poly-synth.html"
+  status = 200
+
+[[redirects]]
+  from = "/poly"
+  to = "/patchwork-poly-synth.html"
+  status = 200
+
+[[redirects]]
+  from = "/vocoder"
+  to = "/patchwork-vocoder.html"
+  status = 200
+
+[[redirects]]
+  from = "/bass"
+  to = "/patchwork-bass.html"
+  status = 200
+
+[[redirects]]
+  from = "/drums"
+  to = "/patchwork-drums.html"
+  status = 200
+
+[[redirects]]
+  from = "/looper"
+  to = "/patchwork-looper.html"
+  status = 200
+
+[[redirects]]
+  from = "/studio"
+  to = "/patchwork-studio.html"
   status = 200
 
 # The app is a single file that changes on every deploy — never let a browser hold

@@ -110,10 +110,10 @@ function applyParamsQuiet(src){
 /* A test hook, not a feature: the offline harness needs to build a voice and read the
    patch without driving the UI. Mirrors CS·1's habit of making the engine measurable. */
 /* ---- scenes ----
-   An MS·1 pattern is the step sequence and how it is read — not the patch. Firing a
+   An PM·1 pattern is the step sequence and how it is read — not the patch. Firing a
    scene changes the line, not the sound it is played with. */
-Patchwork.scenes.register("ms1", {
-  name: "MS·1",
+Patchwork.scenes.register("pm1", {
+  name: "PM·1",
   isPlaying: () => SEQ.playing,
   capture: () => ({steps: JSON.parse(JSON.stringify(SEQ.steps)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing,
@@ -131,7 +131,7 @@ Patchwork.scenes.register("ms1", {
   }
 });
 
-window.__ms1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
+window.__pm1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
                 applyParams, noteOn, noteOff, buildVoice, renderPatch,
                 stepEvent, nextSounding, stepSeconds, swungAt, envValueAt,
                 arpSequence, stepNote, toDegree, fromDegree, SCALES,

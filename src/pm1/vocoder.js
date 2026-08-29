@@ -169,7 +169,12 @@ function stopModulator(){
 
 /* ---- segmented buttons ---- */
 function seg(sel, attr, get, set){
-  const g = $(sel); if (!g) return;
+  const g = $(sel);
+  /* A control whose section moved to another instrument is absent, not broken. Returning
+     a no-op painter rather than undefined means every caller that stores the result in
+     segPaint still gets something callable — the alternative is a TypeError at boot from
+     a control nobody can see. */
+  if (!g) return function(){};
   const paint = () => g.querySelectorAll("button").forEach(b =>
     b.classList.toggle("on", b.dataset[attr] === String(get())));
   g.addEventListener("click", e => {
@@ -248,7 +253,7 @@ segPaint.keysTo = seg("#keysTo","k", () => keysTo, v => {
 /* The bass path already refused to play into a section that was switched off; the vocoder
    path did not, and silently swallowed the notes. Say so instead of eating them. */
 function paintKeysNote(){
-  const el = $("#keysNote"); if (!el) return;
+  const el = root.querySelector("#keysNote"); if (!el) return;
   const dead = (keysTo === "voc" || keysTo === "both") && !P.voc ? "vocoder"
              : keysTo === "bass" && !P.bass ? "bass" : null;
   el.innerHTML = dead
@@ -588,96 +593,18 @@ makeHFader("#gateFader", () => SEQ.gate, v => SEQ.gate = clampf(v,.05,1),
 makeHFader("#swingFader", () => (SEQ.swing - .5)/.25, v => SEQ.swing = .5 + v*.25,
            v => v <= .02 ? "straight" : Math.round((.5 + v*.25)*100)+"%", "swing");
 
-/* ---- vocoder controls ---- */
-const vocNoteEl = $("#vocNote"), modInSel = $("#modIn");
-let modDevices = [];
-function vocSay(msg, bad){
-  vocNoteEl.innerHTML = msg;
-  vocNoteEl.classList.toggle("bad", !!bad);
-}
-function modLabel(id){
-  const d = modDevices.find(x => x.deviceId === id);
-  return d ? (d.label || "input") : "the default input";
-}
-/* Labels stay blank until permission has been granted once, which is why the list is
-   refreshed after Listen succeeds rather than only on load. */
-async function listInputs(){
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-  try{
-    const devs = await navigator.mediaDevices.enumerateDevices();
-    modDevices = devs.filter(d => d.kind === "audioinput");
-    const keep = modInSel.value;
-    modInSel.innerHTML = "";
-    modInSel.appendChild(Object.assign(document.createElement("option"),
-      {value:"", textContent:"Default input"}));
-    modDevices.forEach((d, i) => modInSel.appendChild(Object.assign(
-      document.createElement("option"),
-      {value:d.deviceId, textContent:d.label || ("Input " + (i+1))})));
-    modInSel.value = modDevices.some(d => d.deviceId === keep) ? keep : "";
-  }catch(e){}
-}
-/* The meter runs on a timer rather than requestAnimationFrame: it has to keep reading
-   while the window is in the background, which is exactly when someone is fiddling with
-   their interface's routing to work out why nothing is arriving. */
-const vocStats = $("#vocStats");
-function startModMeter(){
-  stopModMeter();
-  modPeakHold = 0; modPeakAt = 0;
-  modMeterTimer = setInterval(paintModMeter, 100);
-  paintModMeter();
-}
-function stopModMeter(){
-  if (modMeterTimer != null){ clearInterval(modMeterTimer); modMeterTimer = null; }
-  if (vocStats) vocStats.innerHTML = "";
-}
-function paintModMeter(){
-  if (!modMeter || !vocStats) return;
-  const buf = new Float32Array(modMeter.fftSize);
-  modMeter.getFloatTimeDomainData(buf);
-  let pk = 0, sq = 0;
-  for (let i = 0; i < buf.length; i++){ const a = Math.abs(buf[i]); if (a > pk) pk = a; sq += buf[i]*buf[i]; }
-  const rms = Math.sqrt(sq/buf.length);
-  const now = performance.now();
-  if (pk >= modPeakHold || now - modPeakAt > 1200){ modPeakHold = pk; modPeakAt = now; }
+/* The modulator meter's painter lived in the block below and went with it. The engine
+   above still calls start/stop, so they stay as no-ops rather than leaving a reference
+   that only throws when a section nobody can switch on is switched on. */
+function startModMeter(){}
+function stopModMeter(){}
+function paintModMeter(){}
 
-  const dbp = 20*Math.log10(modPeakHold + 1e-9);
-  const dbr = 20*Math.log10(rms + 1e-9);
-  /* -60 dBFS is the floor below which an input is, practically, not plugged in */
-  const dead = dbp < -60;
-  const hot  = modPeakHold > 0.99;
-  const bits = [];
-  bits.push("input <b class=\"" + (dead ? "hot" : hot ? "hot" : "") + "\">"
-    + (dead ? "silent" : dbp.toFixed(1) + " dBFS") + "</b>");
-  if (!dead) bits.push("rms <b>" + dbr.toFixed(1) + "</b>");
-  bits.push("carrier <b>" + carriers.size + (carriers.size === 1 ? " note" : " notes") + "</b>");
-  bits.push("bank <b>" + vocBank.length + "</b>");
-  /* The two failure modes worth naming, because neither makes a sound and they look alike */
-  if (dead) bits.push("<b class=\"hot\">nothing arriving on this input</b>");
-  else if (hot) bits.push("<b class=\"hot\">clipping — turn the source down</b>");
-  else if (!carriers.size) bits.push("<b class=\"hot\">hold notes on the vocoder half to hear it</b>");
-  vocStats.innerHTML = bits.map(b => "<span>" + b + "</span>").join("");
-}
-
-$("#modStart").addEventListener("click", async () => {
-  if (modSrc){
-    stopModulator();
-    $("#modStart").textContent = "Listen";
-    vocSay("Input closed.");
-    return;
-  }
-  const ok = await startModulator(modInSel.value);
-  if (ok){
-    $("#modStart").textContent = "Stop";
-    if (!P.voc){ P.voc = 1; segPaint.vocOn(); applyVocoder(); paintKeys(); paintMeta(); }
-    listInputs();                       // labels are readable now permission was granted
-  }
-});
-modInSel.addEventListener("change", async () => {
-  if (!modSrc) return;                  // takes effect when Listen is pressed
-  const ok = await startModulator(modInSel.value);
-  $("#modStart").textContent = ok ? "Stop" : "Listen";
-});
-listInputs();
+/* The vocoder's controls went with its rack — see VC·1. The engine below them is still
+   here and is unreachable: nothing on this panel can set P.voc, and the schema pins it to
+   0. Taking the engine out is a separate job, because MS·1's three sections were
+   interwoven through the UI layer rather than stacked, and the safe order is to make it
+   unreachable first and prove that, which is what the patch-render comparison does. */
 
 /* ---- readouts ----
    rAF is paused in a hidden tab (and never fires at all in a headless pane), so anything
@@ -756,9 +683,9 @@ function setBpm(v, fromShell){
   tempoOut.textContent = SEQ.bpm;
   applyDelay();                       // a synced delay follows the tempo
   /* one tempo for the page — see CS·1's setBpm for why fromShell exists */
-  if (!fromShell) Patchwork.clock.setBpm(SEQ.bpmExact, "ms1");
+  if (!fromShell) Patchwork.clock.setBpm(SEQ.bpmExact, "pm1");
 }
-Patchwork.clock.onTempo("ms1", v => setBpm(v, true), SEQ.bpmExact);
+Patchwork.clock.onTempo("pm1", v => setBpm(v, true), SEQ.bpmExact);
 $("#bpmDown").addEventListener("click", () => setBpm(SEQ.bpmExact - 1));
 $("#bpmUp").addEventListener("click", () => setBpm(SEQ.bpmExact + 1));
 function setOctave(v){

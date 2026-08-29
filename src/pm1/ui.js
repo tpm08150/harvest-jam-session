@@ -279,7 +279,13 @@ const KNOBS = {
 const PARAM_RANGE = {};
 Object.keys(KNOBS).forEach(host => {
   const el = $("#"+host);
-  KNOBS[host].forEach(d => { PARAM_RANGE[d.id] = [d.min, d.max]; makeKnob(el, d); });
+  /* A host that is not on this panel is a rack that moved to another instrument, not an
+     error. The range table is still filled either way, so a patch carrying that parameter
+     still clamps correctly on load. */
+  KNOBS[host].forEach(d => {
+    PARAM_RANGE[d.id] = [d.min, d.max];
+    if (el) makeKnob(el, d);
+  });
 });
 
 /* ---- push a knob move into what is already sounding ----

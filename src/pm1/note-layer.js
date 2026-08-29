@@ -16,7 +16,10 @@ const downKeys = new Set();
    destination. This is what the keyboard split used to do, without pretending that half a
    keyboard is a routing scheme. Declared up here because the panel's segmented button
    paints its initial state as it is built, which is long before the MIDI section runs. */
-let keysTo = "syn";                                          // syn | voc | both
+/* Always the synth: MS·1 needed a choice because one keyboard served three sections, and
+   PM·1 has one voice. Kept as a variable rather than inlined so the routing code below
+   reads unchanged against MS·1, which is what makes this diff reviewable. */
+let keysTo = "syn";
 /* While the arpeggiator runs, held notes are INPUT to it, not notes in their own right:
    the arp is already mirroring what actually sounds, so sending the held keys as well
    would put a sustained note out under it that nothing ever releases. */

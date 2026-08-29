@@ -1127,6 +1127,73 @@ badly. All eight scenes stay reachable, the cells just stop being generous.
 | instrument visible without scrolling | 321 px |
 | horizontal scroll | none |
 
+## The MS·1 split
+
+MS·1 was one instrument with three sections — synth, vocoder, bass — sharing a graph, a
+patch object, a keyboard and a four-way MIDI channel map. It is now three:
+
+| | | |
+| --- | --- | --- |
+| **PM·1** | `patchwork-poly-synth.html` | the main voice — MS·1 minus the other two |
+| **VC·1** | `patchwork-vocoder.html` | the bank, with a simple carrier of its own |
+| **BS·1** | `patchwork-bass.html` | the pedal voice |
+
+Each has its own 64-step sequencer and its own MIDI input channel, which is most of what
+the split was for. MS·1's own notes said plainly that "the sequencer and arpeggiator drive
+the synth section only" — a fair limit for a section, and an unacceptable one for an
+instrument.
+
+`voice/core.js` holds what all three need and none should own three copies of: the ladder
+with its closed-form inverse, RCOMP, the envelope helpers and their measured release floor.
+`seq/step-seq.js` is a factory — one call per instrument gives it its own state, grid and
+transport on the shell's clock.
+
+### VC·1's carrier gain was measured, not guessed
+
+MS·1's carrier came off its full voice stack, with per-patch trims and a unison divisor;
+VC·1's is a bare oscillator, and a bare oscillator at unity is far hotter. Running one
+synthetic modulator through both put VC·1 **exactly 23.07 dB above MS·1 at two different
+modulator levels** — the signature of a constant gain error rather than a behavioural
+difference. `CARRIER_UNITY` is that offset. With it applied VC·1 matches MS·1 to 0.00 and
+−0.01 dB, landing at −24.84 / −24.18 dBFS.
+
+### ⚠️ PM·1 still contains the vocoder and bass ENGINE, unreachable
+
+This is the one loose end and it is deliberate. The three sections were interwoven through
+MS·1's **UI layer** rather than stacked — roughly 330 references across seven files — and a
+first attempt to excise them by pattern produced two syntax errors and a half-removed
+vocoder before it was abandoned and redone.
+
+What PM·1 has now:
+
+- the vocoder and bass **racks, channel selectors and keyboard-destination switch removed**
+  from the panel
+- `voc` and `bass` **pinned to 0** in the schema, with nothing on the panel able to set them
+- their knob groups skipped, because their hosts are absent
+- MIDI reduced to one note channel and one control channel
+- the engine code still present behind all of that, and unreachable
+
+**Proof it is inert:** all twenty factory patches render within **0.24 dB** of MS·1's, mean
+0.072 dB — comfortably inside the level harness's own stochastic spread. The voice engine
+is untouched.
+
+Removing the orphaned engine is a job of its own. The safe order is what was followed here:
+make it unreachable, prove that by measurement, then delete with the same proof available
+as a regression test.
+
+### Other notes
+
+- `seg()` returns a **no-op painter** when its control is absent, rather than `undefined`.
+  A control whose section moved is missing, not broken, and every caller stores the result.
+- The patch storage key is still `patchwork-ms1-patches`, deliberately — renaming it would
+  silently orphan every patch anyone had saved. `restore()` accepts both app names.
+- The build's collision check now **derives** its instrument list from the panels present,
+  rather than naming them, so adding an instrument cannot silently weaken it.
+- ⚠️ **With six instruments the studio no longer fits one 2000 px screen in faces mode** —
+  seven grid items at a 350 px floor is five columns, so two rows. It fitted at four
+  instruments. Either a narrower face or a way to hide an instrument is the fix, and that
+  is a design decision rather than a bug.
+
 ## Working style that suited this project
 
 Measure rather than assume — most of the real bugs here were found by rendering audio

@@ -184,7 +184,7 @@ function onMidi(e){
   const d = e.data; if (!d || !d.length) return;
   const s = d[0];
   ledBlink();
-  if (s >= 0xF0) return;                       // MS·1 runs its own clock — see the README
+  if (s >= 0xF0) return;                       // PM·1 runs its own clock — see the README
   const type = s & 0xF0, ch = s & 0x0F;
 
   /* ---- control messages ride the Control channel, not a section's ---- */
@@ -265,7 +265,7 @@ function describe(){
     + ", CC on <b>" + chName(MIDI.ccCh) + "</b>.";
   say(i + " input" + (i === 1 ? "" : "s") + " · " + o + " output" + (o === 1 ? "" : "s")
     + " — " + how + " Learn a knob to any CC. Program change 0–19 recalls the factory bank. "
-    + "MS·1 runs its own clock and ignores incoming MIDI clock.");
+    + "PM·1 runs its own clock and ignores incoming MIDI clock.");
 }
 /* The port belongs to the page, not to this panel — see shell/midi.js. Assigning
    onmidimessage here is what made the two instruments steal it from each other. */
@@ -285,57 +285,31 @@ function bindOutput(){
   MIDI.out = midiOutSel.value ? ports("outputs").find(p => p.id === midiOutSel.value) || null : null;
 }
 /* ---- input channels ---- */
-const synChSel = $("#synCh"), vocChSel = $("#vocCh"), ccChSel = $("#ccCh"),
-      bassChSel = $("#bassCh"), chNote = $("#chNote"), bassNote = $("#bassNote");
-[synChSel, vocChSel, ccChSel, bassChSel].forEach(sel => {
+/* One input channel and one control channel. MS·1 needed four selectors because three
+   sections shared one instrument; each of the three now answers on a channel of its own,
+   which is most of what the split was for. */
+const synChSel = $("#synCh"), ccChSel = $("#ccCh"), chNote = $("#chNote");
+[synChSel, ccChSel].forEach(sel => {
   sel.appendChild(Object.assign(document.createElement("option"),
-    {value:"-1", textContent:sel === bassChSel ? "—" : "Omni"}));
+    {value:"-1", textContent:"Omni"}));
   for (let c = 0; c < 16; c++)
     sel.appendChild(Object.assign(document.createElement("option"),
       {value:String(c), textContent:String(c+1)}));
 });
 const chName = v => v < 0 ? "any channel" : "channel " + (v + 1);
-function paintBassNote(){
-  if (!bassNote) return;
-  bassNote.innerHTML = !P.bass
-    ? "Section is off."
-    : (MIDI.bassCh < 0
-        ? "No MIDI channel assigned — play it with <b>Keys play → Bass</b>, or give it a "
-          + "channel under MIDI."
-        : "Answering <b>channel " + (MIDI.bassCh + 1) + "</b>.");
-}
+function paintBassNote(){}                 // the bass note went with the bass rack
 function paintRoute(){
   synChSel.value = String(MIDI.synCh);
-  bassChSel.value = String(MIDI.bassCh);
-  paintBassNote();
-  vocChSel.value = String(MIDI.vocCh);
   ccChSel.value  = String(MIDI.ccCh);
-  const both = routeFor(MIDI.synCh < 0 ? 0 : MIDI.synCh) === "both";
-  const bits = [];
-  bits.push("Synth on " + chName(MIDI.synCh) + ".");
-  if (!P.voc) bits.push("<b>Vocoder section is off</b>, so everything plays the synth.");
-  else if (both) bits.push("Vocoder on " + chName(MIDI.vocCh)
-    + " — both claim the same notes, so they <b>layer</b>.");
-  else bits.push("Vocoder on " + chName(MIDI.vocCh) + ".");
-  if (P.bass) bits.push("Bass on "
-    + (MIDI.bassCh < 0 ? "<b>no channel</b> (keyboard only)" : chName(MIDI.bassCh)) + ".");
-  bits.push("CC and program change on " + chName(MIDI.ccCh) + ".");
-  chNote.innerHTML = bits.join(" ");
+  chNote.innerHTML = "Notes on " + chName(MIDI.synCh)
+    + ". CC and program change on " + chName(MIDI.ccCh) + ".";
   chNote.classList.remove("bad");
 }
 synChSel.addEventListener("change", () => {
   MIDI.synCh = parseInt(synChSel.value, 10); allNotesOff(); paintRoute(); saveMap(); describe();
 });
-vocChSel.addEventListener("change", () => {
-  MIDI.vocCh = parseInt(vocChSel.value, 10); allNotesOff(); paintRoute(); saveMap(); describe();
-});
 ccChSel.addEventListener("change", () => {
   MIDI.ccCh = parseInt(ccChSel.value, 10); paintRoute(); saveMap(); describe();
-});
-bassChSel.addEventListener("change", () => {
-  MIDI.bassCh = parseInt(bassChSel.value, 10);
-  if (ctx) allBassOff(ctx.currentTime);
-  paintRoute(); saveMap(); describe();
 });
 
 midiInSel.addEventListener("change", bindInput);
@@ -364,7 +338,7 @@ function initMidi(){
       + "rather than opening it with <code>file://</code>.", true);
     return;
   }
-  Patchwork.midi.route("ms1", onMidi, pt => {
+  Patchwork.midi.route("pm1", onMidi, pt => {
     fillPorts(); followInput(pt); bindOutput(); describe();
   });
   Patchwork.midi.open().then(a => {

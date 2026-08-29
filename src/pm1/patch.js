@@ -25,7 +25,12 @@ const FACTORY_DEFAULT = {
   trim:0,
   /* --- vocoder section. Added in patch v2; older patches simply get these defaults,
      which is the same "a missing key RESETS it" rule everything else obeys. --- */
-  voc:0,               // section on/off
+  /* ⚠️ voc* and bass* are PINNED OFF and unreachable — the vocoder is VC·1 and the bass
+     is BS·1. The keys stay so a patch exported from MS·1 still loads and clamps, and the
+     engine behind them is still in this file's neighbours but nothing can reach it. See
+     the handoff: removing it safely is a job of its own, because the three sections were
+     interwoven through the UI layer rather than stacked. */
+  voc:0,               // PINNED OFF — the vocoder is VC·1
   vocbands:16,         // 8 | 16 | 24 analysis/synthesis pairs
   vocq:4.5,            // band Q, both banks
   vocresp:22,          // follower smoothing, Hz — low is smooth, high is articulate
@@ -37,7 +42,7 @@ const FACTORY_DEFAULT = {
   /* --- bass section (patch v3). A pedal synth, not a third general-purpose voice: one
      oscillator plus a square sub, a ladder, and a contour. No LFO, no PWM, no effects
      sends — a Taurus has none of that either, and a bass wants to stay dry and centred. */
-  bass:0,              // section on/off
+  bass:0,              // PINNED OFF — the bass is BS·1
   bwave:"saw",         // saw | square
   boct:-1,             // octaves below the played note
   blvl:.85,            // output level
@@ -391,7 +396,7 @@ shard:{cat:"fx", tag:"Sync scream — filter env sweeps the slave pitch, not the
 
 /* The one patch designed to lose. A unison drone at 20 cents and 85% stereo spread, so
    it occupies the sides while CS·1's chords hold the centre; HPF at 90Hz keeps it off
-   MS·1's own bass. The -6dB duck is CAT_TRIM's job, not this patch's trim.
+   PM·1's own bass. The -6dB duck is CAT_TRIM's job, not this patch's trim.
    0.28Hz filter LFO gives it slow movement without any note activity. */
 moss:{cat:"pad", tag:"Soft wide drone bed — deliberately quiet, lives at the sides", tn:55,
   o1w:"tri", o1oct:0, o1semi:0, o1det:0,    o1lvl:.55,

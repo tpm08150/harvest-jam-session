@@ -477,7 +477,7 @@ input[type="text"]::placeholder{color:#5a646a}
 /* Everything below is scoped to this instrument's panel. @scope rather than
    nesting because it adds no specificity, so the relative weight of every rule
    inside is exactly what it was when this was a whole page to itself. */
-@scope (.unit.ms1) {
+@scope (.unit.pm1) {
 /* Tokens are CS·1's, value for value — two synths with the same grey and different
    accents read as one product line; two different greys read as two products. */
 /* clip, not hidden: the mobile transport is sticky inside this box, and overflow:hidden
@@ -794,6 +794,222 @@ input[type="text"]::placeholder{color:#5a646a}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 }
+/* Scoped to this instrument's panel; @scope adds no specificity. */
+@scope (.unit.vc1) {
+/* BS·1 owns its accent and its sequencer grid; the rest comes from the shared chrome. */
+:scope{
+  --vc-accent:#d67ab1;
+  --vc-accent-hi:#e59ac7;
+  --vc-accent-lo:#a85287;
+  --vc-accent-ink:#2b0e20;
+  width:100%;max-width:760px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  padding:20px 18px 24px;position:relative;overflow:clip;
+}
+:scope::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px)}
+:scope>*{position:relative;z-index:1}
+
+.rule{height:1px;background:linear-gradient(90deg,transparent,var(--vc-accent),transparent);
+  opacity:.55;margin:12px 0 16px}
+.screws{display:flex;gap:9px;align-items:center}
+.screw{width:9px;height:9px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#68727a,#2b3237 68%,#171b1e);
+  box-shadow:0 1px 0 rgba(255,255,255,.10),0 0 0 1px rgba(0,0,0,.5) inset}
+
+.card{background:var(--paper);border-radius:6px;padding:14px 14px 12px;color:var(--ink);
+  box-shadow:0 2px 0 rgba(0,0,0,.35),0 10px 22px rgba(0,0,0,.32)}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.now{font-family:Fraunces,Georgia,serif;font-size:30px;line-height:1.1;margin:6px 0 10px;
+  color:var(--ink);min-height:34px}
+.keys{display:flex;height:74px;border-radius:4px;overflow:hidden;
+  border:1px solid rgba(35,43,49,.2);background:#f4f1e8}
+.keys .k{flex:1 1 0;border-right:1px solid rgba(35,43,49,.18);cursor:pointer;position:relative}
+.keys .k:last-child{border-right:0}
+.keys .k.b{background:#2a3238;flex:0 0 0;width:0;margin:0 -7px;z-index:2;height:62%;
+  border-radius:0 0 2px 2px;border:0}
+.keys .k.b i{position:absolute;inset:0;width:14px;left:-7px;background:#2a3238;
+  border-radius:0 0 2px 2px}
+.keys .k.on{background:var(--vc-accent)}
+.keys .k.b.on i{background:var(--vc-accent-hi)}
+
+.transport{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 4px}
+.tempo{display:flex;align-items:center;background:var(--slot);border:1px solid var(--groove);
+  border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;overflow:hidden}
+.tempo button{background:none;border:0;color:var(--silk-dim);font-size:15px;padding:8px 12px;
+  cursor:pointer;font-family:inherit}
+.tempo button:hover{color:var(--silk)}
+.tempo span{font-family:"DM Mono";font-size:13px;color:var(--mint);min-width:38px;
+  text-align:center;font-variant-numeric:tabular-nums}
+
+.sect{margin-top:20px;padding-top:16px;border-top:1px solid rgba(0,0,0,.4);
+  box-shadow:0 -1px 0 rgba(255,255,255,.05)}
+.sect-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:10px}
+.patrow{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.knobrow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.knobrow .hfader{flex:1 1 150px}
+
+/* ---- sequencer grid ---- */
+.seqwrap{display:flex;flex-direction:column;gap:5px}
+.seqrow{display:flex;align-items:center;gap:9px}
+.rlab{flex:0 0 44px;font-family:"DM Mono";font-size:9px;letter-spacing:.04em;
+  color:var(--read-dim);text-align:right}
+.steps{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;flex:1 1 auto;min-width:0}
+.step{
+  height:26px;border-radius:3px;padding:0;cursor:pointer;position:relative;
+  background:var(--slot);border:1px solid var(--groove);
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  font-family:"DM Mono";font-size:9px;letter-spacing:-.02em;color:var(--read-dim);
+}
+.step.on{background:linear-gradient(180deg,var(--vc-accent-hi),var(--vc-accent));
+  border-color:var(--vc-accent-lo);color:var(--vc-accent-ink);
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset}
+.step.beat::before{content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);
+  width:2px;height:2px;border-radius:50%;background:rgba(255,255,255,.45)}
+.step.acc{box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 0 0 1px var(--cap-yellow) inset}
+.step.sld::after{content:"";position:absolute;bottom:2px;left:3px;right:3px;height:2px;
+  border-radius:1px;background:var(--stripe-mod)}
+.step.tie{background:linear-gradient(180deg,#5a6a76,#43505a);color:#cfd8de}
+.step.now{outline:2px solid var(--mint);outline-offset:1px;z-index:2}
+
+.seqlegend{display:flex;gap:14px;flex-wrap:wrap;font-family:"DM Mono";font-size:9px;
+  letter-spacing:.04em;color:var(--read-dim);margin-top:9px}
+.seqlegend i{display:inline-block;width:9px;height:9px;border-radius:2px;
+  vertical-align:-1px;margin-right:5px}
+
+/* ---- faders ---- */
+.hfader{display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
+  padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13)}
+.hslot{position:relative;flex:1 1 auto;min-width:52px;height:20px;border-radius:4px;
+  background:linear-gradient(180deg,#20262a,#12161a 45%,#20262a);
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06)}
+.hslot::after{content:"";position:absolute;left:7px;right:7px;top:50%;height:3px;
+  transform:translateY(-50%);background:#0b0e10;border-radius:2px}
+.hcap{position:absolute;top:-3px;height:26px;width:20px;border-radius:3px;transform:translateX(-50%);
+  background:linear-gradient(180deg,#5b656b,#394247);border:1px solid #14181b;
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset}
+.hcap::after{content:"";position:absolute;top:3px;bottom:3px;left:50%;width:3px;margin-left:-1.5px;
+  border-radius:2px;background:var(--vc-accent)}
+.hfader.dragging .hcap{border-color:var(--mint)}
+.hfader .hval{font-family:"DM Mono";font-size:10px;color:#aeb8be;min-width:46px;text-align:right}
+.hfader .hlab{white-space:nowrap}
+.row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:10px}
+
+/* input meter — the only way to tell "nothing arriving" from "signal fine, no notes held" */
+.meter{flex:0 0 90px;height:5px;border-radius:3px;background:#12161a;overflow:hidden}
+.meter i{display:block;height:100%;width:0;
+  background:linear-gradient(90deg,var(--vc-accent),var(--cap-yellow) 84%,var(--cap-red));
+  transition:width .08s linear}
+@media (prefers-reduced-motion:reduce){ .meter i{transition:none} }
+}
+/* Everything below is scoped to this instrument's panel. @scope rather than nesting
+   because it adds no specificity. */
+@scope (.unit.bs1) {
+/* BS·1 owns its accent and its sequencer grid; the rest comes from the shared chrome. */
+:scope{
+  --bs-accent:#d9884a;
+  --bs-accent-hi:#e8a06a;
+  --bs-accent-lo:#b06a33;
+  --bs-accent-ink:#2b1608;
+  width:100%;max-width:760px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  padding:20px 18px 24px;position:relative;overflow:clip;
+}
+:scope::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px)}
+:scope>*{position:relative;z-index:1}
+
+.rule{height:1px;background:linear-gradient(90deg,transparent,var(--bs-accent),transparent);
+  opacity:.55;margin:12px 0 16px}
+.screws{display:flex;gap:9px;align-items:center}
+.screw{width:9px;height:9px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#68727a,#2b3237 68%,#171b1e);
+  box-shadow:0 1px 0 rgba(255,255,255,.10),0 0 0 1px rgba(0,0,0,.5) inset}
+
+.card{background:var(--paper);border-radius:6px;padding:14px 14px 12px;color:var(--ink);
+  box-shadow:0 2px 0 rgba(0,0,0,.35),0 10px 22px rgba(0,0,0,.32)}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.now{font-family:Fraunces,Georgia,serif;font-size:30px;line-height:1.1;margin:6px 0 10px;
+  color:var(--ink);min-height:34px}
+.keys{display:flex;height:74px;border-radius:4px;overflow:hidden;
+  border:1px solid rgba(35,43,49,.2);background:#f4f1e8}
+.keys .k{flex:1 1 0;border-right:1px solid rgba(35,43,49,.18);cursor:pointer;position:relative}
+.keys .k:last-child{border-right:0}
+.keys .k.b{background:#2a3238;flex:0 0 0;width:0;margin:0 -7px;z-index:2;height:62%;
+  border-radius:0 0 2px 2px;border:0}
+.keys .k.b i{position:absolute;inset:0;width:14px;left:-7px;background:#2a3238;
+  border-radius:0 0 2px 2px}
+.keys .k.on{background:var(--bs-accent)}
+.keys .k.b.on i{background:var(--bs-accent-hi)}
+
+.transport{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 4px}
+.tempo{display:flex;align-items:center;background:var(--slot);border:1px solid var(--groove);
+  border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;overflow:hidden}
+.tempo button{background:none;border:0;color:var(--silk-dim);font-size:15px;padding:8px 12px;
+  cursor:pointer;font-family:inherit}
+.tempo button:hover{color:var(--silk)}
+.tempo span{font-family:"DM Mono";font-size:13px;color:var(--mint);min-width:38px;
+  text-align:center;font-variant-numeric:tabular-nums}
+
+.sect{margin-top:20px;padding-top:16px;border-top:1px solid rgba(0,0,0,.4);
+  box-shadow:0 -1px 0 rgba(255,255,255,.05)}
+.sect-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:10px}
+.patrow{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.knobrow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.knobrow .hfader{flex:1 1 150px}
+
+/* ---- sequencer grid ---- */
+.seqwrap{display:flex;flex-direction:column;gap:5px}
+.seqrow{display:flex;align-items:center;gap:9px}
+.rlab{flex:0 0 44px;font-family:"DM Mono";font-size:9px;letter-spacing:.04em;
+  color:var(--read-dim);text-align:right}
+.steps{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;flex:1 1 auto;min-width:0}
+.step{
+  height:26px;border-radius:3px;padding:0;cursor:pointer;position:relative;
+  background:var(--slot);border:1px solid var(--groove);
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  font-family:"DM Mono";font-size:9px;letter-spacing:-.02em;color:var(--read-dim);
+}
+.step.on{background:linear-gradient(180deg,var(--bs-accent-hi),var(--bs-accent));
+  border-color:var(--bs-accent-lo);color:var(--bs-accent-ink);
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset}
+.step.beat::before{content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);
+  width:2px;height:2px;border-radius:50%;background:rgba(255,255,255,.45)}
+.step.acc{box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 0 0 1px var(--cap-yellow) inset}
+.step.sld::after{content:"";position:absolute;bottom:2px;left:3px;right:3px;height:2px;
+  border-radius:1px;background:var(--stripe-mod)}
+.step.tie{background:linear-gradient(180deg,#5a6a76,#43505a);color:#cfd8de}
+.step.now{outline:2px solid var(--mint);outline-offset:1px;z-index:2}
+
+.seqlegend{display:flex;gap:14px;flex-wrap:wrap;font-family:"DM Mono";font-size:9px;
+  letter-spacing:.04em;color:var(--read-dim);margin-top:9px}
+.seqlegend i{display:inline-block;width:9px;height:9px;border-radius:2px;
+  vertical-align:-1px;margin-right:5px}
+
+/* ---- faders ---- */
+.hfader{display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
+  padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13)}
+.hslot{position:relative;flex:1 1 auto;min-width:52px;height:20px;border-radius:4px;
+  background:linear-gradient(180deg,#20262a,#12161a 45%,#20262a);
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06)}
+.hslot::after{content:"";position:absolute;left:7px;right:7px;top:50%;height:3px;
+  transform:translateY(-50%);background:#0b0e10;border-radius:2px}
+.hcap{position:absolute;top:-3px;height:26px;width:20px;border-radius:3px;transform:translateX(-50%);
+  background:linear-gradient(180deg,#5b656b,#394247);border:1px solid #14181b;
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset}
+.hcap::after{content:"";position:absolute;top:3px;bottom:3px;left:50%;width:3px;margin-left:-1.5px;
+  border-radius:2px;background:var(--bs-accent)}
+.hfader.dragging .hcap{border-color:var(--mint)}
+.hfader .hval{font-family:"DM Mono";font-size:10px;color:#aeb8be;min-width:46px;text-align:right}
+.hfader .hlab{white-space:nowrap}
+.row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:10px}
+}
 /* Everything below is scoped to this instrument's panel. @scope rather than nesting
    because it adds no specificity, so the relative weight of every rule inside is exactly
    what it was when this was a whole page to itself. */
@@ -1034,7 +1250,9 @@ body{
 .unit{outline:2px solid transparent;outline-offset:3px;transition:outline-color .12s}
 @media (prefers-reduced-motion:reduce){ .unit{transition:none} }
 .unit.cs1.focused{outline-color:var(--cap-red)}
-.unit.ms1.focused{outline-color:var(--accent)}
+.unit.pm1.focused{outline-color:var(--accent)}
+.unit.vc1.focused{outline-color:var(--stripe-voc)}
+.unit.bs1.focused{outline-color:var(--stripe-bass)}
 .unit.dr1.focused{outline-color:var(--stripe-mod)}
 
 .st-head{
@@ -1433,12 +1651,12 @@ body{
   </defs>
 </svg>
 
-<div class="unit ms1" data-instrument="ms1">
+<div class="unit pm1" data-instrument="pm1">
 
   <div data-face class="plate">
     <div>
       <div class="brand">Patchwork</div>
-      <div class="model">MS·1 — mono synthesizer</div>
+      <div class="model">PM·1 — mono synthesizer</div>
     </div>
     <div class="screws"><i class="screw"></i><i class="screw"></i></div>
   </div>
@@ -1455,16 +1673,6 @@ body{
 
   <!-- Not a vocoder control: it decides where the ON-SCREEN and computer keyboards send
        notes, for every section. Incoming MIDI is routed by channel and ignores this. -->
-  <div data-face class="keysrow">
-    <span class="silk">Keyboard plays</span>
-    <div class="seg sm" id="keysTo" role="group" aria-label="What the on-screen and computer keyboards play">
-      <button data-k="syn" class="on">Synth</button>
-      <button data-k="voc">Vocoder</button>
-      <button data-k="bass">Bass</button>
-      <button data-k="both">Syn+Voc</button>
-    </div>
-    <span class="note" id="keysNote" style="margin:0"></span>
-  </div>
 
   <div data-face class="transport">
     <button class="btn primary" id="init">Init patch</button>
@@ -1566,52 +1774,9 @@ body{
   </div>
 
   <!-- ===== VOCODER ===== -->
-  <div class="rack r-voc">
-    <div class="rack-head">
-      <span class="silk">Vocoder</span>
-      <div class="seg sm" id="vocOn" role="group" aria-label="Vocoder section">
-        <button data-v="0" class="on">Off</button>
-        <button data-v="1">On</button>
-      </div>
-      <div class="seg sm" id="vocBands" role="group" aria-label="Band count">
-        <button data-b="8">8 bands</button>
-        <button data-b="16" class="on">16</button>
-        <button data-b="24">24</button>
-      </div>
-      <span class="note" style="margin:0">carrier shaped by <b>Env 2 → Amp</b></span>
-      <select id="modIn" aria-label="Modulator input" style="width:auto;min-width:140px">
-        <option value="">Default input</option>
-      </select>
-      <button class="btn ghost sm" id="modStart">Listen</button>
-    </div>
-    <div class="knobs" id="kVoc" style="--kc:7"></div>
-    <div class="stats" id="vocStats"></div>
-    <div class="note" id="vocNote">Sing or speak into an input and play notes on the tinted
-      half of the keyboard — those notes carry your voice. Input names stay blank until the
-      browser has been granted the microphone once: hit <code>Listen</code>, or
-      <code>Scan</code> under Audio&nbsp;I/O, then pick your interface.
-      <b>Use headphones</b> unless your input is a separate device — a microphone into
-      speakers will feed back.</div>
-  </div>
 
 
   <!-- ===== BASS ===== -->
-  <div class="rack r-bass">
-    <div class="rack-head">
-      <span class="silk">Bass</span>
-      <div class="seg sm" id="bassOn" role="group" aria-label="Bass section">
-        <button data-b="0" class="on">Off</button>
-        <button data-b="1">On</button>
-      </div>
-      <div class="seg sm" id="bassWave" role="group" aria-label="Bass waveform">
-        <button data-w="saw" class="on">Saw</button>
-        <button data-w="square">Square</button>
-      </div>
-      <span class="note" style="margin:0">pedal voice · dry and centred · its own MIDI channel</span>
-    </div>
-    <div class="knobs" id="kBass" style="--kc:8"></div>
-    <div class="note" id="bassNote"></div>
-  </div>
 
   <!-- ===== KEY ASSIGN + LFO ===== -->
   <div class="rack-pair">
@@ -1767,16 +1932,8 @@ body{
     </div>
     <div class="row">
       <div class="field" style="flex:0 0 112px">
-        <label for="synCh">Synth ch</label>
+        <label for="synCh">In ch</label>
         <select id="synCh"></select>
-      </div>
-      <div class="field" style="flex:0 0 112px">
-        <label for="vocCh">Vocoder ch</label>
-        <select id="vocCh"></select>
-      </div>
-      <div class="field" style="flex:0 0 112px">
-        <label for="bassCh">Bass ch</label>
-        <select id="bassCh" title="The bass answers only this channel"></select>
       </div>
       <div class="field" style="flex:0 0 112px">
         <label for="ccCh">Control ch</label>
@@ -1807,6 +1964,240 @@ body{
   </div>
 </div>
 
+
+<div class="unit vc1" data-instrument="vc1">
+
+  <div data-face class="plate">
+    <div>
+      <div class="brand">Patchwork</div>
+      <div class="model">VC·1 — vocoder</div>
+    </div>
+    <div class="screws"><i class="screw"></i><i class="screw"></i></div>
+  </div>
+  <div data-face class="rule"></div>
+
+  <div data-face class="card">
+    <div class="card-head">
+      <span class="card-title">Carrier</span>
+      <span class="card-meta" id="nowMeta">paraphonic · 6 notes</span>
+    </div>
+    <div class="now" id="nowNote">—</div>
+    <div class="keys" id="keys" role="group" aria-label="Carrier keyboard"></div>
+  </div>
+
+  <div data-face class="transport">
+    <button class="btn primary" id="play">▶ Play</button>
+    <button class="btn ghost" id="hold">Hold</button>
+    <button class="btn ghost" id="listen">Listen</button>
+    <div class="tempo">
+      <button id="bpmDown" aria-label="Slower">−</button>
+      <span id="tempoOut">120</span>
+      <button id="bpmUp" aria-label="Faster">+</button>
+    </div>
+    <span class="meter"><i id="inMeter"></i></span>
+    <button class="btn panic" id="panic">Panic</button>
+  </div>
+
+  <div data-face class="row">
+    <div class="field">
+      <label for="inSel">Modulator</label>
+      <select id="inSel">
+        <option value="__mic">Microphone</option>
+        <option value="__bus">Studio output</option>
+      </select>
+    </div>
+    <div class="field" style="flex:0 0 auto">
+      <span class="silk">Bands</span>
+      <div class="seg sm" id="bands" role="group" aria-label="Band count">
+        <button data-b="8">8</button>
+        <button data-b="16" class="on">16</button>
+        <button data-b="24">24</button>
+      </div>
+    </div>
+    <div class="field" style="flex:0 0 auto">
+      <span class="silk">Carrier</span>
+      <div class="seg sm" id="wave" role="group" aria-label="Carrier waveform">
+        <button data-w="saw" class="on">Saw</button>
+        <button data-w="square">Pulse</button>
+        <button data-w="triangle">Tri</button>
+      </div>
+    </div>
+  </div>
+
+  <div data-face class="sect">
+    <div class="sect-head">
+      <span class="silk">Sequence</span>
+      <div class="patrow">
+        <div class="field" style="flex:0 0 84px">
+          <label for="seqLen">Steps</label><select id="seqLen"></select>
+        </div>
+        <div class="field" style="flex:0 0 92px">
+          <label for="seqRate">Rate</label><select id="seqRate"></select>
+        </div>
+        <div class="field" style="flex:0 0 96px">
+          <label for="seqKey">Key</label><select id="seqKey"></select>
+        </div>
+        <div class="field" style="flex:0 0 116px">
+          <label for="seqScale">Scale</label><select id="seqScale"></select>
+        </div>
+      </div>
+    </div>
+    <div class="seqwrap" id="seqWrap"></div>
+    <div class="seqlegend">
+      <span><i style="background:var(--vc-accent)"></i>step</span>
+      <span><i style="background:var(--cap-yellow)"></i>accent — click again</span>
+      <span>shift-click ties · drag a step to pitch it</span>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head"><span class="silk">Bank</span></div>
+    <div class="knobrow">
+      <div class="hfader" id="qF"><span class="hlab">Q</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="respF"><span class="hlab">Response</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="sibF"><span class="hlab">Unvoiced</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="compF"><span class="hlab">Squeeze</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="modF"><span class="hlab">Input</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="carrF"><span class="hlab">Carrier</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="mixF"><span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="relF"><span class="hlab">Release</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+    </div>
+    <p class="note" id="vocNote">Press <b>Listen</b> to open the modulator. <b>Use headphones</b> — a microphone into speakers will feed back.</p>
+    <p class="note">
+      <b>Squeeze</b> is what stops the vocoder needing a hot input: a band opens in
+      proportion to its energy, so without compression the whole output level tracks how
+      loudly you speak. <b>Unvoiced</b> is a separate noise path, because a pitched carrier
+      physically cannot produce “s” or “t”.
+    </p>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head"><span class="silk"><i class="led" id="midiLed"></i>MIDI</span></div>
+    <div class="row">
+      <div class="field">
+        <label for="midiIn">Input</label>
+        <select id="midiIn"><option value="">— none —</option></select>
+      </div>
+      <div class="field" style="flex:0 0 74px">
+        <label for="midiInCh">In ch</label>
+        <select id="midiInCh"></select>
+      </div>
+    </div>
+    <p class="note" id="midiNote">—</p>
+  </div>
+
+</div>
+
+<div class="unit bs1" data-instrument="bs1">
+
+  <div data-face class="plate">
+    <div>
+      <div class="brand">Patchwork</div>
+      <div class="model">BS·1 — bass</div>
+    </div>
+    <div class="screws"><i class="screw"></i><i class="screw"></i></div>
+  </div>
+  <div data-face class="rule"></div>
+
+  <div data-face class="card">
+    <div class="card-head">
+      <span class="card-title">Bass</span>
+      <span class="card-meta" id="nowMeta">mono · lowest note</span>
+    </div>
+    <div class="now" id="nowNote">—</div>
+    <div class="keys" id="keys" role="group" aria-label="Keyboard"></div>
+  </div>
+
+  <div data-face class="transport">
+    <button class="btn primary" id="play">▶ Play</button>
+    <button class="btn ghost" id="hold">Hold</button>
+    <div class="tempo">
+      <button id="bpmDown" aria-label="Slower">−</button>
+      <span id="tempoOut">120</span>
+      <button id="bpmUp" aria-label="Faster">+</button>
+    </div>
+    <button class="btn panic" id="panic">Panic</button>
+  </div>
+
+  <div data-face class="sect">
+    <div class="sect-head">
+      <span class="silk">Sequence</span>
+      <div class="patrow">
+        <div class="field" style="flex:0 0 84px">
+          <label for="seqLen">Steps</label>
+          <select id="seqLen"></select>
+        </div>
+        <div class="field" style="flex:0 0 92px">
+          <label for="seqRate">Rate</label>
+          <select id="seqRate"></select>
+        </div>
+        <div class="field" style="flex:0 0 96px">
+          <label for="seqKey">Key</label>
+          <select id="seqKey"></select>
+        </div>
+        <div class="field" style="flex:0 0 116px">
+          <label for="seqScale">Scale</label>
+          <select id="seqScale"></select>
+        </div>
+      </div>
+    </div>
+    <div class="seqwrap" id="seqWrap"></div>
+    <div class="seqlegend">
+      <span><i style="background:var(--bs-accent)"></i>step</span>
+      <span><i style="background:var(--cap-yellow)"></i>accent — click again</span>
+      <span>shift-click ties · alt-click slides · drag a step to pitch it</span>
+    </div>
+  </div>
+
+  <div data-face class="sect">
+    <div class="sect-head"><span class="silk">Voice</span></div>
+    <div class="knobrow">
+      <div class="hfader" id="cutF"><span class="hlab">Cutoff</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="resF"><span class="hlab">Res</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="envF"><span class="hlab">Contour</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="decF"><span class="hlab">Decay</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="subF"><span class="hlab">Sub</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="lvlF"><span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="glideF"><span class="hlab">Glide</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Wave</span>
+        <div class="seg sm" id="wave" role="group" aria-label="Oscillator waveform">
+          <button data-w="saw" class="on">Saw</button>
+          <button data-w="square">Square</button>
+        </div>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Octave</span>
+        <div class="seg sm" id="oct" role="group" aria-label="Octave">
+          <button data-o="-2">−2</button>
+          <button data-o="-1" class="on">−1</button>
+          <button data-o="0">0</button>
+        </div>
+      </div>
+    </div>
+    <p class="note">Dry by design — no chorus, delay or reverb. A bass wants to stay centred.</p>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head">
+      <span class="silk"><i class="led" id="midiLed"></i>MIDI</span>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="midiIn">Input</label>
+        <select id="midiIn"><option value="">— none —</option></select>
+      </div>
+      <div class="field" style="flex:0 0 74px">
+        <label for="midiInCh">In ch</label>
+        <select id="midiInCh"></select>
+      </div>
+    </div>
+    <p class="note" id="midiNote">—</p>
+  </div>
+
+</div>
 
 <div class="unit dr1" data-instrument="dr1">
 
@@ -5488,10 +5879,10 @@ window.__cs1 = {MIDI, onMidi, state, P, renderChord, VOICES,
                 get held(){ return held; }, get litPads(){ return litPads; },
                 get ctx(){ return ctx; }, get active(){ return active; }, ensureAudio};
 });
-/* MS·1 is built into whatever panel the page gives it, rather than into the document.
+/* PM·1 is built into whatever panel the page gives it, rather than into the document.
    Standalone that panel is the only thing on the page; in the studio build it is one of
    several. The code below cannot tell the difference, which is the point. */
-Patchwork.instrument("ms1", root => {
+Patchwork.instrument("pm1", root => {
 "use strict";
 
 /* Scoped to this instrument. Both apps used to query the document, which is why they
@@ -5527,7 +5918,12 @@ const FACTORY_DEFAULT = {
   trim:0,
   /* --- vocoder section. Added in patch v2; older patches simply get these defaults,
      which is the same "a missing key RESETS it" rule everything else obeys. --- */
-  voc:0,               // section on/off
+  /* ⚠️ voc* and bass* are PINNED OFF and unreachable — the vocoder is VC·1 and the bass
+     is BS·1. The keys stay so a patch exported from MS·1 still loads and clamps, and the
+     engine behind them is still in this file's neighbours but nothing can reach it. See
+     the handoff: removing it safely is a job of its own, because the three sections were
+     interwoven through the UI layer rather than stacked. */
+  voc:0,               // PINNED OFF — the vocoder is VC·1
   vocbands:16,         // 8 | 16 | 24 analysis/synthesis pairs
   vocq:4.5,            // band Q, both banks
   vocresp:22,          // follower smoothing, Hz — low is smooth, high is articulate
@@ -5539,7 +5935,7 @@ const FACTORY_DEFAULT = {
   /* --- bass section (patch v3). A pedal synth, not a third general-purpose voice: one
      oscillator plus a square sub, a ladder, and a contour. No LFO, no PWM, no effects
      sends — a Taurus has none of that either, and a bass wants to stay dry and centred. */
-  bass:0,              // section on/off
+  bass:0,              // PINNED OFF — the bass is BS·1
   bwave:"saw",         // saw | square
   boct:-1,             // octaves below the played note
   blvl:.85,            // output level
@@ -5893,7 +6289,7 @@ shard:{cat:"fx", tag:"Sync scream — filter env sweeps the slave pitch, not the
 
 /* The one patch designed to lose. A unison drone at 20 cents and 85% stereo spread, so
    it occupies the sides while CS·1's chords hold the centre; HPF at 90Hz keeps it off
-   MS·1's own bass. The -6dB duck is CAT_TRIM's job, not this patch's trim.
+   PM·1's own bass. The -6dB duck is CAT_TRIM's job, not this patch's trim.
    0.28Hz filter LFO gives it slow movement without any note activity. */
 moss:{cat:"pad", tag:"Soft wide drone bed — deliberately quiet, lives at the sides", tn:55,
   o1w:"tri", o1oct:0, o1semi:0, o1det:0,    o1lvl:.55,
@@ -5968,7 +6364,7 @@ const active = new Set();
 /* MS1_UNITY is the linear gain one oscillator at full level reaches at the voice output
    when trim is 0. Set by measurement, not taste: CS·1's twelve voices average -30.1 dBFS
    for a single note and it sounds 3-4 at once, so a CS·1 chord lands near -24 dBFS. A mono
-   synth has no chord to hide behind, so MS·1 aims a single note at that same -24 dBFS. */
+   synth has no chord to hide behind, so PM·1 aims a single note at that same -24 dBFS. */
 const MS1_UNITY = 0.20;
 /* Applied after the per-patch trim, so `trim` stays a pure timbre-compensation number and
    stays comparable between a bass and a lead. The pad's -6 is the "sits under CS·1"
@@ -6064,7 +6460,7 @@ function initAudio(useCtx){
      handoff is blunt about why that matters: a detector validated against nothing gave
      confident wrong answers, and a rig that reimplements the engine measures the rig. */
   ctx = useCtx || Patchwork.audio.context();
-  const out = useCtx ? ctx.destination : Patchwork.audio.strip("ms1");
+  const out = useCtx ? ctx.destination : Patchwork.audio.strip("pm1");
 
   master = ctx.createGain(); master.gain.value = 1;
   comp = ctx.createDynamicsCompressor();
@@ -6409,7 +6805,7 @@ function mkStack(voice, det, panPos, f0){
 
   return {out, pan, parts, det, curF:f0,
     /* Everything below moves under a sounding note. CS·1's whole fader design is built on
-       that and MS·1 fell short of it: half the panel used to wait for the next note. */
+       that and PM·1 fell short of it: half the panel used to wait for the next note. */
     setLevels(t){
       const L = LVL();
       parts.forEach(p => { if (p.key && L[p.key] != null)
@@ -6644,7 +7040,10 @@ const downKeys = new Set();
    destination. This is what the keyboard split used to do, without pretending that half a
    keyboard is a routing scheme. Declared up here because the panel's segmented button
    paints its initial state as it is built, which is long before the MIDI section runs. */
-let keysTo = "syn";                                          // syn | voc | both
+/* Always the synth: MS·1 needed a choice because one keyboard served three sections, and
+   PM·1 has one voice. Kept as a variable rather than inlined so the routing code below
+   reads unchanged against MS·1, which is what makes this diff reviewable. */
+let keysTo = "syn";
 /* While the arpeggiator runs, held notes are INPUT to it, not notes in their own right:
    the arp is already mirroring what actually sounds, so sending the held keys as well
    would put a sustained note out under it that nothing ever releases. */
@@ -7334,12 +7733,12 @@ function tick(){
     const at = Math.max(ctx.currentTime + .005, nextTime);
     /* a queued scene lands on the loop point, ahead of this step being scheduled — see
        shell/scenes.js for why this cannot be done on wall time */
-    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("ms1");
+    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("pm1");
     const ai = scheduleStep(stepIndex, at);
     marks.push({i:stepIndex % SEQ.len, ai:ai, t:at, end:at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
        pair, so the pattern's total length is unchanged however hard it shuffles */
-    /* the shared rate trim: MS·1 has no clock follow of its own, so this is how it
+    /* the shared rate trim: PM·1 has no clock follow of its own, so this is how it
        follows external clock at all — it runs at whatever rate the lock has settled on */
     const r = Patchwork.clock.rate;
     nextTime += r * ((stepIndex % 2 === 0) ? 2*SEQ.swing*step : (2 - 2*SEQ.swing)*step);
@@ -7659,7 +8058,13 @@ const KNOBS = {
 const PARAM_RANGE = {};
 Object.keys(KNOBS).forEach(host => {
   const el = $("#"+host);
-  KNOBS[host].forEach(d => { PARAM_RANGE[d.id] = [d.min, d.max]; makeKnob(el, d); });
+  /* A host that is not on this panel is a rack that moved to another instrument, not an
+     error. The range table is still filled either way, so a patch carrying that parameter
+     still clamps correctly on load. */
+  KNOBS[host].forEach(d => {
+    PARAM_RANGE[d.id] = [d.min, d.max];
+    if (el) makeKnob(el, d);
+  });
 });
 
 /* ---- push a knob move into what is already sounding ----
@@ -7999,7 +8404,12 @@ function stopModulator(){
 
 /* ---- segmented buttons ---- */
 function seg(sel, attr, get, set){
-  const g = $(sel); if (!g) return;
+  const g = $(sel);
+  /* A control whose section moved to another instrument is absent, not broken. Returning
+     a no-op painter rather than undefined means every caller that stores the result in
+     segPaint still gets something callable — the alternative is a TypeError at boot from
+     a control nobody can see. */
+  if (!g) return function(){};
   const paint = () => g.querySelectorAll("button").forEach(b =>
     b.classList.toggle("on", b.dataset[attr] === String(get())));
   g.addEventListener("click", e => {
@@ -8078,7 +8488,7 @@ segPaint.keysTo = seg("#keysTo","k", () => keysTo, v => {
 /* The bass path already refused to play into a section that was switched off; the vocoder
    path did not, and silently swallowed the notes. Say so instead of eating them. */
 function paintKeysNote(){
-  const el = $("#keysNote"); if (!el) return;
+  const el = root.querySelector("#keysNote"); if (!el) return;
   const dead = (keysTo === "voc" || keysTo === "both") && !P.voc ? "vocoder"
              : keysTo === "bass" && !P.bass ? "bass" : null;
   el.innerHTML = dead
@@ -8418,96 +8828,18 @@ makeHFader("#gateFader", () => SEQ.gate, v => SEQ.gate = clampf(v,.05,1),
 makeHFader("#swingFader", () => (SEQ.swing - .5)/.25, v => SEQ.swing = .5 + v*.25,
            v => v <= .02 ? "straight" : Math.round((.5 + v*.25)*100)+"%", "swing");
 
-/* ---- vocoder controls ---- */
-const vocNoteEl = $("#vocNote"), modInSel = $("#modIn");
-let modDevices = [];
-function vocSay(msg, bad){
-  vocNoteEl.innerHTML = msg;
-  vocNoteEl.classList.toggle("bad", !!bad);
-}
-function modLabel(id){
-  const d = modDevices.find(x => x.deviceId === id);
-  return d ? (d.label || "input") : "the default input";
-}
-/* Labels stay blank until permission has been granted once, which is why the list is
-   refreshed after Listen succeeds rather than only on load. */
-async function listInputs(){
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-  try{
-    const devs = await navigator.mediaDevices.enumerateDevices();
-    modDevices = devs.filter(d => d.kind === "audioinput");
-    const keep = modInSel.value;
-    modInSel.innerHTML = "";
-    modInSel.appendChild(Object.assign(document.createElement("option"),
-      {value:"", textContent:"Default input"}));
-    modDevices.forEach((d, i) => modInSel.appendChild(Object.assign(
-      document.createElement("option"),
-      {value:d.deviceId, textContent:d.label || ("Input " + (i+1))})));
-    modInSel.value = modDevices.some(d => d.deviceId === keep) ? keep : "";
-  }catch(e){}
-}
-/* The meter runs on a timer rather than requestAnimationFrame: it has to keep reading
-   while the window is in the background, which is exactly when someone is fiddling with
-   their interface's routing to work out why nothing is arriving. */
-const vocStats = $("#vocStats");
-function startModMeter(){
-  stopModMeter();
-  modPeakHold = 0; modPeakAt = 0;
-  modMeterTimer = setInterval(paintModMeter, 100);
-  paintModMeter();
-}
-function stopModMeter(){
-  if (modMeterTimer != null){ clearInterval(modMeterTimer); modMeterTimer = null; }
-  if (vocStats) vocStats.innerHTML = "";
-}
-function paintModMeter(){
-  if (!modMeter || !vocStats) return;
-  const buf = new Float32Array(modMeter.fftSize);
-  modMeter.getFloatTimeDomainData(buf);
-  let pk = 0, sq = 0;
-  for (let i = 0; i < buf.length; i++){ const a = Math.abs(buf[i]); if (a > pk) pk = a; sq += buf[i]*buf[i]; }
-  const rms = Math.sqrt(sq/buf.length);
-  const now = performance.now();
-  if (pk >= modPeakHold || now - modPeakAt > 1200){ modPeakHold = pk; modPeakAt = now; }
+/* The modulator meter's painter lived in the block below and went with it. The engine
+   above still calls start/stop, so they stay as no-ops rather than leaving a reference
+   that only throws when a section nobody can switch on is switched on. */
+function startModMeter(){}
+function stopModMeter(){}
+function paintModMeter(){}
 
-  const dbp = 20*Math.log10(modPeakHold + 1e-9);
-  const dbr = 20*Math.log10(rms + 1e-9);
-  /* -60 dBFS is the floor below which an input is, practically, not plugged in */
-  const dead = dbp < -60;
-  const hot  = modPeakHold > 0.99;
-  const bits = [];
-  bits.push("input <b class=\"" + (dead ? "hot" : hot ? "hot" : "") + "\">"
-    + (dead ? "silent" : dbp.toFixed(1) + " dBFS") + "</b>");
-  if (!dead) bits.push("rms <b>" + dbr.toFixed(1) + "</b>");
-  bits.push("carrier <b>" + carriers.size + (carriers.size === 1 ? " note" : " notes") + "</b>");
-  bits.push("bank <b>" + vocBank.length + "</b>");
-  /* The two failure modes worth naming, because neither makes a sound and they look alike */
-  if (dead) bits.push("<b class=\"hot\">nothing arriving on this input</b>");
-  else if (hot) bits.push("<b class=\"hot\">clipping — turn the source down</b>");
-  else if (!carriers.size) bits.push("<b class=\"hot\">hold notes on the vocoder half to hear it</b>");
-  vocStats.innerHTML = bits.map(b => "<span>" + b + "</span>").join("");
-}
-
-$("#modStart").addEventListener("click", async () => {
-  if (modSrc){
-    stopModulator();
-    $("#modStart").textContent = "Listen";
-    vocSay("Input closed.");
-    return;
-  }
-  const ok = await startModulator(modInSel.value);
-  if (ok){
-    $("#modStart").textContent = "Stop";
-    if (!P.voc){ P.voc = 1; segPaint.vocOn(); applyVocoder(); paintKeys(); paintMeta(); }
-    listInputs();                       // labels are readable now permission was granted
-  }
-});
-modInSel.addEventListener("change", async () => {
-  if (!modSrc) return;                  // takes effect when Listen is pressed
-  const ok = await startModulator(modInSel.value);
-  $("#modStart").textContent = ok ? "Stop" : "Listen";
-});
-listInputs();
+/* The vocoder's controls went with its rack — see VC·1. The engine below them is still
+   here and is unreachable: nothing on this panel can set P.voc, and the schema pins it to
+   0. Taking the engine out is a separate job, because MS·1's three sections were
+   interwoven through the UI layer rather than stacked, and the safe order is to make it
+   unreachable first and prove that, which is what the patch-render comparison does. */
 
 /* ---- readouts ----
    rAF is paused in a hidden tab (and never fires at all in a headless pane), so anything
@@ -8586,9 +8918,9 @@ function setBpm(v, fromShell){
   tempoOut.textContent = SEQ.bpm;
   applyDelay();                       // a synced delay follows the tempo
   /* one tempo for the page — see CS·1's setBpm for why fromShell exists */
-  if (!fromShell) Patchwork.clock.setBpm(SEQ.bpmExact, "ms1");
+  if (!fromShell) Patchwork.clock.setBpm(SEQ.bpmExact, "pm1");
 }
-Patchwork.clock.onTempo("ms1", v => setBpm(v, true), SEQ.bpmExact);
+Patchwork.clock.onTempo("pm1", v => setBpm(v, true), SEQ.bpmExact);
 $("#bpmDown").addEventListener("click", () => setBpm(SEQ.bpmExact - 1));
 $("#bpmUp").addEventListener("click", () => setBpm(SEQ.bpmExact + 1));
 function setOctave(v){
@@ -8631,6 +8963,8 @@ onKey("keyup", e => {
 });
 
 /* ============ patches ============ */
+/* Deliberately still the MS·1 key. PM·1 is what MS·1 became once the vocoder and bass
+   moved out, and renaming this would silently orphan every patch anyone had saved. */
 const PATCH_KEY = "patchwork-ms1-patches";
 const PATCH_VERSION = 2;      // v2 added the vocoder section; v1 patches take its defaults
 const patchSel = $("#patchSel"), patchName = $("#patchName"), patchNote = $("#patchNote"),
@@ -8650,7 +8984,7 @@ function saveStore(o){
 }
 function snapshot(){
   return {
-    app:"patchwork-ms1", v:PATCH_VERSION,
+    app:"patchwork-pm1", v:PATCH_VERSION,
     params:Object.assign({}, P),
     bpm:SEQ.bpmExact, octave:octave,
     seq:{motion:SEQ.motion, len:SEQ.len, rate:SEQ.rate, gate:SEQ.gate, swing:SEQ.swing,
@@ -8690,7 +9024,9 @@ function refreshAllControls(){
 }
 function restore(s){
   if (!s || typeof s !== "object") throw new Error("not a patch");
-  if (s.app && s.app !== "patchwork-ms1") throw new Error("different app");
+  /* Accepts both names, so a file exported from MS·1 still loads. */
+  if (s.app && s.app !== "patchwork-pm1" && s.app !== "patchwork-ms1")
+    throw new Error("different app");
   applyParams(s.params);
   setBpm(numOr(s.bpm, 40, 240, 120));
   setOctave(numOr(s.octave, -3, 3, 0));
@@ -8798,7 +9134,7 @@ $("#patchDelete").addEventListener("click", () => {
   sayPatch("Deleted <b>" + name + "</b>.");
 });
 $("#patchExport").addEventListener("click", () => {
-  const name = (patchName.value || "patchwork-ms1-patch").trim();
+  const name = (patchName.value || "patchwork-pm1-patch").trim();
   const data = Object.assign(snapshot(), {name});
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
@@ -8824,7 +9160,7 @@ patchFile.addEventListener("change", () => {
       if (data.name) patchName.value = data.name;
       sayPatch("Imported <b>" + (data.name || f.name) + "</b>. Save it to keep it in this browser.");
     }catch(err){
-      sayPatch("That doesn't look like a Patchwork MS·1 patch (" + (err && err.message) + ").", true);
+      sayPatch("That doesn't look like a Patchwork PM·1 patch (" + (err && err.message) + ").", true);
     }
   };
   rd.readAsText(f);
@@ -9022,7 +9358,7 @@ function onMidi(e){
   const d = e.data; if (!d || !d.length) return;
   const s = d[0];
   ledBlink();
-  if (s >= 0xF0) return;                       // MS·1 runs its own clock — see the README
+  if (s >= 0xF0) return;                       // PM·1 runs its own clock — see the README
   const type = s & 0xF0, ch = s & 0x0F;
 
   /* ---- control messages ride the Control channel, not a section's ---- */
@@ -9103,7 +9439,7 @@ function describe(){
     + ", CC on <b>" + chName(MIDI.ccCh) + "</b>.";
   say(i + " input" + (i === 1 ? "" : "s") + " · " + o + " output" + (o === 1 ? "" : "s")
     + " — " + how + " Learn a knob to any CC. Program change 0–19 recalls the factory bank. "
-    + "MS·1 runs its own clock and ignores incoming MIDI clock.");
+    + "PM·1 runs its own clock and ignores incoming MIDI clock.");
 }
 /* The port belongs to the page, not to this panel — see shell/midi.js. Assigning
    onmidimessage here is what made the two instruments steal it from each other. */
@@ -9123,57 +9459,31 @@ function bindOutput(){
   MIDI.out = midiOutSel.value ? ports("outputs").find(p => p.id === midiOutSel.value) || null : null;
 }
 /* ---- input channels ---- */
-const synChSel = $("#synCh"), vocChSel = $("#vocCh"), ccChSel = $("#ccCh"),
-      bassChSel = $("#bassCh"), chNote = $("#chNote"), bassNote = $("#bassNote");
-[synChSel, vocChSel, ccChSel, bassChSel].forEach(sel => {
+/* One input channel and one control channel. MS·1 needed four selectors because three
+   sections shared one instrument; each of the three now answers on a channel of its own,
+   which is most of what the split was for. */
+const synChSel = $("#synCh"), ccChSel = $("#ccCh"), chNote = $("#chNote");
+[synChSel, ccChSel].forEach(sel => {
   sel.appendChild(Object.assign(document.createElement("option"),
-    {value:"-1", textContent:sel === bassChSel ? "—" : "Omni"}));
+    {value:"-1", textContent:"Omni"}));
   for (let c = 0; c < 16; c++)
     sel.appendChild(Object.assign(document.createElement("option"),
       {value:String(c), textContent:String(c+1)}));
 });
 const chName = v => v < 0 ? "any channel" : "channel " + (v + 1);
-function paintBassNote(){
-  if (!bassNote) return;
-  bassNote.innerHTML = !P.bass
-    ? "Section is off."
-    : (MIDI.bassCh < 0
-        ? "No MIDI channel assigned — play it with <b>Keys play → Bass</b>, or give it a "
-          + "channel under MIDI."
-        : "Answering <b>channel " + (MIDI.bassCh + 1) + "</b>.");
-}
+function paintBassNote(){}                 // the bass note went with the bass rack
 function paintRoute(){
   synChSel.value = String(MIDI.synCh);
-  bassChSel.value = String(MIDI.bassCh);
-  paintBassNote();
-  vocChSel.value = String(MIDI.vocCh);
   ccChSel.value  = String(MIDI.ccCh);
-  const both = routeFor(MIDI.synCh < 0 ? 0 : MIDI.synCh) === "both";
-  const bits = [];
-  bits.push("Synth on " + chName(MIDI.synCh) + ".");
-  if (!P.voc) bits.push("<b>Vocoder section is off</b>, so everything plays the synth.");
-  else if (both) bits.push("Vocoder on " + chName(MIDI.vocCh)
-    + " — both claim the same notes, so they <b>layer</b>.");
-  else bits.push("Vocoder on " + chName(MIDI.vocCh) + ".");
-  if (P.bass) bits.push("Bass on "
-    + (MIDI.bassCh < 0 ? "<b>no channel</b> (keyboard only)" : chName(MIDI.bassCh)) + ".");
-  bits.push("CC and program change on " + chName(MIDI.ccCh) + ".");
-  chNote.innerHTML = bits.join(" ");
+  chNote.innerHTML = "Notes on " + chName(MIDI.synCh)
+    + ". CC and program change on " + chName(MIDI.ccCh) + ".";
   chNote.classList.remove("bad");
 }
 synChSel.addEventListener("change", () => {
   MIDI.synCh = parseInt(synChSel.value, 10); allNotesOff(); paintRoute(); saveMap(); describe();
 });
-vocChSel.addEventListener("change", () => {
-  MIDI.vocCh = parseInt(vocChSel.value, 10); allNotesOff(); paintRoute(); saveMap(); describe();
-});
 ccChSel.addEventListener("change", () => {
   MIDI.ccCh = parseInt(ccChSel.value, 10); paintRoute(); saveMap(); describe();
-});
-bassChSel.addEventListener("change", () => {
-  MIDI.bassCh = parseInt(bassChSel.value, 10);
-  if (ctx) allBassOff(ctx.currentTime);
-  paintRoute(); saveMap(); describe();
 });
 
 midiInSel.addEventListener("change", bindInput);
@@ -9202,7 +9512,7 @@ function initMidi(){
       + "rather than opening it with <code>file://</code>.", true);
     return;
   }
-  Patchwork.midi.route("ms1", onMidi, pt => {
+  Patchwork.midi.route("pm1", onMidi, pt => {
     fillPorts(); followInput(pt); bindOutput(); describe();
   });
   Patchwork.midi.open().then(a => {
@@ -9273,7 +9583,7 @@ async function scanDevices(){
   if (typeof listInputs === "function") listInputs();
   const sinkOk = !ctx || typeof ctx.setSinkId === "function";
   ioSay(outs.length + " output" + (outs.length === 1 ? "" : "s")
-      + (sinkOk ? ". Pick your interface to send MS·1 to it."
+      + (sinkOk ? ". Pick your interface to send PM·1 to it."
                 : ". Output routing needs Chrome 110+."), !sinkOk);
   audioLed.classList.add("ready");
   ioStats();
@@ -9434,10 +9744,10 @@ function applyParamsQuiet(src){
 /* A test hook, not a feature: the offline harness needs to build a voice and read the
    patch without driving the UI. Mirrors CS·1's habit of making the engine measurable. */
 /* ---- scenes ----
-   An MS·1 pattern is the step sequence and how it is read — not the patch. Firing a
+   An PM·1 pattern is the step sequence and how it is read — not the patch. Firing a
    scene changes the line, not the sound it is played with. */
-Patchwork.scenes.register("ms1", {
-  name: "MS·1",
+Patchwork.scenes.register("pm1", {
+  name: "PM·1",
   isPlaying: () => SEQ.playing,
   capture: () => ({steps: JSON.parse(JSON.stringify(SEQ.steps)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing,
@@ -9455,7 +9765,7 @@ Patchwork.scenes.register("ms1", {
   }
 });
 
-window.__ms1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
+window.__pm1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
                 applyParams, noteOn, noteOff, buildVoice, renderPatch,
                 stepEvent, nextSounding, stepSeconds, swungAt, envValueAt,
                 arpSequence, stepNote, toDegree, fromDegree, SCALES,
@@ -9471,6 +9781,1077 @@ window.__ms1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
                                     voc:bendVoc && bendVoc.offset.value}; },
                 get buses(){ return {pitchMod, pitchVoc}; },
                 get ctx(){ return ctx; }, get active(){ return active; }, ensureAudio};
+});
+/* VC·1 — the vocoder, as its own instrument, with a simple carrier of its own and a
+   sequencer it never had inside MS·1. */
+Patchwork.instrument("vc1", root => {
+"use strict";
+
+const $  = s => root.querySelector(s);
+const $$ = s => root.querySelectorAll(s);
+const onKey = (type, fn) => Patchwork.onKey(root, type, fn);
+
+
+/* ============ engine ============ */
+/* A 16-band vocoder, lifted from MS·1's vocoder section, with a deliberately simple
+   carrier of its own and the sequencer it never had.
+
+   No AudioWorklet anywhere in here. The one thing that had to be proved is that a control
+   signal can be built from audio and connected to a GainNode's gain: rectify the band with
+   a WaveShaper, smooth it with two lowpasses, connect the result to gain.gain. Measured on
+   a gated tone that gives 651:1 between open and closed, and a formant sweep transfers
+   -5.8 dB at 700 Hz / +4.7 dB at 2400 Hz onto a saw carrier. That is a real vocoder. */
+
+const V = Patchwork.voice;
+const {clampf, mtof, schedEnv, schedRelease, beginRelease, envValueAt, AMP_REL_MIN} = V;
+
+const VOC_LO = 150, VOC_HI = 5000;   // the span that carries intelligibility
+const VOC_DRIVE = 9;                 // followers come out small; this is the makeup
+/* Sixteen band gains summing, plus the unvoiced path, put the bus about 14 dB hotter than
+   a plain synth voice — measured peaks of 1.7-1.8, i.e. clipping, on a realistic patch.
+   This is the fixed trim that lands it on the same -24 dBFS target everything else is
+   trimmed to. The Level control rides on top of it. */
+const VOC_TRIM = 0.2;
+const SIB_HZ = 3800;                 // above here is unvoiced, and unpitchable
+const SIB_CARR_DRIVE = 14;
+/* Carrier gain staging, MEASURED rather than guessed.
+
+   MS·1's carrier came off its full voice stack, which carries per-patch trims and a
+   unison divisor; VC·1's is a bare oscillator, and a bare oscillator at unity is far
+   hotter. Running the identical synthetic modulator through both put VC·1 exactly
+   23.07 dB above MS·1 — the same offset at two modulator levels, which is what a constant
+   gain error looks like rather than a behavioural difference. This is that offset. */
+const CARRIER_UNITY = 0.0702;
+
+let ctx = null, out = null, carrierBus = null, vocOut = null,
+    modGain = null, modComp = null, modMakeup = null, modPost = null,
+    absCurve = null, noiseBuf = null, sibGain = null, sibNoise = null,
+    modSrc = null, modStream = null, modMeter = null;
+let bank = [];
+
+const DEFAULT = {
+  bands:16, q:4.5, resp:22, sib:.35, mix:.9, mod:1, comp:.75,
+  carrier:.8, wave:"saw", attack:.02, release:.25, input:"__mic"
+};
+const P = Object.assign({}, DEFAULT);
+
+const db2lin = db => Math.pow(10, db / 20);
+
+/* MUST be an odd length. A WaveShaper maps input 0 to curve index (n-1)/2, and with an
+   even n that index is fractional — so it interpolates between the two samples either side
+   of zero and returns |±1/(n-1)| instead of 0. At n=1024 that is a permanent floor of
+   9.8e-4, which after the follower's drive becomes about -37 dB of gate that never closes.
+   Harmless for the voiced bands, since the carrier itself stops, but the unvoiced path has
+   its own noise source and leaked audibly. */
+function mkAbsCurve(n){
+  const size = n % 2 ? n : n + 1;
+  const c = new Float32Array(size);
+  for (let i = 0; i < size; i++){ const x = (i / (size - 1)) * 2 - 1; c[i] = Math.abs(x); }
+  return c;
+}
+function bandFreq(i, n){ return VOC_LO * Math.pow(VOC_HI / VOC_LO, n < 2 ? 0 : i / (n - 1)); }
+
+function initAudio(useCtx){
+  if (ctx) return;
+  ctx = useCtx || Patchwork.audio.context();
+  out = useCtx ? ctx.destination : Patchwork.audio.strip("vc1");
+  absCurve = mkAbsCurve(1025);
+  noiseBuf = V.noiseBuffer(ctx, 2);
+
+  carrierBus = ctx.createGain(); carrierBus.gain.value = 1;
+  vocOut = ctx.createGain(); vocOut.gain.value = P.mix * VOC_TRIM;
+  vocOut.connect(out);
+
+  /* ---- the modulator chain ----
+     Compression before the bank is what stops the vocoder needing a hot input: a band
+     opens in proportion to its energy, so without it the whole output level tracks how
+     loudly you speak. */
+  modGain = ctx.createGain(); modGain.gain.value = P.mod;
+  modComp = ctx.createDynamicsCompressor();
+  modComp.knee.value = 6; modComp.attack.value = .003; modComp.release.value = .10;
+  modMakeup = ctx.createGain(); modMakeup.gain.value = 1;
+  modPost = ctx.createGain(); modPost.gain.value = 1;
+  modGain.connect(modComp); modComp.connect(modMakeup); modMakeup.connect(modPost);
+  modMeter = ctx.createAnalyser(); modMeter.fftSize = 1024;
+
+  buildBank();
+  buildSibilance();
+  applyVocoder();
+}
+function ensureAudio(){ initAudio(); Patchwork.audio.resume(); return ctx.state; }
+
+/* One band: analysis on the modulator, synthesis on the carrier, joined by the follower. */
+function mkBand(f){
+  const abp = ctx.createBiquadFilter(); abp.type = "bandpass";
+  abp.frequency.value = f; abp.Q.value = P.q;
+  const rect = ctx.createWaveShaper(); rect.curve = absCurve; rect.oversample = "2x";
+  const lp1 = ctx.createBiquadFilter(); lp1.type = "lowpass"; lp1.frequency.value = P.resp; lp1.Q.value = .7;
+  const lp2 = ctx.createBiquadFilter(); lp2.type = "lowpass"; lp2.frequency.value = P.resp; lp2.Q.value = .7;
+  const drive = ctx.createGain(); drive.gain.value = VOC_DRIVE;
+  modPost.connect(abp); abp.connect(rect); rect.connect(lp1); lp1.connect(lp2); lp2.connect(drive);
+
+  const sbp = ctx.createBiquadFilter(); sbp.type = "bandpass";
+  sbp.frequency.value = f; sbp.Q.value = P.q;
+  /* gain starts CLOSED and is opened only by the follower — connections sum with the value */
+  const g = ctx.createGain(); g.gain.value = 0;
+  drive.connect(g.gain);
+  carrierBus.connect(sbp); sbp.connect(g); g.connect(vocOut);
+  return {abp, rect, lp1, lp2, drive, sbp, g, f};
+}
+function buildBank(){
+  bank.forEach(b => [b.abp,b.rect,b.lp1,b.lp2,b.drive,b.sbp,b.g]
+    .forEach(n => { try{ n.disconnect(); }catch(e){} }));
+  bank = [];
+  const n = P.bands | 0;
+  for (let i = 0; i < n; i++) bank.push(mkBand(bandFreq(i, n)));
+}
+
+/* The unvoiced path. A pitched carrier physically cannot produce "s" or "t", so without
+   this the vocoder is mush at the top and barely intelligible. */
+function buildSibilance(){
+  const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = SIB_HZ; hp.Q.value = .7;
+  const rect = ctx.createWaveShaper(); rect.curve = absCurve; rect.oversample = "2x";
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 40;
+  /* Measured: at the voiced bands' drive this gate ran far past unity, which both slammed
+     the level (+19.7 dB at sibilance 0.35, peaking 2.35) and saturated the gate so it
+     stopped tracking. Sibilance sits UNDER the voiced bands, not on top of them. */
+  const drive = ctx.createGain(); drive.gain.value = VOC_DRIVE * 0.4;
+  modPost.connect(hp); hp.connect(rect); rect.connect(lp); lp.connect(drive);
+
+  sibNoise = ctx.createBufferSource();
+  sibNoise.buffer = noiseBuf; sibNoise.loop = true;
+  const nhp = ctx.createBiquadFilter(); nhp.type = "highpass"; nhp.frequency.value = SIB_HZ; nhp.Q.value = .7;
+  const gate = ctx.createGain(); gate.gain.value = 0;
+  drive.connect(gate.gain);
+
+  /* A SECOND gate, from the carrier. The voiced bands are gated by the note for free,
+     because the carrier is what flows through them; this path has its own noise source, so
+     without an explicit gate it sings whenever the modulator has any HF in it, note or no
+     note. Measured: the output sat at -28 dBFS after a note had fully released, where it
+     should be silence. Following the carrier BUS rather than counting voices keeps it
+     self-maintaining — right for one note, six notes, or a note in mid-release. */
+  const carrAbs = ctx.createWaveShaper(); carrAbs.curve = absCurve; carrAbs.oversample = "2x";
+  const cl1 = ctx.createBiquadFilter(); cl1.type = "lowpass"; cl1.frequency.value = 30; cl1.Q.value = .7;
+  const cl2 = ctx.createBiquadFilter(); cl2.type = "lowpass"; cl2.frequency.value = 30; cl2.Q.value = .7;
+  const cd = ctx.createGain(); cd.gain.value = SIB_CARR_DRIVE;
+  carrierBus.connect(carrAbs); carrAbs.connect(cl1); cl1.connect(cl2); cl2.connect(cd);
+  const carrGate = ctx.createGain(); carrGate.gain.value = 0;
+  cd.connect(carrGate.gain);
+
+  sibGain = ctx.createGain(); sibGain.gain.value = 0;
+  sibNoise.connect(nhp); nhp.connect(gate); gate.connect(carrGate);
+  carrGate.connect(sibGain); sibGain.connect(vocOut);
+  sibNoise.start();
+}
+
+/* Q and response move under the sound; the band COUNT needs a rebuild. */
+function applyVocoder(){
+  if (!ctx || !vocOut) return;
+  const t = ctx.currentTime;
+  if (bank.length !== (P.bands | 0)) buildBank();
+  bank.forEach(b => {
+    b.abp.Q.setTargetAtTime(P.q, t, .02);
+    b.sbp.Q.setTargetAtTime(P.q, t, .02);
+    b.lp1.frequency.setTargetAtTime(P.resp, t, .02);
+    b.lp2.frequency.setTargetAtTime(P.resp, t, .02);
+  });
+  modGain.gain.setTargetAtTime(P.mod, t, .02);
+  /* Threshold sweeps down and ratio up together, so one knob reads as "how hard". Makeup
+     restores what the compression took out: for a signal at 0 dBFS the reduction is
+     |thr|*(1 - 1/ratio), which is exactly what quiet material needs lifting by. */
+  const c = clampf(P.comp, 0, 1);
+  const thr = -6 - 34 * c, ratio = 1.5 + 10.5 * c;
+  modComp.threshold.setTargetAtTime(thr, t, .02);
+  modComp.ratio.setTargetAtTime(ratio, t, .02);
+  modMakeup.gain.setTargetAtTime(db2lin(Math.min(30, -thr * (1 - 1 / ratio))), t, .02);
+  vocOut.gain.setTargetAtTime(P.mix * VOC_TRIM, t, .02);
+  if (sibGain) sibGain.gain.setTargetAtTime(P.sib * 0.35, t, .02);
+  carrierBus.gain.setTargetAtTime(P.carrier, t, .02);
+}
+
+/* ---- the carrier ----
+   Deliberately simple: one oscillator and an amp envelope per note, summed into the shared
+   bank. PARAPHONIC, which is the whole point — six notes cost the same as one, because the
+   bank is downstream of the sum. A full synth voice per note would be six filter banks and
+   would sound no more like a vocoder. */
+const carriers = new Map();
+
+function buildCarrier(midi, vel, t){
+  const o = ctx.createOscillator();
+  o.type = P.wave === "pulse" ? "square" : P.wave;
+  o.frequency.value = mtof(midi);
+  const g = ctx.createGain(); g.gain.value = 0;
+  const trim = ctx.createGain(); trim.gain.value = CARRIER_UNITY;
+  o.connect(g); g.connect(trim); trim.connect(carrierBus);
+  o.start(t);
+  const env = {A: Math.max(.002, P.attack), D: .3, S: 1,
+               R: Math.max(AMP_REL_MIN, P.release), t0: t, tOff: null, vOff: 0};
+  schedEnv(g.gain, env, t, 0);
+  const c = {o, g, env, midi, released: false};
+  c.release = function(t2){
+    if (c.released) return;
+    c.released = true;
+    env.R = Math.max(AMP_REL_MIN, P.release);   // read at release, like everything else
+    beginRelease(env, t2);
+    schedRelease(g.gain, env, t2);
+    const end = t2 + 2 * env.R + .05;
+    try{ o.stop(end); }catch(e){}
+    setTimeout(() => { try{ o.disconnect(); g.disconnect(); trim.disconnect(); }catch(e){} carriers.delete(midi); },
+               Math.max(60, (end - ctx.currentTime) * 1000 + 120));
+  };
+  return c;
+}
+
+function noteOn(midi, vel, when){
+  ensureAudio();
+  const t = when == null ? ctx.currentTime + .003 : when;
+  const old = carriers.get(midi);
+  if (old) old.release(t);
+  /* Six at a time. Past that the bank is being asked to resolve a cluster it cannot, and
+     the result is a drone rather than a chord. */
+  if (carriers.size >= 6){
+    const first = carriers.keys().next().value;
+    const c = carriers.get(first);
+    if (c) c.release(t);
+  }
+  carriers.set(midi, buildCarrier(midi, vel, t));
+  if (typeof paintNow === "function") paintNow();
+}
+function noteOff(midi, when){
+  const t = when == null ? ctx.currentTime + .003 : when;
+  const c = carriers.get(midi);
+  if (c) c.release(t);
+  if (typeof paintNow === "function") paintNow();
+}
+function allNotesOff(){
+  const t = ctx ? ctx.currentTime : 0;
+  carriers.forEach(c => { try{ c.release(t); }catch(e){} });
+  if (typeof paintNow === "function") paintNow();
+}
+
+/* ---- the modulator input ---- */
+async function openInput(deviceId){
+  initAudio();
+  if (deviceId === "__bus"){
+    closeInput();
+    /* Vocode the rest of the studio rather than a voice — the drums through the bank is a
+       classic, and it needs no microphone. Excludes this instrument's own strip, so the
+       bank cannot analyse its own output. */
+    modSrc = Patchwork.audio.tap("vc1");
+    modSrc.connect(modGain); modSrc.connect(modMeter);
+    modStream = "__bus";
+    say("Modulating with the <b>studio output</b> — hold notes to hear the other "
+      + "instruments through the bank.");
+    return true;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    say("This browser can't open an audio input.", true); return false;
+  }
+  closeInput();
+  try{
+    /* The three processing flags MUST be off: echo cancellation and noise suppression are
+       built to remove exactly the signal a vocoder wants, and AGC pumps the band
+       envelopes. */
+    modStream = await navigator.mediaDevices.getUserMedia({audio:{
+      deviceId: deviceId ? {exact: deviceId} : undefined,
+      echoCancellation:false, noiseSuppression:false, autoGainControl:false
+    }});
+    modSrc = ctx.createMediaStreamSource(modStream);
+    modSrc.connect(modGain); modSrc.connect(modMeter);
+    say("Listening. Hold notes to sound them through your voice — <b>use headphones</b>, "
+      + "a microphone into speakers will feed back.");
+    return true;
+  }catch(e){
+    say("Couldn't open that input (" + ((e && e.name) || e) + ").", true);
+    return false;
+  }
+}
+function closeInput(){
+  if (modSrc){ try{ modSrc.disconnect(); }catch(e){} modSrc = null; }
+  if (modStream && modStream !== "__bus"){
+    modStream.getTracks().forEach(t => { try{ t.stop(); }catch(e){} });
+  }
+  modStream = null;
+}
+
+/* ============ ui ============ */
+
+const playBtn = $("#play"), tempoOut = $("#tempoOut"), nowNote = $("#nowNote"),
+      meterEl = $("#inMeter"), vocNote = $("#vocNote");
+const NOTES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+const noteName = n => NOTES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
+
+function say(msg, bad){ vocNote.innerHTML = msg; vocNote.classList.toggle("err", !!bad); }
+
+/* ---- the sequencer ---- */
+const seq = Patchwork.makeSeq({
+  id: "vc1", maxSteps: 64, len: 16, rate: "1/8", root: 48,
+  fire: (ev, t) => {
+    ensureAudio();
+    noteOn(ev.n, Math.round(ev.vel * 127), t);
+    const off = t + ev.dur;
+    setTimeout(() => noteOff(ev.n, Patchwork.audio.ctx.currentTime + .003),
+               Math.max(10, (off - Patchwork.audio.ctx.currentTime) * 1000));
+  },
+  onState: on => {
+    playBtn.classList.toggle("on", on);
+    playBtn.textContent = on ? "■ Stop" : "▶ Play";
+    if (!on) allNotesOff();
+  }
+});
+const grid = Patchwork.mountSeqGrid($("#seqWrap"), seq);
+
+const lenSel = $("#seqLen"), rateSel = $("#seqRate"), keySel = $("#seqKey"), scaleSel = $("#seqScale");
+[8,12,16,24,32,48,64].forEach(n => lenSel.appendChild(Object.assign(
+  document.createElement("option"), {value:String(n), textContent:n + " steps"})));
+lenSel.value = "16";
+Object.keys(seq.RATES).forEach(r => rateSel.appendChild(Object.assign(
+  document.createElement("option"), {value:r, textContent:r})));
+rateSel.value = "1/8";
+for (let n = 36; n <= 60; n++) keySel.appendChild(Object.assign(
+  document.createElement("option"), {value:String(n), textContent:noteName(n)}));
+keySel.value = "48";
+Object.keys(seq.SCALES).forEach(s => scaleSel.appendChild(Object.assign(
+  document.createElement("option"),
+  {value:s, textContent:s.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase())})));
+scaleSel.value = "minor";
+
+lenSel.addEventListener("change", () => { seq.setLen(+lenSel.value); grid.render(); });
+rateSel.addEventListener("change", () => { seq.SEQ.rate = rateSel.value; });
+keySel.addEventListener("change", () => { seq.SEQ.root = +keySel.value; grid.paint(); });
+scaleSel.addEventListener("change", () => { seq.SEQ.scale = scaleSel.value; grid.paint(); });
+
+playBtn.addEventListener("click", () => { ensureAudio(); seq.toggle(); });
+$("#panic").addEventListener("click", () => { seq.stop(); allNotesOff(); });
+
+let latch = false;
+$("#hold").addEventListener("click", () => {
+  latch = !latch;
+  $("#hold").classList.toggle("on", latch);
+  if (!latch) allNotesOff();
+});
+$("#listen").addEventListener("click", async () => {
+  ensureAudio();
+  if (modStream){ closeInput(); $("#listen").classList.remove("on"); say("Modulator closed."); return; }
+  const ok = await openInput($("#inSel").value === "__bus" ? "__bus" : "");
+  $("#listen").classList.toggle("on", !!ok);
+});
+$("#inSel").addEventListener("change", () => { if (modStream) openInput($("#inSel").value === "__bus" ? "__bus" : ""); });
+
+/* ---- carrier keyboard ---- */
+const keysEl = $("#keys");
+const KEY_BASE = 48;
+const BLACK = {1:1,3:1,6:1,8:1,10:1};
+for (let i = 0; i < 25; i++){
+  const n = KEY_BASE + i;
+  const k = document.createElement("div");
+  k.className = "k" + (BLACK[n % 12] ? " b" : "");
+  k.dataset.n = n;
+  if (BLACK[n % 12]) k.appendChild(document.createElement("i"));
+  keysEl.appendChild(k);
+}
+keysEl.addEventListener("pointerdown", e => {
+  const k = e.target.closest(".k"); if (!k) return;
+  ensureAudio();
+  const n = +k.dataset.n;
+  if (latch && carriers.has(n)) noteOff(n); else noteOn(n, 100);
+});
+window.addEventListener("pointerup", () => { if (!latch) allNotesOff(); });
+
+function paintNow(){
+  const held = [...carriers.keys()].filter(n => { const c = carriers.get(n); return c && !c.released; });
+  nowNote.textContent = held.length ? held.sort((a,b)=>a-b).map(noteName).join(" ") : "—";
+  keysEl.querySelectorAll(".k").forEach(k => k.classList.toggle("on", held.indexOf(+k.dataset.n) >= 0));
+}
+
+/* meter and playhead */
+const mbuf = new Float32Array(1024);
+(function paintLoop(){
+  grid.paint();
+  if (modMeter){
+    modMeter.getFloatTimeDomainData(mbuf);
+    let s = 0; for (let i = 0; i < mbuf.length; i++) s += mbuf[i]*mbuf[i];
+    meterEl.style.width = Math.min(100, Math.sqrt(s/mbuf.length) * 320) + "%";
+  }
+  requestAnimationFrame(paintLoop);
+})();
+
+/* ---- tempo ---- */
+function setBpm(v, fromShell){
+  const b = Math.round(clampf(v, 40, 240));
+  tempoOut.textContent = b;
+  if (!fromShell) Patchwork.clock.setBpm(b, "vc1");
+}
+Patchwork.clock.onTempo("vc1", v => setBpm(v, true), 120);
+setBpm(Patchwork.clock.bpm, true);
+$("#bpmUp").addEventListener("click", () => setBpm(Patchwork.clock.bpm + 1));
+$("#bpmDown").addEventListener("click", () => setBpm(Patchwork.clock.bpm - 1));
+
+/* ---- bank controls ---- */
+function fader(sel, get, set, fmt, min, max){
+  const el = $(sel), slot = el.querySelector(".hslot"),
+        cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
+  function paintF(){
+    cap.style.left = (clampf((get() - min) / (max - min), 0, 1) * 100) + "%";
+    val.textContent = fmt(get());
+  }
+  el.addEventListener("pointerdown", e => {
+    const r = slot.getBoundingClientRect();
+    const move = ev => {
+      const cx = ev.clientX != null ? ev.clientX : (ev.touches && ev.touches[0].clientX);
+      set(min + clampf((cx - r.left) / r.width, 0, 1) * (max - min));
+      applyVocoder(); paintF();
+    };
+    move(e); el.classList.add("dragging");
+    const up = () => { el.classList.remove("dragging");
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+  paintF();
+}
+fader("#qF",    () => P.q,       v => { P.q = v; },       v => v.toFixed(1), .5, 12);
+fader("#respF", () => P.resp,    v => { P.resp = v; },    v => v.toFixed(0) + " Hz", 4, 80);
+fader("#sibF",  () => P.sib,     v => { P.sib = v; },     v => Math.round(v*100) + "%", 0, 1);
+fader("#compF", () => P.comp,    v => { P.comp = v; },    v => Math.round(v*100) + "%", 0, 1);
+fader("#modF",  () => P.mod,     v => { P.mod = v; },     v => Math.round(v*100) + "%", 0, 3);
+fader("#carrF", () => P.carrier, v => { P.carrier = v; }, v => Math.round(v*100) + "%", 0, 1.5);
+fader("#mixF",  () => P.mix,     v => { P.mix = v; },     v => Math.round(v*100) + "%", 0, 1.5);
+fader("#relF",  () => P.release, v => { P.release = v; }, v => (v*1000).toFixed(0) + " ms", .02, 1.5);
+
+$("#bands").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  P.bands = +b.dataset.b;
+  $$("#bands button").forEach(x => x.classList.toggle("on", x === b));
+  ensureAudio(); applyVocoder();
+});
+$("#wave").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  P.wave = b.dataset.w;
+  $$("#wave button").forEach(x => x.classList.toggle("on", x === b));
+});
+
+onKey("keydown", e => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "select" || tag === "textarea") return;
+  if (e.key === " " && !e.repeat){ ensureAudio(); seq.toggle(); e.preventDefault(); }
+});
+
+paintNow();
+
+/* ============ midi ============ */
+/* Its own input channel, which is what splitting MS·1 buys: the bass used to share one
+   instrument's channel map with the synth and the vocoder, and each of the three now
+   simply answers on a channel of its own. */
+
+const MIDI = {access:null, in:null, inCh:-1};
+const ledEl = $("#midiLed"), midiInSel = $("#midiIn"), midiInChSel = $("#midiInCh");
+
+midiInChSel.appendChild(Object.assign(document.createElement("option"),
+  {value:"-1", textContent:"Omni"}));
+for (let c = 0; c < 16; c++)
+  midiInChSel.appendChild(Object.assign(document.createElement("option"),
+    {value:String(c), textContent:String(c + 1)}));
+midiInChSel.value = "-1";
+midiInChSel.addEventListener("change", () => {
+  MIDI.inCh = parseInt(midiInChSel.value, 10); allNotesOff(); describe();
+});
+
+function ports(kind){ return Patchwork.midi.ports(kind); }
+function fillPorts(){
+  const keep = midiInSel.value;
+  midiInSel.textContent = "";
+  midiInSel.appendChild(Object.assign(document.createElement("option"),
+    {value:"", textContent:"— none —"}));
+  ports("inputs").forEach(p => midiInSel.appendChild(Object.assign(
+    document.createElement("option"), {value:p.id, textContent:p.name || p.id})));
+  if (keep && ports("inputs").some(p => p.id === keep)) midiInSel.value = keep;
+}
+
+function onMidi(e){
+  const d = e.data, s = d[0];
+  if (s >= 0xF0) return;                    // realtime carries no channel
+  if (MIDI.inCh >= 0 && (s & 0x0F) !== MIDI.inCh) return;
+  const type = s & 0xF0;
+  if (type === 0x90 && d[2] > 0){ ensureAudio(); noteOn(d[1], d[2]); }
+  else if (type === 0x80 || (type === 0x90 && d[2] === 0)) noteOff(d[1]);
+  else if (type === 0xB0 && d[1] === 123) allNotesOff();
+}
+function midiPanic(){ allNotesOff(); }
+
+function bindInput(){ MIDI.in = Patchwork.midi.select(midiInSel.value); }
+function followInput(pt){
+  MIDI.in = pt;
+  if (midiInSel.value !== (pt ? pt.id : "")) midiInSel.value = pt ? pt.id : "";
+  ledEl.classList.toggle("ready", !!pt && !ledEl.classList.contains("err"));
+}
+midiInSel.addEventListener("change", bindInput);
+
+function say(msg, bad){ $("#midiNote").innerHTML = msg; ledEl.classList.toggle("err", !!bad); }
+function describe(){
+  const i = ports("inputs").length;
+  say(i + " input" + (i === 1 ? "" : "s") + " — "
+    + (MIDI.inCh < 0 ? "listening on <b>every channel</b>."
+                     : "listening on <b>channel " + (MIDI.inCh + 1) + "</b> only."));
+}
+
+function initMidi(){
+  if (!navigator.requestMIDIAccess){
+    say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true); return;
+  }
+  if (!window.isSecureContext){
+    say("Web MIDI needs a secure context — serve over <code>localhost</code>.", true); return;
+  }
+  Patchwork.midi.route("vc1", onMidi, pt => { fillPorts(); followInput(pt); describe(); });
+  Patchwork.midi.open().then(a => {
+    MIDI.access = a; fillPorts();
+    const ins = ports("inputs");
+    if (!Patchwork.midi.port && ins.length){ midiInSel.value = ins[0].id; bindInput(); }
+    else followInput(Patchwork.midi.port);
+    describe();
+  }).catch(err => say("MIDI access was denied or failed (" + ((err && err.name) || "error") + ").", true));
+}
+
+/* ============ boot ============ */
+
+Patchwork.scenes.register("vc1", {
+  name: "VC·1",
+  isPlaying: () => seq.SEQ.playing,
+  capture: () => seq.capture(),
+  apply: pat => {
+    seq.apply(pat);
+    lenSel.value = String(seq.SEQ.len);
+    rateSel.value = seq.SEQ.rate;
+    keySel.value = String(seq.SEQ.root);
+    scaleSel.value = seq.SEQ.scale;
+    grid.render();
+  }
+});
+
+initMidi();
+
+/* Offline render. A vocoder has no microphone in an offline context, so a test supplies
+   its own modulator — the same arrangement MS·1's harness used. */
+async function renderVoc(opts){
+  const o = opts || {};
+  const dur = o.dur || 2.0, rate = o.rate || 48000;
+  const saved = {ctx, out, carrierBus, vocOut, modGain, modComp, modMakeup, modPost,
+                 absCurve, noiseBuf, sibGain, sibNoise, modMeter, bank};
+  const savedCarriers = Array.from(carriers.entries());
+  carriers.clear();
+  ctx = null; bank = [];
+  const off = new OfflineAudioContext(2, Math.ceil(rate * dur), rate);
+  try{
+    initAudio(off);
+    if (o.params) Object.assign(P, o.params);
+    applyVocoder();
+    if (o.modulator){ const m = o.modulator(off); if (m) m.connect(modGain); }
+    (o.notes || [48, 55, 60]).forEach(n => noteOn(n, 100, 0));
+    if (o.gate > 0 && o.gate < dur) carriers.forEach(c => c.release(o.gate));
+    return await off.startRendering();
+  } finally {
+    carriers.clear();
+    ctx = saved.ctx; out = saved.out; carrierBus = saved.carrierBus; vocOut = saved.vocOut;
+    modGain = saved.modGain; modComp = saved.modComp; modMakeup = saved.modMakeup;
+    modPost = saved.modPost; absCurve = saved.absCurve; noiseBuf = saved.noiseBuf;
+    sibGain = saved.sibGain; sibNoise = saved.sibNoise; modMeter = saved.modMeter;
+    bank = saved.bank;
+    savedCarriers.forEach(([k, v]) => carriers.set(k, v));
+  }
+}
+
+window.__vc1 = {P, seq, noteOn, noteOff, allNotesOff, ensureAudio, applyVocoder,
+                openInput, closeInput, renderVoc, MIDI, onMidi,
+                get ctx(){ return ctx; }, get bank(){ return bank; },
+                get carriers(){ return carriers; }};
+});
+/* BS·1 — the bass, as its own instrument. Was a section inside MS·1; see the handoff for
+   why the three sections were split. */
+Patchwork.instrument("bs1", root => {
+"use strict";
+
+const $  = s => root.querySelector(s);
+const $$ = s => root.querySelectorAll(s);
+const onKey = (type, fn) => Patchwork.onKey(root, type, fn);
+
+
+/* ============ engine ============ */
+/* The bass voice, lifted from MS·1's bass section. A Taurus-shaped pedal synth: one
+   oscillator with a square sub an octave below, a ladder, and a single Decay knob shaping
+   filter contour and release together. Monophonic with lowest-note priority, and dry by
+   design — no chorus, delay or reverb, because a bass wants to stay dry and centred.
+
+   As its own instrument it gains the one thing it never had inside MS·1: a sequencer. The
+   old notes were explicit that "the sequencer and arpeggiator drive the synth section
+   only", which was a reasonable limit for a section and a poor one for an instrument. */
+
+const V = Patchwork.voice;
+const {clampf, mtof, ladder, RCOMP, schedEnv, schedRelease, beginRelease,
+       envValueAt, AMP_REL_MIN} = V;
+
+let ctx = null, out = null, bassOut = null, comp = null;
+
+/* One flat object IS the patch — MS·1's rule, and for the same reason: a patch that omits
+   a parameter must RESET it, not inherit whatever was dialled in before the load. */
+const DEFAULT = {
+  wave:"saw", oct:-1, level:.85, sub:.6,
+  cut:420, res:5, env:2.4, dec:.35, glide:0, tone:.5
+};
+const P = Object.assign({}, DEFAULT);
+
+const UNITY = 0.27;          // measured trim, as in MS·1
+
+function initAudio(useCtx){
+  if (ctx) return;
+  ctx = useCtx || Patchwork.audio.context();
+  out = useCtx ? ctx.destination : Patchwork.audio.strip("bs1");
+  comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -12; comp.ratio.value = 3; comp.attack.value = .005; comp.release.value = .2;
+  bassOut = ctx.createGain(); bassOut.gain.value = 1;
+  bassOut.connect(comp); comp.connect(out);
+}
+function ensureAudio(){
+  initAudio();
+  Patchwork.audio.resume();
+  return ctx.state;
+}
+
+function buildVoice(midi, vel, t){
+  const v = {t0:t, midi, released:false};
+  const f0 = mtof(midi) * Math.pow(2, P.oct);
+  const mix = ctx.createGain(); mix.gain.value = 1;
+
+  const o = ctx.createOscillator();
+  o.type = P.wave === "square" ? "square" : "sawtooth";
+  o.frequency.value = f0;
+  const og = ctx.createGain(); og.gain.value = UNITY;
+  o.connect(og); og.connect(mix); o.start(t);
+
+  const sub = ctx.createOscillator();
+  sub.type = "square"; sub.frequency.value = f0 / 2;
+  const sg = ctx.createGain(); sg.gain.value = UNITY * P.sub;
+  sub.connect(sg); sg.connect(mix); sub.start(t);
+
+  const L = ladder(clampf(P.res / 20, 0, 1));
+  const b1 = ctx.createBiquadFilter(); b1.type = "lowpass"; b1.Q.value = L.Q1dB;
+  const b2 = ctx.createBiquadFilter(); b2.type = "lowpass"; b2.Q.value = L.Q2dB;
+  const rg = ctx.createGain(); rg.gain.value = Math.pow(1 + L.k, RCOMP - 1);
+  const vca = ctx.createGain(); vca.gain.value = 0;
+  mix.connect(b1); b1.connect(b2); b2.connect(rg); rg.connect(vca); vca.connect(bassOut);
+
+  v.setCutoff = function(t2){
+    const base = clampf(P.cut, 20, ctx.sampleRate * 0.45 / L.rho2);
+    b1.frequency.setTargetAtTime(base * L.rho1, t2, .01);
+    b2.frequency.setTargetAtTime(base * L.rho2, t2, .01);
+  };
+  v.setCutoff(t);
+
+  /* contour -> cutoff, in cents */
+  const fEG = ctx.createConstantSource(); fEG.offset.value = 0; fEG.start(t);
+  const fAmt = ctx.createGain(); fAmt.gain.value = P.env * 1200;
+  fEG.connect(fAmt); fAmt.connect(b1.detune); fAmt.connect(b2.detune);
+
+  const aEG = ctx.createConstantSource(); aEG.offset.value = 0; aEG.start(t);
+  const pk = ctx.createGain();
+  pk.gain.value = P.level * (0.7 + 0.3 * (vel / 127));
+  aEG.connect(pk); pk.connect(vca.gain);
+
+  /* One Decay knob drives both: the filter plucks down to a low sustain, the amp holds
+     while the pedal is down and releases in proportion. That is the whole contour. */
+  const fEnv = {A:.004, D:Math.max(.01, P.dec), S:.12,
+                R:Math.max(.03, P.dec * .6), t0:t, tOff:null, vOff:0};
+  const aEnv = {A:.004, D:Math.max(.05, P.dec * 2), S:1,
+                R:Math.max(AMP_REL_MIN, P.dec * .6), t0:t, tOff:null, vOff:0};
+  schedEnv(fEG.offset, fEnv, t, 0);
+  schedEnv(aEG.offset, aEnv, t, 0);
+
+  v.o = o; v.sub = sub; v.og = og; v.sg = sg; v.pk = pk; v.fAmt = fAmt;
+  v.fEG = fEG; v.aEG = aEG; v.fEnv = fEnv; v.aEnv = aEnv;
+  v.nodes = [mix, og, sg, b1, b2, rg, vca, pk, fAmt];
+
+  v.setPitch = function(t2, m, glideT){
+    v.midi = m;
+    const f = mtof(m) * Math.pow(2, P.oct);
+    if (glideT > 0){
+      [[o, f], [sub, f / 2]].forEach(([node, target]) => {
+        node.frequency.cancelScheduledValues(t2);
+        node.frequency.setValueAtTime(Math.max(1e-4, node.frequency.value), t2);
+        node.frequency.exponentialRampToValueAtTime(Math.max(1e-4, target), t2 + glideT);
+      });
+    } else { o.frequency.setValueAtTime(f, t2); sub.frequency.setValueAtTime(f / 2, t2); }
+  };
+  v.retrigger = function(t2, m, vel2, glideT){
+    v.setPitch(t2, m, glideT);
+    pk.gain.setTargetAtTime(P.level * (0.7 + 0.3 * (vel2 / 127)), t2, .005);
+    const a0 = envValueAt(aEnv, t2), f0v = envValueAt(fEnv, t2);
+    aEnv.t0 = t2; aEnv.tOff = null; fEnv.t0 = t2; fEnv.tOff = null;
+    schedEnv(aEG.offset, aEnv, t2, a0);
+    schedEnv(fEG.offset, fEnv, t2, f0v);
+  };
+  v.release = function(t2){
+    if (v.released) return;
+    v.released = true;
+    /* release read AT release, not captured at note-on — turning Decay up while a pedal
+       is held lengthens that note's tail, which is the rule every knob here follows */
+    aEnv.R = Math.max(AMP_REL_MIN, P.dec * .6);
+    fEnv.R = Math.max(.03, P.dec * .6);
+    beginRelease(aEnv, t2); beginRelease(fEnv, t2);
+    schedRelease(aEG.offset, aEnv, t2);
+    schedRelease(fEG.offset, fEnv, t2);
+    const end = t2 + 2 * aEnv.R + .05;
+    try{ o.stop(end); sub.stop(end); fEG.stop(end); aEG.stop(end); }catch(e){}
+    setTimeout(() => v.dispose(), Math.max(60, (end - ctx.currentTime) * 1000 + 120));
+  };
+  v.dispose = function(){
+    active.delete(v);
+    v.nodes.forEach(n => { try{ n.disconnect(); }catch(e){} });
+  };
+  active.add(v);
+  return v;
+}
+
+/* ---- mono, lowest-note priority ----
+   A pedalboard plays the lowest note you are standing on; anything else makes a two-foot
+   chord sound like whichever pedal you happened to press last. */
+const active = new Set();
+const held = new Map();          // midi -> velocity
+let cur = null;
+
+function pick(){
+  let lowest = null;
+  held.forEach((vel, n) => { if (lowest === null || n < lowest) lowest = n; });
+  return lowest;
+}
+function glideTime(from, to){
+  if (!P.glide || from == null) return 0;
+  return P.glide * Math.abs(to - from) / 12;
+}
+
+function noteOn(midi, vel, when){
+  ensureAudio();
+  const t = when == null ? ctx.currentTime + .003 : when;
+  held.set(midi, vel);
+  const n = pick();
+  if (n == null) return;
+  if (cur && !cur.released){
+    cur.retrigger(t, n, held.get(n) || vel, glideTime(cur.midi, n));
+  } else {
+    cur = buildVoice(n, held.get(n) || vel, t);
+  }
+  paintNow();
+}
+function noteOff(midi, when){
+  const t = when == null ? ctx.currentTime + .003 : when;
+  held.delete(midi);
+  const n = pick();
+  if (n == null){
+    if (cur){ cur.release(t); cur = null; }
+  } else if (cur && !cur.released){
+    cur.retrigger(t, n, held.get(n) || 100, glideTime(cur.midi, n));
+  }
+  paintNow();
+}
+function allNotesOff(){
+  held.clear();
+  const t = ctx ? ctx.currentTime : 0;
+  if (cur){ cur.release(t); cur = null; }
+  active.forEach(v => { try{ v.release(t); }catch(e){} });
+  paintNow();
+}
+
+/* Live parameter moves, so every knob works under a sounding note — the rule MS·1 fell
+   short of and then fixed, kept here from the start. */
+function applyLive(){
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  active.forEach(v => {
+    v.setCutoff(t);
+    v.fAmt.gain.setTargetAtTime(P.env * 1200, t, .01);
+    v.pk.gain.setTargetAtTime(P.level * .85, t, .01);
+    v.sg.gain.setTargetAtTime(UNITY * P.sub, t, .01);
+    /* Resonance is structural — it sets both biquads' Q at build time — so it is the one
+       control here that waits for the next note. Everything else moves under a held pedal. */
+  });
+}
+
+/* ============ ui ============ */
+
+const playBtn = $("#play"), tempoOut = $("#tempoOut"), nowNote = $("#nowNote");
+const NOTES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+const noteName = n => NOTES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
+
+/* ---- the sequencer ---- */
+const seq = Patchwork.makeSeq({
+  id: "bs1", maxSteps: 64, len: 16, rate: "1/16", root: 36,
+  fire: (ev, t) => {
+    ensureAudio();
+    /* Slide glides into a step without re-attacking it — a 303 line, and the reason the
+       bass needed a sequencer of its own rather than borrowing notes from elsewhere. */
+    if (ev.slide && cur && !cur.released){
+      cur.setPitch(t, ev.n, Math.max(.02, P.glide || .06));
+      return;
+    }
+    noteOn(ev.n, Math.round(ev.vel * 127), t);
+    const off = t + ev.dur;
+    setTimeout(() => noteOff(ev.n, Patchwork.audio.ctx.currentTime + .003),
+               Math.max(10, (off - Patchwork.audio.ctx.currentTime) * 1000));
+  },
+  onState: on => {
+    playBtn.classList.toggle("on", on);
+    playBtn.textContent = on ? "■ Stop" : "▶ Play";
+    if (!on) allNotesOff();
+  }
+});
+const grid = Patchwork.mountSeqGrid($("#seqWrap"), seq);
+
+/* selects */
+const lenSel = $("#seqLen"), rateSel = $("#seqRate"), keySel = $("#seqKey"), scaleSel = $("#seqScale");
+[8,12,16,24,32,48,64].forEach(n => lenSel.appendChild(Object.assign(
+  document.createElement("option"), {value:String(n), textContent:n + " steps"})));
+lenSel.value = "16";
+Object.keys(seq.RATES).forEach(r => rateSel.appendChild(Object.assign(
+  document.createElement("option"), {value:r, textContent:r})));
+rateSel.value = "1/16";
+for (let n = 24; n <= 48; n++) keySel.appendChild(Object.assign(
+  document.createElement("option"), {value:String(n), textContent:noteName(n)}));
+keySel.value = "36";
+Object.keys(seq.SCALES).forEach(s => scaleSel.appendChild(Object.assign(
+  document.createElement("option"),
+  {value:s, textContent:s.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase())})));
+scaleSel.value = "minor";
+
+lenSel.addEventListener("change", () => { seq.setLen(+lenSel.value); grid.render(); });
+rateSel.addEventListener("change", () => { seq.SEQ.rate = rateSel.value; });
+keySel.addEventListener("change", () => { seq.SEQ.root = +keySel.value; grid.paint(); });
+scaleSel.addEventListener("change", () => { seq.SEQ.scale = scaleSel.value; grid.paint(); });
+
+playBtn.addEventListener("click", () => { ensureAudio(); seq.toggle(); });
+$("#panic").addEventListener("click", () => { seq.stop(); allNotesOff(); midiPanic(); });
+
+let latch = false;
+$("#hold").addEventListener("click", () => {
+  latch = !latch;
+  $("#hold").classList.toggle("on", latch);
+  if (!latch) allNotesOff();
+});
+
+/* ---- the keyboard ----
+   Two octaves from the sequencer's root, which is where a pedalboard sits. */
+const keysEl = $("#keys");
+const KEY_BASE = 36;
+const BLACK = {1:1,3:1,6:1,8:1,10:1};
+function buildKeys(){
+  keysEl.textContent = "";
+  for (let i = 0; i < 25; i++){
+    const n = KEY_BASE + i;
+    const k = document.createElement("div");
+    k.className = "k" + (BLACK[n % 12] ? " b" : "");
+    k.dataset.n = n;
+    if (BLACK[n % 12]) k.appendChild(document.createElement("i"));
+    keysEl.appendChild(k);
+  }
+}
+buildKeys();
+keysEl.addEventListener("pointerdown", e => {
+  const k = e.target.closest(".k"); if (!k) return;
+  ensureAudio();
+  const n = +k.dataset.n;
+  if (latch && held.has(n)) noteOff(n); else noteOn(n, 100);
+});
+window.addEventListener("pointerup", () => { if (!latch) allNotesOff(); });
+
+function paintNow(){
+  const n = cur && !cur.released ? cur.midi : null;
+  nowNote.textContent = n == null ? "—" : noteName(n);
+  keysEl.querySelectorAll(".k").forEach(k => k.classList.toggle("on", held.has(+k.dataset.n)));
+}
+
+/* the playhead, from the audio clock */
+(function paintLoop(){ grid.paint(); requestAnimationFrame(paintLoop); })();
+
+/* ---- tempo ---- */
+function setBpm(v, fromShell){
+  const b = Math.round(clampf(v, 40, 240));
+  tempoOut.textContent = b;
+  if (!fromShell) Patchwork.clock.setBpm(b, "bs1");
+}
+Patchwork.clock.onTempo("bs1", v => setBpm(v, true), 120);
+setBpm(Patchwork.clock.bpm, true);
+$("#bpmUp").addEventListener("click", () => setBpm(Patchwork.clock.bpm + 1));
+$("#bpmDown").addEventListener("click", () => setBpm(Patchwork.clock.bpm - 1));
+
+/* ---- voice faders ---- */
+function fader(sel, get, set, fmt, min, max){
+  const el = $(sel), slot = el.querySelector(".hslot"),
+        cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
+  function paintF(){
+    cap.style.left = (clampf((get() - min) / (max - min), 0, 1) * 100) + "%";
+    val.textContent = fmt(get());
+  }
+  el.addEventListener("pointerdown", e => {
+    const r = slot.getBoundingClientRect();
+    const move = ev => {
+      const cx = ev.clientX != null ? ev.clientX : (ev.touches && ev.touches[0].clientX);
+      set(min + clampf((cx - r.left) / r.width, 0, 1) * (max - min));
+      applyLive(); paintF();
+    };
+    move(e); el.classList.add("dragging");
+    const up = () => { el.classList.remove("dragging");
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+  paintF();
+}
+/* cutoff is exponential — a linear Hz fader spends most of its travel above where a bass
+   filter is ever set */
+fader("#cutF", () => Math.log2(P.cut / 20) / Math.log2(2000 / 20),
+      v => { P.cut = 20 * Math.pow(2000 / 20, v); },
+      () => Math.round(P.cut) + " Hz", 0, 1);
+fader("#resF", () => P.res, v => { P.res = v; }, v => v.toFixed(1) + " dB", 0, 18);
+fader("#envF", () => P.env, v => { P.env = v; }, v => v.toFixed(2) + " oct", 0, 5);
+fader("#decF", () => P.dec, v => { P.dec = v; }, v => (v*1000).toFixed(0) + " ms", .04, 1.5);
+fader("#subF", () => P.sub, v => { P.sub = v; }, v => Math.round(v*100) + "%", 0, 1);
+fader("#lvlF", () => P.level, v => { P.level = v; }, v => Math.round(v*100) + "%", 0, 1);
+fader("#glideF", () => P.glide, v => { P.glide = v; }, v => (v*1000).toFixed(0) + " ms", 0, .4);
+
+$("#wave").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  P.wave = b.dataset.w;
+  $$("#wave button").forEach(x => x.classList.toggle("on", x === b));
+});
+$("#oct").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  P.oct = +b.dataset.o;
+  $$("#oct button").forEach(x => x.classList.toggle("on", x === b));
+});
+
+onKey("keydown", e => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "select" || tag === "textarea") return;
+  if (e.key === " " && !e.repeat){ ensureAudio(); seq.toggle(); e.preventDefault(); }
+});
+
+paintNow();
+
+/* ============ midi ============ */
+/* Its own input channel, which is what splitting MS·1 buys: the bass used to share one
+   instrument's channel map with the synth and the vocoder, and each of the three now
+   simply answers on a channel of its own. */
+
+const MIDI = {access:null, in:null, inCh:-1};
+const ledEl = $("#midiLed"), midiInSel = $("#midiIn"), midiInChSel = $("#midiInCh");
+
+midiInChSel.appendChild(Object.assign(document.createElement("option"),
+  {value:"-1", textContent:"Omni"}));
+for (let c = 0; c < 16; c++)
+  midiInChSel.appendChild(Object.assign(document.createElement("option"),
+    {value:String(c), textContent:String(c + 1)}));
+midiInChSel.value = "-1";
+midiInChSel.addEventListener("change", () => {
+  MIDI.inCh = parseInt(midiInChSel.value, 10); allNotesOff(); describe();
+});
+
+function ports(kind){ return Patchwork.midi.ports(kind); }
+function fillPorts(){
+  const keep = midiInSel.value;
+  midiInSel.textContent = "";
+  midiInSel.appendChild(Object.assign(document.createElement("option"),
+    {value:"", textContent:"— none —"}));
+  ports("inputs").forEach(p => midiInSel.appendChild(Object.assign(
+    document.createElement("option"), {value:p.id, textContent:p.name || p.id})));
+  if (keep && ports("inputs").some(p => p.id === keep)) midiInSel.value = keep;
+}
+
+function onMidi(e){
+  const d = e.data, s = d[0];
+  if (s >= 0xF0) return;                    // realtime carries no channel
+  if (MIDI.inCh >= 0 && (s & 0x0F) !== MIDI.inCh) return;
+  const type = s & 0xF0;
+  if (type === 0x90 && d[2] > 0){ ensureAudio(); noteOn(d[1], d[2]); }
+  else if (type === 0x80 || (type === 0x90 && d[2] === 0)) noteOff(d[1]);
+  else if (type === 0xB0 && d[1] === 123) allNotesOff();
+}
+function midiPanic(){ allNotesOff(); }
+
+function bindInput(){ MIDI.in = Patchwork.midi.select(midiInSel.value); }
+function followInput(pt){
+  MIDI.in = pt;
+  if (midiInSel.value !== (pt ? pt.id : "")) midiInSel.value = pt ? pt.id : "";
+  ledEl.classList.toggle("ready", !!pt && !ledEl.classList.contains("err"));
+}
+midiInSel.addEventListener("change", bindInput);
+
+function say(msg, bad){ $("#midiNote").innerHTML = msg; ledEl.classList.toggle("err", !!bad); }
+function describe(){
+  const i = ports("inputs").length;
+  say(i + " input" + (i === 1 ? "" : "s") + " — "
+    + (MIDI.inCh < 0 ? "listening on <b>every channel</b>."
+                     : "listening on <b>channel " + (MIDI.inCh + 1) + "</b> only."));
+}
+
+function initMidi(){
+  if (!navigator.requestMIDIAccess){
+    say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true); return;
+  }
+  if (!window.isSecureContext){
+    say("Web MIDI needs a secure context — serve over <code>localhost</code>.", true); return;
+  }
+  Patchwork.midi.route("bs1", onMidi, pt => { fillPorts(); followInput(pt); describe(); });
+  Patchwork.midi.open().then(a => {
+    MIDI.access = a; fillPorts();
+    const ins = ports("inputs");
+    if (!Patchwork.midi.port && ins.length){ midiInSel.value = ins[0].id; bindInput(); }
+    else followInput(Patchwork.midi.port);
+    describe();
+  }).catch(err => say("MIDI access was denied or failed (" + ((err && err.name) || "error") + ").", true));
+}
+
+/* ============ boot ============ */
+
+Patchwork.scenes.register("bs1", {
+  name: "BS·1",
+  isPlaying: () => seq.SEQ.playing,
+  capture: () => seq.capture(),
+  apply: pat => {
+    seq.apply(pat);
+    lenSel.value = String(seq.SEQ.len);
+    rateSel.value = seq.SEQ.rate;
+    keySel.value = String(seq.SEQ.root);
+    scaleSel.value = seq.SEQ.scale;
+    grid.render();
+  }
+});
+
+initMidi();
+
+/* Offline render, mirroring the other instruments' harnesses so a bass patch can be
+   trimmed against a target rather than dialled. */
+async function renderNote(opts){
+  const o = opts || {};
+  const dur = o.dur || 2.0, rate = o.rate || 48000;
+  const saved = {ctx, out, bassOut, comp};
+  const savedCur = cur; cur = null;
+  const savedActive = Array.from(active); active.clear();
+  ctx = null;
+  const off = new OfflineAudioContext(2, Math.ceil(rate * dur), rate);
+  try{
+    initAudio(off);
+    if (o.params) Object.assign(P, o.params);
+    const v = buildVoice(o.midi == null ? 36 : o.midi, o.vel == null ? 100 : o.vel, 0);
+    if (o.gate > 0 && o.gate < dur) v.release(o.gate);
+    return await off.startRendering();
+  } finally {
+    active.clear();
+    ctx = saved.ctx; out = saved.out; bassOut = saved.bassOut; comp = saved.comp;
+    savedActive.forEach(v => active.add(v));
+    cur = savedCur;
+  }
+}
+
+window.__bs1 = {P, seq, noteOn, noteOff, allNotesOff, ensureAudio, renderNote, MIDI, onMidi,
+                get ctx(){ return ctx; }, get active(){ return active; },
+                get held(){ return held; }, get cur(){ return cur; }};
 });
 /* DR·1 is built into whatever panel the page gives it, exactly as CS·1 and MS·1 are.
    Standalone that panel is the only thing on the page; in the studio build it is one of

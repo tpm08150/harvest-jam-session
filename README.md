@@ -1,6 +1,6 @@
 # Patchwork
 
-Four instruments that run entirely in the browser, separately or together. One HTML file
+Six instruments that run entirely in the browser, separately or together. One HTML file
 each, no dependencies —
 generate and play music, shape it with a small synth engine, and drive external hardware
 over MIDI. Each ships as a single self-contained file; they are assembled from `src/` by a
@@ -9,13 +9,15 @@ concatenation script that needs nothing but Python.
 | | | |
 | --- | --- | --- |
 | **CS·1** | `patchwork-chord-synth.html` | chord synthesizer — progressions, pads, harmony |
-| **MS·1** | `patchwork-mono-synth.html` | mono/poly synth, vocoder and bass pedals |
+| **PM·1** | `patchwork-poly-synth.html` | poly/mono synth — the main voice |
+| **VC·1** | `patchwork-vocoder.html` | vocoder, with its own carrier and sequencer |
+| **BS·1** | `patchwork-bass.html` | bass pedals, with a 303-style sequencer |
 | **DR·1** | `patchwork-drums.html` | drum machine — eight synthesised voices, sixteen steps |
 | **LP·1** | `patchwork-looper.html` | audio looper — record, loop and overdub in time |
 | **Studio** | `patchwork-studio.html` | all three on one page, sharing a clock and an audio bus |
 
-Each is a complete program on its own — CS·1 plays the changes, MS·1 plays the line over
-them, DR·1 keeps time — and each can drive hardware by itself. The **studio** build hosts
+Each is a complete program on its own — CS·1 plays the changes, PM·1 plays the line over
+them, BS·1 holds the bottom, VC·1 sings, DR·1 keeps time and LP·1 catches it all — and each can drive hardware by itself. The **studio** build hosts
 all three on one page, where they share a single audio context, one transport and one MIDI
 router: start a second instrument while the first is running and it joins on the next bar
 rather than wherever you happened to press the button.
@@ -46,7 +48,7 @@ sends all-notes-off on every channel.
 
 ---
 
-## Patchwork MS·1 — mono synthesizer
+## Patchwork PM·1 — poly/mono synthesizer
 
 Aimed at the two jobs CS·1 cannot do: **leads and basses.** Inspired by early-80s analog
 polysynths, and built to sit next to a CS·1 chord rather than fight it.
@@ -114,37 +116,6 @@ Monophonic with lowest-note priority, dry by design — no chorus, delay or reve
 answers its own MIDI channel, so a pedalboard or a DAW track can drive it while you play
 something else on the keyboard.
 
-**Vocoder.** A 16-band vocoder (8/16/24) sharing the panel with the synth. The keyboard
-splits at a movable point: one side plays the synth voice, the other feeds a **paraphonic
-carrier** — up to six notes, all summed into one shared filter bank, so vocoder *chords*
-cost the same as one note. Sing or speak into any audio input and the notes carry your
-voice. Includes an unvoiced path, because a pitched carrier physically cannot produce "s"
-or "t" and without it the result is mush.
-
-The on-screen keyboard tints whenever local keys reach the vocoder, so where they go is
-never something you have to infer by pressing one.
-
-The two sections have **separate MIDI input channels**, so a DAW can drive them as separate
-tracks; a third **Control** channel takes CC and program change. Each is Omni or 1–16, and
-Omni means "whatever the other one hasn't claimed", so setting just the vocoder's channel is
-usually enough. Put both on the same channel and they layer. Pitch bend belongs to whichever
-section owns the channel, so bending the lead doesn't drag the vocoder chord with it.
-
-The on-screen and computer keyboards carry no MIDI channel, so a **Keyboard plays** switch
-under the keyboard says which section they reach. It doesn't affect incoming MIDI, which is
-always routed by channel.
-
-The keys light in the colour of whichever section is sounding them — **blue** for the synth,
-**pink** for the vocoder, **orange** for the bass — so with three sections running on three
-channels you can see at a glance where a note landed.
-
-The modulator is compressed before it reaches the bands (**Squeeze**), which is what stops
-the vocoder needing a hot input — a band opens in proportion to its energy, so without it
-the whole output level tracks how loudly you speak. An input meter reads the raw signal, so
-you can tell "nothing arriving" from "signal fine, no notes held" at a glance.
-
-**Use headphones.** A microphone into speakers will feed back. The modulator can come from
-any input, so a USB interface — or a drum loop instead of a voice — works too.
 
 **Effects.** A BBD-style chorus (I, II, I+II, Ensemble), a tempo-syncable stereo delay, and
 a reverb send. The vocoder runs through them as well; a chorused vocoder is most of the sound.
@@ -167,10 +138,38 @@ patches does not change how loud the instrument is:
 Measured as RMS over the first 500 ms of the note — a window that reflects what you hear
 rather than punishing a plucked patch for the silence after it decays. All twenty land
 within **±0.4 dB** of target, against CS·1's own 8.2 dB spread across its twelve voices.
-That target is itself measured: a typical CS·1 chord sits near −24 dBFS, so a single MS·1
+That target is itself measured: a typical CS·1 chord sits near −24 dBFS, so a single PM·1
 note matches it without a gain ride in the mixer.
 
 ---
+
+## Patchwork VC·1 — vocoder
+
+A 16-band vocoder (8/16/24) with a carrier of its own. Sing or speak into any input and the
+notes carry your voice — or point it at the **studio output** and run the drums through the
+bank, which needs no microphone and cannot feed back.
+
+The carrier is **paraphonic**: up to six notes summed into one shared bank, so a chord costs
+what one note costs. Measured at 2.95 dB over a single note, not the ~9.5 dB six independent
+voices would cost.
+
+**Squeeze** compresses the modulator before the bank, which is what stops the vocoder needing
+a hot input — a band opens in proportion to its energy, so without it the whole output level
+tracks how loudly you speak. **Unvoiced** is a separate noise path, because a pitched carrier
+physically cannot produce “s” or “t”. Its own 64-step sequencer, and its own MIDI channel.
+
+**Use headphones.** A microphone into speakers will feed back.
+
+## Patchwork BS·1 — bass
+
+A Taurus-shaped pedal synth: one oscillator with a square sub an octave below, a ladder
+filter, and a single **Decay** knob shaping filter contour and release together. Monophonic
+with lowest-note priority — a pedalboard plays the lowest note you are standing on — and dry
+by design, because a bass wants to stay centred.
+
+Its own 64-step sequencer with **slide**, which glides into a step without re-attacking it.
+Every control moves under a held pedal except resonance, which sets the filter's poles when
+the note is built.
 
 ## Patchwork DR·1 — drum machine
 
@@ -183,7 +182,7 @@ closed hat chokes an open one, because they are one hi-hat.
 **Grid.** Sixteen steps per voice, eight lanes, all visible at once. A click cycles a step
 off → on → accent, so the thing you most want to program — an accented downbeat — takes one
 gesture rather than a modifier. Lengths of 8, 12, 16 or 32, rates from 1/8 to 1/32 including
-triplets, and the same swing model CS·1 and MS·1 use, so all three shuffle identically.
+triplets, and the same swing model every instrument here uses, so they all shuffle identically.
 
 **Levels.** Every voice is trimmed against a measured target rather than dialled. The eight
 started **30.6 dB apart** and land within **0.31 dB** of where they should be.
@@ -220,7 +219,7 @@ patch you dialled survives the switch.
 ## Faces
 
 Every instrument has a **face** — the handful of controls you touch while playing — with
-its full panel one click away. Nothing is hidden permanently and nothing is removed: MS·1
+its full panel one click away. Nothing is hidden permanently and nothing is removed: PM·1
 keeps all fifty knobs, and a control you cannot see is still bound and still responds to
 MIDI.
 
@@ -248,7 +247,9 @@ shipped app is still one file with no dependencies:
 python3 tools/build.py
 ```
 
-Deployed on Netlify, CS·1 is at the root and MS·1 is at `/mono`.
+Deployed on Netlify, CS·1 is at the root and the rest have clean paths of their own:
+`/poly`, `/vocoder`, `/bass`, `/drums`, `/looper` and `/studio`. `/mono` was MS·1 and now
+points at PM·1, which is most of what MS·1 was.
 
 ## Browser support
 

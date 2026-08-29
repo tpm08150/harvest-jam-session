@@ -1,4 +1,6 @@
 /* ============ patches ============ */
+/* Deliberately still the MS·1 key. PM·1 is what MS·1 became once the vocoder and bass
+   moved out, and renaming this would silently orphan every patch anyone had saved. */
 const PATCH_KEY = "patchwork-ms1-patches";
 const PATCH_VERSION = 2;      // v2 added the vocoder section; v1 patches take its defaults
 const patchSel = $("#patchSel"), patchName = $("#patchName"), patchNote = $("#patchNote"),
@@ -18,7 +20,7 @@ function saveStore(o){
 }
 function snapshot(){
   return {
-    app:"patchwork-ms1", v:PATCH_VERSION,
+    app:"patchwork-pm1", v:PATCH_VERSION,
     params:Object.assign({}, P),
     bpm:SEQ.bpmExact, octave:octave,
     seq:{motion:SEQ.motion, len:SEQ.len, rate:SEQ.rate, gate:SEQ.gate, swing:SEQ.swing,
@@ -58,7 +60,9 @@ function refreshAllControls(){
 }
 function restore(s){
   if (!s || typeof s !== "object") throw new Error("not a patch");
-  if (s.app && s.app !== "patchwork-ms1") throw new Error("different app");
+  /* Accepts both names, so a file exported from MS·1 still loads. */
+  if (s.app && s.app !== "patchwork-pm1" && s.app !== "patchwork-ms1")
+    throw new Error("different app");
   applyParams(s.params);
   setBpm(numOr(s.bpm, 40, 240, 120));
   setOctave(numOr(s.octave, -3, 3, 0));
@@ -166,7 +170,7 @@ $("#patchDelete").addEventListener("click", () => {
   sayPatch("Deleted <b>" + name + "</b>.");
 });
 $("#patchExport").addEventListener("click", () => {
-  const name = (patchName.value || "patchwork-ms1-patch").trim();
+  const name = (patchName.value || "patchwork-pm1-patch").trim();
   const data = Object.assign(snapshot(), {name});
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
@@ -192,7 +196,7 @@ patchFile.addEventListener("change", () => {
       if (data.name) patchName.value = data.name;
       sayPatch("Imported <b>" + (data.name || f.name) + "</b>. Save it to keep it in this browser.");
     }catch(err){
-      sayPatch("That doesn't look like a Patchwork MS·1 patch (" + (err && err.message) + ").", true);
+      sayPatch("That doesn't look like a Patchwork PM·1 patch (" + (err && err.message) + ").", true);
     }
   };
   rd.readAsText(f);

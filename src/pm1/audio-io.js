@@ -52,7 +52,7 @@ async function scanDevices(){
   if (typeof listInputs === "function") listInputs();
   const sinkOk = !ctx || typeof ctx.setSinkId === "function";
   ioSay(outs.length + " output" + (outs.length === 1 ? "" : "s")
-      + (sinkOk ? ". Pick your interface to send MS·1 to it."
+      + (sinkOk ? ". Pick your interface to send PM·1 to it."
                 : ". Output routing needs Chrome 110+."), !sinkOk);
   audioLed.classList.add("ready");
   ioStats();

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Patchwork MS·1 — mono synthesizer</title>
+<title>Patchwork PM·1 — mono synthesizer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Saira+Semi+Condensed:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -166,7 +166,7 @@ input[type="text"]::placeholder{color:#5a646a}
 /* Everything below is scoped to this instrument's panel. @scope rather than
    nesting because it adds no specificity, so the relative weight of every rule
    inside is exactly what it was when this was a whole page to itself. */
-@scope (.unit.ms1) {
+@scope (.unit.pm1) {
 /* Tokens are CS·1's, value for value — two synths with the same grey and different
    accents read as one product line; two different greys read as two products. */
 /* clip, not hidden: the mobile transport is sticky inside this box, and overflow:hidden
@@ -496,12 +496,12 @@ input[type="text"]::placeholder{color:#5a646a}
   </defs>
 </svg>
 
-<div class="unit ms1" data-instrument="ms1">
+<div class="unit pm1" data-instrument="pm1">
 
   <div data-face class="plate">
     <div>
       <div class="brand">Patchwork</div>
-      <div class="model">MS·1 — mono synthesizer</div>
+      <div class="model">PM·1 — mono synthesizer</div>
     </div>
     <div class="screws"><i class="screw"></i><i class="screw"></i></div>
   </div>
@@ -518,16 +518,6 @@ input[type="text"]::placeholder{color:#5a646a}
 
   <!-- Not a vocoder control: it decides where the ON-SCREEN and computer keyboards send
        notes, for every section. Incoming MIDI is routed by channel and ignores this. -->
-  <div data-face class="keysrow">
-    <span class="silk">Keyboard plays</span>
-    <div class="seg sm" id="keysTo" role="group" aria-label="What the on-screen and computer keyboards play">
-      <button data-k="syn" class="on">Synth</button>
-      <button data-k="voc">Vocoder</button>
-      <button data-k="bass">Bass</button>
-      <button data-k="both">Syn+Voc</button>
-    </div>
-    <span class="note" id="keysNote" style="margin:0"></span>
-  </div>
 
   <div data-face class="transport">
     <button class="btn primary" id="init">Init patch</button>
@@ -629,52 +619,9 @@ input[type="text"]::placeholder{color:#5a646a}
   </div>
 
   <!-- ===== VOCODER ===== -->
-  <div class="rack r-voc">
-    <div class="rack-head">
-      <span class="silk">Vocoder</span>
-      <div class="seg sm" id="vocOn" role="group" aria-label="Vocoder section">
-        <button data-v="0" class="on">Off</button>
-        <button data-v="1">On</button>
-      </div>
-      <div class="seg sm" id="vocBands" role="group" aria-label="Band count">
-        <button data-b="8">8 bands</button>
-        <button data-b="16" class="on">16</button>
-        <button data-b="24">24</button>
-      </div>
-      <span class="note" style="margin:0">carrier shaped by <b>Env 2 → Amp</b></span>
-      <select id="modIn" aria-label="Modulator input" style="width:auto;min-width:140px">
-        <option value="">Default input</option>
-      </select>
-      <button class="btn ghost sm" id="modStart">Listen</button>
-    </div>
-    <div class="knobs" id="kVoc" style="--kc:7"></div>
-    <div class="stats" id="vocStats"></div>
-    <div class="note" id="vocNote">Sing or speak into an input and play notes on the tinted
-      half of the keyboard — those notes carry your voice. Input names stay blank until the
-      browser has been granted the microphone once: hit <code>Listen</code>, or
-      <code>Scan</code> under Audio&nbsp;I/O, then pick your interface.
-      <b>Use headphones</b> unless your input is a separate device — a microphone into
-      speakers will feed back.</div>
-  </div>
 
 
   <!-- ===== BASS ===== -->
-  <div class="rack r-bass">
-    <div class="rack-head">
-      <span class="silk">Bass</span>
-      <div class="seg sm" id="bassOn" role="group" aria-label="Bass section">
-        <button data-b="0" class="on">Off</button>
-        <button data-b="1">On</button>
-      </div>
-      <div class="seg sm" id="bassWave" role="group" aria-label="Bass waveform">
-        <button data-w="saw" class="on">Saw</button>
-        <button data-w="square">Square</button>
-      </div>
-      <span class="note" style="margin:0">pedal voice · dry and centred · its own MIDI channel</span>
-    </div>
-    <div class="knobs" id="kBass" style="--kc:8"></div>
-    <div class="note" id="bassNote"></div>
-  </div>
 
   <!-- ===== KEY ASSIGN + LFO ===== -->
   <div class="rack-pair">
@@ -830,16 +777,8 @@ input[type="text"]::placeholder{color:#5a646a}
     </div>
     <div class="row">
       <div class="field" style="flex:0 0 112px">
-        <label for="synCh">Synth ch</label>
+        <label for="synCh">In ch</label>
         <select id="synCh"></select>
-      </div>
-      <div class="field" style="flex:0 0 112px">
-        <label for="vocCh">Vocoder ch</label>
-        <select id="vocCh"></select>
-      </div>
-      <div class="field" style="flex:0 0 112px">
-        <label for="bassCh">Bass ch</label>
-        <select id="bassCh" title="The bass answers only this channel"></select>
       </div>
       <div class="field" style="flex:0 0 112px">
         <label for="ccCh">Control ch</label>
@@ -1696,10 +1635,10 @@ el.addEventListener("pointerdown", e => {
 render();
 return {render, paint};
 };
-/* MS·1 is built into whatever panel the page gives it, rather than into the document.
+/* PM·1 is built into whatever panel the page gives it, rather than into the document.
    Standalone that panel is the only thing on the page; in the studio build it is one of
    several. The code below cannot tell the difference, which is the point. */
-Patchwork.instrument("ms1", root => {
+Patchwork.instrument("pm1", root => {
 "use strict";
 
 /* Scoped to this instrument. Both apps used to query the document, which is why they
@@ -1735,7 +1674,12 @@ const FACTORY_DEFAULT = {
   trim:0,
   /* --- vocoder section. Added in patch v2; older patches simply get these defaults,
      which is the same "a missing key RESETS it" rule everything else obeys. --- */
-  voc:0,               // section on/off
+  /* ⚠️ voc* and bass* are PINNED OFF and unreachable — the vocoder is VC·1 and the bass
+     is BS·1. The keys stay so a patch exported from MS·1 still loads and clamps, and the
+     engine behind them is still in this file's neighbours but nothing can reach it. See
+     the handoff: removing it safely is a job of its own, because the three sections were
+     interwoven through the UI layer rather than stacked. */
+  voc:0,               // PINNED OFF — the vocoder is VC·1
   vocbands:16,         // 8 | 16 | 24 analysis/synthesis pairs
   vocq:4.5,            // band Q, both banks
   vocresp:22,          // follower smoothing, Hz — low is smooth, high is articulate
@@ -1747,7 +1691,7 @@ const FACTORY_DEFAULT = {
   /* --- bass section (patch v3). A pedal synth, not a third general-purpose voice: one
      oscillator plus a square sub, a ladder, and a contour. No LFO, no PWM, no effects
      sends — a Taurus has none of that either, and a bass wants to stay dry and centred. */
-  bass:0,              // section on/off
+  bass:0,              // PINNED OFF — the bass is BS·1
   bwave:"saw",         // saw | square
   boct:-1,             // octaves below the played note
   blvl:.85,            // output level
@@ -2101,7 +2045,7 @@ shard:{cat:"fx", tag:"Sync scream — filter env sweeps the slave pitch, not the
 
 /* The one patch designed to lose. A unison drone at 20 cents and 85% stereo spread, so
    it occupies the sides while CS·1's chords hold the centre; HPF at 90Hz keeps it off
-   MS·1's own bass. The -6dB duck is CAT_TRIM's job, not this patch's trim.
+   PM·1's own bass. The -6dB duck is CAT_TRIM's job, not this patch's trim.
    0.28Hz filter LFO gives it slow movement without any note activity. */
 moss:{cat:"pad", tag:"Soft wide drone bed — deliberately quiet, lives at the sides", tn:55,
   o1w:"tri", o1oct:0, o1semi:0, o1det:0,    o1lvl:.55,
@@ -2176,7 +2120,7 @@ const active = new Set();
 /* MS1_UNITY is the linear gain one oscillator at full level reaches at the voice output
    when trim is 0. Set by measurement, not taste: CS·1's twelve voices average -30.1 dBFS
    for a single note and it sounds 3-4 at once, so a CS·1 chord lands near -24 dBFS. A mono
-   synth has no chord to hide behind, so MS·1 aims a single note at that same -24 dBFS. */
+   synth has no chord to hide behind, so PM·1 aims a single note at that same -24 dBFS. */
 const MS1_UNITY = 0.20;
 /* Applied after the per-patch trim, so `trim` stays a pure timbre-compensation number and
    stays comparable between a bass and a lead. The pad's -6 is the "sits under CS·1"
@@ -2272,7 +2216,7 @@ function initAudio(useCtx){
      handoff is blunt about why that matters: a detector validated against nothing gave
      confident wrong answers, and a rig that reimplements the engine measures the rig. */
   ctx = useCtx || Patchwork.audio.context();
-  const out = useCtx ? ctx.destination : Patchwork.audio.strip("ms1");
+  const out = useCtx ? ctx.destination : Patchwork.audio.strip("pm1");
 
   master = ctx.createGain(); master.gain.value = 1;
   comp = ctx.createDynamicsCompressor();
@@ -2617,7 +2561,7 @@ function mkStack(voice, det, panPos, f0){
 
   return {out, pan, parts, det, curF:f0,
     /* Everything below moves under a sounding note. CS·1's whole fader design is built on
-       that and MS·1 fell short of it: half the panel used to wait for the next note. */
+       that and PM·1 fell short of it: half the panel used to wait for the next note. */
     setLevels(t){
       const L = LVL();
       parts.forEach(p => { if (p.key && L[p.key] != null)
@@ -2852,7 +2796,10 @@ const downKeys = new Set();
    destination. This is what the keyboard split used to do, without pretending that half a
    keyboard is a routing scheme. Declared up here because the panel's segmented button
    paints its initial state as it is built, which is long before the MIDI section runs. */
-let keysTo = "syn";                                          // syn | voc | both
+/* Always the synth: MS·1 needed a choice because one keyboard served three sections, and
+   PM·1 has one voice. Kept as a variable rather than inlined so the routing code below
+   reads unchanged against MS·1, which is what makes this diff reviewable. */
+let keysTo = "syn";
 /* While the arpeggiator runs, held notes are INPUT to it, not notes in their own right:
    the arp is already mirroring what actually sounds, so sending the held keys as well
    would put a sustained note out under it that nothing ever releases. */
@@ -3542,12 +3489,12 @@ function tick(){
     const at = Math.max(ctx.currentTime + .005, nextTime);
     /* a queued scene lands on the loop point, ahead of this step being scheduled — see
        shell/scenes.js for why this cannot be done on wall time */
-    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("ms1");
+    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("pm1");
     const ai = scheduleStep(stepIndex, at);
     marks.push({i:stepIndex % SEQ.len, ai:ai, t:at, end:at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
        pair, so the pattern's total length is unchanged however hard it shuffles */
-    /* the shared rate trim: MS·1 has no clock follow of its own, so this is how it
+    /* the shared rate trim: PM·1 has no clock follow of its own, so this is how it
        follows external clock at all — it runs at whatever rate the lock has settled on */
     const r = Patchwork.clock.rate;
     nextTime += r * ((stepIndex % 2 === 0) ? 2*SEQ.swing*step : (2 - 2*SEQ.swing)*step);
@@ -3867,7 +3814,13 @@ const KNOBS = {
 const PARAM_RANGE = {};
 Object.keys(KNOBS).forEach(host => {
   const el = $("#"+host);
-  KNOBS[host].forEach(d => { PARAM_RANGE[d.id] = [d.min, d.max]; makeKnob(el, d); });
+  /* A host that is not on this panel is a rack that moved to another instrument, not an
+     error. The range table is still filled either way, so a patch carrying that parameter
+     still clamps correctly on load. */
+  KNOBS[host].forEach(d => {
+    PARAM_RANGE[d.id] = [d.min, d.max];
+    if (el) makeKnob(el, d);
+  });
 });
 
 /* ---- push a knob move into what is already sounding ----
@@ -4207,7 +4160,12 @@ function stopModulator(){
 
 /* ---- segmented buttons ---- */
 function seg(sel, attr, get, set){
-  const g = $(sel); if (!g) return;
+  const g = $(sel);
+  /* A control whose section moved to another instrument is absent, not broken. Returning
+     a no-op painter rather than undefined means every caller that stores the result in
+     segPaint still gets something callable — the alternative is a TypeError at boot from
+     a control nobody can see. */
+  if (!g) return function(){};
   const paint = () => g.querySelectorAll("button").forEach(b =>
     b.classList.toggle("on", b.dataset[attr] === String(get())));
   g.addEventListener("click", e => {
@@ -4286,7 +4244,7 @@ segPaint.keysTo = seg("#keysTo","k", () => keysTo, v => {
 /* The bass path already refused to play into a section that was switched off; the vocoder
    path did not, and silently swallowed the notes. Say so instead of eating them. */
 function paintKeysNote(){
-  const el = $("#keysNote"); if (!el) return;
+  const el = root.querySelector("#keysNote"); if (!el) return;
   const dead = (keysTo === "voc" || keysTo === "both") && !P.voc ? "vocoder"
              : keysTo === "bass" && !P.bass ? "bass" : null;
   el.innerHTML = dead
@@ -4626,96 +4584,18 @@ makeHFader("#gateFader", () => SEQ.gate, v => SEQ.gate = clampf(v,.05,1),
 makeHFader("#swingFader", () => (SEQ.swing - .5)/.25, v => SEQ.swing = .5 + v*.25,
            v => v <= .02 ? "straight" : Math.round((.5 + v*.25)*100)+"%", "swing");
 
-/* ---- vocoder controls ---- */
-const vocNoteEl = $("#vocNote"), modInSel = $("#modIn");
-let modDevices = [];
-function vocSay(msg, bad){
-  vocNoteEl.innerHTML = msg;
-  vocNoteEl.classList.toggle("bad", !!bad);
-}
-function modLabel(id){
-  const d = modDevices.find(x => x.deviceId === id);
-  return d ? (d.label || "input") : "the default input";
-}
-/* Labels stay blank until permission has been granted once, which is why the list is
-   refreshed after Listen succeeds rather than only on load. */
-async function listInputs(){
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-  try{
-    const devs = await navigator.mediaDevices.enumerateDevices();
-    modDevices = devs.filter(d => d.kind === "audioinput");
-    const keep = modInSel.value;
-    modInSel.innerHTML = "";
-    modInSel.appendChild(Object.assign(document.createElement("option"),
-      {value:"", textContent:"Default input"}));
-    modDevices.forEach((d, i) => modInSel.appendChild(Object.assign(
-      document.createElement("option"),
-      {value:d.deviceId, textContent:d.label || ("Input " + (i+1))})));
-    modInSel.value = modDevices.some(d => d.deviceId === keep) ? keep : "";
-  }catch(e){}
-}
-/* The meter runs on a timer rather than requestAnimationFrame: it has to keep reading
-   while the window is in the background, which is exactly when someone is fiddling with
-   their interface's routing to work out why nothing is arriving. */
-const vocStats = $("#vocStats");
-function startModMeter(){
-  stopModMeter();
-  modPeakHold = 0; modPeakAt = 0;
-  modMeterTimer = setInterval(paintModMeter, 100);
-  paintModMeter();
-}
-function stopModMeter(){
-  if (modMeterTimer != null){ clearInterval(modMeterTimer); modMeterTimer = null; }
-  if (vocStats) vocStats.innerHTML = "";
-}
-function paintModMeter(){
-  if (!modMeter || !vocStats) return;
-  const buf = new Float32Array(modMeter.fftSize);
-  modMeter.getFloatTimeDomainData(buf);
-  let pk = 0, sq = 0;
-  for (let i = 0; i < buf.length; i++){ const a = Math.abs(buf[i]); if (a > pk) pk = a; sq += buf[i]*buf[i]; }
-  const rms = Math.sqrt(sq/buf.length);
-  const now = performance.now();
-  if (pk >= modPeakHold || now - modPeakAt > 1200){ modPeakHold = pk; modPeakAt = now; }
+/* The modulator meter's painter lived in the block below and went with it. The engine
+   above still calls start/stop, so they stay as no-ops rather than leaving a reference
+   that only throws when a section nobody can switch on is switched on. */
+function startModMeter(){}
+function stopModMeter(){}
+function paintModMeter(){}
 
-  const dbp = 20*Math.log10(modPeakHold + 1e-9);
-  const dbr = 20*Math.log10(rms + 1e-9);
-  /* -60 dBFS is the floor below which an input is, practically, not plugged in */
-  const dead = dbp < -60;
-  const hot  = modPeakHold > 0.99;
-  const bits = [];
-  bits.push("input <b class=\"" + (dead ? "hot" : hot ? "hot" : "") + "\">"
-    + (dead ? "silent" : dbp.toFixed(1) + " dBFS") + "</b>");
-  if (!dead) bits.push("rms <b>" + dbr.toFixed(1) + "</b>");
-  bits.push("carrier <b>" + carriers.size + (carriers.size === 1 ? " note" : " notes") + "</b>");
-  bits.push("bank <b>" + vocBank.length + "</b>");
-  /* The two failure modes worth naming, because neither makes a sound and they look alike */
-  if (dead) bits.push("<b class=\"hot\">nothing arriving on this input</b>");
-  else if (hot) bits.push("<b class=\"hot\">clipping — turn the source down</b>");
-  else if (!carriers.size) bits.push("<b class=\"hot\">hold notes on the vocoder half to hear it</b>");
-  vocStats.innerHTML = bits.map(b => "<span>" + b + "</span>").join("");
-}
-
-$("#modStart").addEventListener("click", async () => {
-  if (modSrc){
-    stopModulator();
-    $("#modStart").textContent = "Listen";
-    vocSay("Input closed.");
-    return;
-  }
-  const ok = await startModulator(modInSel.value);
-  if (ok){
-    $("#modStart").textContent = "Stop";
-    if (!P.voc){ P.voc = 1; segPaint.vocOn(); applyVocoder(); paintKeys(); paintMeta(); }
-    listInputs();                       // labels are readable now permission was granted
-  }
-});
-modInSel.addEventListener("change", async () => {
-  if (!modSrc) return;                  // takes effect when Listen is pressed
-  const ok = await startModulator(modInSel.value);
-  $("#modStart").textContent = ok ? "Stop" : "Listen";
-});
-listInputs();
+/* The vocoder's controls went with its rack — see VC·1. The engine below them is still
+   here and is unreachable: nothing on this panel can set P.voc, and the schema pins it to
+   0. Taking the engine out is a separate job, because MS·1's three sections were
+   interwoven through the UI layer rather than stacked, and the safe order is to make it
+   unreachable first and prove that, which is what the patch-render comparison does. */
 
 /* ---- readouts ----
    rAF is paused in a hidden tab (and never fires at all in a headless pane), so anything
@@ -4794,9 +4674,9 @@ function setBpm(v, fromShell){
   tempoOut.textContent = SEQ.bpm;
   applyDelay();                       // a synced delay follows the tempo
   /* one tempo for the page — see CS·1's setBpm for why fromShell exists */
-  if (!fromShell) Patchwork.clock.setBpm(SEQ.bpmExact, "ms1");
+  if (!fromShell) Patchwork.clock.setBpm(SEQ.bpmExact, "pm1");
 }
-Patchwork.clock.onTempo("ms1", v => setBpm(v, true), SEQ.bpmExact);
+Patchwork.clock.onTempo("pm1", v => setBpm(v, true), SEQ.bpmExact);
 $("#bpmDown").addEventListener("click", () => setBpm(SEQ.bpmExact - 1));
 $("#bpmUp").addEventListener("click", () => setBpm(SEQ.bpmExact + 1));
 function setOctave(v){
@@ -4839,6 +4719,8 @@ onKey("keyup", e => {
 });
 
 /* ============ patches ============ */
+/* Deliberately still the MS·1 key. PM·1 is what MS·1 became once the vocoder and bass
+   moved out, and renaming this would silently orphan every patch anyone had saved. */
 const PATCH_KEY = "patchwork-ms1-patches";
 const PATCH_VERSION = 2;      // v2 added the vocoder section; v1 patches take its defaults
 const patchSel = $("#patchSel"), patchName = $("#patchName"), patchNote = $("#patchNote"),
@@ -4858,7 +4740,7 @@ function saveStore(o){
 }
 function snapshot(){
   return {
-    app:"patchwork-ms1", v:PATCH_VERSION,
+    app:"patchwork-pm1", v:PATCH_VERSION,
     params:Object.assign({}, P),
     bpm:SEQ.bpmExact, octave:octave,
     seq:{motion:SEQ.motion, len:SEQ.len, rate:SEQ.rate, gate:SEQ.gate, swing:SEQ.swing,
@@ -4898,7 +4780,9 @@ function refreshAllControls(){
 }
 function restore(s){
   if (!s || typeof s !== "object") throw new Error("not a patch");
-  if (s.app && s.app !== "patchwork-ms1") throw new Error("different app");
+  /* Accepts both names, so a file exported from MS·1 still loads. */
+  if (s.app && s.app !== "patchwork-pm1" && s.app !== "patchwork-ms1")
+    throw new Error("different app");
   applyParams(s.params);
   setBpm(numOr(s.bpm, 40, 240, 120));
   setOctave(numOr(s.octave, -3, 3, 0));
@@ -5006,7 +4890,7 @@ $("#patchDelete").addEventListener("click", () => {
   sayPatch("Deleted <b>" + name + "</b>.");
 });
 $("#patchExport").addEventListener("click", () => {
-  const name = (patchName.value || "patchwork-ms1-patch").trim();
+  const name = (patchName.value || "patchwork-pm1-patch").trim();
   const data = Object.assign(snapshot(), {name});
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
@@ -5032,7 +4916,7 @@ patchFile.addEventListener("change", () => {
       if (data.name) patchName.value = data.name;
       sayPatch("Imported <b>" + (data.name || f.name) + "</b>. Save it to keep it in this browser.");
     }catch(err){
-      sayPatch("That doesn't look like a Patchwork MS·1 patch (" + (err && err.message) + ").", true);
+      sayPatch("That doesn't look like a Patchwork PM·1 patch (" + (err && err.message) + ").", true);
     }
   };
   rd.readAsText(f);
@@ -5230,7 +5114,7 @@ function onMidi(e){
   const d = e.data; if (!d || !d.length) return;
   const s = d[0];
   ledBlink();
-  if (s >= 0xF0) return;                       // MS·1 runs its own clock — see the README
+  if (s >= 0xF0) return;                       // PM·1 runs its own clock — see the README
   const type = s & 0xF0, ch = s & 0x0F;
 
   /* ---- control messages ride the Control channel, not a section's ---- */
@@ -5311,7 +5195,7 @@ function describe(){
     + ", CC on <b>" + chName(MIDI.ccCh) + "</b>.";
   say(i + " input" + (i === 1 ? "" : "s") + " · " + o + " output" + (o === 1 ? "" : "s")
     + " — " + how + " Learn a knob to any CC. Program change 0–19 recalls the factory bank. "
-    + "MS·1 runs its own clock and ignores incoming MIDI clock.");
+    + "PM·1 runs its own clock and ignores incoming MIDI clock.");
 }
 /* The port belongs to the page, not to this panel — see shell/midi.js. Assigning
    onmidimessage here is what made the two instruments steal it from each other. */
@@ -5331,57 +5215,31 @@ function bindOutput(){
   MIDI.out = midiOutSel.value ? ports("outputs").find(p => p.id === midiOutSel.value) || null : null;
 }
 /* ---- input channels ---- */
-const synChSel = $("#synCh"), vocChSel = $("#vocCh"), ccChSel = $("#ccCh"),
-      bassChSel = $("#bassCh"), chNote = $("#chNote"), bassNote = $("#bassNote");
-[synChSel, vocChSel, ccChSel, bassChSel].forEach(sel => {
+/* One input channel and one control channel. MS·1 needed four selectors because three
+   sections shared one instrument; each of the three now answers on a channel of its own,
+   which is most of what the split was for. */
+const synChSel = $("#synCh"), ccChSel = $("#ccCh"), chNote = $("#chNote");
+[synChSel, ccChSel].forEach(sel => {
   sel.appendChild(Object.assign(document.createElement("option"),
-    {value:"-1", textContent:sel === bassChSel ? "—" : "Omni"}));
+    {value:"-1", textContent:"Omni"}));
   for (let c = 0; c < 16; c++)
     sel.appendChild(Object.assign(document.createElement("option"),
       {value:String(c), textContent:String(c+1)}));
 });
 const chName = v => v < 0 ? "any channel" : "channel " + (v + 1);
-function paintBassNote(){
-  if (!bassNote) return;
-  bassNote.innerHTML = !P.bass
-    ? "Section is off."
-    : (MIDI.bassCh < 0
-        ? "No MIDI channel assigned — play it with <b>Keys play → Bass</b>, or give it a "
-          + "channel under MIDI."
-        : "Answering <b>channel " + (MIDI.bassCh + 1) + "</b>.");
-}
+function paintBassNote(){}                 // the bass note went with the bass rack
 function paintRoute(){
   synChSel.value = String(MIDI.synCh);
-  bassChSel.value = String(MIDI.bassCh);
-  paintBassNote();
-  vocChSel.value = String(MIDI.vocCh);
   ccChSel.value  = String(MIDI.ccCh);
-  const both = routeFor(MIDI.synCh < 0 ? 0 : MIDI.synCh) === "both";
-  const bits = [];
-  bits.push("Synth on " + chName(MIDI.synCh) + ".");
-  if (!P.voc) bits.push("<b>Vocoder section is off</b>, so everything plays the synth.");
-  else if (both) bits.push("Vocoder on " + chName(MIDI.vocCh)
-    + " — both claim the same notes, so they <b>layer</b>.");
-  else bits.push("Vocoder on " + chName(MIDI.vocCh) + ".");
-  if (P.bass) bits.push("Bass on "
-    + (MIDI.bassCh < 0 ? "<b>no channel</b> (keyboard only)" : chName(MIDI.bassCh)) + ".");
-  bits.push("CC and program change on " + chName(MIDI.ccCh) + ".");
-  chNote.innerHTML = bits.join(" ");
+  chNote.innerHTML = "Notes on " + chName(MIDI.synCh)
+    + ". CC and program change on " + chName(MIDI.ccCh) + ".";
   chNote.classList.remove("bad");
 }
 synChSel.addEventListener("change", () => {
   MIDI.synCh = parseInt(synChSel.value, 10); allNotesOff(); paintRoute(); saveMap(); describe();
 });
-vocChSel.addEventListener("change", () => {
-  MIDI.vocCh = parseInt(vocChSel.value, 10); allNotesOff(); paintRoute(); saveMap(); describe();
-});
 ccChSel.addEventListener("change", () => {
   MIDI.ccCh = parseInt(ccChSel.value, 10); paintRoute(); saveMap(); describe();
-});
-bassChSel.addEventListener("change", () => {
-  MIDI.bassCh = parseInt(bassChSel.value, 10);
-  if (ctx) allBassOff(ctx.currentTime);
-  paintRoute(); saveMap(); describe();
 });
 
 midiInSel.addEventListener("change", bindInput);
@@ -5410,7 +5268,7 @@ function initMidi(){
       + "rather than opening it with <code>file://</code>.", true);
     return;
   }
-  Patchwork.midi.route("ms1", onMidi, pt => {
+  Patchwork.midi.route("pm1", onMidi, pt => {
     fillPorts(); followInput(pt); bindOutput(); describe();
   });
   Patchwork.midi.open().then(a => {
@@ -5481,7 +5339,7 @@ async function scanDevices(){
   if (typeof listInputs === "function") listInputs();
   const sinkOk = !ctx || typeof ctx.setSinkId === "function";
   ioSay(outs.length + " output" + (outs.length === 1 ? "" : "s")
-      + (sinkOk ? ". Pick your interface to send MS·1 to it."
+      + (sinkOk ? ". Pick your interface to send PM·1 to it."
                 : ". Output routing needs Chrome 110+."), !sinkOk);
   audioLed.classList.add("ready");
   ioStats();
@@ -5642,10 +5500,10 @@ function applyParamsQuiet(src){
 /* A test hook, not a feature: the offline harness needs to build a voice and read the
    patch without driving the UI. Mirrors CS·1's habit of making the engine measurable. */
 /* ---- scenes ----
-   An MS·1 pattern is the step sequence and how it is read — not the patch. Firing a
+   An PM·1 pattern is the step sequence and how it is read — not the patch. Firing a
    scene changes the line, not the sound it is played with. */
-Patchwork.scenes.register("ms1", {
-  name: "MS·1",
+Patchwork.scenes.register("pm1", {
+  name: "PM·1",
   isPlaying: () => SEQ.playing,
   capture: () => ({steps: JSON.parse(JSON.stringify(SEQ.steps)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing,
@@ -5663,7 +5521,7 @@ Patchwork.scenes.register("ms1", {
   }
 });
 
-window.__ms1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
+window.__pm1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
                 applyParams, noteOn, noteOff, buildVoice, renderPatch,
                 stepEvent, nextSounding, stepSeconds, swungAt, envValueAt,
                 arpSequence, stepNote, toDegree, fromDegree, SCALES,

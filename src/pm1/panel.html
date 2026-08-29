@@ -8,12 +8,12 @@
   </defs>
 </svg>
 
-<div class="unit ms1" data-instrument="ms1">
+<div class="unit pm1" data-instrument="pm1">
 
   <div data-face class="plate">
     <div>
       <div class="brand">Patchwork</div>
-      <div class="model">MS·1 — mono synthesizer</div>
+      <div class="model">PM·1 — mono synthesizer</div>
     </div>
     <div class="screws"><i class="screw"></i><i class="screw"></i></div>
   </div>
@@ -30,16 +30,6 @@
 
   <!-- Not a vocoder control: it decides where the ON-SCREEN and computer keyboards send
        notes, for every section. Incoming MIDI is routed by channel and ignores this. -->
-  <div data-face class="keysrow">
-    <span class="silk">Keyboard plays</span>
-    <div class="seg sm" id="keysTo" role="group" aria-label="What the on-screen and computer keyboards play">
-      <button data-k="syn" class="on">Synth</button>
-      <button data-k="voc">Vocoder</button>
-      <button data-k="bass">Bass</button>
-      <button data-k="both">Syn+Voc</button>
-    </div>
-    <span class="note" id="keysNote" style="margin:0"></span>
-  </div>
 
   <div data-face class="transport">
     <button class="btn primary" id="init">Init patch</button>
@@ -141,52 +131,9 @@
   </div>
 
   <!-- ===== VOCODER ===== -->
-  <div class="rack r-voc">
-    <div class="rack-head">
-      <span class="silk">Vocoder</span>
-      <div class="seg sm" id="vocOn" role="group" aria-label="Vocoder section">
-        <button data-v="0" class="on">Off</button>
-        <button data-v="1">On</button>
-      </div>
-      <div class="seg sm" id="vocBands" role="group" aria-label="Band count">
-        <button data-b="8">8 bands</button>
-        <button data-b="16" class="on">16</button>
-        <button data-b="24">24</button>
-      </div>
-      <span class="note" style="margin:0">carrier shaped by <b>Env 2 → Amp</b></span>
-      <select id="modIn" aria-label="Modulator input" style="width:auto;min-width:140px">
-        <option value="">Default input</option>
-      </select>
-      <button class="btn ghost sm" id="modStart">Listen</button>
-    </div>
-    <div class="knobs" id="kVoc" style="--kc:7"></div>
-    <div class="stats" id="vocStats"></div>
-    <div class="note" id="vocNote">Sing or speak into an input and play notes on the tinted
-      half of the keyboard — those notes carry your voice. Input names stay blank until the
-      browser has been granted the microphone once: hit <code>Listen</code>, or
-      <code>Scan</code> under Audio&nbsp;I/O, then pick your interface.
-      <b>Use headphones</b> unless your input is a separate device — a microphone into
-      speakers will feed back.</div>
-  </div>
 
 
   <!-- ===== BASS ===== -->
-  <div class="rack r-bass">
-    <div class="rack-head">
-      <span class="silk">Bass</span>
-      <div class="seg sm" id="bassOn" role="group" aria-label="Bass section">
-        <button data-b="0" class="on">Off</button>
-        <button data-b="1">On</button>
-      </div>
-      <div class="seg sm" id="bassWave" role="group" aria-label="Bass waveform">
-        <button data-w="saw" class="on">Saw</button>
-        <button data-w="square">Square</button>
-      </div>
-      <span class="note" style="margin:0">pedal voice · dry and centred · its own MIDI channel</span>
-    </div>
-    <div class="knobs" id="kBass" style="--kc:8"></div>
-    <div class="note" id="bassNote"></div>
-  </div>
 
   <!-- ===== KEY ASSIGN + LFO ===== -->
   <div class="rack-pair">
@@ -342,16 +289,8 @@
     </div>
     <div class="row">
       <div class="field" style="flex:0 0 112px">
-        <label for="synCh">Synth ch</label>
+        <label for="synCh">In ch</label>
         <select id="synCh"></select>
-      </div>
-      <div class="field" style="flex:0 0 112px">
-        <label for="vocCh">Vocoder ch</label>
-        <select id="vocCh"></select>
-      </div>
-      <div class="field" style="flex:0 0 112px">
-        <label for="bassCh">Bass ch</label>
-        <select id="bassCh" title="The bass answers only this channel"></select>
       </div>
       <div class="field" style="flex:0 0 112px">
         <label for="ccCh">Control ch</label>

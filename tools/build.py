@@ -24,11 +24,11 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 SRC = REPO / "src"
 
 APPS = {"cs1": "patchwork-chord-synth.html",
-        "ms1": "patchwork-mono-synth.html",
         "dr1": "patchwork-drums.html",
         "lp1": "patchwork-looper.html",
         "bs1": "patchwork-bass.html",
         "vc1": "patchwork-vocoder.html",
+        "pm1": "patchwork-poly-synth.html",
         "studio": "patchwork-studio.html"}
 
 
@@ -60,7 +60,10 @@ def audit():
 
 
 # The panel identity classes are shared on purpose: the shell styles the panel it hosts.
-PANEL_CLASSES = {"unit", "focused"} | set(APPS)
+# Shared on purpose: the shell styles the panel it hosts, and "armed" is a state word
+# that means the same thing in the launcher and in LP·1 — waiting for a musical seam —
+# deliberately in the same yellow, so it reads as one idea across the studio.
+PANEL_CLASSES = {"unit", "focused", "armed"} | set(APPS)
 
 
 def collisions():
@@ -82,9 +85,12 @@ def collisions():
     owned = set()
     for rel in (r for r in manifest("studio") if r.startswith("studio/")):
         owned |= in_css(rel) if rel.endswith(".css") else in_html(rel) if rel.endswith(".html") else set()
+    # derived, not listed — adding an instrument should not mean remembering to add it
+    # here as well, and forgetting would silently weaken the check
     instrument = set()
-    for app in ("cs1", "ms1"):
-        instrument |= in_css(f"{app}/panel.css") | in_html(f"{app}/panel.html")
+    for d in sorted(SRC.iterdir()):
+        if (d / "panel.css").is_file() and (d / "panel.html").is_file():
+            instrument |= in_css(f"{d.name}/panel.css") | in_html(f"{d.name}/panel.html")
 
     clash = sorted((owned & instrument) - PANEL_CLASSES)
     if clash:

@@ -32,7 +32,9 @@ body{
 .unit{outline:2px solid transparent;outline-offset:3px;transition:outline-color .12s}
 @media (prefers-reduced-motion:reduce){ .unit{transition:none} }
 .unit.cs1.focused{outline-color:var(--cap-red)}
-.unit.ms1.focused{outline-color:var(--accent)}
+.unit.pm1.focused{outline-color:var(--accent)}
+.unit.vc1.focused{outline-color:var(--stripe-voc)}
+.unit.bs1.focused{outline-color:var(--stripe-bass)}
 .unit.dr1.focused{outline-color:var(--stripe-mod)}
 
 .st-head{
