@@ -63,7 +63,11 @@ def audit():
 # Shared on purpose: the shell styles the panel it hosts, and "armed" is a state word
 # that means the same thing in the launcher and in LP·1 — waiting for a musical seam —
 # deliberately in the same yellow, so it reads as one idea across the studio.
-PANEL_CLASSES = {"unit", "focused", "armed"} | set(APPS)
+# "face" is the same kind of word: the shell sets it on the panel root and the studio
+# sizes the rack by it, and a panel has to be allowed to lay ITSELF out differently while
+# it is on — which is a rule about that panel's own blocks, so it belongs in that panel's
+# sheet rather than in the shell reaching in after it.
+PANEL_CLASSES = {"unit", "focused", "armed", "face"} | set(APPS)
 
 
 def collisions():

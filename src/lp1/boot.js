@@ -15,13 +15,17 @@ Patchwork.record.register("lp1", {
   canRecord: true,
   slots: true,
   recordSlot: n => arm("rec", n),
-  playSlot: n => fireSlot(n),
+  playSlot: n => queueSlot(n),          // the launcher's route: lands on the loop line
   hasSlot: n => hasSlot(n),
   clearSlot: n => clearSlot(n),
+  /* armed is not yet a row — it is a row about to start on the bar line, and the launcher
+     already draws that as the queued state */
+  liveSlot: () => (LP.mode === "idle" || LP.mode === "armed") ? null : LP.slot,
   disarm: () => { if (LP.mode === "rec" || LP.mode === "armed") stopLoop(); }
 });
 
 window.__lp1 = {LP, arm, play, fireSlot, selectSlot, hasSlot, clearSlot, stopLoop, clearLoop, undo,
+                setDub, setClick, setClickLevel, queueSlot,
                 openInput, closeInput,
                 ensureNode, allocate, loopFrames,
                 get ctx(){ return ctx; }, get node(){ return node; }};

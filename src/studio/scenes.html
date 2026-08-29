@@ -1,8 +1,29 @@
-
 <div class="st-scenes">
   <div class="st-scenes-head">
     <span class="st-brand">Scenes</span>
-    <span class="st-hint">click a cell to fire it &middot; shift-click to capture &middot; nothing lands until the next loop point</span>
+    <!-- The page's tempo, not an instrument's. Every panel had its own and they all moved
+         together, so five of the six were noise — see shell/boot.js. -->
+    <div class="st-master">
+      <span class="st-lab" id="stBpmLab">Tempo</span>
+      <div class="st-tempo" role="group" aria-labelledby="stBpmLab">
+        <button id="stDown" aria-label="Slower">&minus;</button>
+        <span id="stBpm">120</span>
+        <button id="stUp" aria-label="Faster">+</button>
+      </div>
+    </div>
+    <div class="st-master">
+      <span class="st-lab" id="stQuantLab">Lands on</span>
+      <div class="st-seg st-quant" id="stQuant" role="group" aria-labelledby="stQuantLab">
+      <button data-q="instant">Instant</button>
+      <button data-q="bar">Bar</button>
+      <button data-q="pattern" class="st-sel">Pattern</button>
+      </div>
+    </div>
+    <div class="st-master">
+      <span class="st-lab">Bar</span>
+      <div class="st-bars" id="stBars" title="Where the pattern is"></div>
+    </div>
+    <span class="st-hint">click &#9654; to fire a row &middot; shift-click a cell to capture &middot; &#8984;&#8679;-click to delete &middot; nothing lands until the next loop point</span>
   </div>
   <div class="st-grid" id="stGrid"></div>
 </div>

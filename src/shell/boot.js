@@ -13,4 +13,15 @@ Patchwork.faces.mount();
    the wall the faces exist to avoid. A build added later gets the right default without
    anyone remembering to set it. */
 if (Patchwork.roots.length > 1) Patchwork.faces.setAll(true);
+
+/* One tempo for the page means ONE control for it. Every panel grew its own, and since
+   the clock has been shared they all show the same number and all move together — five of
+   the six were noise, and a row of disagreeing-looking readouts is worse than noise. Each
+   panel marks its block with `data-tempo`; with more than one instrument on the page the
+   studio's master takes over and the panels' come out.
+
+   Derived from the page, exactly like the faces default above: a STANDALONE build keeps
+   its own tempo control, because there is nothing else on that page to own it. */
+if (Patchwork.roots.length > 1)
+  Patchwork.roots.forEach(r => r.classList.add("tempo-shared"));
 })();

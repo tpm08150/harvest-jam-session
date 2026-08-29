@@ -41,15 +41,61 @@
 :scope.recording .loopfill{background:linear-gradient(180deg,rgba(224,75,47,.32),rgba(224,75,47,.15));
   border-right-color:rgba(224,75,47,.6)}
 :scope.recording .loophead{background:#ff8a6e;box-shadow:0 0 9px var(--lp-rec)}
-/* Armed and waiting for the bar line — the same yellow the scene launcher arms with, so
-   "queued" means one thing across the whole studio. */
+/* Playing gets the studio's mint rather than this panel's teal. Play and record used to
+   differ by hue alone at the same weight, on a bar that moves the same way in both — a
+   ring says WHICH of the two you are in without having to remember which colour is which. */
+:scope.playing .loopbar{box-shadow:0 2px 5px rgba(0,0,0,.6) inset,0 0 0 1px rgba(99,214,176,.55) inset}
+:scope.recording .loopbar{box-shadow:0 2px 5px rgba(0,0,0,.6) inset,0 0 0 1px var(--lp-rec) inset}
+/* Armed and waiting for the loop line — the same yellow the scene launcher arms with, so
+   "queued" means one thing across the whole studio. The fill is the COUNT-IN while this
+   is on: it runs towards the frame the take starts on, so the wait has a length you can
+   see rather than a word you have to trust. */
 :scope.armed .loopbar{box-shadow:0 2px 5px rgba(0,0,0,.6) inset,0 0 0 1px var(--cap-yellow) inset}
+:scope.armed .loopfill{background:linear-gradient(180deg,rgba(232,178,58,.26),rgba(232,178,58,.10));
+  border-right-color:rgba(232,178,58,.7)}
+:scope.armed .loophead{background:var(--cap-yellow);box-shadow:0 0 9px var(--cap-yellow)}
+
+/* ---- the take strip ----
+   Eight takes, one per scene row. The state colours are the STUDIO's, not this panel's
+   teal: mint plays, yellow waits for a seam, red records. A take has a cell in the live
+   grid as well, and the two have to read as the same object in two places. */
+.takes{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px;margin:0 0 13px}
+.take{
+  flex:1 1 0;min-width:0;height:28px;border-radius:4px;cursor:pointer;position:relative;
+  background:var(--slot);border:1px solid var(--groove);
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  font-family:"DM Mono";font-size:10px;letter-spacing:.04em;color:var(--read-dim);
+  padding:0;line-height:1;
+}
+.take:hover{border-color:var(--silk-dim);color:var(--silk-dim)}
+/* An empty take is a hole; a recorded one carries a bar of its own, so "which of these
+   holds something" is answerable without reading eight labels. */
+.take.has{color:var(--lp-accent-hi)}
+.take.has::after{
+  content:"";position:absolute;left:22%;right:22%;bottom:4px;height:2px;border-radius:1px;
+  background:var(--lp-accent);
+}
+.take.sel{border-color:var(--silk-dim);color:var(--silk);background:#252b30}
+.take.on-play{border-color:var(--mint);box-shadow:0 0 0 1px var(--mint) inset;color:var(--mint)}
+.take.on-play::after{background:var(--mint)}
+/* Overdub is playing AND taking, so it says both: the mint ring it already had, and the
+   red bar of a pass being written. */
+.take.on-dub{border-color:var(--mint);box-shadow:0 0 0 1px var(--mint) inset;color:#ff8a6e}
+.take.on-dub::after{background:var(--lp-rec)}
+.take.on-rec{border-color:var(--lp-rec);box-shadow:0 0 0 1px var(--lp-rec) inset;color:#ff8a6e}
+.take.on-rec::after{background:var(--lp-rec)}
+.take.on-arm{border-color:var(--cap-yellow);box-shadow:0 0 0 1px var(--cap-yellow) inset;
+  color:var(--cap-yellow);animation:lp-pulse .5s steps(2,end) infinite}
+@keyframes lp-pulse{50%{opacity:.4}}
+@media (prefers-reduced-motion:reduce){ .take.on-arm{animation:none;opacity:.75} }
 
 .loopmeta{display:flex;align-items:center;gap:12px;margin-top:7px;
   font-family:"DM Mono";font-size:10px;letter-spacing:.06em;color:var(--silk-dim)}
-.loopmeta .state{color:var(--lp-accent-hi);text-transform:uppercase;letter-spacing:.14em;min-width:78px}
+.loopmeta .state{color:var(--silk-dim);text-transform:uppercase;letter-spacing:.14em;min-width:78px}
+:scope.playing .loopmeta .state{color:var(--mint)}
 :scope.recording .loopmeta .state{color:#ff8a6e}
-:scope.armed .loopmeta .state{color:var(--cap-yellow)}
+/* the count-in reads as a number, so it gets the weight a number needs */
+:scope.armed .loopmeta .state{color:var(--cap-yellow);font-size:12px}
 .loopmeta .cut{margin-left:auto}
 .meter{flex:1 1 auto;height:4px;border-radius:2px;background:#12161a;overflow:hidden;max-width:140px}
 .meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--lp-accent),var(--cap-yellow) 82%,var(--lp-rec));
@@ -60,8 +106,16 @@
 .btn.rec{background:linear-gradient(180deg,#ec6146,var(--lp-rec));border-color:#8c2a17;color:#fff2ee}
 :scope.recording .btn.rec,:scope.armed .btn.rec{box-shadow:0 0 0 2px var(--cap-yellow) inset}
 .btn.on{box-shadow:0 0 0 2px var(--lp-accent) inset}
+/* Switched on but not layering yet — the take has not reached its wrap. A standing choice,
+   which is the launcher's yellow, and it becomes red once a pass is actually being added. */
+#dub.on{box-shadow:0 0 0 2px var(--cap-yellow) inset;color:var(--cap-yellow)}
+#dub.on.dubbing{box-shadow:0 0 0 2px var(--lp-rec) inset;color:#ff8a6e}
 
 .row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px}
+/* The switch and its level are one control with two halves, so they sit under one label
+   rather than as two fields you have to work out are related. */
+.clickrow{display:flex;gap:8px;align-items:center;min-width:0}
+.clickrow .hfader{flex:1 1 90px;padding:4px 8px}
 .hfader{display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
   padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13);flex:1 1 160px}
 .hslot{position:relative;flex:1 1 auto;min-width:60px;height:20px;border-radius:4px;

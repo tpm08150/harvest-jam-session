@@ -147,10 +147,30 @@ $("#wave").addEventListener("click", e => {
   P.wave = b.dataset.w;
   $$("#wave button").forEach(x => x.classList.toggle("on", x === b));
 });
+const OCTS = [-2, -1, 0];
+function setOct(v){
+  P.oct = OCTS.indexOf(v) < 0 ? 0 : v;
+  $$("#oct button").forEach(x => x.classList.toggle("on", +x.dataset.o === P.oct));
+}
 $("#oct").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  P.oct = +b.dataset.o;
-  $$("#oct button").forEach(x => x.classList.toggle("on", x === b));
+  setOct(+b.dataset.o);
+});
+
+/* The computer keyboard is the shell's — see shell/keys.js. It plays the same path a
+   pointer on the on-screen keys does, record.note() included, so a typed line lands on the
+   grid exactly as a clicked one does. The arrows walk BS·1's own octave segment, which is
+   a transposition rather than a keyboard offset — so the control keeps telling the truth. */
+Patchwork.keys.mount(root, {
+  map: i => KEY_BASE + i,
+  on: (n, v) => {
+    ensureAudio();
+    Patchwork.record.note("bs1", n, v);
+    if (latch && held.has(n)) noteOff(n); else noteOn(n, v);
+  },
+  off: n => { if (!latch) noteOff(n); },
+  paint: paintNow,
+  octave: d => setOct(OCTS[Math.max(0, Math.min(OCTS.length - 1, OCTS.indexOf(P.oct) + d))])
 });
 
 onKey("keydown", e => {

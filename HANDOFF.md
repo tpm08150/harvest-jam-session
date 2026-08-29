@@ -980,7 +980,7 @@ The processor source is a template literal turned into a **Blob URL** at runtime
 use of the trick the MS·1 notes already proposed for a PolyBLEP sync oscillator, so it is
 now proven if anyone wants hard sync.
 
-### The take starts on the bar line
+### The take starts on the loop line
 
 Arming does not start anything. It posts the mode change to the worklet **with the exact
 sample frame to apply it at**, taken from `Patchwork.clock.claim()` — the same seam the
@@ -1006,6 +1006,109 @@ headphones and cannot feed back.
 recording itself, and an overdub would build that up every pass until it clips. Taps are
 re-wired when a new strip appears, because an instrument can be built after the tap was
 made.
+
+### Sixteen rows
+
+`COUNT` in `shell/scenes.js` is the one place the number lives — the launcher, the live
+grid and LP·1's take strip all draw from it. The one exception is the worklet's `filled()`,
+which is a separate global scope and cannot read it, so the two are kept in step by hand
+and each says so.
+
+Sixteen buffers is only sixteen buffers if you fill them: a slot is allocated at the moment
+a take starts, so unrecorded rows cost nothing. Sixteen eight-bar takes would be ~100 MB,
+which is the reason the lazy allocation is load-bearing rather than tidy.
+
+The take strip draws in **rows of eight** — sixteen across is unhittable at a face's width,
+and eight is the widest run that stays countable without labels, which is the same call
+MS·1, DR·1 and the shared step grid all arrived at for drawing sixteen steps.
+
+⚠️ **The launcher's height did not change.** It is a stretched item in the rack grid
+(`grid-auto-rows:1fr`), so its box is the row's height — measured 1028 px against 381 px of
+content at 721×620. Sixteen rows changes the content, not the box; it would take about 46
+before the launcher started pushing anything below it. The 299 px in the table under **The
+721 px floor** predates the rack becoming a stretched grid and is stale — the first
+instrument sits 1141 px down there now, and always did.
+
+### A take per row, reachable from the panel
+
+⚠️ **The worklet always held eight takes; the panel could not see any of them.** Record,
+Play, Overdub and Clear all acted on `LP.slot`, and nothing in the panel showed or changed
+it — so from the panel LP·1 behaved like a one-loop pedal with a bank hidden behind it, and
+the only way to reach a second take was the live grid.
+
+The **take strip** is the fix: eight chips, the same eight rows the launcher fires, in the
+panel and on the face. Each says whether it holds a take, which one the transport points
+at, and what that one is doing — in the studio's colours, so a take reads the same here as
+its cell does in the launcher.
+
+- **Selecting a take IS switching the looper to it.** The worklet has ONE active buffer, so
+  there is no pointing at take 5 while take 1 keeps playing — `op:"slot"` swaps `this.buf`
+  and a slot with no take drops the mode to idle. Given that, the click is the launcher's
+  gesture (play what is there, fall silent where there is not) rather than a second idea the
+  panel would have to explain. Mid-take it is refused; while ARMED it re-aims the arm, which
+  is the useful reading of that click.
+- **Play and Overdub ask `hasTake()`, not `bpmAtRecord`.** That flag is one for the whole
+  bank, so once ANY take existed, Play on an empty slot reported "Playing" and put out
+  silence. It also fixed the standalone build by accident — see the null tempo below, which
+  made `bpmAtRecord` falsy there and so made Play unreachable at all.
+- ⚠️ **`fireSlot()` sets the selection BEFORE it bails on there being no worklet.** On a
+  panel that has recorded nothing there is no node yet, and bailing first made every take
+  click a no-op: you would pick take 4, press Record, and fill take 1. Choosing where the
+  *first* take goes is exactly the moment there is nothing to play.
+- ⚠️ **`bpmAtRecord` falls back to 120, the same fallback `loopFrames()` uses.** Nothing
+  calls `clock.onTempo` in a standalone looper — no instrument is there to set a tempo — so
+  `clock.bpm` is null and this recorded a null for a loop that had in fact been cut at 120.
+  The readout said "—", and the length and the label disagreed.
+- ⚠️ **Changing Bars empties the bank** — a loop *is* its sample count, so the worklet drops
+  every slot on `alloc`. That used to happen silently on a stray change of the select, taking
+  the takes with it. It is refused while anything is recorded, and **Clear all** (`data-deep`,
+  so it is not on the face — emptying the bank is setting up, not performing) is the way
+  through. `releaseLength()` un-commits the length when the last take goes or an arm is
+  cancelled before it recorded, so the select unlocks on its own.
+
+### Armed is a count-in, not a word
+
+The wait is the **loop** line, not the bar line — `claim(LP.bars * 4)`, so up to eight beats
+at four bars — and a still bar with "Armed" written on it told you none of that. `LP.armedAt`
+holds the audio time the take starts on; the loop bar fills towards it in yellow and the
+state word becomes the beats remaining.
+
+Play and record also used to differ by hue alone, on a bar that moves identically in both.
+Each state now rings the bar as well: mint playing, red recording, yellow counting in.
+Overdub says both — the mint ring of the loop it is playing under, and the red bar of a pass
+being written.
+
+### Overdub is a switch, not a moment
+
+⚠️ **It used to be a scheduled mode like record, and it yanked the playhead back to the top
+of the loop.** `arm("dub")` posted an `op:"at"` for a grid boundary, and the worklet reset
+`pos` on every scheduled transition. A take's phase is its own `pos`, and once the shell has
+dropped its clock origin the grid frame has nothing to do with where the loop actually is —
+so turning overdub on threw the loop back to the beginning.
+
+Two changes:
+
+- **`pos` is only reset for a fresh `rec`.** A take begins at the top; nothing else does.
+- **Overdub is a latch** (`this.dub` in the worklet, `LP.dubOn` on the panel), set by
+  `op:"dub"`, which never touches `pos`. It is three things at once, which is what makes it
+  feel like one thing: set it **before or during** a take and the first pass rolls into
+  dubbing at the wrap instead of into play; flip it **while playing** and it punches in
+  where you are; flip it **off** and it punches out.
+
+The button carries both facts, because before the first wrap you are in the first without
+being in the second: `on` is the latch, in the launcher's yellow because it is a standing
+choice, and `dubbing` is a pass actually being layered, in red.
+
+`setDub()` is async because overdub needs a live input exactly as record does, and that
+used to come free from going through `arm()`. A node built after the switch was flipped is
+told on creation, or the switch would silently mean nothing until you flipped it twice.
+
+### ⚠️ The worklet is a template literal
+
+A backtick anywhere inside it — **including in a comment** — ends the string and takes the
+rest of the app with it. The file says so at `op:"at"`, and it still caught this session
+out: one `pos` in backticks in a new comment, and every script after it failed to parse.
+The symptom is a bare `SyntaxError` naming an identifier from inside a comment.
 
 ### Details worth not undoing
 
@@ -1057,8 +1160,35 @@ mid-take.
 | | what a pattern is |
 | --- | --- |
 | CS·1 | the progression — chords, mood, key |
-| MS·1 | the step sequence, plus len/rate/motion/scale |
+| PM·1 | the step sequence, plus len/rate/motion/scale |
+| BS·1, VC·1 | the step sequence, plus len/rate/key/scale |
 | DR·1 | the eight lanes, plus len/rate/swing/accent |
+
+### A scene puts PM·1 into a motion mode
+
+⚠️ **This is why a fired row containing PM·1 did nothing at all.** PM·1 is the only
+instrument that can be *running with nothing to play*: Motion Off means the keyboard plays
+it and the sequencer stands down, so `startPlay()` refuses to start. Firing a row called
+`start()`, `startPlay()` declined, and the explanation went into `#patchNote` — which
+carries no `data-face`, so on the face it was invisible. The cell lit and nothing happened.
+
+`motionForScene()` in `pm1/boot.js` is the fix, called from the scene spec's `start()` and
+`apply()`. A scene puts PM·1 in **Arp if that is what the clip was captured in, and Seq
+otherwise**, because a scene carries a step pattern and Seq is what plays one. It is
+called from `apply()` as well as `start()` because a row landing at a **seam** applies
+without starting — an `Off` in the clip would otherwise leave the transport running and
+silent.
+
+**Its own Play button is untouched.** Motion Off there still means what it says: pick Off,
+play notes over a stopped grid, and press Play to be told to pick Arp or Seq. That is the
+line — the grid decides how PM·1 runs, you decide how it sits.
+
+⚠️ **The repaint is unconditional, and must not be guarded on "did the value change".**
+`apply()` sets `SEQ.motion` from the clip *before* calling in, so an Arp clip arrives
+already correct and an early return skipped the repaint it came for — the sequencer ran
+the arp while the panel read OFF and showed the step grid. What has to be true after a
+scene acts is that the panel agrees with what is sounding, which is a claim about the
+paint, not about the assignment above it.
 
 ### Details worth not undoing
 
@@ -1092,15 +1222,33 @@ the rest:
 | | what stays on the face |
 | --- | --- |
 | CS·1 | the progression card, the transport, key/mood/tempo |
-| MS·1 | the keyboard, what it plays, the transport, the patch selector |
-| DR·1 | the transport and the grid — the grid *is* the performance surface |
+| PM·1 | the keyboard, what it plays, the transport, the patch selector, the sequencer, key assign |
+| DR·1 | the transport, the grid — the grid *is* the performance surface — and the voice controls |
+
+PM·1's face carries the whole **Motion** rack and the **Key assign** half of the rack it
+shares with the LFO. A face that could set a patch but not write the line it plays was the
+one thing you had to leave the face for while playing, and voice mode, glide and bend range
+are performance controls in a way an LFO shape is not.
+
+The LFO is dropped with **`data-deep`**, which trims *inside* a block the face keeps.
+That leaves the pair a two-column grid with one column of content, so pm1's sheet takes it
+to one column while the face is on — a rule about that panel's own blocks, so it lives in
+that panel's sheet. `face` is in the build's `PANEL_CLASSES` for the same reason `armed`
+is: the shell sets it on the panel root and the panel is entitled to read it.
+
+DR·1's face carries the **Voice** section, which follows the selected lane. Four faders
+serving eight voices, so it costs one block rather than eight.
 
 | | full panel | face |
 | --- | --- | --- |
 | CS·1 | 1610 px | **465 px** |
-| MS·1 | 3140 px | **593 px** |
-| DR·1 | 849 px | **570 px** |
+| PM·1 | 2287 px | **908 px** |
+| DR·1 | 813 px | **659 px** |
 | studio page | 4177 px | **1646 px** |
+
+PM·1's and DR·1's rows re-measured at the panel's natural 760 px after the sequencer and
+the voice controls joined; CS·1's and the page's are the older numbers. MS·1's row is gone
+with MS·1.
 
 ### Details worth not undoing
 
@@ -1270,6 +1418,261 @@ in `pending` is the pending stop, and `take()` reads it at the seam. Nothing cut
 scheduling loop has to notice: every tick checks `playing` immediately after `take()` and
 returns, or it carries on filling the lookahead for a transport that is no longer running
 and leaves a bar of notes sounding after the stop.
+
+### Adding to a row that is already playing joins it
+
+Storing a clip into a row something is **already sounding from** starts that instrument
+there, without a second press of the row button. Before, the cell filled and stayed
+silent until you fired the row again — it worked, and it read as the gesture having done
+nothing.
+
+`shell/scenes.js` keeps an `onRow` map: which row each instrument is playing *from*.
+`queued` is what is waiting for a seam; `onRow` is what landed. Recorded rather than
+derived, because two rows holding the same pattern are equal by value and comparing the
+cell against what an instrument is playing would call them the same row. `live(row)` asks
+the transport as well, so an instrument stopped from its own panel cannot leave a stale
+entry claiming a row is playing.
+
+Three rules keep it from being a fire in disguise:
+
+- **Only a stopped instrument joins.** One playing row 2 and a clip stored into row 1 is
+  you filling the launcher while you play, not asking to be moved. A store is not a fire,
+  and silently yanking a running instrument onto another row is a mistake you cannot see
+  coming.
+- **Capture-all does not join.** Shift-clicking the row button takes what every
+  instrument happens to be holding, stopped ones included, and starting those is nobody's
+  ask. `storeAll()` calls the private `put()` and skips the join.
+- **The join is `fire()`'s**, so the pattern, the start and the bar line it lands on are
+  the same ones a fired cell gets. `clock.claim(4)` puts it on the running grid.
+
+`captureRow()` passes the row to `scenes.start()` so an armed track records its row into
+`onRow` too — that is what lets a *second* track added to the same row a moment later join
+what you are hearing. `start()` sets it only after the attempt, because `start()` can
+decline: PM·1 says so out loud when its Motion is Off, and a row nothing is sounding from
+is not a row to join.
+
+**The cell you are hearing is ringed in mint.** The launcher already said queued and
+playing had to be one glance apart and only drew the queued half; `.st-cell.live` is the
+other half, and without it "drop a clip into the row you are hearing and it joins" is a
+rule you can only discover. Armed still wins over live, by source order.
+
+LP·1 answers for its own column. It has no scene row, so `scenes.onRow` has never heard of
+it — the record spec grows a `liveSlot()` instead, and the live grid asks a slot track
+which slot it is working out of rather than asking the scene model.
+
+### One computer keyboard, for every instrument
+
+PM·1 grew one and the other four did not, so "playable without hardware" was true of exactly
+one panel out of six. `shell/keys.js` is the same arrangement `faces.js` uses for the Panel
+button: one implementation in the shell, and an instrument added later gets it by asking.
+
+`host.js` already decided WHICH panel the keys reach — the focused one. This decides what
+they mean, and is deliberately thin about it: an instrument says what a key index plays and
+how to start and stop it, so a drum machine maps the row to its eight lanes while a synth
+maps it to semitones, and neither knows about the other.
+
+| | what the letter row plays |
+| --- | --- |
+| PM·1, BS·1, VC·1 | two octaves of semitones from that panel's `KEY_BASE` |
+| DR·1 | the eight lanes in kit order; keys past the eighth map to nothing |
+| CS·1 | nothing — it already had **1–9 for its chord pads**, which is the right shape for a chord instrument, and the letter row would collide with `n` for a new progression |
+| LP·1 | nothing — no notes |
+
+**← and → change the octave.** An instrument with its own octave control drives *that*, so
+its readout keeps telling the truth (PM·1's ±, BS·1's segment); one without keeps the offset
+in the keys module (VC·1).
+
+Two things this cost, both caught by measuring rather than reading:
+
+- ⚠️ **`map()` hands over the UNSHIFTED note for PM·1.** `noteOn()` *and* `noteOff()` apply
+  `octave` themselves in note-layer.js — which is why the on-screen keys pass their raw
+  `data-n` too. Adding it in the map as well played a note an octave out; measured 72 where
+  60 was wanted.
+- ⚠️ **Held notes are released BEFORE the octave moves.** Since `noteOff()` also applies the
+  octave, shifting under a held key releases a note that was never started and leaves the
+  sounding one held forever. Rare with a pair of ± buttons, the ordinary case the moment the
+  arrows do it. The module holds the RESOLVED value per key for the same reason.
+
+### Playing into a block
+
+Arming a track and playing into a running scene now updates that scene **as you play**.
+`record.note()` writes to the instrument's grid as it always did, and then calls
+`scenes.restore(id)` to put the result back into the block that instrument is playing out
+of. Without it the cell still held the copy taken when the row was pressed, so everything
+you played was one row-fire away from being discarded — the gesture only looked like it had
+worked until you used it.
+
+- **Only when `write()` took the note.** It returns the step it landed on, or -1 when it
+  landed nowhere — a transport that is not running has no step to write to — so nothing is
+  re-stored for a note that was not taken.
+- **Only into a cell that already exists.** If the row has nothing for this instrument then
+  the row is not what it is playing, and creating a block is a deliberate gesture
+  (shift-click, or the row's ●), not something a stray note should do.
+
+### Where in the pattern you are
+
+The launcher says when a change LANDS — "pattern" is CS·1's progression coming round, eight
+seconds at four chords — and gave no way to see that moment approaching, so firing on the
+one you wanted was guesswork with a long wait attached. One pip per bar of the pattern, the
+current one lit, in the Scenes head and the live bar both.
+
+Computed from the grid **origin** and the shared clock, the same way every instrument works
+out its own seam — not counted by a timer, which would drift away from the audio. With
+nothing running the pattern has no position and every pip dims, because a lit one would be
+inventing an answer.
+
+Deliberately a count, not a moving bar: what you need before firing is *which* bar and how
+many are left, and a count is read at a glance where a sweep has to be estimated.
+
+### The segments that showed you nothing
+
+⚠️ **`shell/chrome.css` had `.seg button` and nothing else.** No container rule, and — the
+part that mattered — no `.on`. BS·1, DR·1, VC·1 and LP·1 define none of it themselves, so
+their selected option was **byte-identical to the unselected ones**: measured, `btnOn` and
+`btnOff` produced the same computed-style signature. Those segments worked perfectly and
+told you nothing, which is the worst way for a control to be broken.
+
+CS·1 and MS·1 were written as whole pages and carried all of it in their own sheets, which
+is exactly why nobody noticed for four instruments.
+
+The four rules moved into `chrome.css` — `.seg`, `.seg button.on`, `.seg button:hover`,
+`.seg.sm button` — and CS·1's and PM·1's copies **stay**, which is the arrangement this
+file's header describes: it loads first, so those two override every rule and cannot change.
+
+⚠️ **Proven, not reasoned.** The header records two occasions where lifting a rule here
+flipped an equal-specificity conflict, so this was A/B'd in the live page: delete exactly
+those four rules from the CSSOM and re-measure every `.seg` in every panel.
+
+| | with the rules | without |
+| --- | --- | --- |
+| CS·1, PM·1 | identical | identical |
+| BS·1, DR·1, VC·1, LP·1 | selected state visible | changes — they are the ones that gained it |
+
+CS·1 was safe on two counts: it defines all three rules that could reach it, and it has no
+`.seg.sm` element at all, so the one rule it does not define cannot apply.
+
+### One tempo, one control
+
+The clock has been shared since the shell existed, so every panel's tempo control showed the
+same number and moved with the others — five of the six were noise, and a row of readouts
+that *look* like they could disagree is worse than noise. The page's tempo now has one
+control, in the Scenes head, which is the one place on the page that is about the page
+rather than about an instrument. The quantum sits beside it, because "how fast" and "when
+does a change land" are the same question asked twice.
+
+Each panel marks its own block with **`data-tempo`**, and `shell/boot.js` adds
+`tempo-shared` to every root when there is more than one instrument — the same derivation
+the faces default already uses. A **standalone build keeps its own control**, because there
+is nothing else on that page to own it: `drums.html` still has `− 120 +` in its transport,
+and `.unit` there has no `tempo-shared`.
+
+The master is **labelled** — "Tempo" over the stepper, "Lands on" over the quantum. A bare
+`− 120 +` beside the word Scenes reads as a count of something; the panels label their
+controls and the page has to label its own.
+
+⚠️ **The instruments' `setBpm()` functions stay.** They are not just the button handlers —
+CS·1 loads a tempo with a patch and takes one from MIDI clock, PM·1 loads one with a patch —
+so the readout they paint stays in the DOM, hidden. Deleting the markup would have broken
+patch loading in five places for a cosmetic gain.
+
+The quantum segment exists on both the Scenes head and the live page. **Both paint from
+`Patchwork.scenes` on its change notification, not from each other**, so neither is the
+source of truth and switching views cannot show two different answers.
+
+### The metronome is on LP·1's own strip
+
+⚠️ **This is not a placement detail, it is the only place it can go.** The looper records
+`Patchwork.audio.tap("lp1")`, a sum of every strip *except its own*, so a click anywhere
+else on the bus is printed into every take — audible in the loop for the rest of the
+session, and doubled by the first overdub. On LP·1's strip it is heard and unrecordable.
+
+Measured, and the detector validated the way this repo has learned to: recording a take with
+**only** the click running gave an input peak of **0**; the same measurement with DR·1 on
+the bus gave **2.70**. The zero is the exclusion working, not the meter being broken.
+
+It has **its own level**, not the loop's: a click has to cut through what you are playing
+to, which is a different job from loop playback, and the two would fight over one fader.
+70% by default, so there is room in both directions.
+
+It runs on the shared clock like any other voice, so it IS the tempo rather than a second
+opinion about it — started alone it claims the grid via `claim(1)` and whatever starts next
+lands in phase with it. The accent is computed from the grid **origin**, not counted from
+the first blip: `claim(1)` lands on the next beat, not the next bar, so counting would put
+the downbeat wherever you happened to press the button.
+
+### A row has to move the looper too
+
+⚠️ **Firing a row never reached LP·1.** `Patchwork.scenes.fire(row)` walks scene members,
+and LP·1 is deliberately not one — a scene changes what an instrument *plays* and a looper's
+content is a recording. So the row button moved five instruments and left the sixth sitting
+there. The ● record path worked, which is what hid it: `captureRow()` walks the record kit
+and catches slot tracks on its way past. Clicking the LP·1 *cell* worked too. Only the row —
+the main gesture — did nothing.
+
+`Patchwork.launch.fireRow()` is the row gesture now, and both launchers use it: fire the
+scene members, then hand the row to every slot track. The row is the gesture, so the row has
+to move everything the row can see.
+
+**It lands on the loop line, not on the click** — which is what the launcher promises for
+everything else and what is written on the page. `queueSlot()` posts one scheduled `at`, and
+that single message covers both halves of the rule: posting `play` for a slot with no take
+leaves the worklet's `buf` null, and `mode = this.buf ? next.mode : "idle"` drops it to
+idle. "A row with nothing for this instrument falls silent" therefore happens on the same
+frame as the switch, rather than as a second message that could land a frame apart.
+
+- **`reset` is opt-in on `at`.** A scheduled change keeps the loop's position, which is
+  right for punching overdub in and wrong for firing a scene; the row asks for the top and
+  the punch does not. Re-verified after this change that the punch still does not move the
+  playhead.
+- **`LP.slot` is not moved on the press.** It follows the worklet's `started` message at the
+  seam, so between the press and the loop line the take strip and the launcher keep ringing
+  the take you can still hear. An optimistic update would light the new row while the old
+  one is sounding, which is the one thing the ring exists to say.
+- LP·1's own take strip stays **immediate**. The launcher is the quantised surface; a panel
+  is direct manipulation, exactly as an instrument's own Play button is.
+
+### One launcher, drawn twice
+
+`Patchwork.launch` in `studio/scenes.js` owns which instruments get a column, what a cell
+shows, and what a click does. Both the studio's small launcher and the live page use it.
+
+⚠️ **They had already drifted, and that is the whole reason it exists.** The live page grew
+LP·1's column and the slot routing that goes with it; the launcher kept listing scene
+members only, so on the faces page the looper simply was not there. Every rule about a cell
+has to be the same in both, or the two views disagree about the same object.
+
+It lives in the studio rather than the shell because it is about the launcher's DOM, which
+the shell does not own — and in `scenes.js` specifically because that file is built before
+`live.js`, which uses it.
+
+⚠️ **A slot track has to say when its own state moves.** Arming is the shell's and notifies
+itself, but LP·1 keeps its transport privately, so a take appearing reached nothing.
+`Patchwork.record.changed()` is that signal, called from LP·1's `paintState()`. The live
+page was papering over the gap with a 400 ms repaint, which is why the bug showed only on
+the studio launcher.
+
+### Removing the block you are hearing stops it
+
+The mirror of the join, and the rule firing a row already followed: a row with nothing for
+an instrument is a row that instrument is silent in. Cmd-shift-clicking a block out from
+under a running instrument used to leave it playing a clip that no longer existed, which
+is the launcher disagreeing with itself.
+
+`clear()` re-fires the now-empty cell, so the stop **is** the stop a fired row gives —
+queued to that instrument's loop point at every quantum but `instant`, nothing cut
+mid-bar.
+
+- **Only the cell being played out of.** Clearing row 3 while row 1 is what you can hear is
+  housekeeping, not a transport gesture. `playingFrom(row, id)` gates it.
+- **A cell deleted while its row is still QUEUED becomes a pending stop.** `pending` holds
+  a *reference* to the cell object and deleting the cell out of `rows` does not reach into
+  it, so the block you just removed would otherwise land anyway a bar later. That is what
+  `boundTo()` covers over `playingFrom()`.
+- **LP·1 had the same bug from the other side.** `clearSlot()` selected the row being wiped
+  and went idle unconditionally, so deleting row 4 stopped row 1's loop. `op:"clear"` acts
+  on the worklet's current slot, so reaching another row means selecting it — and putting
+  the selection back. Armed still stops: the arm was scheduled against a slot and the
+  selection has just moved off it, so letting it fire would record into the row you deleted.
 
 ### The row button IS the record
 

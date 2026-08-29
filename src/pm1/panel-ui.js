@@ -495,9 +495,13 @@ $("#panic").addEventListener("click", () => {
   say("Panic sent — all sound off, all notes off and sustain up on all 16 channels.");
 });
 
-/* computer keyboard, so the thing is playable without hardware */
-const KEYMAP = {a:0,w:1,s:2,e:3,d:4,f:5,t:6,g:7,y:8,h:9,u:10,j:11,k:12,o:13,l:14,p:15,";":16};
-const kbHeld = new Set();
+/* The computer keyboard is the shell's — see shell/keys.js. Mounted AFTER the handler
+   below, so program mode gets first refusal on the arrows and this only sees the ones it
+   left alone.
+
+   ⚠️ `map` hands over the UNSHIFTED note. noteOn() and noteOff() both apply `octave`
+   themselves (note-layer.js), which is why the on-screen keys pass their raw data-n too —
+   adding it here as well plays a note an octave out. */
 onKey("keydown", e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || "").toLowerCase();
@@ -511,13 +515,13 @@ onKey("keydown", e => {
             : e.key === "ArrowDown" ? 8 : e.key === "ArrowUp" ? -8 : 0;
     if (d){ selectStep(SEQ.sel + d); e.preventDefault(); return; }
   }
-  const k = KEYMAP[e.key.toLowerCase()];
-  if (k == null || e.repeat || kbHeld.has(k)) return;
-  kbHeld.add(k); noteOn(KEY_BASE + k, 100); paintKeys(); e.preventDefault();
 });
-onKey("keyup", e => {
-  const k = KEYMAP[e.key.toLowerCase()];
-  if (k == null || !kbHeld.has(k)) return;
-  kbHeld.delete(k); noteOff(KEY_BASE + k); paintKeys();
+
+Patchwork.keys.mount(root, {
+  map: i => KEY_BASE + i,
+  on: (n, v) => noteOn(n, v),
+  off: n => noteOff(n),
+  paint: paintKeys,
+  octave: d => setOctave(octave + d)
 });
 

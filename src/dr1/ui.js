@@ -14,7 +14,7 @@ function buildLanes(){
     nm.className = "lane-name" + (id === SEQ.lane ? " sel" : "");
     nm.textContent = VOICES[id].name;
     nm.dataset.v = id;
-    nm.title = VOICES[id].full + " — click to edit, shift-click to audition";
+    nm.title = VOICES[id].full + " — click to hear it and bring it up in Voice, shift-click to play it without selecting";
     row.appendChild(nm);
     const pads = document.createElement("div");
     pads.className = "pads";
@@ -49,15 +49,35 @@ function paintPads(){
   });
 }
 
+/* Sounding a voice on demand, with no transport running. "Which one is LT again?" is the
+   question the Voice faders exist to answer, and answering it should not mean programming
+   a step, pressing Play and clearing it again. */
+function audition(id){
+  ensureAudio();
+  fire(id, ctx.currentTime + .005, 1);
+  flashLane(id);
+}
+
 /* A click cycles off → on → accent → off. Three states on one control, because a
    separate accent mode means holding a modifier to program the thing you most want to
    program — the downbeat of a kick is accented nearly every time. */
 lanesEl.addEventListener("click", e => {
   const nm = e.target.closest(".lane-name");
   if (nm){
-    if (e.shiftKey){ ensureAudio(); Patchwork.record.note("dr1", nm.dataset.v, 110);
-                     fire(nm.dataset.v, ctx.currentTime + .005, 1); flashLane(nm.dataset.v); }
-    else { SEQ.lane = nm.dataset.v; $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === SEQ.lane)); syncVoice(); }
+    const id = nm.dataset.v;
+    /* Plain click selects AND sounds it. Shift is the performance gesture and keeps the
+       selection where it is, so you can finger-drum one voice while editing another.
+
+       Only the shift form writes to the grid. Selecting a voice to tweak is not playing a
+       note, and with DR·1 armed a recording selection would punch a hit into the pattern
+       every time you reached for the Tune fader. */
+    if (e.shiftKey) Patchwork.record.note("dr1", id, 110);
+    else {
+      SEQ.lane = id;
+      $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === id));
+      syncVoice();
+    }
+    audition(id);
     return;
   }
   const pad = e.target.closest(".pad");
@@ -192,6 +212,22 @@ onKey("keydown", e => {
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "select" || tag === "textarea") return;
   if (e.key === " " && !e.repeat){ SEQ.playing ? stopPlay() : startPlay(); e.preventDefault(); }
+});
+
+/* The computer keyboard is the shell's — see shell/keys.js. A drum machine has no scale,
+   so the row maps to the eight LANES in kit order: the same thing a shift-click on a lane
+   name does, record.note() included, so a typed part lands on the grid. Keys past the
+   eighth map to nothing and are ignored rather than wrapping round to the kick. */
+Patchwork.keys.mount(root, {
+  map: i => ORDER[i] || null,
+  on: (id, v) => {
+    Patchwork.record.note("dr1", id, v);
+    audition(id);
+    SEQ.lane = id;
+    $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === id));
+    syncVoice();
+  },
+  off: () => {}                    // a drum voice rings out; there is nothing to release
 });
 
 buildLanes();

@@ -13,10 +13,18 @@ const LP = {
   level: .9,
   input: "__bus",           // device id, or __bus for the studio's own output
   mode: "idle",             // idle | armed | rec | play | dub
+  dubOn: false,             // the overdub LATCH — see setDub()
+  click: false,             // the metronome — see setClick()
+  clickLevel: .7,           // ...and how loud. 70% leaves room in both directions
   pos: 0, len: 0, peak: 0,
   slot: 0, filled: [],      // one take per scene row — see the live page
 
-  bpmAtRecord: null         // the tempo the loop was cut at — see the note in the panel
+  bpmAtRecord: null,        // the tempo the loop was cut at — see the note in the panel
+  /* The audio time the armed take starts on, so the panel can count it in. "Armed" with
+     no idea how long you are waiting is the state that made this thing feel unpredictable:
+     the seam is the LOOP line, up to eight beats away at four bars, and a still bar with
+     one small word on it tells you none of that. */
+  armedAt: null
 };
 
 function initAudio(useCtx){
@@ -58,6 +66,9 @@ async function ensureNode(){
   inGain.connect(node);
   node.port.onmessage = e => onWorklet(e.data);
   allocate();
+  /* the latch is the panel's, not the node's — a node built after it was switched on has
+     to be told, or the switch would silently mean nothing until you flipped it twice */
+  if (LP.dubOn) node.port.postMessage({op: "dub", on: true});
   return node;
 }
 
@@ -78,7 +89,7 @@ function allocate(){
 }
 
 function onWorklet(m){
-  if (m.filled) LP.filled = m.filled;
+  if (m.filled){ LP.filled = m.filled; releaseLength(); }
   if (m.slot != null) LP.slot = m.slot;
   if (m.ev === "pos"){ LP.pos = m.pos; LP.len = m.len; LP.peak = m.peak; return; }
   if (m.ev === "slots"){ paintState(); return; }
@@ -87,7 +98,15 @@ function onWorklet(m){
 
 function setMode(mode){
   LP.mode = mode;
+  if (mode !== "armed") LP.armedAt = null;
   paintState();
+}
+
+/* The length is committed only while a take exists. An arm cancelled before it recorded,
+   or the last take cleared, leaves the bank free to be given a different number of bars —
+   which is otherwise refused, because re-lengthing empties every slot. */
+function releaseLength(){
+  if (LP.mode === "idle" && !LP.filled.length) LP.bpmAtRecord = null;
 }
 
 /* ---- input ---- */
@@ -157,50 +176,197 @@ async function arm(mode, slot){
     /* the length is fixed by the first take; later rows record at the same length, or the
        rows would be different lengths and the launcher could not fire them together */
     allocate();
-    LP.bpmAtRecord = Patchwork.clock.bpm;
+    /* the same fallback loopFrames() uses. Nothing calls clock.onTempo in a standalone
+       looper — no instrument is there to set a tempo — so this was recording a null, and
+       the readout said "—" for a loop that had in fact been cut at 120. */
+    LP.bpmAtRecord = Patchwork.clock.bpm || 120;
   }
   const at = Patchwork.clock.claim(LP.bars * 4);
   n.port.postMessage({op: "at", mode: mode, slot: LP.slot,
                       frame: Math.round(at * ctx.sampleRate)});
   setMode("armed");
+  LP.armedAt = at;               // after setMode, which clears it for every other mode
   paintState();
 }
 function stopLoop(){
   if (!node) return;
   node.port.postMessage({op: "now", mode: "idle"});
   setMode("idle");
+  /* cancelling an arm before it recorded committed no length, and no worklet message is
+     coming to say so — this transition is entirely ours */
+  releaseLength();
 }
+/* ---- the metronome ----
+   ⚠️ It is routed into LP·1's OWN strip, and that is not a detail. The looper records
+   `Patchwork.audio.tap("lp1")`, a sum of every strip except its own, so a click anywhere
+   else on the bus would be printed into every take — you would hear it in the loop for the
+   rest of the session, and an overdub would stack a second copy on top. On this strip it
+   is audible and unrecordable, which is the only combination a metronome can have here.
+
+   It runs on the shared clock like any other voice, so it IS the tempo the instruments
+   play at rather than a second opinion about it. Started alone it claims the grid, and
+   whatever starts next lands in phase with the click — which is what a metronome is for.
+
+   The accent is computed from the grid ORIGIN rather than counted from the first blip:
+   claim(1) lands on the next beat, not the next bar, so counting would put the accent
+   wherever you happened to press the button. */
+let clickGain = null, clickNext = 0;
+
+function blip(t, accent){
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = "square";
+  o.frequency.setValueAtTime(accent ? 1560 : 1040, t);
+  /* a 2 ms rise, because a square starting at full level clicks in a way that reads as a
+     fault rather than as a click track */
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(accent ? .5 : .28, t + .002);
+  g.gain.exponentialRampToValueAtTime(.0004, t + .042);
+  o.connect(g); g.connect(clickGain);
+  o.start(t); o.stop(t + .06);
+}
+
+function setClickLevel(v){
+  LP.clickLevel = Math.max(0, Math.min(1, v));
+  if (clickGain) clickGain.gain.setTargetAtTime(LP.clickLevel, ctx.currentTime, .01);
+}
+
+function clickTick(){
+  if (!LP.click || !ctx) return;
+  const beat = 60 / (Patchwork.clock.bpm || 120);
+  const origin = Patchwork.clock.origin;
+  while (clickNext < ctx.currentTime + .2){
+    const at = Math.max(ctx.currentTime + .005, clickNext);
+    const n = origin == null ? 0 : Math.round((at - origin) / beat);
+    blip(at, (((n % 4) + 4) % 4) === 0);
+    clickNext += beat * Patchwork.clock.rate;
+  }
+}
+
+function setClick(on){
+  LP.click = !!on;
+  if (LP.click){
+    initAudio();
+    Patchwork.audio.resume();
+    if (!clickGain){
+      clickGain = ctx.createGain();
+      clickGain.gain.value = LP.clickLevel;
+      clickGain.connect(out);            // lp1's strip — excluded from lp1's own tap
+    }
+    clickNext = Patchwork.clock.claim(1);
+    clickTick();
+    Patchwork.clock.run(clickTick);
+  } else {
+    Patchwork.clock.stop(clickTick);
+  }
+  paintState();
+}
+
+/* ---- overdub, as a switch ----
+   It used to be a scheduled mode like record: press it, wait for a boundary, and the take
+   restarted from the top. As a latch it is three things at once, which is what makes it
+   feel like one thing: set it BEFORE a take and the first pass rolls into dubbing at the
+   wrap; flip it while playing and it punches in where you are; flip it off and it punches
+   out. The worklet never moves `pos` for any of them.
+
+   Opening the input is why this is async. Overdub needs a live input exactly as record
+   does, and that used to come free because both went through arm(). */
+async function setDub(on){
+  LP.dubOn = !!on;
+  if (LP.dubOn){
+    const n = await ensureNode();
+    if (!n){ LP.dubOn = false; paintState(); return; }
+    if (!stream){
+      const ok = await openInput(LP.input);
+      if (!ok){ LP.dubOn = false; paintState(); return; }
+    }
+  }
+  if (node) node.port.postMessage({op: "dub", on: LP.dubOn});
+  paintState();
+}
+
 function play(slot){
   if (!node) return;
   if (slot != null) selectSlot(slot);
   node.port.postMessage({op: "now", mode: "play", reset: true});
   setMode("play");
 }
-/* Fire a row: play that row's take, or fall silent if the row has none. Silence is the
-   honest answer — a row with no loop should not keep the previous row's playing under it. */
-function fireSlot(i){
+/* Fire a row FROM THE LAUNCHER, at the next loop line rather than on the click — which is
+   what the launcher promises for everything else, and what is written on the page: nothing
+   lands until the next loop point.
+
+   One message covers both halves of the rule. Posting `play` for a slot with no take leaves
+   the worklet's buf null, and `mode = this.buf ? next.mode : "idle"` drops it to idle — so
+   "a row with nothing for this instrument falls silent" happens on the same seam, for free,
+   rather than as a second scheduled message that could land a frame apart from the first.
+
+   `reset` is what makes it start at the TOP. Without it a scheduled change keeps the loop's
+   current position, which is right for punching overdub in and wrong for firing a scene. */
+function queueSlot(i){
   if (!node) return;
+  const at = Patchwork.clock.claim(LP.bars * 4);
+  /* The slot rides on the SAME message, so it changes on the same frame the mode does. A
+     separate op:"slot" would switch buffers now and cut the take that is still playing out
+     the rest of this bar. */
+  node.port.postMessage({op: "at", mode: "play", slot: i | 0, reset: true,
+                         frame: Math.round(at * ctx.sampleRate)});
+  /* LP.slot is deliberately NOT moved here. It follows the worklet's `started` message at
+     the seam, so between the press and the loop line the strip and the launcher keep
+     ringing the take you can actually still hear. An optimistic update would light the new
+     row while the old one is sounding, which is the one thing the ring is for. */
+}
+
+/* Fire a row on LP·1's OWN panel: immediate, the way an instrument's own Play button is.
+   The launcher is the quantised surface; a panel is direct manipulation.
+
+   Silence is the honest answer for an empty row — it should not keep the previous row's
+   playing under it.
+
+   ⚠️ The SELECTION is set before the no-node bail, and has to be. On a panel that has not
+   recorded anything yet there is no worklet, and bailing first made every take click a
+   no-op — you would pick take 4, press Record, and fill take 1. Choosing where the first
+   take goes is exactly the moment there is nothing to play. */
+function fireSlot(i){
   selectSlot(i);
-  if (LP.filled.indexOf(i | 0) >= 0) play();
+  if (!node) return;
+  if (hasSlot(i)) play();
   else stopLoop();
 }
 function selectSlot(i){
   LP.slot = i | 0;
   if (node) node.port.postMessage({op: "slot", i: LP.slot});
+  paintState();                  // the take strip has to follow, however it was moved
 }
 function hasSlot(i){ return LP.filled.indexOf(i | 0) >= 0; }
+/* Does the slot the transport is pointed at hold anything? Play and Overdub used to ask
+   `bpmAtRecord`, which is one flag for the whole bank — so once ANY take existed, Play on
+   an empty slot reported "Playing" and put out silence. */
+function hasTake(){ return hasSlot(LP.slot); }
 function clearLoop(){
   if (!node) return;
   node.port.postMessage({op: "clear"});
   setMode("idle");
 }
 /* Empty one row's take. The LENGTH survives — bpmAtRecord stays — because the other rows
-   are still that long and a bank of mixed lengths could not be fired together. */
+   are still that long and a bank of mixed lengths could not be fired together.
+
+   ⚠️ Only the take you removed stops. `op:"clear"` acts on the worklet's CURRENT slot, so
+   emptying another row means selecting it first — and this used to leave the selection
+   there and go idle unconditionally, which stopped whatever you were hearing. Deleting
+   row 4 killed row 1's loop. The pattern instruments follow the same rule from the other
+   side: clearing a cell you are not playing out of is housekeeping, not a transport
+   gesture.
+
+   Armed still stops. The arm was scheduled against a slot, and the selection has just
+   been moved off it to reach the one being wiped — letting that fire would record into
+   the row you deleted. */
 function clearSlot(i){
   if (!node) return;
-  selectSlot(i);
+  const n = i | 0, was = LP.slot;
+  const running = LP.mode === "play" || LP.mode === "dub" || LP.mode === "rec";
+  selectSlot(n);
   node.port.postMessage({op: "clear"});
-  setMode("idle");
+  if (running && was !== n) selectSlot(was);
+  else setMode("idle");
 }
 function undo(){
   if (!node) return;

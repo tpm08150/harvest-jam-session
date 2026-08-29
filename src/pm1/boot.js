@@ -83,10 +83,37 @@ function applyParamsQuiet(src){
 /* ---- scenes ----
    An PM·1 pattern is the step sequence and how it is read — not the patch. Firing a
    scene changes the line, not the sound it is played with. */
+
+/* ⚠️ PM·1 is the one instrument that can be RUNNING with nothing to play. Motion Off
+   means the keyboard plays it and the sequencer stands down, so `startPlay()` refuses to
+   start at all — correct when you are playing it by hand, and the reason a fired row
+   containing PM·1 did nothing at all. It declined, said so in `#patchNote`, and that
+   element is not on the face, so the message went nowhere and the cell just looked broken.
+
+   A scene therefore puts it in a motion mode: the one the clip was captured in if that
+   was Arp, and Seq otherwise, because a scene carries a step pattern and Seq is what
+   plays one. Its own Play button is untouched — Motion Off there still means what it
+   says, and you can still pick Off and play notes over a stopped grid.
+
+   The seg is repainted, not just the state. A panel reading OFF while the sequencer runs
+   is the same bug wearing the opposite face. */
+function motionForScene(){
+  SEQ.motion = SEQ.motion === "arp" ? "arp" : "seq";
+  /* Unconditional, and NOT guarded on "did this change the value". apply() sets
+     SEQ.motion from the clip before calling here, so a clip captured in Arp arrives
+     already correct and an early return skipped the repaint it came for — the sequencer
+     ran the arp while the panel still read OFF and showed the step grid. What has to be
+     true after a scene acts is that the panel agrees with what is sounding, which is a
+     statement about the paint, not about the assignment above it. */
+  segPaint.motion();
+  renderRoll();                  // also runs paintMotionView — the grid/roll swap
+  paintMeta();
+}
+
 Patchwork.scenes.register("pm1", {
   name: "PM·1",
   isPlaying: () => SEQ.playing,
-  start: () => { ensureAudio(); if (!SEQ.playing) startPlay(); },
+  start: () => { ensureAudio(); motionForScene(); if (!SEQ.playing) startPlay(); },
   stop: () => { if (SEQ.playing) stopPlay(); },
   capture: () => ({steps: JSON.parse(JSON.stringify(SEQ.steps)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing,
@@ -97,6 +124,9 @@ Patchwork.scenes.register("pm1", {
     ["len","rate","swing","motion","dir","octaves","root","scale","gate"].forEach(k => {
       if (pat[k] != null) SEQ[k] = pat[k];
     });
+    /* here as well as in start(), because a row landing at a SEAM applies without
+       starting — an Off in the clip would leave the transport running and silent */
+    motionForScene();
     seqLenSel.value = String(SEQ.len);
     seqRateSel.value = SEQ.rate;
     paintSeqKey();

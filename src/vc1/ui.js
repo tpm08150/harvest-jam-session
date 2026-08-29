@@ -85,6 +85,20 @@ keysEl.addEventListener("pointerdown", e => {
 });
 window.addEventListener("pointerup", () => { if (!latch) allNotesOff(); });
 
+/* The computer keyboard is the shell's — see shell/keys.js. VC·1 has no octave control of
+   its own, so the arrows move the offset the keys module keeps; the carrier is voiced from
+   the note it is given, so shifting it is the whole of what an octave means here. */
+Patchwork.keys.mount(root, {
+  map: (i, oct) => KEY_BASE + oct * 12 + i,
+  on: (n, v) => {
+    ensureAudio();
+    Patchwork.record.note("vc1", n, v);
+    if (latch && carriers.has(n)) noteOff(n); else noteOn(n, v);
+  },
+  off: n => { if (!latch) noteOff(n); },
+  paint: () => paintNow()
+});
+
 function paintNow(){
   const held = [...carriers.keys()].filter(n => { const c = carriers.get(n); return c && !c.released; });
   nowNote.textContent = held.length ? held.sort((a,b)=>a-b).map(noteName).join(" ") : "—";

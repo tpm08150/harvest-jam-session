@@ -30,6 +30,9 @@ function register(id, spec){
             playSlot: spec.playSlot || null,
             hasSlot: spec.hasSlot || null,
             clearSlot: spec.clearSlot || null,
+            /* which slot it is working out of right now, or null. A slot track has no
+               scene row, so the launcher cannot ask scenes.onRow which cell to ring. */
+            liveSlot: spec.liveSlot || null,
             /* Armable by default. Arming means "put what you have into the row I press",
                which every registered track can do — CS·1's progression captures as readily
                as a step grid. write() is a SEPARATE, narrower capability: taking notes you
@@ -69,7 +72,9 @@ function captureRow(row){
   kit.forEach(it => {
     if (!armed.has(it.id)) return;
     if (it.slots && it.recordSlot){ it.recordSlot(row); return; }
-    Patchwork.scenes.start(it.id);
+    /* the row is passed so the shell knows this track is now playing FROM it — that is
+       what lets a track added to the same row a moment later join what you are hearing */
+    Patchwork.scenes.start(it.id, row);
     Patchwork.scenes.store(row, it.id);
   });
   Patchwork.scenes.instruments.forEach(i => {
@@ -92,10 +97,23 @@ function note(id, midi, vel, when){
   if (!armed.has(id)) return -1;
   const it = kit.find(x => x.id === id);
   if (!it || !it.write) return -1;
-  try{ return it.write(midi, vel, when); }catch(e){ return -1; }
+  let i = -1;
+  try{ i = it.write(midi, vel, when); }catch(e){ return -1; }
+  /* The note is on the instrument's grid; the BLOCK it is playing out of has to follow, or
+     you are recording into something the next row-fire quietly discards. write() returns
+     the step it landed on, or -1 when it landed nowhere — a transport that is not running
+     has no step to write to — so nothing is re-stored for a note that was not taken. */
+  if (i >= 0) Patchwork.scenes.restore(id);
+  return i;
 }
 
 return {register, setArmed, toggleArm, captureRow, note, onChange, track,
+        /* A track saying its OWN state moved — the looper starting, stopping, filling or
+           emptying a slot. Arming is the shell's and notifies itself; a slot track keeps
+           its transport privately, so without this the launcher had no way to know a take
+           had appeared. The live page was papering over it with a 400 ms repaint, which is
+           why the bug only showed on the studio launcher. */
+        changed: notify,
         isArmed: id => armed.has(id),
         get tracks(){ return kit.map(k => ({id: k.id, name: k.name,
                                             canRecord: k.canRecord, live: k.live,

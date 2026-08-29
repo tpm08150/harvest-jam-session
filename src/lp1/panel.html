@@ -16,12 +16,18 @@
     </div>
   </div>
 
+  <!-- One take per scene row. The worklet always held eight; until now only the live
+       grid could reach them, so the panel behaved like a one-loop pedal. -->
+  <div data-face class="takes" id="loopTakes" role="group" aria-label="Take per scene row"></div>
+
   <div data-face class="transport">
     <button class="btn primary rec" id="rec">● Record</button>
     <button class="btn ghost" id="dub">Overdub</button>
     <button class="btn ghost" id="playStop">▶ Play</button>
     <button class="btn ghost" id="undo">Undo</button>
-    <button class="btn ghost" id="clear">Clear</button>
+    <button class="btn ghost" id="clear">Clear take</button>
+    <!-- setting up, not performing: it empties the bank and it is how the length is freed -->
+    <button class="btn ghost" id="clearAll" data-deep>Clear all</button>
   </div>
 
   <div data-face class="row">
@@ -45,12 +51,25 @@
         <button data-m="off">Off</button>
       </div>
     </div>
+    <!-- On LP·1's own strip, so it is heard and never recorded — see the engine. -->
+    <div class="field" style="flex:1 1 240px">
+      <span class="silk">Click</span>
+      <div class="clickrow">
+        <div class="seg sm" id="click" role="group" aria-label="Metronome">
+          <button data-c="on">On</button>
+          <button data-c="off" class="on">Off</button>
+        </div>
+        <div class="hfader" id="clickF">
+          <span class="hslot"><i class="hcap"></i></span><span class="hval">70%</span>
+        </div>
+      </div>
+    </div>
     <div class="hfader" id="levelF">
       <span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">90%</span>
     </div>
   </div>
 
-  <p data-face class="note" id="loopNote">Record starts on the bar line, not when you press it — arm it a beat early and play into the count.</p>
+  <p data-face class="note" id="loopNote">Record starts on the next <b>loop</b> boundary, not when you press it — the count-in runs in the bar above. Pick a take first; Record fills the one that is lit.</p>
 
   <div class="sect">
     <div class="sect-head"><span class="silk">About the loop</span></div>
@@ -60,8 +79,20 @@
       tempo it was cut at is shown beside the state. Re-record to move it.
     </p>
     <p class="note">
+      <b>Overdub is a switch, not a moment.</b> Turn it on before or during a take and the
+      first pass rolls straight into layering at the wrap; flip it on while a loop is playing
+      and it punches in where you are, off and it punches out. Neither moves the playhead.
+    </p>
+    <p class="note">
+      <b>The click is on LP·1's own strip</b>, which is the one strip the looper does not
+      record — so it is audible while you play and never printed into a take. It runs on the
+      shared clock, so starting it with nothing else going makes it the grid everything else
+      then lands on.
+    </p>
+    <p class="note">
       <b>Use headphones.</b> An open microphone into speakers records its own output, and an
-      overdub builds that up every pass until it howls.
+      overdub builds that up every pass until it howls. A metronome through speakers into an
+      open microphone is the same problem, and that one the tap cannot save you from.
     </p>
   </div>
 

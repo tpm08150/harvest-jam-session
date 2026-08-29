@@ -136,6 +136,10 @@ input[type="text"]::placeholder{color:#5a646a}
 }
 .rack-pair{display:grid;grid-template-columns:1fr 1fr;gap:13px;align-items:start}
 .rack-pair>.rack{margin-top:13px}
+/* The face keeps Key assign and drops the LFO beside it, so the pair has one column of
+   content in a two-column grid — the rack ends up half-width with a hole next to it.
+   One column while the face is on, and the pair is whole again the moment it is off. */
+:scope.face .rack-pair{grid-template-columns:1fr}
 .rack-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .rack-head .silk{flex:0 0 auto}
 .r-mod{--stripe:var(--stripe-mod)}

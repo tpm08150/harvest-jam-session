@@ -126,10 +126,26 @@ input[type="text"]::placeholder{color:#5a646a}
 .tempo button{width:32px;flex:none;background:none;border:none;color:var(--silk-dim);font-size:17px;cursor:pointer;padding:8px 0;font-family:inherit}
 .tempo button:hover{color:#fff}
 .tempo output{flex:1;text-align:center;font-family:"DM Mono";font-size:15px;color:var(--mint);letter-spacing:.04em}
+/* ---------- segmented buttons ----------
+   ⚠️ Only `.seg button` was here, so BS·1, DR·1, VC·1 and LP·1 got the button and nothing
+   else: no container, and — the part that mattered — no `.on`. Their selected option was
+   byte-identical to the unselected ones, measured, so those segments silently worked and
+   showed you nothing. CS·1 and MS·1 were written as whole pages and had all of this in
+   their own sheets, which is exactly why it was never noticed.
+
+   Added here rather than copied a fourth time, and their copies STAY: this file loads
+   first, so CS·1 and PM·1 override every rule below with their own and cannot change. That
+   is the arrangement the header of this file describes, and the reason it exists. */
+.seg{display:inline-flex;flex-wrap:wrap;gap:1px;background:var(--groove);border:1px solid var(--groove);
+  border-radius:4px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.5) inset}
 .seg button{
   font-family:"Saira Semi Condensed";font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
   background:var(--slot);border:none;color:var(--silk-dim);padding:8px 11px;cursor:pointer;
 }
+.seg button.on{background:linear-gradient(180deg,#4c565c,#3b444a);color:var(--chrome-hi)}
+.seg button:hover{color:var(--chrome-hi)}
+/* CS·1 has no `.seg.sm` element, so this cannot reach it — the other five use it. */
+.seg.sm button{padding:6px 8px;font-size:10px;letter-spacing:.1em}
 .step:hover{background:#2b3339}
 .step.now{outline:2px solid var(--mint);outline-offset:1px}
 .hfader .hlab{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--silk-dim)}
@@ -163,6 +179,10 @@ input[type="text"]::placeholder{color:#5a646a}
 /* The plate is a flex row ending in the screws; the toggle sits before them. */
 :scope.face .plate,:scope .plate{align-items:center}
 :scope.face [data-deep]{display:none}
+/* ...and `data-tempo` comes out whenever the page has a master to own it — see
+   shell/boot.js. Not tied to face mode: six tempo controls are as redundant on the full
+   panels as they are on the faces. */
+:scope.tempo-shared [data-tempo]{display:none}
 
 /* ---------- the plate ----------
    Only CS·1 and PM·1 ever defined this, so on every other panel the header had no layout
@@ -858,6 +878,10 @@ input[type="text"]::placeholder{color:#5a646a}
 }
 .rack-pair{display:grid;grid-template-columns:1fr 1fr;gap:13px;align-items:start}
 .rack-pair>.rack{margin-top:13px}
+/* The face keeps Key assign and drops the LFO beside it, so the pair has one column of
+   content in a two-column grid — the rack ends up half-width with a hole next to it.
+   One column while the face is on, and the pair is whole again the moment it is off. */
+:scope.face .rack-pair{grid-template-columns:1fr}
 .rack-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .rack-head .silk{flex:0 0 auto}
 .r-mod{--stripe:var(--stripe-mod)}
@@ -1181,15 +1205,61 @@ input[type="text"]::placeholder{color:#5a646a}
 :scope.recording .loopfill{background:linear-gradient(180deg,rgba(224,75,47,.32),rgba(224,75,47,.15));
   border-right-color:rgba(224,75,47,.6)}
 :scope.recording .loophead{background:#ff8a6e;box-shadow:0 0 9px var(--lp-rec)}
-/* Armed and waiting for the bar line — the same yellow the scene launcher arms with, so
-   "queued" means one thing across the whole studio. */
+/* Playing gets the studio's mint rather than this panel's teal. Play and record used to
+   differ by hue alone at the same weight, on a bar that moves the same way in both — a
+   ring says WHICH of the two you are in without having to remember which colour is which. */
+:scope.playing .loopbar{box-shadow:0 2px 5px rgba(0,0,0,.6) inset,0 0 0 1px rgba(99,214,176,.55) inset}
+:scope.recording .loopbar{box-shadow:0 2px 5px rgba(0,0,0,.6) inset,0 0 0 1px var(--lp-rec) inset}
+/* Armed and waiting for the loop line — the same yellow the scene launcher arms with, so
+   "queued" means one thing across the whole studio. The fill is the COUNT-IN while this
+   is on: it runs towards the frame the take starts on, so the wait has a length you can
+   see rather than a word you have to trust. */
 :scope.armed .loopbar{box-shadow:0 2px 5px rgba(0,0,0,.6) inset,0 0 0 1px var(--cap-yellow) inset}
+:scope.armed .loopfill{background:linear-gradient(180deg,rgba(232,178,58,.26),rgba(232,178,58,.10));
+  border-right-color:rgba(232,178,58,.7)}
+:scope.armed .loophead{background:var(--cap-yellow);box-shadow:0 0 9px var(--cap-yellow)}
+
+/* ---- the take strip ----
+   Eight takes, one per scene row. The state colours are the STUDIO's, not this panel's
+   teal: mint plays, yellow waits for a seam, red records. A take has a cell in the live
+   grid as well, and the two have to read as the same object in two places. */
+.takes{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px;margin:0 0 13px}
+.take{
+  flex:1 1 0;min-width:0;height:28px;border-radius:4px;cursor:pointer;position:relative;
+  background:var(--slot);border:1px solid var(--groove);
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  font-family:"DM Mono";font-size:10px;letter-spacing:.04em;color:var(--read-dim);
+  padding:0;line-height:1;
+}
+.take:hover{border-color:var(--silk-dim);color:var(--silk-dim)}
+/* An empty take is a hole; a recorded one carries a bar of its own, so "which of these
+   holds something" is answerable without reading eight labels. */
+.take.has{color:var(--lp-accent-hi)}
+.take.has::after{
+  content:"";position:absolute;left:22%;right:22%;bottom:4px;height:2px;border-radius:1px;
+  background:var(--lp-accent);
+}
+.take.sel{border-color:var(--silk-dim);color:var(--silk);background:#252b30}
+.take.on-play{border-color:var(--mint);box-shadow:0 0 0 1px var(--mint) inset;color:var(--mint)}
+.take.on-play::after{background:var(--mint)}
+/* Overdub is playing AND taking, so it says both: the mint ring it already had, and the
+   red bar of a pass being written. */
+.take.on-dub{border-color:var(--mint);box-shadow:0 0 0 1px var(--mint) inset;color:#ff8a6e}
+.take.on-dub::after{background:var(--lp-rec)}
+.take.on-rec{border-color:var(--lp-rec);box-shadow:0 0 0 1px var(--lp-rec) inset;color:#ff8a6e}
+.take.on-rec::after{background:var(--lp-rec)}
+.take.on-arm{border-color:var(--cap-yellow);box-shadow:0 0 0 1px var(--cap-yellow) inset;
+  color:var(--cap-yellow);animation:lp-pulse .5s steps(2,end) infinite}
+@keyframes lp-pulse{50%{opacity:.4}}
+@media (prefers-reduced-motion:reduce){ .take.on-arm{animation:none;opacity:.75} }
 
 .loopmeta{display:flex;align-items:center;gap:12px;margin-top:7px;
   font-family:"DM Mono";font-size:10px;letter-spacing:.06em;color:var(--silk-dim)}
-.loopmeta .state{color:var(--lp-accent-hi);text-transform:uppercase;letter-spacing:.14em;min-width:78px}
+.loopmeta .state{color:var(--silk-dim);text-transform:uppercase;letter-spacing:.14em;min-width:78px}
+:scope.playing .loopmeta .state{color:var(--mint)}
 :scope.recording .loopmeta .state{color:#ff8a6e}
-:scope.armed .loopmeta .state{color:var(--cap-yellow)}
+/* the count-in reads as a number, so it gets the weight a number needs */
+:scope.armed .loopmeta .state{color:var(--cap-yellow);font-size:12px}
 .loopmeta .cut{margin-left:auto}
 .meter{flex:1 1 auto;height:4px;border-radius:2px;background:#12161a;overflow:hidden;max-width:140px}
 .meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--lp-accent),var(--cap-yellow) 82%,var(--lp-rec));
@@ -1200,8 +1270,16 @@ input[type="text"]::placeholder{color:#5a646a}
 .btn.rec{background:linear-gradient(180deg,#ec6146,var(--lp-rec));border-color:#8c2a17;color:#fff2ee}
 :scope.recording .btn.rec,:scope.armed .btn.rec{box-shadow:0 0 0 2px var(--cap-yellow) inset}
 .btn.on{box-shadow:0 0 0 2px var(--lp-accent) inset}
+/* Switched on but not layering yet — the take has not reached its wrap. A standing choice,
+   which is the launcher's yellow, and it becomes red once a pass is actually being added. */
+#dub.on{box-shadow:0 0 0 2px var(--cap-yellow) inset;color:var(--cap-yellow)}
+#dub.on.dubbing{box-shadow:0 0 0 2px var(--lp-rec) inset;color:#ff8a6e}
 
 .row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px}
+/* The switch and its level are one control with two halves, so they sit under one label
+   rather than as two fields you have to work out are related. */
+.clickrow{display:flex;gap:8px;align-items:center;min-width:0}
+.clickrow .hfader{flex:1 1 90px;padding:4px 8px}
 .hfader{display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
   padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13);flex:1 1 160px}
 .hslot{position:relative;flex:1 1 auto;min-width:60px;height:20px;border-radius:4px;
@@ -1288,7 +1366,24 @@ body{
 
 /* ---- scene launcher ---- */
 .st-scenes{padding:0}
-.st-scenes-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:9px}
+.st-scenes-head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:9px}
+/* A bare "− 120 +" beside the word Scenes reads as a count of something. The panels label
+   their controls; the page's own controls have to as well. */
+.st-master{display:flex;flex-direction:column;gap:5px}
+/* One pip per bar of the pattern, the current one lit. Deliberately not a moving bar:
+   what you need to know before firing is WHICH bar, and how many are left — a count is
+   read at a glance and a sweep has to be estimated. */
+.st-bars{display:flex;gap:4px;align-items:center;height:26px}
+.st-bar{
+  display:block;width:14px;height:6px;border-radius:2px;
+  background:var(--groove);box-shadow:0 1px 1px rgba(0,0,0,.5) inset;
+}
+.st-bar.st-now{background:var(--mint);box-shadow:0 0 7px rgba(99,214,176,.55)}
+/* nothing running: the pattern has no position, and a lit pip would be inventing one */
+.st-bars.st-idle .st-bar{opacity:.45}
+.st-lab{font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--silk-dim)}
+.st-scenes-head .st-brand{align-self:flex-end;line-height:2.1}
 .st-grid{
   display:block;max-width:380px;
   background:linear-gradient(180deg,var(--panel-hi),var(--panel-lo));
@@ -1322,6 +1417,10 @@ body{
 }
 .st-cell.full::after{background:var(--mint);box-shadow:0 0 7px rgba(99,214,176,.5)}
 .st-cell:hover{border-color:var(--silk-dim)}
+/* Playing NOW, out of this row. The other half of the sentence below, and the half that
+   was missing: it is what makes "drop a clip into the row you are hearing and it joins"
+   a rule you can see rather than one you have to be told. */
+.st-cell.live{border-color:var(--mint);box-shadow:0 0 0 1px var(--mint) inset}
 /* Armed and waiting for the loop point. It pulses because "queued" and "playing" have to
    be tellable apart at a glance while something else has your attention. */
 .st-cell.armed{border-color:var(--cap-yellow);box-shadow:0 0 0 1px var(--cap-yellow) inset}
@@ -1496,11 +1595,32 @@ body.living .st-seg#stFaces{display:none}
 </div>
 
 <div class="st-rack">
-
 <div class="st-scenes">
   <div class="st-scenes-head">
     <span class="st-brand">Scenes</span>
-    <span class="st-hint">click a cell to fire it &middot; shift-click to capture &middot; nothing lands until the next loop point</span>
+    <!-- The page's tempo, not an instrument's. Every panel had its own and they all moved
+         together, so five of the six were noise — see shell/boot.js. -->
+    <div class="st-master">
+      <span class="st-lab" id="stBpmLab">Tempo</span>
+      <div class="st-tempo" role="group" aria-labelledby="stBpmLab">
+        <button id="stDown" aria-label="Slower">&minus;</button>
+        <span id="stBpm">120</span>
+        <button id="stUp" aria-label="Faster">+</button>
+      </div>
+    </div>
+    <div class="st-master">
+      <span class="st-lab" id="stQuantLab">Lands on</span>
+      <div class="st-seg st-quant" id="stQuant" role="group" aria-labelledby="stQuantLab">
+      <button data-q="instant">Instant</button>
+      <button data-q="bar">Bar</button>
+      <button data-q="pattern" class="st-sel">Pattern</button>
+      </div>
+    </div>
+    <div class="st-master">
+      <span class="st-lab">Bar</span>
+      <div class="st-bars" id="stBars" title="Where the pattern is"></div>
+    </div>
+    <span class="st-hint">click &#9654; to fire a row &middot; shift-click a cell to capture &middot; &#8984;&#8679;-click to delete &middot; nothing lands until the next loop point</span>
   </div>
   <div class="st-grid" id="stGrid"></div>
 </div>
@@ -1517,7 +1637,7 @@ body.living .st-seg#stFaces{display:none}
     <button class="btn primary" id="play">▶ Play</button>
     <button class="btn ghost" id="clearPat">Clear</button>
     <button class="btn ghost" id="defaultPat">Reset pattern</button>
-    <div class="tempo">
+    <div class="tempo" data-tempo>
       <button id="bpmDown" aria-label="Slower">−</button>
       <span id="tempoOut">120</span>
       <button id="bpmUp" aria-label="Faster">+</button>
@@ -1575,7 +1695,7 @@ body.living .st-seg#stFaces{display:none}
     </div>
   </div>
 
-  <div class="sect">
+  <div data-face class="sect">
     <div class="sect-head">
       <span class="silk">Voice <em id="voiceTag">BD</em></span>
       <span class="card-meta" id="voiceMeta">Kick</span>
@@ -1594,7 +1714,7 @@ body.living .st-seg#stFaces{display:none}
         <span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
       </div>
     </div>
-    <p class="note">Select a lane by its name to edit that voice. Click a pad to audition it.</p>
+    <p class="note">Click a lane's name to hear that voice and edit it here. Shift-click plays it without selecting — and records the hit when DR·1 is armed.</p>
   </div>
 
   <div class="sect">
@@ -1651,7 +1771,7 @@ body.living .st-seg#stFaces{display:none}
   <div data-face class="transport">
     <button class="btn primary" id="play">▶ Play</button>
     <button class="btn ghost" id="hold">Hold</button>
-    <div class="tempo">
+    <div class="tempo" data-tempo>
       <button id="bpmDown" aria-label="Slower">−</button>
       <span id="tempoOut">120</span>
       <button id="bpmUp" aria-label="Faster">+</button>
@@ -1816,7 +1936,7 @@ body.living .st-seg#stFaces{display:none}
       <label for="mood">Mood</label>
       <select id="mood"><option value="any">Anything</option></select>
     </div>
-    <div class="field">
+    <div class="field" data-tempo>
       <label for="tempoOut">Tempo</label>
       <div class="tempo">
         <button id="bpmDown" aria-label="Slower">−</button>
@@ -2029,7 +2149,7 @@ body.living .st-seg#stFaces{display:none}
     <button class="btn primary" id="init">Init patch</button>
     <button class="btn play" id="play">▶ Play</button>
     <button class="btn ghost tog" id="hold" aria-pressed="false">Hold</button>
-    <div class="field" style="flex:0 0 128px">
+    <div class="field" data-tempo style="flex:0 0 128px">
       <label for="tempoOut">Tempo</label>
       <div class="tempo">
         <button id="bpmDown" aria-label="Slower">−</button>
@@ -2068,7 +2188,7 @@ body.living .st-seg#stFaces{display:none}
   <div class="note" id="patchNote" style="display:none"></div>
 
   <!-- ===== SEQ / ARP ===== -->
-  <div class="rack r-osc">
+  <div data-face class="rack r-osc">
     <div class="rack-head">
       <span class="silk">Motion</span>
       <div class="seg sm" id="seqMode" data-seqonly role="group" aria-label="Sequencer mode">
@@ -2130,7 +2250,7 @@ body.living .st-seg#stFaces{display:none}
   <!-- ===== BASS ===== -->
 
   <!-- ===== KEY ASSIGN + LFO ===== -->
-  <div class="rack-pair">
+  <div data-face class="rack-pair">
     <div class="rack r-mod">
       <div class="rack-head">
         <span class="silk">Key assign</span>
@@ -2155,7 +2275,7 @@ body.living .st-seg#stFaces{display:none}
       <div class="knobs" id="kKey" style="--kc:4"></div>
     </div>
 
-    <div class="rack r-mod">
+    <div data-deep class="rack r-mod">
       <div class="rack-head">
         <span class="silk">LFO</span>
         <div class="seg sm" id="lfoWave" role="group" aria-label="LFO shape">
@@ -2337,7 +2457,7 @@ body.living .st-seg#stFaces{display:none}
     <button class="btn primary" id="play">▶ Play</button>
     <button class="btn ghost" id="hold">Hold</button>
     <button class="btn ghost" id="listen">Listen</button>
-    <div class="tempo">
+    <div class="tempo" data-tempo>
       <button id="bpmDown" aria-label="Slower">−</button>
       <span id="tempoOut">120</span>
       <button id="bpmUp" aria-label="Faster">+</button>
@@ -2453,12 +2573,18 @@ body.living .st-seg#stFaces{display:none}
     </div>
   </div>
 
+  <!-- One take per scene row. The worklet always held eight; until now only the live
+       grid could reach them, so the panel behaved like a one-loop pedal. -->
+  <div data-face class="takes" id="loopTakes" role="group" aria-label="Take per scene row"></div>
+
   <div data-face class="transport">
     <button class="btn primary rec" id="rec">● Record</button>
     <button class="btn ghost" id="dub">Overdub</button>
     <button class="btn ghost" id="playStop">▶ Play</button>
     <button class="btn ghost" id="undo">Undo</button>
-    <button class="btn ghost" id="clear">Clear</button>
+    <button class="btn ghost" id="clear">Clear take</button>
+    <!-- setting up, not performing: it empties the bank and it is how the length is freed -->
+    <button class="btn ghost" id="clearAll" data-deep>Clear all</button>
   </div>
 
   <div data-face class="row">
@@ -2482,12 +2608,25 @@ body.living .st-seg#stFaces{display:none}
         <button data-m="off">Off</button>
       </div>
     </div>
+    <!-- On LP·1's own strip, so it is heard and never recorded — see the engine. -->
+    <div class="field" style="flex:1 1 240px">
+      <span class="silk">Click</span>
+      <div class="clickrow">
+        <div class="seg sm" id="click" role="group" aria-label="Metronome">
+          <button data-c="on">On</button>
+          <button data-c="off" class="on">Off</button>
+        </div>
+        <div class="hfader" id="clickF">
+          <span class="hslot"><i class="hcap"></i></span><span class="hval">70%</span>
+        </div>
+      </div>
+    </div>
     <div class="hfader" id="levelF">
       <span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">90%</span>
     </div>
   </div>
 
-  <p data-face class="note" id="loopNote">Record starts on the bar line, not when you press it — arm it a beat early and play into the count.</p>
+  <p data-face class="note" id="loopNote">Record starts on the next <b>loop</b> boundary, not when you press it — the count-in runs in the bar above. Pick a take first; Record fills the one that is lit.</p>
 
   <div class="sect">
     <div class="sect-head"><span class="silk">About the loop</span></div>
@@ -2497,8 +2636,20 @@ body.living .st-seg#stFaces{display:none}
       tempo it was cut at is shown beside the state. Re-record to move it.
     </p>
     <p class="note">
+      <b>Overdub is a switch, not a moment.</b> Turn it on before or during a take and the
+      first pass rolls straight into layering at the wrap; flip it on while a loop is playing
+      and it punches in where you are, off and it punches out. Neither moves the playhead.
+    </p>
+    <p class="note">
+      <b>The click is on LP·1's own strip</b>, which is the one strip the looper does not
+      record — so it is audible while you play and never printed into a take. It runs on the
+      shared clock, so starting it with nothing else going makes it the grid everything else
+      then lands on.
+    </p>
+    <p class="note">
       <b>Use headphones.</b> An open microphone into speakers records its own output, and an
-      overdub builds that up every pass until it howls.
+      overdub builds that up every pass until it howls. A metronome through speakers into an
+      open microphone is the same problem, and that one the tap cannot save you from.
     </p>
   </div>
 
@@ -2519,6 +2670,7 @@ body.living .st-seg#stFaces{display:none}
       <button data-q="bar">Bar</button>
       <button data-q="pattern" class="st-sel">Pattern</button>
     </div>
+    <div class="st-bars" id="liveBars" title="Where the pattern is"></div>
     <span class="st-live-hint" id="liveHint">Arm a track to record into a scene row.</span>
   </div>
   <div class="st-live-grid" id="liveGrid"></div>
@@ -2890,6 +3042,11 @@ const insts = [];                 // {id, name, capture, apply, isPlaying}
 const rows = [];                  // rows[i] = {name, cells:{id: pattern}}
 const pending = new Map();        // id -> pattern, waiting for that instrument's seam
 const queued = new Map();         // id -> row index, for the UI to show what is armed
+/* Which row each instrument is playing FROM — `queued` is what is waiting for a seam,
+   this is what landed. Recorded rather than derived: two rows holding the same pattern
+   are equal by value, so comparing the cell against what an instrument is playing would
+   call them the same row. */
+const onRow = new Map();          // id -> row index it is playing
 const subs = [];
 
 /* ---- when a fired row actually lands ----
@@ -2919,7 +3076,10 @@ function quantumSeconds(){
   return quantum === "bar" ? bar : patternBars * bar;
 }
 
-const COUNT = 8;
+/* Sixteen rows. The launcher, the live grid and LP·1's take strip all draw from this, so
+   this is the one place the number lives — except the worklet's filled(), which cannot
+   see it across the AudioWorklet boundary and says so. */
+const COUNT = 16;
 for (let i = 0; i < COUNT; i++) rows.push({name: String(i + 1), cells: {}});
 
 function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
@@ -2936,19 +3096,89 @@ function register(id, spec){
 /* Capture is a deep copy at the moment you press it. Storing a live reference would make
    every scene in the bank point at the same object, so editing the grid would silently
    rewrite every scene that had ever been captured from it. */
-function store(row, id){
+function put(row, id){
   const it = insts.find(x => x.id === id);
-  if (!it || !rows[row]) return;
+  if (!it || !rows[row]) return null;
   rows[row].cells[id] = JSON.parse(JSON.stringify(it.capture()));
+  return it;
+}
+
+/* Putting a clip into a row that is ALREADY PLAYING brings that instrument in, exactly as
+   if the row had been fired again — which is what you had to do, and the reason a gesture
+   that should read as "add this to what I am hearing" read as nothing happening.
+
+   Only when the instrument is stopped. One playing row 2 and a clip stored into row 1 is
+   you filling the launcher while you play, not asking to be moved; a store is not a fire,
+   and silently yanking a running instrument onto another row is a mistake you cannot see
+   coming. Everything else about the join is fire()'s: the pattern, the start, and the bar
+   line it lands on. */
+function store(row, id){
+  const it = put(row, id);
+  if (!it) return;
+  if (!it.isPlaying() && live(row)) fire(row, id);
+  else notify();
+}
+
+/* Keep the block an instrument is playing OUT OF in step with what it is playing.
+
+   Live recording writes onto the running grid, and the cell still held the copy taken when
+   the row was pressed — so everything you played was one row-fire away from being thrown
+   out, and the gesture only looked like it had worked until you used it. Arming a track and
+   playing into a scene now updates that scene as you play.
+
+   Only a cell that already exists. If the row has nothing for this instrument then the row
+   is not what it is playing, and creating a block is a deliberate gesture — shift-click, or
+   the row's ● — not something a stray note should do. */
+function restore(id){
+  const row = onRow.get(id);
+  if (row == null || !rows[row] || !playing(id)) return;
+  if (!rows[row].cells[id]) return;
+  put(row, id);
   notify();
 }
-function storeAll(row){ insts.forEach(it => store(row, it.id)); }
 
+/* Capturing the whole rack into a row does NOT join. It takes what every instrument
+   happens to be holding, stopped ones included, and starting those is nobody's ask. */
+function storeAll(row){ insts.forEach(it => put(row, it.id)); notify(); }
+
+/* Is this instrument sounding out of THIS row? onRow can hold a stale entry for one
+   stopped from its own panel, so the transport is asked as well. */
+function playingFrom(row, id){ return onRow.get(id) === row && playing(id); }
+
+/* ...or queued to it. A cell deleted while its row is still waiting for the seam has to
+   turn that pending pattern into a pending stop: `pending` holds a REFERENCE to the cell
+   object, and deleting the cell out of `rows` does not reach into it, so the block you
+   just removed would otherwise land anyway a bar later. */
+function boundTo(row, id){ return playingFrom(row, id) || queued.get(id) === row; }
+
+/* Is anything actually sounding from this row? */
+function live(row){
+  for (const id of onRow.keys()) if (playingFrom(row, id)) return true;
+  return false;
+}
+
+/* Emptying the cell an instrument is playing out of STOPS it — the mirror of the join,
+   and the rule firing a row already follows: a row with nothing for an instrument is a
+   row that instrument is silent in. Deleting the block you can hear and hearing it carry
+   on is the launcher disagreeing with itself.
+
+   ONLY the cell being played out of. Clearing row 3 while row 1 is what you are hearing
+   is housekeeping, not a transport gesture, and must not touch what is sounding. */
 function clear(row, id){
   if (!rows[row]) return;
-  if (id) delete rows[row].cells[id];
-  else rows[row].cells = {};
-  notify();
+  const stopping = [];
+  if (id){
+    if (boundTo(row, id)) stopping.push(id);
+    delete rows[row].cells[id];
+  } else {
+    insts.forEach(it => { if (boundTo(row, it.id)) stopping.push(it.id); });
+    rows[row].cells = {};
+  }
+  /* fire() on the now-empty cell IS the stop, and it is the same stop a fired row gives:
+     queued to that instrument's loop point at every quantum but `instant`, so nothing is
+     cut mid-bar. It notifies, which is why this does not. */
+  if (!stopping.length){ notify(); return; }
+  stopping.forEach(x => fire(row, x));
 }
 
 /* Arm a pattern. An instrument that is not running has no seam coming, so it takes the
@@ -2978,9 +3208,11 @@ function fire(row, id){
         it.stop();
         pending.delete(it.id);
         queued.delete(it.id);
+        onRow.delete(it.id);
       } else {
         pending.delete(it.id);
         queued.delete(it.id);
+        onRow.delete(it.id);
       }
       return;
     }
@@ -2991,6 +3223,7 @@ function fire(row, id){
       /* stopped: take it now and start, so the row is audible from the press */
       it.apply(JSON.parse(JSON.stringify(pat)));
       queued.delete(it.id);
+      onRow.set(it.id, row);
       it.start();
     }
   });
@@ -2999,9 +3232,16 @@ function fire(row, id){
 
 /* Start an instrument's transport without touching its pattern — what a just-recorded
    track needs, since the pattern it should play is already the one it has. */
-function start(id){
+/* `row` is which row it is starting FROM, when the caller knows — recording into a row
+   is what a track being started is usually for, and without it the row it is now playing
+   would not count as live and the next track added to it would not join. */
+function start(id, row){
   const it = insts.find(x => x.id === id);
-  if (it && !it.isPlaying()) it.start();
+  if (!it) return;
+  if (!it.isPlaying()) it.start();
+  /* after the attempt, not before: start() can decline — PM·1 says so out loud when its
+     Motion is Off — and a row nothing is sounding from is not a row to join */
+  if (row != null && it.isPlaying()) onRow.set(id, row);
   notify();
 }
 
@@ -3025,12 +3265,13 @@ function take(id, when){
   }
   const it = insts.find(x => x.id === id);
   const pat = pending.get(id);
+  const row = queued.get(id);
   pending.delete(id);
   queued.delete(id);
   if (!it){ notify(); return true; }
   /* a queued null means the row had nothing for this instrument: stop, at the seam */
-  if (pat === null) it.stop();
-  else it.apply(JSON.parse(JSON.stringify(pat)));
+  if (pat === null){ it.stop(); onRow.delete(id); }
+  else { it.apply(JSON.parse(JSON.stringify(pat))); if (row != null) onRow.set(id, row); }
   notify();
   return true;
 }
@@ -3049,6 +3290,8 @@ return {register, store, storeAll, clear, fire, take, onChange, playing, start,
         get rows(){ return rows; },
         get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
         get queued(){ return new Map(queued); },
+        get onRow(){ return new Map(onRow); },
+        live, restore,
         has(row, id){ return !!(rows[row] && rows[row].cells[id]); }};
 })();
 
@@ -3155,6 +3398,93 @@ return {mount, set, setAll, toggle, solo, unsolo, isOn,
         get count(){ return Patchwork.roots.filter(isOn).length; }};
 })();
 
+/* One computer keyboard, for every instrument that has notes.
+
+   PM·1 grew one and the other four did not, so "playable without hardware" was true of
+   exactly one panel out of six. This is the arrangement faces.js already uses for the Panel
+   button: one implementation in the shell, and an instrument added later gets it by asking
+   rather than by being copied into.
+
+   host.js decides WHICH panel the keys reach — the focused one. This decides what they
+   MEAN, and it is deliberately thin about it: an instrument says what a key index plays and
+   how to start and stop it, so a drum machine maps the row to its eight lanes while a synth
+   maps it to semitones, and neither has to know about the other. */
+Patchwork.keys = (() => {
+"use strict";
+
+/* The tracker layout every soft synth uses: the home row is the white keys and the row
+   above holds the black ones roughly where they physically sit. */
+const MAP = {a:0, w:1, s:2, e:3, d:4, f:5, t:6, g:7, y:8, h:9, u:10,
+             j:11, k:12, o:13, l:14, p:15, ";": 16};
+
+function mount(root, spec){
+  /* The RESOLVED value is held, not the key index. Shift the octave with a note down and
+     map(i) answers differently, so a keyup routed through map() would release a note that
+     was never started and leave the sounding one held forever. */
+  const held = new Map();
+  let oct = 0;                    // only used when the instrument has no octave of its own
+
+  const editing = e => {
+    const tag = (e.target.tagName || "").toLowerCase();
+    return tag === "input" || tag === "select" || tag === "textarea";
+  };
+  const release = i => {
+    const v = held.get(i);
+    held.delete(i);
+    if (v != null && spec.off) spec.off(v);
+  };
+
+  Patchwork.onKey(root, "keydown", e => {
+    if (e.metaKey || e.ctrlKey || e.altKey || editing(e)) return;
+    /* An instrument that wanted this key already took it. PM·1's program mode walks its
+       step grid with the arrows, and while that is on it is the better use of them. */
+    if (e.defaultPrevented) return;
+
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight"){
+      const d = e.key === "ArrowRight" ? 1 : -1;
+      /* ⚠️ Release first. PM·1 applies its octave inside noteOff() as well as noteOn(), so
+         moving it under a held key would release a note it never started and leave the
+         sounding one held forever. Rare with a pair of ± buttons; the ordinary case the
+         moment the arrows do it. */
+      [...held.keys()].forEach(release);
+      /* An instrument with its own octave control drives THAT, so its readout keeps
+         telling the truth. One without keeps the offset here instead. */
+      if (spec.octave) spec.octave(d);
+      else oct = Math.max(-3, Math.min(3, oct + d));
+      if (spec.paint) spec.paint();
+      e.preventDefault();
+      return;
+    }
+
+    const i = MAP[e.key.toLowerCase()];
+    if (i == null || e.repeat || held.has(i)) return;
+    const v = spec.map(i, oct);
+    if (v == null) return;         // fewer things to play than there are keys — a drum kit
+    held.set(i, v);
+    spec.on(v, 100);
+    if (spec.paint) spec.paint();
+    e.preventDefault();
+  });
+
+  Patchwork.onKey(root, "keyup", e => {
+    const i = MAP[e.key.toLowerCase()];
+    if (i == null || !held.has(i)) return;
+    release(i);
+    if (spec.paint) spec.paint();
+  });
+
+  /* A key held while the window loses focus never sends its keyup, so nothing would
+     release the note. host.js clears its own routing table for the same reason. */
+  window.addEventListener("blur", () => {
+    if (!held.size) return;
+    [...held.keys()].forEach(release);
+    if (spec.paint) spec.paint();
+  });
+}
+
+return {mount, get layout(){ return Object.assign({}, MAP); }};
+})();
+
 /* Live recording.
 
    Ableton's gesture: the transport is already running, you arm a track, you play, and
@@ -3186,6 +3516,9 @@ function register(id, spec){
             playSlot: spec.playSlot || null,
             hasSlot: spec.hasSlot || null,
             clearSlot: spec.clearSlot || null,
+            /* which slot it is working out of right now, or null. A slot track has no
+               scene row, so the launcher cannot ask scenes.onRow which cell to ring. */
+            liveSlot: spec.liveSlot || null,
             /* Armable by default. Arming means "put what you have into the row I press",
                which every registered track can do — CS·1's progression captures as readily
                as a step grid. write() is a SEPARATE, narrower capability: taking notes you
@@ -3225,7 +3558,9 @@ function captureRow(row){
   kit.forEach(it => {
     if (!armed.has(it.id)) return;
     if (it.slots && it.recordSlot){ it.recordSlot(row); return; }
-    Patchwork.scenes.start(it.id);
+    /* the row is passed so the shell knows this track is now playing FROM it — that is
+       what lets a track added to the same row a moment later join what you are hearing */
+    Patchwork.scenes.start(it.id, row);
     Patchwork.scenes.store(row, it.id);
   });
   Patchwork.scenes.instruments.forEach(i => {
@@ -3248,10 +3583,23 @@ function note(id, midi, vel, when){
   if (!armed.has(id)) return -1;
   const it = kit.find(x => x.id === id);
   if (!it || !it.write) return -1;
-  try{ return it.write(midi, vel, when); }catch(e){ return -1; }
+  let i = -1;
+  try{ i = it.write(midi, vel, when); }catch(e){ return -1; }
+  /* The note is on the instrument's grid; the BLOCK it is playing out of has to follow, or
+     you are recording into something the next row-fire quietly discards. write() returns
+     the step it landed on, or -1 when it landed nowhere — a transport that is not running
+     has no step to write to — so nothing is re-stored for a note that was not taken. */
+  if (i >= 0) Patchwork.scenes.restore(id);
+  return i;
 }
 
 return {register, setArmed, toggleArm, captureRow, note, onChange, track,
+        /* A track saying its OWN state moved — the looper starting, stopping, filling or
+           emptying a slot. Arming is the shell's and notifies itself; a slot track keeps
+           its transport privately, so without this the launcher had no way to know a take
+           had appeared. The live page was papering over it with a 400 ms repaint, which is
+           why the bug only showed on the studio launcher. */
+        changed: notify,
         isArmed: id => armed.has(id),
         get tracks(){ return kit.map(k => ({id: k.id, name: k.name,
                                             canRecord: k.canRecord, live: k.live,
@@ -4045,7 +4393,7 @@ function buildLanes(){
     nm.className = "lane-name" + (id === SEQ.lane ? " sel" : "");
     nm.textContent = VOICES[id].name;
     nm.dataset.v = id;
-    nm.title = VOICES[id].full + " — click to edit, shift-click to audition";
+    nm.title = VOICES[id].full + " — click to hear it and bring it up in Voice, shift-click to play it without selecting";
     row.appendChild(nm);
     const pads = document.createElement("div");
     pads.className = "pads";
@@ -4080,15 +4428,35 @@ function paintPads(){
   });
 }
 
+/* Sounding a voice on demand, with no transport running. "Which one is LT again?" is the
+   question the Voice faders exist to answer, and answering it should not mean programming
+   a step, pressing Play and clearing it again. */
+function audition(id){
+  ensureAudio();
+  fire(id, ctx.currentTime + .005, 1);
+  flashLane(id);
+}
+
 /* A click cycles off → on → accent → off. Three states on one control, because a
    separate accent mode means holding a modifier to program the thing you most want to
    program — the downbeat of a kick is accented nearly every time. */
 lanesEl.addEventListener("click", e => {
   const nm = e.target.closest(".lane-name");
   if (nm){
-    if (e.shiftKey){ ensureAudio(); Patchwork.record.note("dr1", nm.dataset.v, 110);
-                     fire(nm.dataset.v, ctx.currentTime + .005, 1); flashLane(nm.dataset.v); }
-    else { SEQ.lane = nm.dataset.v; $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === SEQ.lane)); syncVoice(); }
+    const id = nm.dataset.v;
+    /* Plain click selects AND sounds it. Shift is the performance gesture and keeps the
+       selection where it is, so you can finger-drum one voice while editing another.
+
+       Only the shift form writes to the grid. Selecting a voice to tweak is not playing a
+       note, and with DR·1 armed a recording selection would punch a hit into the pattern
+       every time you reached for the Tune fader. */
+    if (e.shiftKey) Patchwork.record.note("dr1", id, 110);
+    else {
+      SEQ.lane = id;
+      $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === id));
+      syncVoice();
+    }
+    audition(id);
     return;
   }
   const pad = e.target.closest(".pad");
@@ -4223,6 +4591,22 @@ onKey("keydown", e => {
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "select" || tag === "textarea") return;
   if (e.key === " " && !e.repeat){ SEQ.playing ? stopPlay() : startPlay(); e.preventDefault(); }
+});
+
+/* The computer keyboard is the shell's — see shell/keys.js. A drum machine has no scale,
+   so the row maps to the eight LANES in kit order: the same thing a shift-click on a lane
+   name does, record.note() included, so a typed part lands on the grid. Keys past the
+   eighth map to nothing and are ignored rather than wrapping round to the kick. */
+Patchwork.keys.mount(root, {
+  map: i => ORDER[i] || null,
+  on: (id, v) => {
+    Patchwork.record.note("dr1", id, v);
+    audition(id);
+    SEQ.lane = id;
+    $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === id));
+    syncVoice();
+  },
+  off: () => {}                    // a drum voice rings out; there is nothing to release
 });
 
 buildLanes();
@@ -4848,10 +5232,30 @@ $("#wave").addEventListener("click", e => {
   P.wave = b.dataset.w;
   $$("#wave button").forEach(x => x.classList.toggle("on", x === b));
 });
+const OCTS = [-2, -1, 0];
+function setOct(v){
+  P.oct = OCTS.indexOf(v) < 0 ? 0 : v;
+  $$("#oct button").forEach(x => x.classList.toggle("on", +x.dataset.o === P.oct));
+}
 $("#oct").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  P.oct = +b.dataset.o;
-  $$("#oct button").forEach(x => x.classList.toggle("on", x === b));
+  setOct(+b.dataset.o);
+});
+
+/* The computer keyboard is the shell's — see shell/keys.js. It plays the same path a
+   pointer on the on-screen keys does, record.note() included, so a typed line lands on the
+   grid exactly as a clicked one does. The arrows walk BS·1's own octave segment, which is
+   a transposition rather than a keyboard offset — so the control keeps telling the truth. */
+Patchwork.keys.mount(root, {
+  map: i => KEY_BASE + i,
+  on: (n, v) => {
+    ensureAudio();
+    Patchwork.record.note("bs1", n, v);
+    if (latch && held.has(n)) noteOff(n); else noteOn(n, v);
+  },
+  off: n => { if (!latch) noteOff(n); },
+  paint: paintNow,
+  octave: d => setOct(OCTS[Math.max(0, Math.min(OCTS.length - 1, OCTS.indexOf(P.oct) + d))])
 });
 
 onKey("keydown", e => {
@@ -10184,9 +10588,13 @@ $("#panic").addEventListener("click", () => {
   say("Panic sent — all sound off, all notes off and sustain up on all 16 channels.");
 });
 
-/* computer keyboard, so the thing is playable without hardware */
-const KEYMAP = {a:0,w:1,s:2,e:3,d:4,f:5,t:6,g:7,y:8,h:9,u:10,j:11,k:12,o:13,l:14,p:15,";":16};
-const kbHeld = new Set();
+/* The computer keyboard is the shell's — see shell/keys.js. Mounted AFTER the handler
+   below, so program mode gets first refusal on the arrows and this only sees the ones it
+   left alone.
+
+   ⚠️ `map` hands over the UNSHIFTED note. noteOn() and noteOff() both apply `octave`
+   themselves (note-layer.js), which is why the on-screen keys pass their raw data-n too —
+   adding it here as well plays a note an octave out. */
 onKey("keydown", e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || "").toLowerCase();
@@ -10200,14 +10608,14 @@ onKey("keydown", e => {
             : e.key === "ArrowDown" ? 8 : e.key === "ArrowUp" ? -8 : 0;
     if (d){ selectStep(SEQ.sel + d); e.preventDefault(); return; }
   }
-  const k = KEYMAP[e.key.toLowerCase()];
-  if (k == null || e.repeat || kbHeld.has(k)) return;
-  kbHeld.add(k); noteOn(KEY_BASE + k, 100); paintKeys(); e.preventDefault();
 });
-onKey("keyup", e => {
-  const k = KEYMAP[e.key.toLowerCase()];
-  if (k == null || !kbHeld.has(k)) return;
-  kbHeld.delete(k); noteOff(KEY_BASE + k); paintKeys();
+
+Patchwork.keys.mount(root, {
+  map: i => KEY_BASE + i,
+  on: (n, v) => noteOn(n, v),
+  off: n => noteOff(n),
+  paint: paintKeys,
+  octave: d => setOctave(octave + d)
 });
 
 /* ============ patches ============ */
@@ -10947,10 +11355,37 @@ function applyParamsQuiet(src){
 /* ---- scenes ----
    An PM·1 pattern is the step sequence and how it is read — not the patch. Firing a
    scene changes the line, not the sound it is played with. */
+
+/* ⚠️ PM·1 is the one instrument that can be RUNNING with nothing to play. Motion Off
+   means the keyboard plays it and the sequencer stands down, so `startPlay()` refuses to
+   start at all — correct when you are playing it by hand, and the reason a fired row
+   containing PM·1 did nothing at all. It declined, said so in `#patchNote`, and that
+   element is not on the face, so the message went nowhere and the cell just looked broken.
+
+   A scene therefore puts it in a motion mode: the one the clip was captured in if that
+   was Arp, and Seq otherwise, because a scene carries a step pattern and Seq is what
+   plays one. Its own Play button is untouched — Motion Off there still means what it
+   says, and you can still pick Off and play notes over a stopped grid.
+
+   The seg is repainted, not just the state. A panel reading OFF while the sequencer runs
+   is the same bug wearing the opposite face. */
+function motionForScene(){
+  SEQ.motion = SEQ.motion === "arp" ? "arp" : "seq";
+  /* Unconditional, and NOT guarded on "did this change the value". apply() sets
+     SEQ.motion from the clip before calling here, so a clip captured in Arp arrives
+     already correct and an early return skipped the repaint it came for — the sequencer
+     ran the arp while the panel still read OFF and showed the step grid. What has to be
+     true after a scene acts is that the panel agrees with what is sounding, which is a
+     statement about the paint, not about the assignment above it. */
+  segPaint.motion();
+  renderRoll();                  // also runs paintMotionView — the grid/roll swap
+  paintMeta();
+}
+
 Patchwork.scenes.register("pm1", {
   name: "PM·1",
   isPlaying: () => SEQ.playing,
-  start: () => { ensureAudio(); if (!SEQ.playing) startPlay(); },
+  start: () => { ensureAudio(); motionForScene(); if (!SEQ.playing) startPlay(); },
   stop: () => { if (SEQ.playing) stopPlay(); },
   capture: () => ({steps: JSON.parse(JSON.stringify(SEQ.steps)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing,
@@ -10961,6 +11396,9 @@ Patchwork.scenes.register("pm1", {
     ["len","rate","swing","motion","dir","octaves","root","scale","gate"].forEach(k => {
       if (pat[k] != null) SEQ[k] = pat[k];
     });
+    /* here as well as in start(), because a row landing at a SEAM applies without
+       starting — an Off in the clip would leave the transport running and silent */
+    motionForScene();
     seqLenSel.value = String(SEQ.len);
     seqRateSel.value = SEQ.rate;
     paintSeqKey();
@@ -11379,6 +11817,20 @@ keysEl.addEventListener("pointerdown", e => {
 });
 window.addEventListener("pointerup", () => { if (!latch) allNotesOff(); });
 
+/* The computer keyboard is the shell's — see shell/keys.js. VC·1 has no octave control of
+   its own, so the arrows move the offset the keys module keeps; the carrier is voiced from
+   the note it is given, so shifting it is the whole of what an octave means here. */
+Patchwork.keys.mount(root, {
+  map: (i, oct) => KEY_BASE + oct * 12 + i,
+  on: (n, v) => {
+    ensureAudio();
+    Patchwork.record.note("vc1", n, v);
+    if (latch && carriers.has(n)) noteOff(n); else noteOn(n, v);
+  },
+  off: n => { if (!latch) noteOff(n); },
+  paint: () => paintNow()
+});
+
 function paintNow(){
   const held = [...carriers.keys()].filter(n => { const c = carriers.get(n); return c && !c.released; });
   nowNote.textContent = held.length ? held.sort((a,b)=>a-b).map(noteName).join(" ") : "—";
@@ -11623,9 +12075,9 @@ const LOOP_WORKLET = `
 class LoopProcessor extends AudioWorkletProcessor {
   constructor(){
     super();
-    /* One buffer per scene row. Allocated lazily — eight slots of eight bars would be
-       fifty megabytes reserved for takes nobody has recorded yet, so a slot exists only
-       once something has been played into it. */
+    /* One buffer per scene row. Allocated lazily — sixteen slots of eight bars would be
+       ~100 MB reserved for takes nobody has recorded yet, so a slot exists only once
+       something has been played into it. */
     this.slots = [];
     this.slot = 0;
     this.buf = null;      // [Float32Array per channel] — the active slot
@@ -11633,6 +12085,10 @@ class LoopProcessor extends AudioWorkletProcessor {
     this.len = 0;
     this.pos = 0;
     this.mode = "idle";   // idle | rec | play | dub
+    /* Overdub is a LATCH, not a mode you schedule. Held here rather than inferred from
+       this.mode so it can be set before there is anything to overdub onto: switch it on
+       during the first pass and the take rolls into dub at the wrap instead of into play. */
+    this.dub = false;
     this.next = null;     // {mode, frame} — a change waiting for its sample
     this.tick = 0;
     this.peak = 0;
@@ -11665,9 +12121,24 @@ class LoopProcessor extends AudioWorkletProcessor {
 
          NOTE: this whole processor is a template literal. A backtick anywhere in here,
          including in a comment, ends the string and takes the rest of the app with it. */
-      this.next = {mode: m.mode, frame: m.frame, slot: m.slot == null ? null : (m.slot | 0)};
+      this.next = {mode: m.mode, frame: m.frame, slot: m.slot == null ? null : (m.slot | 0),
+                   reset: !!m.reset};
     }
     else if (m.op === "now"){ this.mode = m.mode; if (m.reset) this.pos = 0; }
+    else if (m.op === "dub"){
+      this.dub = !!m.on;
+      /* A live punch, and NOTHING here touches pos. Turning it on adds what you play from
+         this instant; turning it off stops adding. The loop keeps running under your hand
+         either way, which is the whole point of a switch you can flip mid-take. */
+      if (this.mode === "play" && this.dub){
+        this.snapshot();
+        this.mode = "dub";
+        this.port.postMessage({ev:"started", mode:"dub", slot:this.slot, filled:this.filled()});
+      } else if (this.mode === "dub" && !this.dub){
+        this.mode = "play";
+        this.port.postMessage({ev:"started", mode:"play", slot:this.slot, filled:this.filled()});
+      }
+    }
     else if (m.op === "clear"){
       /* clears the ACTIVE slot only — a clear that wiped the bank would be unrecoverable */
       this.slots[this.slot] = null;
@@ -11686,10 +12157,16 @@ class LoopProcessor extends AudioWorkletProcessor {
     if (this.buf) this.undo = [this.buf[0].slice(), this.buf[1].slice()];
   }
 
-  /* which slots hold a take — the live grid draws its column from this */
+  /* Which slots hold a take — the live grid draws its column from this. Sixteen, matching
+     COUNT in shell/scenes.js; the worklet is a separate global scope and cannot read it,
+     so the two are kept in step by hand and this comment is the link.
+
+     Sixteen buffers is only sixteen buffers if you fill them. They are allocated at the
+     moment a take starts, so an unrecorded row costs nothing — which is the whole reason
+     the count can go up without reserving ~100 MB for takes nobody has played. */
   filled(){
     const out = [];
-    for (let i = 0; i < 8; i++) if (this.slots[i]) out.push(i);
+    for (let i = 0; i < 16; i++) if (this.slots[i]) out.push(i);
     return out;
   }
 
@@ -11719,7 +12196,13 @@ class LoopProcessor extends AudioWorkletProcessor {
         this.buf = this.slots[this.slot] || null;
         if (this.next.mode === "dub") this.snapshot();
         this.mode = this.buf ? this.next.mode : "idle";
-        this.pos = 0;
+        /* ⚠️ ONLY a fresh take starts at the top, or a caller that asks. This used to reset
+           unconditionally, so arming a dub yanked the playhead back to the beginning of the
+           loop — the scheduled frame is a grid boundary and the loop's phase is its own pos,
+           and once the shell has dropped its origin the two have nothing to do with each
+           other. A row fired from the launcher DOES want the top, and says so with reset;
+           overdub does not, and does not. */
+        if (this.next.mode === "rec" || this.next.reset) this.pos = 0;
         this.next = null;
         this.port.postMessage({ev:"started", mode:this.mode, slot:this.slot,
                                filled:this.filled()});
@@ -11752,8 +12235,16 @@ class LoopProcessor extends AudioWorkletProcessor {
         if (this.pos >= this.len){
           this.pos = 0;
           /* A first pass records exactly one loop and then plays it — a looper that keeps
-             recording until you press stop records your reaction time onto the end. */
-          if (this.mode === "rec"){ this.mode = "play"; this.port.postMessage({ev:"looped", mode:"play"}); }
+             recording until you press stop records your reaction time onto the end. Where
+             it goes next is the latch's to say: with overdub switched on before or during
+             the take, the pass rolls straight into dubbing rather than needing a second
+             press at the one moment you are least able to make it. */
+          if (this.mode === "rec"){
+            const nx = this.dub ? "dub" : "play";
+            if (nx === "dub") this.snapshot();
+            this.mode = nx;
+            this.port.postMessage({ev:"looped", mode:nx});
+          }
           else this.port.postMessage({ev:"looped", mode:this.mode});
         }
       }
@@ -11785,10 +12276,18 @@ const LP = {
   level: .9,
   input: "__bus",           // device id, or __bus for the studio's own output
   mode: "idle",             // idle | armed | rec | play | dub
+  dubOn: false,             // the overdub LATCH — see setDub()
+  click: false,             // the metronome — see setClick()
+  clickLevel: .7,           // ...and how loud. 70% leaves room in both directions
   pos: 0, len: 0, peak: 0,
   slot: 0, filled: [],      // one take per scene row — see the live page
 
-  bpmAtRecord: null         // the tempo the loop was cut at — see the note in the panel
+  bpmAtRecord: null,        // the tempo the loop was cut at — see the note in the panel
+  /* The audio time the armed take starts on, so the panel can count it in. "Armed" with
+     no idea how long you are waiting is the state that made this thing feel unpredictable:
+     the seam is the LOOP line, up to eight beats away at four bars, and a still bar with
+     one small word on it tells you none of that. */
+  armedAt: null
 };
 
 function initAudio(useCtx){
@@ -11830,6 +12329,9 @@ async function ensureNode(){
   inGain.connect(node);
   node.port.onmessage = e => onWorklet(e.data);
   allocate();
+  /* the latch is the panel's, not the node's — a node built after it was switched on has
+     to be told, or the switch would silently mean nothing until you flipped it twice */
+  if (LP.dubOn) node.port.postMessage({op: "dub", on: true});
   return node;
 }
 
@@ -11850,7 +12352,7 @@ function allocate(){
 }
 
 function onWorklet(m){
-  if (m.filled) LP.filled = m.filled;
+  if (m.filled){ LP.filled = m.filled; releaseLength(); }
   if (m.slot != null) LP.slot = m.slot;
   if (m.ev === "pos"){ LP.pos = m.pos; LP.len = m.len; LP.peak = m.peak; return; }
   if (m.ev === "slots"){ paintState(); return; }
@@ -11859,7 +12361,15 @@ function onWorklet(m){
 
 function setMode(mode){
   LP.mode = mode;
+  if (mode !== "armed") LP.armedAt = null;
   paintState();
+}
+
+/* The length is committed only while a take exists. An arm cancelled before it recorded,
+   or the last take cleared, leaves the bank free to be given a different number of bars —
+   which is otherwise refused, because re-lengthing empties every slot. */
+function releaseLength(){
+  if (LP.mode === "idle" && !LP.filled.length) LP.bpmAtRecord = null;
 }
 
 /* ---- input ---- */
@@ -11929,50 +12439,197 @@ async function arm(mode, slot){
     /* the length is fixed by the first take; later rows record at the same length, or the
        rows would be different lengths and the launcher could not fire them together */
     allocate();
-    LP.bpmAtRecord = Patchwork.clock.bpm;
+    /* the same fallback loopFrames() uses. Nothing calls clock.onTempo in a standalone
+       looper — no instrument is there to set a tempo — so this was recording a null, and
+       the readout said "—" for a loop that had in fact been cut at 120. */
+    LP.bpmAtRecord = Patchwork.clock.bpm || 120;
   }
   const at = Patchwork.clock.claim(LP.bars * 4);
   n.port.postMessage({op: "at", mode: mode, slot: LP.slot,
                       frame: Math.round(at * ctx.sampleRate)});
   setMode("armed");
+  LP.armedAt = at;               // after setMode, which clears it for every other mode
   paintState();
 }
 function stopLoop(){
   if (!node) return;
   node.port.postMessage({op: "now", mode: "idle"});
   setMode("idle");
+  /* cancelling an arm before it recorded committed no length, and no worklet message is
+     coming to say so — this transition is entirely ours */
+  releaseLength();
 }
+/* ---- the metronome ----
+   ⚠️ It is routed into LP·1's OWN strip, and that is not a detail. The looper records
+   `Patchwork.audio.tap("lp1")`, a sum of every strip except its own, so a click anywhere
+   else on the bus would be printed into every take — you would hear it in the loop for the
+   rest of the session, and an overdub would stack a second copy on top. On this strip it
+   is audible and unrecordable, which is the only combination a metronome can have here.
+
+   It runs on the shared clock like any other voice, so it IS the tempo the instruments
+   play at rather than a second opinion about it. Started alone it claims the grid, and
+   whatever starts next lands in phase with the click — which is what a metronome is for.
+
+   The accent is computed from the grid ORIGIN rather than counted from the first blip:
+   claim(1) lands on the next beat, not the next bar, so counting would put the accent
+   wherever you happened to press the button. */
+let clickGain = null, clickNext = 0;
+
+function blip(t, accent){
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = "square";
+  o.frequency.setValueAtTime(accent ? 1560 : 1040, t);
+  /* a 2 ms rise, because a square starting at full level clicks in a way that reads as a
+     fault rather than as a click track */
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(accent ? .5 : .28, t + .002);
+  g.gain.exponentialRampToValueAtTime(.0004, t + .042);
+  o.connect(g); g.connect(clickGain);
+  o.start(t); o.stop(t + .06);
+}
+
+function setClickLevel(v){
+  LP.clickLevel = Math.max(0, Math.min(1, v));
+  if (clickGain) clickGain.gain.setTargetAtTime(LP.clickLevel, ctx.currentTime, .01);
+}
+
+function clickTick(){
+  if (!LP.click || !ctx) return;
+  const beat = 60 / (Patchwork.clock.bpm || 120);
+  const origin = Patchwork.clock.origin;
+  while (clickNext < ctx.currentTime + .2){
+    const at = Math.max(ctx.currentTime + .005, clickNext);
+    const n = origin == null ? 0 : Math.round((at - origin) / beat);
+    blip(at, (((n % 4) + 4) % 4) === 0);
+    clickNext += beat * Patchwork.clock.rate;
+  }
+}
+
+function setClick(on){
+  LP.click = !!on;
+  if (LP.click){
+    initAudio();
+    Patchwork.audio.resume();
+    if (!clickGain){
+      clickGain = ctx.createGain();
+      clickGain.gain.value = LP.clickLevel;
+      clickGain.connect(out);            // lp1's strip — excluded from lp1's own tap
+    }
+    clickNext = Patchwork.clock.claim(1);
+    clickTick();
+    Patchwork.clock.run(clickTick);
+  } else {
+    Patchwork.clock.stop(clickTick);
+  }
+  paintState();
+}
+
+/* ---- overdub, as a switch ----
+   It used to be a scheduled mode like record: press it, wait for a boundary, and the take
+   restarted from the top. As a latch it is three things at once, which is what makes it
+   feel like one thing: set it BEFORE a take and the first pass rolls into dubbing at the
+   wrap; flip it while playing and it punches in where you are; flip it off and it punches
+   out. The worklet never moves `pos` for any of them.
+
+   Opening the input is why this is async. Overdub needs a live input exactly as record
+   does, and that used to come free because both went through arm(). */
+async function setDub(on){
+  LP.dubOn = !!on;
+  if (LP.dubOn){
+    const n = await ensureNode();
+    if (!n){ LP.dubOn = false; paintState(); return; }
+    if (!stream){
+      const ok = await openInput(LP.input);
+      if (!ok){ LP.dubOn = false; paintState(); return; }
+    }
+  }
+  if (node) node.port.postMessage({op: "dub", on: LP.dubOn});
+  paintState();
+}
+
 function play(slot){
   if (!node) return;
   if (slot != null) selectSlot(slot);
   node.port.postMessage({op: "now", mode: "play", reset: true});
   setMode("play");
 }
-/* Fire a row: play that row's take, or fall silent if the row has none. Silence is the
-   honest answer — a row with no loop should not keep the previous row's playing under it. */
-function fireSlot(i){
+/* Fire a row FROM THE LAUNCHER, at the next loop line rather than on the click — which is
+   what the launcher promises for everything else, and what is written on the page: nothing
+   lands until the next loop point.
+
+   One message covers both halves of the rule. Posting `play` for a slot with no take leaves
+   the worklet's buf null, and `mode = this.buf ? next.mode : "idle"` drops it to idle — so
+   "a row with nothing for this instrument falls silent" happens on the same seam, for free,
+   rather than as a second scheduled message that could land a frame apart from the first.
+
+   `reset` is what makes it start at the TOP. Without it a scheduled change keeps the loop's
+   current position, which is right for punching overdub in and wrong for firing a scene. */
+function queueSlot(i){
   if (!node) return;
+  const at = Patchwork.clock.claim(LP.bars * 4);
+  /* The slot rides on the SAME message, so it changes on the same frame the mode does. A
+     separate op:"slot" would switch buffers now and cut the take that is still playing out
+     the rest of this bar. */
+  node.port.postMessage({op: "at", mode: "play", slot: i | 0, reset: true,
+                         frame: Math.round(at * ctx.sampleRate)});
+  /* LP.slot is deliberately NOT moved here. It follows the worklet's `started` message at
+     the seam, so between the press and the loop line the strip and the launcher keep
+     ringing the take you can actually still hear. An optimistic update would light the new
+     row while the old one is sounding, which is the one thing the ring is for. */
+}
+
+/* Fire a row on LP·1's OWN panel: immediate, the way an instrument's own Play button is.
+   The launcher is the quantised surface; a panel is direct manipulation.
+
+   Silence is the honest answer for an empty row — it should not keep the previous row's
+   playing under it.
+
+   ⚠️ The SELECTION is set before the no-node bail, and has to be. On a panel that has not
+   recorded anything yet there is no worklet, and bailing first made every take click a
+   no-op — you would pick take 4, press Record, and fill take 1. Choosing where the first
+   take goes is exactly the moment there is nothing to play. */
+function fireSlot(i){
   selectSlot(i);
-  if (LP.filled.indexOf(i | 0) >= 0) play();
+  if (!node) return;
+  if (hasSlot(i)) play();
   else stopLoop();
 }
 function selectSlot(i){
   LP.slot = i | 0;
   if (node) node.port.postMessage({op: "slot", i: LP.slot});
+  paintState();                  // the take strip has to follow, however it was moved
 }
 function hasSlot(i){ return LP.filled.indexOf(i | 0) >= 0; }
+/* Does the slot the transport is pointed at hold anything? Play and Overdub used to ask
+   `bpmAtRecord`, which is one flag for the whole bank — so once ANY take existed, Play on
+   an empty slot reported "Playing" and put out silence. */
+function hasTake(){ return hasSlot(LP.slot); }
 function clearLoop(){
   if (!node) return;
   node.port.postMessage({op: "clear"});
   setMode("idle");
 }
 /* Empty one row's take. The LENGTH survives — bpmAtRecord stays — because the other rows
-   are still that long and a bank of mixed lengths could not be fired together. */
+   are still that long and a bank of mixed lengths could not be fired together.
+
+   ⚠️ Only the take you removed stops. `op:"clear"` acts on the worklet's CURRENT slot, so
+   emptying another row means selecting it first — and this used to leave the selection
+   there and go idle unconditionally, which stopped whatever you were hearing. Deleting
+   row 4 killed row 1's loop. The pattern instruments follow the same rule from the other
+   side: clearing a cell you are not playing out of is housekeeping, not a transport
+   gesture.
+
+   Armed still stops. The arm was scheduled against a slot, and the selection has just
+   been moved off it to reach the one being wiped — letting that fire would record into
+   the row you deleted. */
 function clearSlot(i){
   if (!node) return;
-  selectSlot(i);
+  const n = i | 0, was = LP.slot;
+  const running = LP.mode === "play" || LP.mode === "dub" || LP.mode === "rec";
+  selectSlot(n);
   node.port.postMessage({op: "clear"});
-  setMode("idle");
+  if (running && was !== n) selectSlot(was);
+  else setMode("idle");
 }
 function undo(){
   if (!node) return;
@@ -11983,7 +12640,8 @@ function undo(){
 
 const stateEl = $("#loopState"), cutEl = $("#loopCut"), noteEl = $("#loopNote"),
       fillEl = $("#loopFill"), headEl = $("#loopHead"), meterEl = $("#inMeter"),
-      recBtn = $("#rec"), dubBtn = $("#dub"), playBtn = $("#playStop");
+      recBtn = $("#rec"), dubBtn = $("#dub"), playBtn = $("#playStop"),
+      takesEl = $("#loopTakes");
 const clampf = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 function say(msg, bad){
@@ -11993,24 +12651,106 @@ function say(msg, bad){
 
 const LABEL = {idle:"Empty", armed:"Armed", rec:"Recording", play:"Playing", dub:"Overdub"};
 
+/* ---- the take strip ----
+   One take per scene row, the same rows the live grid fires. Without this the panel had no
+   way to say WHICH loop Record was about to fill, so it behaved like a one-loop pedal with
+   a bank hidden behind it.
+
+   Drawn in rows of eight, which is how MS·1, DR·1 and the shared step grid all settled on
+   drawing sixteen: sixteen across is unhittable at a face's width, and eight is the widest
+   run that stays countable without labels. */
+const TAKES = Patchwork.scenes.rows.length;   // the launcher's rows, and the worklet's filled()
+function buildTakes(){
+  takesEl.textContent = "";
+  for (let i = 0; i < TAKES; i++){
+    const b = document.createElement("button");
+    b.className = "take"; b.type = "button"; b.dataset.i = i;
+    b.textContent = String(i + 1);
+    takesEl.appendChild(b);
+  }
+}
+buildTakes();
+
+/* One state word per take, so the strip carries the whole picture: which hold a take,
+   which one the transport is pointed at, and what that one is doing. The colours are the
+   studio's — mint plays, yellow waits for a seam, red records — so a take reads the same
+   here as its cell does in the launcher. */
+function paintTakes(){
+  const m = LP.mode;
+  takesEl.querySelectorAll(".take").forEach(b => {
+    const i = +b.dataset.i, sel = i === LP.slot;
+    b.classList.toggle("has", hasSlot(i));
+    b.classList.toggle("sel", sel);
+    b.classList.toggle("on-play", sel && m === "play");
+    b.classList.toggle("on-dub",  sel && m === "dub");
+    b.classList.toggle("on-rec",  sel && m === "rec");
+    b.classList.toggle("on-arm",  sel && m === "armed");
+    b.title = "Take " + (i + 1) + " — scene row " + (i + 1)
+            + (hasSlot(i) ? ", recorded" : ", empty");
+  });
+}
+
+/* Selecting a take IS switching the looper to it: the worklet has one active buffer, so
+   there is no such thing as pointing at slot 5 while slot 1 keeps playing. That makes the
+   click the launcher's gesture — play what is there, fall silent where there is not —
+   rather than a separate idea the panel would have to explain. fireSlot() sets the
+   selection before it checks for a worklet, so this works on a panel that has recorded
+   nothing yet, which is when you most need to say where the first take goes. */
+takesEl.addEventListener("click", e => {
+  const b = e.target.closest(".take"); if (!b) return;
+  const i = +b.dataset.i;
+  if (LP.mode === "rec" || LP.mode === "dub"){
+    say("Finish or stop the take first — a pass in progress does not move rooms.", true);
+    return;
+  }
+  /* armed and not yet started: re-aim it, which is the useful reading of the click */
+  if (LP.mode === "armed"){ arm("rec", i); return; }
+  fireSlot(i);
+});
+
 function paintState(){
   const m = LP.mode;
-  stateEl.textContent = (m === "idle" && LP.bpmAtRecord) ? "Stopped" : (LABEL[m] || m);
+  stateEl.textContent = (m === "idle" && hasTake()) ? "Stopped" : (LABEL[m] || m);
   root.classList.toggle("recording", m === "rec" || m === "dub");
   root.classList.toggle("armed", m === "armed");
+  root.classList.toggle("playing", m === "play" || m === "dub");
   playBtn.textContent = (m === "play" || m === "dub") ? "■ Stop" : "▶ Play";
-  dubBtn.classList.toggle("on", m === "dub");
+  /* the switch and what it is doing are two facts: `on` is the latch, `dubbing` is a pass
+     actually being layered right now, and before the first wrap you are in the first
+     without being in the second */
+  dubBtn.classList.toggle("on", LP.dubOn);
+  dubBtn.classList.toggle("dubbing", m === "dub");
+  $$("#click button").forEach(b => b.classList.toggle("on", (b.dataset.c === "on") === LP.click));
   cutEl.textContent = LP.bpmAtRecord ? (LP.bars + " bars · cut at " + LP.bpmAtRecord + " bpm") : "—";
   /* A loop cut at another tempo no longer fits the bar, and silently drifting is worse
      than being told. */
   const now = Patchwork.clock.bpm;
   cutEl.classList.toggle("bad", !!LP.bpmAtRecord && now !== LP.bpmAtRecord);
+  paintTakes();
+  /* the take strip and the launcher's LP·1 column are the same eight-and-eight facts, so
+     whatever moved this has to reach the launcher too */
+  if (Patchwork.record && Patchwork.record.changed) Patchwork.record.changed();
 }
 
 /* The playhead comes from the worklet's own position, not from a timer — a timer would
-   show where the main thread thinks the loop is, which is not where it is. */
+   show where the main thread thinks the loop is, which is not where it is.
+
+   ARMED is the exception, because there is no position yet: the bar runs a COUNT-IN
+   instead, filling towards the frame the take starts on, with the beats left written where
+   the state word goes. The wait is the loop line, not the bar line — up to eight beats at
+   four bars — and a still bar reading "Armed" was the single most confusing thing here. */
 function paintLoop(){
-  if (LP.len > 0 && LP.mode !== "idle"){
+  if (LP.mode === "armed" && LP.armedAt != null && ctx){
+    const beat = 60 / (Patchwork.clock.bpm || 120);
+    const left = Math.max(0, LP.armedAt - ctx.currentTime);
+    const span = Math.max(beat, LP.bars * 4 * beat);
+    const p = clampf(1 - left / span, 0, 1) * 100;
+    fillEl.style.width = p + "%";
+    headEl.style.left = p + "%";
+    /* the state word is paintState's everywhere else; while counting in it is this loop's,
+       because it changes every frame and paintState only runs on a mode change */
+    stateEl.textContent = "In " + Math.max(1, Math.ceil(left / beat));
+  } else if (LP.len > 0 && LP.mode !== "idle"){
     const p = (LP.pos / LP.len) * 100;
     fillEl.style.width = p + "%";
     headEl.style.left = p + "%";
@@ -12026,23 +12766,55 @@ recBtn.addEventListener("click", () => {
   if (LP.mode === "rec" || LP.mode === "armed") stopLoop();
   else arm("rec");
 });
+const takeName = () => "Take " + (LP.slot + 1);
+/* A switch, with nothing to check. There is no "record something first" any more, because
+   switching it on before a take is now the useful thing to do — it is the difference
+   between pressing Overdub at the exact wrap and deciding in advance that this one layers. */
 dubBtn.addEventListener("click", () => {
-  if (LP.mode === "dub"){ node && node.port.postMessage({op:"now", mode:"play"}); setMode("play"); }
-  else if (LP.bpmAtRecord) arm("dub");
-  else say("Record a loop first — there is nothing to overdub onto.", true);
+  setDub(!LP.dubOn);
+  say(LP.dubOn
+    ? "Overdub on — this take will keep layering at every pass. Flip it off to stop."
+    : "Overdub off.");
 });
 playBtn.addEventListener("click", () => {
   if (LP.mode === "play" || LP.mode === "dub") stopLoop();
-  else if (LP.bpmAtRecord) play();
-  else say("Nothing recorded yet.", true);
+  else if (hasTake()) play();
+  else say(takeName() + " is empty. Pick a take that is lit, or record this one.", true);
 });
 $("#undo").addEventListener("click", undo);
-$("#clear").addEventListener("click", () => { clearLoop(); say("Cleared."); });
+$("#clear").addEventListener("click", () => { const n = takeName(); clearLoop(); say(n + " cleared."); });
+$("#clearAll").addEventListener("click", () => {
+  if (!node){ say("Nothing recorded yet."); return; }
+  allocate();                    // alloc is what empties the bank — see the worklet
+  LP.filled = [];
+  say("Every take cleared. The loop can be given a different length now.");
+  paintState();
+});
 
+/* ⚠️ Re-lengthing empties the bank — a loop IS its sample count, so the worklet drops
+   every slot on alloc. That used to happen silently on a stray change of this select,
+   taking the takes with it. It is refused while anything is recorded, and Clear all is
+   the way through. */
 $("#bars").addEventListener("change", e => {
-  LP.bars = parseInt(e.target.value, 10);
+  const want = parseInt(e.target.value, 10);
+  if (LP.filled.length){
+    e.target.value = String(LP.bars);
+    say("Changing the length would empty all " + LP.filled.length
+      + " take" + (LP.filled.length > 1 ? "s" : "")
+      + " — the loop is a fixed number of samples. <b>Clear all</b> first.", true);
+    return;
+  }
+  LP.bars = want;
   if (node) allocate();
   paintState();
+});
+
+$("#click").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  setClick(b.dataset.c === "on");
+  say(LP.click
+    ? "Click on. It is on LP·1's strip, so it is never recorded into a take."
+    : "Click off.");
 });
 
 $("#mon").addEventListener("click", e => {
@@ -12080,20 +12852,19 @@ async function listInputs(){
 listInputs();
 if (navigator.mediaDevices) navigator.mediaDevices.addEventListener("devicechange", listInputs);
 
-/* level */
-(function(){
-  const el = $("#levelF"), slot = el.querySelector(".hslot"),
+/* The loop's level and the click's are the same control twice, so it is written once. */
+function mountFader(sel, get, set){
+  const el = $(sel), slot = el.querySelector(".hslot"),
         cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
   function paintF(){
-    cap.style.left = (LP.level * 100) + "%";
-    val.textContent = Math.round(LP.level * 100) + "%";
+    cap.style.left = (get() * 100) + "%";
+    val.textContent = Math.round(get() * 100) + "%";
   }
   el.addEventListener("pointerdown", e => {
     const r = slot.getBoundingClientRect();
     const move = ev => {
       const cx = ev.clientX != null ? ev.clientX : (ev.touches && ev.touches[0].clientX);
-      LP.level = clampf((cx - r.left) / r.width, 0, 1);
-      if (node && node.__level) node.__level.gain.setTargetAtTime(LP.level, ctx.currentTime, .01);
+      set(clampf((cx - r.left) / r.width, 0, 1));
       paintF();
     };
     move(e); el.classList.add("dragging");
@@ -12103,7 +12874,15 @@ if (navigator.mediaDevices) navigator.mediaDevices.addEventListener("devicechang
     window.addEventListener("pointerup", up);
   });
   paintF();
-})();
+  return paintF;
+}
+mountFader("#levelF", () => LP.level, v => {
+  LP.level = v;
+  if (node && node.__level) node.__level.gain.setTargetAtTime(v, ctx.currentTime, .01);
+});
+/* The click is loud on purpose — it has to cut through what you are playing to — so it
+   gets its own level rather than riding the loop's. */
+mountFader("#clickF", () => LP.clickLevel, setClickLevel);
 
 /* Space records, and only when this panel owns the keyboard. */
 onKey("keydown", e => {
@@ -12130,13 +12909,17 @@ Patchwork.record.register("lp1", {
   canRecord: true,
   slots: true,
   recordSlot: n => arm("rec", n),
-  playSlot: n => fireSlot(n),
+  playSlot: n => queueSlot(n),          // the launcher's route: lands on the loop line
   hasSlot: n => hasSlot(n),
   clearSlot: n => clearSlot(n),
+  /* armed is not yet a row — it is a row about to start on the bar line, and the launcher
+     already draws that as the queued state */
+  liveSlot: () => (LP.mode === "idle" || LP.mode === "armed") ? null : LP.slot,
   disarm: () => { if (LP.mode === "rec" || LP.mode === "armed") stopLoop(); }
 });
 
 window.__lp1 = {LP, arm, play, fireSlot, selectSlot, hasSlot, clearSlot, stopLoop, clearLoop, undo,
+                setDub, setClick, setClickLevel, queueSlot,
                 openInput, closeInput,
                 ensureNode, allocate, loopFrames,
                 get ctx(){ return ctx; }, get node(){ return node; }};
@@ -12149,21 +12932,152 @@ window.__lp1 = {LP, arm, play, fireSlot, selectSlot, hasSlot, clearSlot, stopLoo
    Deliberately small. The panels below already carry every control an instrument has —
    what is missing when you are playing is a way to change WHAT is played without going
    back to a grid and editing it, and that is all this does. */
+/* ---- what a launcher cell IS ----
+   The studio's small launcher and the live page are two views of ONE grid, so every rule
+   about a cell — which instruments get a column, what the cell shows, what a click does —
+   has to be the same in both or they disagree about the same object.
+
+   They had already drifted. The live page grew LP·1's column and the slot routing that
+   goes with it; the launcher kept listing scene members only, so on the faces page the
+   looper simply was not there. Putting the rules in one place is what stops that
+   happening again the next time one view learns something.
+
+   It lives in the studio rather than the shell because it is about the launcher's DOM,
+   which the shell does not own — and here specifically because this file is built before
+   live.js, which uses it. */
+Patchwork.launch = (() => {
+"use strict";
+
+/* Every instrument that is either a scene member or can record. LP·1 has no scene row of
+   its own — a scene changes what an instrument PLAYS and a looper's content is a
+   recording — but it very much has one take per row, so it has a column. */
+function columns(){
+  const seen = new Map();
+  Patchwork.scenes.instruments.forEach(i => seen.set(i.id, i.name));
+  Patchwork.record.tracks.forEach(t => { if (!seen.has(t.id)) seen.set(t.id, t.name); });
+  return [...seen].map(([id, name]) => ({id, name}));
+}
+
+/* A track with slots keeps a real audio take per row rather than a pattern. */
+function slotted(id){
+  const t = Patchwork.record && Patchwork.record.track(id);
+  return (t && t.slots) ? t : null;
+}
+
+/* What kind of cell this is, decided once when it is built. */
+function mark(b, id){
+  if (slotted(id)) b.dataset.slots = "1";
+  else if (!Patchwork.scenes.instruments.some(i => i.id === id)) b.disabled = true;
+}
+
+function paintCell(b, ri, id, queued, onRow){
+  const t = slotted(id);
+  b.classList.toggle("full", t ? !!(t.hasSlot && t.hasSlot(ri))
+                               : Patchwork.scenes.has(ri, id));
+  /* a slot track keeps its own transport, so what it is playing comes from the track
+     rather than from the scene model, which has never heard of it */
+  b.classList.toggle("live", t ? !!(t.liveSlot && t.liveSlot() === ri)
+                               : (onRow.get(id) === ri && Patchwork.scenes.playing(id)));
+  b.classList.toggle("armed", queued.get(id) === ri);
+}
+
+/* One gesture table, so the two views cannot answer the same click differently. */
+function click(e, ri, id){
+  /* Cmd/Ctrl-shift-click empties a cell. Two modifiers on purpose: a block is a take you
+     may have spent a while getting, and one slip on a launcher you are playing should not
+     be able to throw it away. */
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey){
+    const t = slotted(id);
+    if (t && t.clearSlot) t.clearSlot(ri);
+    else Patchwork.scenes.clear(ri, id);
+    return;
+  }
+  const t = slotted(id);
+  if (t){
+    if (e.shiftKey && t.recordSlot) t.recordSlot(ri);
+    else if (t.playSlot) t.playSlot(ri);
+    return;
+  }
+  if (e.shiftKey) Patchwork.scenes.store(ri, id);
+  else if (Patchwork.scenes.has(ri, id)) Patchwork.scenes.fire(ri, id);
+}
+
+/* ⚠️ Firing a ROW had never reached the looper. `Patchwork.scenes.fire(row)` walks scene
+   members, and LP·1 is deliberately not one — a scene changes what an instrument PLAYS and
+   a looper's content is a recording. So the row button moved five instruments and left the
+   sixth sitting there, while the ● record path worked, because captureRow() walks the
+   record kit and happens to catch slot tracks on its way past.
+
+   The row is the gesture, so the row has to move everything the row can see. */
+function fireRow(ri){
+  Patchwork.scenes.fire(ri);
+  Patchwork.record.tracks.forEach(t => {
+    const k = slotted(t.id);
+    if (k && k.playSlot) k.playSlot(ri);
+  });
+}
+
+/* Where in the pattern you are. The launcher says when a change LANDS — "pattern" is
+   CS·1's progression coming round — and until now gave you no way to see that moment
+   approaching, so firing on the one you wanted was guesswork with an eight-second wait
+   attached.
+
+   Computed from the grid origin and the shared clock, the same way every instrument works
+   out its own seam, rather than counted by a timer that would drift away from the audio. */
+function mountMeasure(el){
+  let lit = -1, bars = 0;
+  function build(){
+    bars = Math.max(1, Patchwork.scenes.patternBars);
+    el.textContent = "";
+    for (let i = 0; i < bars; i++){
+      const p = document.createElement("i");
+      p.className = "st-bar";
+      p.title = "Bar " + (i + 1) + " of " + bars;
+      el.appendChild(p);
+    }
+    lit = -1;
+  }
+  function at(){
+    const ctx = Patchwork.audio && Patchwork.audio.ctx;
+    const origin = Patchwork.clock.origin;
+    if (!ctx || origin == null || !Patchwork.clock.running) return -1;
+    const bar = 4 * Patchwork.clock.beatSeconds();
+    if (!(bar > 0)) return -1;
+    const k = Math.floor((ctx.currentTime - origin) / bar);
+    return ((k % bars) + bars) % bars;
+  }
+  function tick(){
+    if (bars !== Math.max(1, Patchwork.scenes.patternBars)) build();
+    const i = at();
+    if (i !== lit){
+      lit = i;
+      [...el.children].forEach((c, k) => c.classList.toggle("st-now", k === i));
+      el.classList.toggle("st-idle", i < 0);
+    }
+    requestAnimationFrame(tick);
+  }
+  build();
+  requestAnimationFrame(tick);
+}
+
+return {columns, slotted, mark, paintCell, click, fireRow, mountMeasure};
+})();
+
 (() => {
 "use strict";
 const grid = document.querySelector("#stGrid");
 if (!grid || !window.Patchwork || !Patchwork.scenes) return;
 
 function build(){
-  const insts = Patchwork.scenes.instruments;
-  grid.style.setProperty("--cols", insts.length);
+  const cols = Patchwork.launch.columns();
+  grid.style.setProperty("--cols", cols.length);
   grid.textContent = "";
 
   const head = document.createElement("div");
   head.className = "st-row st-row-head";
   head.appendChild(Object.assign(document.createElement("span"), {className: "st-num"}));
-  insts.forEach(i => head.appendChild(Object.assign(document.createElement("span"),
-    {className: "st-inst", textContent: i.name})));
+  cols.forEach(c => head.appendChild(Object.assign(document.createElement("span"),
+    {className: "st-inst", textContent: c.name})));
   head.appendChild(Object.assign(document.createElement("span"), {className: "st-num"}));
   grid.appendChild(head);
 
@@ -12172,11 +13086,12 @@ function build(){
     el.className = "st-row";
     el.appendChild(Object.assign(document.createElement("span"),
       {className: "st-num", textContent: row.name}));
-    insts.forEach(i => {
+    cols.forEach(c => {
       const b = document.createElement("button");
       b.className = "st-cell";
-      b.dataset.row = ri; b.dataset.inst = i.id;
-      b.setAttribute("aria-label", i.name + " scene " + row.name);
+      b.dataset.row = ri; b.dataset.inst = c.id;
+      Patchwork.launch.mark(b, c.id);
+      b.setAttribute("aria-label", c.name + " scene " + row.name);
       el.appendChild(b);
     });
     const fire = document.createElement("button");
@@ -12190,12 +13105,9 @@ function build(){
 }
 
 function paint(){
-  const q = Patchwork.scenes.queued;
-  grid.querySelectorAll(".st-cell").forEach(b => {
-    const ri = +b.dataset.row, id = b.dataset.inst;
-    b.classList.toggle("full", Patchwork.scenes.has(ri, id));
-    b.classList.toggle("armed", q.get(id) === ri);
-  });
+  const q = Patchwork.scenes.queued, on = Patchwork.scenes.onRow;
+  grid.querySelectorAll(".st-cell").forEach(b =>
+    Patchwork.launch.paintCell(b, +b.dataset.row, b.dataset.inst, q, on));
   /* The row buttons follow the same rule as the live page: with something armed they are
      record, otherwise they are fire. Arming is done on the live page, but a track stays
      armed across views, so the studio has to show the same truth. */
@@ -12214,18 +13126,7 @@ function paint(){
 grid.addEventListener("click", e => {
   const cell = e.target.closest(".st-cell");
   if (cell){
-    const ri = +cell.dataset.row, id = cell.dataset.inst;
-    /* Cmd/Ctrl-shift-click empties a cell. Two modifiers on purpose: a block is a take
-       you may have spent a while getting, and one slip on a launcher you are playing
-       should not be able to throw it away. */
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey){
-      const t2 = Patchwork.record && Patchwork.record.track(id);
-      if (t2 && t2.slots && t2.clearSlot) t2.clearSlot(ri);
-      else Patchwork.scenes.clear(ri, id);
-      return;
-    }
-    if (e.shiftKey) Patchwork.scenes.store(ri, id);
-    else if (Patchwork.scenes.has(ri, id)) Patchwork.scenes.fire(ri, id);
+    if (!cell.disabled) Patchwork.launch.click(e, +cell.dataset.row, cell.dataset.inst);
     return;
   }
   const fire = e.target.closest(".st-fire");
@@ -12233,12 +13134,48 @@ grid.addEventListener("click", e => {
   const ri = +fire.dataset.row;
   if (Patchwork.record && Patchwork.record.armedCount) Patchwork.record.captureRow(ri);
   else if (e.shiftKey) Patchwork.scenes.storeAll(ri);
-  else Patchwork.scenes.fire(ri);
+  else Patchwork.launch.fireRow(ri);
 });
 
 Patchwork.scenes.onChange(paint);
 if (window.Patchwork.record) Patchwork.record.onChange(paint);
 build();
+})();
+
+/* ---- the master transport ----
+   One tempo for the page, in the one place on it that is about the page rather than about
+   an instrument, and the quantum beside it because "how fast" and "when does a change
+   land" are the same question asked twice.
+
+   The quantum segment also exists on the live page. Both paint from Patchwork.scenes on
+   its change notification rather than from each other, so neither is the source of truth
+   and switching views cannot show two different answers. */
+(() => {
+"use strict";
+const up = document.querySelector("#stUp"), down = document.querySelector("#stDown"),
+      out = document.querySelector("#stBpm"), quant = document.querySelector("#stQuant");
+if (!up || !window.Patchwork || !Patchwork.clock) return;
+
+up.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm + 1));
+down.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm - 1));
+quant.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  Patchwork.scenes.setQuantum(b.dataset.q);
+});
+
+function paint(){
+  out.textContent = Patchwork.clock.bpm;
+  quant.querySelectorAll("button").forEach(b =>
+    b.classList.toggle("st-sel", b.dataset.q === Patchwork.scenes.quantum));
+  quant.querySelector('[data-q="pattern"]').title =
+    "When CS·1's progression starts over — " + Patchwork.scenes.patternBars + " bars";
+}
+/* no initial: the instruments decide the page's starting tempo between them, and this
+   only ever reports it */
+Patchwork.clock.onTempo("studio", paint, null);
+Patchwork.scenes.onChange(paint);
+paint();
+Patchwork.launch.mountMeasure(document.querySelector("#stBars"));
 })();
 
 /* ---- faces / full panels, for every instrument at once ----
@@ -12277,18 +13214,11 @@ const scenes = document.querySelector(".st-scenes");
 const grid = document.querySelector("#liveGrid");
 if (!live || !window.Patchwork || !Patchwork.record) return;
 
-/* Columns are every instrument that is either a scene member or can record — LP·1 has no
-   scene row of its own but very much has an arm. */
-function columns(){
-  const seen = new Map();
-  Patchwork.scenes.instruments.forEach(i => seen.set(i.id, i.name));
-  Patchwork.record.tracks.forEach(t => { if (!seen.has(t.id)) seen.set(t.id, t.name); });
-  return [...seen].map(([id, name]) => ({id, name}));
-}
-
+/* The columns, the cell states and the click table are `Patchwork.launch`'s — shared with
+   the studio's small launcher, because the two are views of one grid and drifted apart
+   once already. */
 function build(){
-  const cols = columns();
-  const inScene = new Set(Patchwork.scenes.instruments.map(i => i.id));
+  const cols = Patchwork.launch.columns();
   grid.style.setProperty("--cols", cols.length);
   grid.textContent = "";
 
@@ -12328,10 +13258,7 @@ function build(){
     cols.forEach(c => {
       const b = document.createElement("button");
       b.className = "st-cell"; b.dataset.row = ri; b.dataset.inst = c.id;
-      /* a track with slots keeps a real audio take per row rather than a pattern */
-      const t = Patchwork.record.track(c.id);
-      if (t && t.slots) b.dataset.slots = "1";
-      else if (!inScene.has(c.id)) b.disabled = true;
+      Patchwork.launch.mark(b, c.id);
       b.setAttribute("aria-label", c.name + " scene " + row.name);
       el.appendChild(b);
     });
@@ -12344,14 +13271,9 @@ function build(){
 }
 
 function paint(){
-  const q = Patchwork.scenes.queued;
-  grid.querySelectorAll(".st-cell").forEach(b => {
-    const ri = +b.dataset.row, id = b.dataset.inst;
-    const t = Patchwork.record.track(id);
-    const has = (t && t.slots && t.hasSlot) ? t.hasSlot(ri) : Patchwork.scenes.has(ri, id);
-    b.classList.toggle("full", has);
-    b.classList.toggle("armed", q.get(id) === ri);
-  });
+  const q = Patchwork.scenes.queued, on = Patchwork.scenes.onRow;
+  grid.querySelectorAll(".st-cell").forEach(b =>
+    Patchwork.launch.paintCell(b, +b.dataset.row, b.dataset.inst, q, on));
   grid.querySelectorAll(".st-arm").forEach(b => {
     const on = Patchwork.record.isArmed(b.dataset.arm);
     b.classList.toggle("st-on", on);
@@ -12385,25 +13307,8 @@ grid.addEventListener("click", e => {
   const arm = e.target.closest(".st-arm");
   if (arm && !arm.disabled){ Patchwork.record.toggleArm(arm.dataset.arm); return; }
   const cell = e.target.closest(".st-cell");
-  if (cell && !cell.disabled){
-    const ri = +cell.dataset.row, id = cell.dataset.inst;
-    /* Cmd/Ctrl-shift-click empties a cell. Two modifiers on purpose: a block is a take
-       you may have spent a while getting, and one slip on a launcher you are playing
-       should not be able to throw it away. */
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey){
-      const t2 = Patchwork.record && Patchwork.record.track(id);
-      if (t2 && t2.slots && t2.clearSlot) t2.clearSlot(ri);
-      else Patchwork.scenes.clear(ri, id);
-      return;
-    }
-    const t = Patchwork.record.track(id);
-    if (t && t.slots){
-      if (e.shiftKey && t.recordSlot) t.recordSlot(ri);
-      else if (t.playSlot) t.playSlot(ri);
-      return;
-    }
-    if (e.shiftKey) Patchwork.scenes.store(ri, id);
-    else if (Patchwork.scenes.has(ri, id)) Patchwork.scenes.fire(ri, id);
+  if (cell){
+    if (!cell.disabled) Patchwork.launch.click(e, +cell.dataset.row, cell.dataset.inst);
     return;
   }
   const fire = e.target.closest(".st-fire");
@@ -12411,7 +13316,7 @@ grid.addEventListener("click", e => {
   const ri = +fire.dataset.row;
   if (Patchwork.record.armedCount) Patchwork.record.captureRow(ri);
   else if (e.shiftKey) Patchwork.scenes.storeAll(ri);
-  else Patchwork.scenes.fire(ri);
+  else Patchwork.launch.fireRow(ri);
 });
 
 /* Master transport. Presses the instruments' own Play buttons rather than reaching into
@@ -12456,6 +13361,7 @@ seg.addEventListener("click", e => {
   show(b.dataset.v);
 });
 
+Patchwork.launch.mountMeasure(document.querySelector("#liveBars"));
 Patchwork.scenes.onChange(paint);
 Patchwork.record.onChange(paint);
 Patchwork.clock.onTempo("live", () => paint(), null);
@@ -12484,6 +13390,17 @@ Patchwork.faces.mount();
    the wall the faces exist to avoid. A build added later gets the right default without
    anyone remembering to set it. */
 if (Patchwork.roots.length > 1) Patchwork.faces.setAll(true);
+
+/* One tempo for the page means ONE control for it. Every panel grew its own, and since
+   the clock has been shared they all show the same number and all move together — five of
+   the six were noise, and a row of disagreeing-looking readouts is worse than noise. Each
+   panel marks its block with `data-tempo`; with more than one instrument on the page the
+   studio's master takes over and the panels' come out.
+
+   Derived from the page, exactly like the faces default above: a STANDALONE build keeps
+   its own tempo control, because there is nothing else on that page to own it. */
+if (Patchwork.roots.length > 1)
+  Patchwork.roots.forEach(r => r.classList.add("tempo-shared"));
 })();
 </script>
 </body>

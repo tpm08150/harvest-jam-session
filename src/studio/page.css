@@ -65,7 +65,24 @@ body{
 
 /* ---- scene launcher ---- */
 .st-scenes{padding:0}
-.st-scenes-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:9px}
+.st-scenes-head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:9px}
+/* A bare "− 120 +" beside the word Scenes reads as a count of something. The panels label
+   their controls; the page's own controls have to as well. */
+.st-master{display:flex;flex-direction:column;gap:5px}
+/* One pip per bar of the pattern, the current one lit. Deliberately not a moving bar:
+   what you need to know before firing is WHICH bar, and how many are left — a count is
+   read at a glance and a sweep has to be estimated. */
+.st-bars{display:flex;gap:4px;align-items:center;height:26px}
+.st-bar{
+  display:block;width:14px;height:6px;border-radius:2px;
+  background:var(--groove);box-shadow:0 1px 1px rgba(0,0,0,.5) inset;
+}
+.st-bar.st-now{background:var(--mint);box-shadow:0 0 7px rgba(99,214,176,.55)}
+/* nothing running: the pattern has no position, and a lit pip would be inventing one */
+.st-bars.st-idle .st-bar{opacity:.45}
+.st-lab{font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--silk-dim)}
+.st-scenes-head .st-brand{align-self:flex-end;line-height:2.1}
 .st-grid{
   display:block;max-width:380px;
   background:linear-gradient(180deg,var(--panel-hi),var(--panel-lo));
@@ -99,6 +116,10 @@ body{
 }
 .st-cell.full::after{background:var(--mint);box-shadow:0 0 7px rgba(99,214,176,.5)}
 .st-cell:hover{border-color:var(--silk-dim)}
+/* Playing NOW, out of this row. The other half of the sentence below, and the half that
+   was missing: it is what makes "drop a clip into the row you are hearing and it joins"
+   a rule you can see rather than one you have to be told. */
+.st-cell.live{border-color:var(--mint);box-shadow:0 0 0 1px var(--mint) inset}
 /* Armed and waiting for the loop point. It pulses because "queued" and "playing" have to
    be tellable apart at a glance while something else has your attention. */
 .st-cell.armed{border-color:var(--cap-yellow);box-shadow:0 0 0 1px var(--cap-yellow) inset}

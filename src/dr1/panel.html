@@ -11,7 +11,7 @@
     <button class="btn primary" id="play">▶ Play</button>
     <button class="btn ghost" id="clearPat">Clear</button>
     <button class="btn ghost" id="defaultPat">Reset pattern</button>
-    <div class="tempo">
+    <div class="tempo" data-tempo>
       <button id="bpmDown" aria-label="Slower">−</button>
       <span id="tempoOut">120</span>
       <button id="bpmUp" aria-label="Faster">+</button>
@@ -69,7 +69,7 @@
     </div>
   </div>
 
-  <div class="sect">
+  <div data-face class="sect">
     <div class="sect-head">
       <span class="silk">Voice <em id="voiceTag">BD</em></span>
       <span class="card-meta" id="voiceMeta">Kick</span>
@@ -88,7 +88,7 @@
         <span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
       </div>
     </div>
-    <p class="note">Select a lane by its name to edit that voice. Click a pad to audition it.</p>
+    <p class="note">Click a lane's name to hear that voice and edit it here. Shift-click plays it without selecting — and records the hit when DR·1 is armed.</p>
   </div>
 
   <div class="sect">

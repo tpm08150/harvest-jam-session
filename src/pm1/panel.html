@@ -32,7 +32,7 @@
     <button class="btn primary" id="init">Init patch</button>
     <button class="btn play" id="play">▶ Play</button>
     <button class="btn ghost tog" id="hold" aria-pressed="false">Hold</button>
-    <div class="field" style="flex:0 0 128px">
+    <div class="field" data-tempo style="flex:0 0 128px">
       <label for="tempoOut">Tempo</label>
       <div class="tempo">
         <button id="bpmDown" aria-label="Slower">−</button>
@@ -71,7 +71,7 @@
   <div class="note" id="patchNote" style="display:none"></div>
 
   <!-- ===== SEQ / ARP ===== -->
-  <div class="rack r-osc">
+  <div data-face class="rack r-osc">
     <div class="rack-head">
       <span class="silk">Motion</span>
       <div class="seg sm" id="seqMode" data-seqonly role="group" aria-label="Sequencer mode">
@@ -133,7 +133,7 @@
   <!-- ===== BASS ===== -->
 
   <!-- ===== KEY ASSIGN + LFO ===== -->
-  <div class="rack-pair">
+  <div data-face class="rack-pair">
     <div class="rack r-mod">
       <div class="rack-head">
         <span class="silk">Key assign</span>
@@ -158,7 +158,7 @@
       <div class="knobs" id="kKey" style="--kc:4"></div>
     </div>
 
-    <div class="rack r-mod">
+    <div data-deep class="rack r-mod">
       <div class="rack-head">
         <span class="silk">LFO</span>
         <div class="seg sm" id="lfoWave" role="group" aria-label="LFO shape">

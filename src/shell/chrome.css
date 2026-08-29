@@ -50,10 +50,26 @@ input[type="text"]::placeholder{color:#5a646a}
 .tempo button{width:32px;flex:none;background:none;border:none;color:var(--silk-dim);font-size:17px;cursor:pointer;padding:8px 0;font-family:inherit}
 .tempo button:hover{color:#fff}
 .tempo output{flex:1;text-align:center;font-family:"DM Mono";font-size:15px;color:var(--mint);letter-spacing:.04em}
+/* ---------- segmented buttons ----------
+   ⚠️ Only `.seg button` was here, so BS·1, DR·1, VC·1 and LP·1 got the button and nothing
+   else: no container, and — the part that mattered — no `.on`. Their selected option was
+   byte-identical to the unselected ones, measured, so those segments silently worked and
+   showed you nothing. CS·1 and MS·1 were written as whole pages and had all of this in
+   their own sheets, which is exactly why it was never noticed.
+
+   Added here rather than copied a fourth time, and their copies STAY: this file loads
+   first, so CS·1 and PM·1 override every rule below with their own and cannot change. That
+   is the arrangement the header of this file describes, and the reason it exists. */
+.seg{display:inline-flex;flex-wrap:wrap;gap:1px;background:var(--groove);border:1px solid var(--groove);
+  border-radius:4px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.5) inset}
 .seg button{
   font-family:"Saira Semi Condensed";font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
   background:var(--slot);border:none;color:var(--silk-dim);padding:8px 11px;cursor:pointer;
 }
+.seg button.on{background:linear-gradient(180deg,#4c565c,#3b444a);color:var(--chrome-hi)}
+.seg button:hover{color:var(--chrome-hi)}
+/* CS·1 has no `.seg.sm` element, so this cannot reach it — the other five use it. */
+.seg.sm button{padding:6px 8px;font-size:10px;letter-spacing:.1em}
 .step:hover{background:#2b3339}
 .step.now{outline:2px solid var(--mint);outline-offset:1px}
 .hfader .hlab{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--silk-dim)}
@@ -87,6 +103,10 @@ input[type="text"]::placeholder{color:#5a646a}
 /* The plate is a flex row ending in the screws; the toggle sits before them. */
 :scope.face .plate,:scope .plate{align-items:center}
 :scope.face [data-deep]{display:none}
+/* ...and `data-tempo` comes out whenever the page has a master to own it — see
+   shell/boot.js. Not tied to face mode: six tempo controls are as redundant on the full
+   panels as they are on the faces. */
+:scope.tempo-shared [data-tempo]{display:none}
 
 /* ---------- the plate ----------
    Only CS·1 and PM·1 ever defined this, so on every other panel the header had no layout

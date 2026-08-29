@@ -13,18 +13,11 @@ const scenes = document.querySelector(".st-scenes");
 const grid = document.querySelector("#liveGrid");
 if (!live || !window.Patchwork || !Patchwork.record) return;
 
-/* Columns are every instrument that is either a scene member or can record — LP·1 has no
-   scene row of its own but very much has an arm. */
-function columns(){
-  const seen = new Map();
-  Patchwork.scenes.instruments.forEach(i => seen.set(i.id, i.name));
-  Patchwork.record.tracks.forEach(t => { if (!seen.has(t.id)) seen.set(t.id, t.name); });
-  return [...seen].map(([id, name]) => ({id, name}));
-}
-
+/* The columns, the cell states and the click table are `Patchwork.launch`'s — shared with
+   the studio's small launcher, because the two are views of one grid and drifted apart
+   once already. */
 function build(){
-  const cols = columns();
-  const inScene = new Set(Patchwork.scenes.instruments.map(i => i.id));
+  const cols = Patchwork.launch.columns();
   grid.style.setProperty("--cols", cols.length);
   grid.textContent = "";
 
@@ -64,10 +57,7 @@ function build(){
     cols.forEach(c => {
       const b = document.createElement("button");
       b.className = "st-cell"; b.dataset.row = ri; b.dataset.inst = c.id;
-      /* a track with slots keeps a real audio take per row rather than a pattern */
-      const t = Patchwork.record.track(c.id);
-      if (t && t.slots) b.dataset.slots = "1";
-      else if (!inScene.has(c.id)) b.disabled = true;
+      Patchwork.launch.mark(b, c.id);
       b.setAttribute("aria-label", c.name + " scene " + row.name);
       el.appendChild(b);
     });
@@ -80,14 +70,9 @@ function build(){
 }
 
 function paint(){
-  const q = Patchwork.scenes.queued;
-  grid.querySelectorAll(".st-cell").forEach(b => {
-    const ri = +b.dataset.row, id = b.dataset.inst;
-    const t = Patchwork.record.track(id);
-    const has = (t && t.slots && t.hasSlot) ? t.hasSlot(ri) : Patchwork.scenes.has(ri, id);
-    b.classList.toggle("full", has);
-    b.classList.toggle("armed", q.get(id) === ri);
-  });
+  const q = Patchwork.scenes.queued, on = Patchwork.scenes.onRow;
+  grid.querySelectorAll(".st-cell").forEach(b =>
+    Patchwork.launch.paintCell(b, +b.dataset.row, b.dataset.inst, q, on));
   grid.querySelectorAll(".st-arm").forEach(b => {
     const on = Patchwork.record.isArmed(b.dataset.arm);
     b.classList.toggle("st-on", on);
@@ -121,25 +106,8 @@ grid.addEventListener("click", e => {
   const arm = e.target.closest(".st-arm");
   if (arm && !arm.disabled){ Patchwork.record.toggleArm(arm.dataset.arm); return; }
   const cell = e.target.closest(".st-cell");
-  if (cell && !cell.disabled){
-    const ri = +cell.dataset.row, id = cell.dataset.inst;
-    /* Cmd/Ctrl-shift-click empties a cell. Two modifiers on purpose: a block is a take
-       you may have spent a while getting, and one slip on a launcher you are playing
-       should not be able to throw it away. */
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey){
-      const t2 = Patchwork.record && Patchwork.record.track(id);
-      if (t2 && t2.slots && t2.clearSlot) t2.clearSlot(ri);
-      else Patchwork.scenes.clear(ri, id);
-      return;
-    }
-    const t = Patchwork.record.track(id);
-    if (t && t.slots){
-      if (e.shiftKey && t.recordSlot) t.recordSlot(ri);
-      else if (t.playSlot) t.playSlot(ri);
-      return;
-    }
-    if (e.shiftKey) Patchwork.scenes.store(ri, id);
-    else if (Patchwork.scenes.has(ri, id)) Patchwork.scenes.fire(ri, id);
+  if (cell){
+    if (!cell.disabled) Patchwork.launch.click(e, +cell.dataset.row, cell.dataset.inst);
     return;
   }
   const fire = e.target.closest(".st-fire");
@@ -147,7 +115,7 @@ grid.addEventListener("click", e => {
   const ri = +fire.dataset.row;
   if (Patchwork.record.armedCount) Patchwork.record.captureRow(ri);
   else if (e.shiftKey) Patchwork.scenes.storeAll(ri);
-  else Patchwork.scenes.fire(ri);
+  else Patchwork.launch.fireRow(ri);
 });
 
 /* Master transport. Presses the instruments' own Play buttons rather than reaching into
@@ -192,6 +160,7 @@ seg.addEventListener("click", e => {
   show(b.dataset.v);
 });
 
+Patchwork.launch.mountMeasure(document.querySelector("#liveBars"));
 Patchwork.scenes.onChange(paint);
 Patchwork.record.onChange(paint);
 Patchwork.clock.onTempo("live", () => paint(), null);

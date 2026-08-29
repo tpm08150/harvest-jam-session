@@ -14,9 +14,9 @@ const LOOP_WORKLET = `
 class LoopProcessor extends AudioWorkletProcessor {
   constructor(){
     super();
-    /* One buffer per scene row. Allocated lazily — eight slots of eight bars would be
-       fifty megabytes reserved for takes nobody has recorded yet, so a slot exists only
-       once something has been played into it. */
+    /* One buffer per scene row. Allocated lazily — sixteen slots of eight bars would be
+       ~100 MB reserved for takes nobody has recorded yet, so a slot exists only once
+       something has been played into it. */
     this.slots = [];
     this.slot = 0;
     this.buf = null;      // [Float32Array per channel] — the active slot
@@ -24,6 +24,10 @@ class LoopProcessor extends AudioWorkletProcessor {
     this.len = 0;
     this.pos = 0;
     this.mode = "idle";   // idle | rec | play | dub
+    /* Overdub is a LATCH, not a mode you schedule. Held here rather than inferred from
+       this.mode so it can be set before there is anything to overdub onto: switch it on
+       during the first pass and the take rolls into dub at the wrap instead of into play. */
+    this.dub = false;
     this.next = null;     // {mode, frame} — a change waiting for its sample
     this.tick = 0;
     this.peak = 0;
@@ -56,9 +60,24 @@ class LoopProcessor extends AudioWorkletProcessor {
 
          NOTE: this whole processor is a template literal. A backtick anywhere in here,
          including in a comment, ends the string and takes the rest of the app with it. */
-      this.next = {mode: m.mode, frame: m.frame, slot: m.slot == null ? null : (m.slot | 0)};
+      this.next = {mode: m.mode, frame: m.frame, slot: m.slot == null ? null : (m.slot | 0),
+                   reset: !!m.reset};
     }
     else if (m.op === "now"){ this.mode = m.mode; if (m.reset) this.pos = 0; }
+    else if (m.op === "dub"){
+      this.dub = !!m.on;
+      /* A live punch, and NOTHING here touches pos. Turning it on adds what you play from
+         this instant; turning it off stops adding. The loop keeps running under your hand
+         either way, which is the whole point of a switch you can flip mid-take. */
+      if (this.mode === "play" && this.dub){
+        this.snapshot();
+        this.mode = "dub";
+        this.port.postMessage({ev:"started", mode:"dub", slot:this.slot, filled:this.filled()});
+      } else if (this.mode === "dub" && !this.dub){
+        this.mode = "play";
+        this.port.postMessage({ev:"started", mode:"play", slot:this.slot, filled:this.filled()});
+      }
+    }
     else if (m.op === "clear"){
       /* clears the ACTIVE slot only — a clear that wiped the bank would be unrecoverable */
       this.slots[this.slot] = null;
@@ -77,10 +96,16 @@ class LoopProcessor extends AudioWorkletProcessor {
     if (this.buf) this.undo = [this.buf[0].slice(), this.buf[1].slice()];
   }
 
-  /* which slots hold a take — the live grid draws its column from this */
+  /* Which slots hold a take — the live grid draws its column from this. Sixteen, matching
+     COUNT in shell/scenes.js; the worklet is a separate global scope and cannot read it,
+     so the two are kept in step by hand and this comment is the link.
+
+     Sixteen buffers is only sixteen buffers if you fill them. They are allocated at the
+     moment a take starts, so an unrecorded row costs nothing — which is the whole reason
+     the count can go up without reserving ~100 MB for takes nobody has played. */
   filled(){
     const out = [];
-    for (let i = 0; i < 8; i++) if (this.slots[i]) out.push(i);
+    for (let i = 0; i < 16; i++) if (this.slots[i]) out.push(i);
     return out;
   }
 
@@ -110,7 +135,13 @@ class LoopProcessor extends AudioWorkletProcessor {
         this.buf = this.slots[this.slot] || null;
         if (this.next.mode === "dub") this.snapshot();
         this.mode = this.buf ? this.next.mode : "idle";
-        this.pos = 0;
+        /* ⚠️ ONLY a fresh take starts at the top, or a caller that asks. This used to reset
+           unconditionally, so arming a dub yanked the playhead back to the beginning of the
+           loop — the scheduled frame is a grid boundary and the loop's phase is its own pos,
+           and once the shell has dropped its origin the two have nothing to do with each
+           other. A row fired from the launcher DOES want the top, and says so with reset;
+           overdub does not, and does not. */
+        if (this.next.mode === "rec" || this.next.reset) this.pos = 0;
         this.next = null;
         this.port.postMessage({ev:"started", mode:this.mode, slot:this.slot,
                                filled:this.filled()});
@@ -143,8 +174,16 @@ class LoopProcessor extends AudioWorkletProcessor {
         if (this.pos >= this.len){
           this.pos = 0;
           /* A first pass records exactly one loop and then plays it — a looper that keeps
-             recording until you press stop records your reaction time onto the end. */
-          if (this.mode === "rec"){ this.mode = "play"; this.port.postMessage({ev:"looped", mode:"play"}); }
+             recording until you press stop records your reaction time onto the end. Where
+             it goes next is the latch's to say: with overdub switched on before or during
+             the take, the pass rolls straight into dubbing rather than needing a second
+             press at the one moment you are least able to make it. */
+          if (this.mode === "rec"){
+            const nx = this.dub ? "dub" : "play";
+            if (nx === "dub") this.snapshot();
+            this.mode = nx;
+            this.port.postMessage({ev:"looped", mode:nx});
+          }
           else this.port.postMessage({ev:"looped", mode:this.mode});
         }
       }
