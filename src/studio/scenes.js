@@ -55,25 +55,28 @@ function paintCell(b, ri, id, queued, onRow){
   b.classList.toggle("armed", queued.get(id) === ri);
 }
 
-/* One gesture table, so the two views cannot answer the same click differently. */
+/* One gesture table, so the two views cannot answer the same click differently.
+
+   A CELL WRITES. The row button plays. That split is the whole of it: click a cell to put
+   what an instrument is holding into that block, shift-click to empty it, and press ▶ on
+   the row to hear the row. Plain click used to FIRE a cell and shift-click used to capture
+   into it, which meant the two halves of the grid answered to different verbs.
+
+   ⚠️ Deleting is one modifier now, at the owner's request. It was two — cmd AND shift — on
+   the grounds that a block is a take you may have spent a while getting and one slip on a
+   launcher you are playing should not throw it away. That reasoning has not stopped being
+   true; it is just no longer the call being made. LP·1's takes are the ones with the most
+   to lose, since a cleared audio take is not recoverable. */
 function click(e, ri, id){
-  /* Cmd/Ctrl-shift-click empties a cell. Two modifiers on purpose: a block is a take you
-     may have spent a while getting, and one slip on a launcher you are playing should not
-     be able to throw it away. */
-  if ((e.metaKey || e.ctrlKey) && e.shiftKey){
-    const t = slotted(id);
+  const t = slotted(id);
+  if (e.shiftKey){
     if (t && t.clearSlot) t.clearSlot(ri);
     else Patchwork.scenes.clear(ri, id);
     return;
   }
-  const t = slotted(id);
-  if (t){
-    if (e.shiftKey && t.recordSlot) t.recordSlot(ri);
-    else if (t.playSlot) t.playSlot(ri);
-    return;
-  }
-  if (e.shiftKey) Patchwork.scenes.store(ri, id);
-  else if (Patchwork.scenes.has(ri, id)) Patchwork.scenes.fire(ri, id);
+  /* add or edit: a slot track records a real take, everything else copies its pattern in */
+  if (t){ if (t.recordSlot) t.recordSlot(ri); return; }
+  Patchwork.scenes.store(ri, id);
 }
 
 /* ⚠️ Firing a ROW had never reached the looper. `Patchwork.scenes.fire(row)` walks scene

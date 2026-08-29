@@ -1828,6 +1828,31 @@ function onMessage(m){
   notify();
 }
 
+/* ---- where the relay is ----
+   `?relay=` in the URL, in whatever form is least likely to be mistyped:
+
+     ?relay                    this host, port 8124   <- use this one
+     ?relay=9000               this host, that port
+     ?relay=192.168.68.51      that host, port 8124
+     ?relay=ws://host:9000     spelled out in full
+
+   ⚠️ The bare form exists because retyping an IP address twice in one URL is a trap. It
+   cost a real two-laptop test: the page half was right, the relay half said 192.168.1.51
+   for 192.168.68.51, so the studio loaded perfectly and the socket could not connect —
+   which looks like the jam being broken rather than a typo. If you are serving the page
+   from the same machine as the relay, and you almost always are, `?relay` alone is right
+   and cannot be got wrong. */
+function relayFromUrl(){
+  const raw = new URLSearchParams(location.search).get("relay");
+  if (raw == null) return null;
+  const v = String(raw).trim();
+  const proto = location.protocol === "https:" ? "wss://" : "ws://";
+  if (v === "" || v === "1" || v === "true") return proto + location.hostname + ":8124";
+  if (/^[0-9]+$/.test(v)) return proto + location.hostname + ":" + v;
+  if (/^wss?:\/\//.test(v)) return v;
+  return proto + (v.indexOf(":") >= 0 ? v : v + ":8124");
+}
+
 /* ---- who is jamming ----
    So a jam can be PICKED rather than named from memory. Typing the same string on two
    machines is the single most likely way to end up in two empty rooms wondering why the
@@ -1851,7 +1876,7 @@ function openLobby(){
 openLobby();
 
 function browse(cb){
-  const relay = new URLSearchParams(location.search).get("relay");
+  const relay = relayFromUrl();
   if (relay){
     /* a throwaway connection: ask, answer, close. Asking on the live one would mean being
        joined before you had chosen. */
@@ -1890,8 +1915,9 @@ function join(name, who){
   leave();
   room = String(name || "jam").trim().toLowerCase();
   me.name = String(who || "").trim() || ("player " + me.id.slice(0, 3));
-  /* `?relay=ws://host:port` picks the networked transport. Explicit on purpose. */
-  const relay = new URLSearchParams(location.search).get("relay");
+  /* `?relay` picks the networked transport. Explicit on purpose — a silent fallback would
+     let you set up a two-laptop test that quietly was not one. */
+  const relay = relayFromUrl();
   tx = relay ? webSocket(relay, room) : broadcastChannel(room);
   if (!tx){ room = null; notify(); return false; }
   tx.onMessage(onMessage);

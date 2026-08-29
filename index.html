@@ -1725,7 +1725,7 @@ body.living .st-seg#stFaces{display:none}
                aria-label="Metronome level">
       </div>
     </div>
-    <span class="st-hint">click &#9654; to fire a row &middot; shift-click a cell to capture &middot; &#8984;&#8679;-click to delete &middot; nothing lands until the next loop point</span>
+    <span class="st-hint">click a cell to add or edit &middot; shift-click to delete &middot; click &#9654; to fire the row &middot; nothing lands until the next loop point</span>
   </div>
   <div class="st-grid" id="stGrid"></div>
 </div>
@@ -4185,6 +4185,31 @@ function onMessage(m){
   notify();
 }
 
+/* ---- where the relay is ----
+   `?relay=` in the URL, in whatever form is least likely to be mistyped:
+
+     ?relay                    this host, port 8124   <- use this one
+     ?relay=9000               this host, that port
+     ?relay=192.168.68.51      that host, port 8124
+     ?relay=ws://host:9000     spelled out in full
+
+   ⚠️ The bare form exists because retyping an IP address twice in one URL is a trap. It
+   cost a real two-laptop test: the page half was right, the relay half said 192.168.1.51
+   for 192.168.68.51, so the studio loaded perfectly and the socket could not connect —
+   which looks like the jam being broken rather than a typo. If you are serving the page
+   from the same machine as the relay, and you almost always are, `?relay` alone is right
+   and cannot be got wrong. */
+function relayFromUrl(){
+  const raw = new URLSearchParams(location.search).get("relay");
+  if (raw == null) return null;
+  const v = String(raw).trim();
+  const proto = location.protocol === "https:" ? "wss://" : "ws://";
+  if (v === "" || v === "1" || v === "true") return proto + location.hostname + ":8124";
+  if (/^[0-9]+$/.test(v)) return proto + location.hostname + ":" + v;
+  if (/^wss?:\/\//.test(v)) return v;
+  return proto + (v.indexOf(":") >= 0 ? v : v + ":8124");
+}
+
 /* ---- who is jamming ----
    So a jam can be PICKED rather than named from memory. Typing the same string on two
    machines is the single most likely way to end up in two empty rooms wondering why the
@@ -4208,7 +4233,7 @@ function openLobby(){
 openLobby();
 
 function browse(cb){
-  const relay = new URLSearchParams(location.search).get("relay");
+  const relay = relayFromUrl();
   if (relay){
     /* a throwaway connection: ask, answer, close. Asking on the live one would mean being
        joined before you had chosen. */
@@ -4247,8 +4272,9 @@ function join(name, who){
   leave();
   room = String(name || "jam").trim().toLowerCase();
   me.name = String(who || "").trim() || ("player " + me.id.slice(0, 3));
-  /* `?relay=ws://host:port` picks the networked transport. Explicit on purpose. */
-  const relay = new URLSearchParams(location.search).get("relay");
+  /* `?relay` picks the networked transport. Explicit on purpose — a silent fallback would
+     let you set up a two-laptop test that quietly was not one. */
+  const relay = relayFromUrl();
   tx = relay ? webSocket(relay, room) : broadcastChannel(room);
   if (!tx){ room = null; notify(); return false; }
   tx.onMessage(onMessage);
@@ -13937,25 +13963,28 @@ function paintCell(b, ri, id, queued, onRow){
   b.classList.toggle("armed", queued.get(id) === ri);
 }
 
-/* One gesture table, so the two views cannot answer the same click differently. */
+/* One gesture table, so the two views cannot answer the same click differently.
+
+   A CELL WRITES. The row button plays. That split is the whole of it: click a cell to put
+   what an instrument is holding into that block, shift-click to empty it, and press ▶ on
+   the row to hear the row. Plain click used to FIRE a cell and shift-click used to capture
+   into it, which meant the two halves of the grid answered to different verbs.
+
+   ⚠️ Deleting is one modifier now, at the owner's request. It was two — cmd AND shift — on
+   the grounds that a block is a take you may have spent a while getting and one slip on a
+   launcher you are playing should not throw it away. That reasoning has not stopped being
+   true; it is just no longer the call being made. LP·1's takes are the ones with the most
+   to lose, since a cleared audio take is not recoverable. */
 function click(e, ri, id){
-  /* Cmd/Ctrl-shift-click empties a cell. Two modifiers on purpose: a block is a take you
-     may have spent a while getting, and one slip on a launcher you are playing should not
-     be able to throw it away. */
-  if ((e.metaKey || e.ctrlKey) && e.shiftKey){
-    const t = slotted(id);
+  const t = slotted(id);
+  if (e.shiftKey){
     if (t && t.clearSlot) t.clearSlot(ri);
     else Patchwork.scenes.clear(ri, id);
     return;
   }
-  const t = slotted(id);
-  if (t){
-    if (e.shiftKey && t.recordSlot) t.recordSlot(ri);
-    else if (t.playSlot) t.playSlot(ri);
-    return;
-  }
-  if (e.shiftKey) Patchwork.scenes.store(ri, id);
-  else if (Patchwork.scenes.has(ri, id)) Patchwork.scenes.fire(ri, id);
+  /* add or edit: a slot track records a real take, everything else copies its pattern in */
+  if (t){ if (t.recordSlot) t.recordSlot(ri); return; }
+  Patchwork.scenes.store(ri, id);
 }
 
 /* ⚠️ Firing a ROW had never reached the looper. `Patchwork.scenes.fire(row)` walks scene
