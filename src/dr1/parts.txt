@@ -15,6 +15,8 @@ shell/clock.js
 shell/midi.js
 shell/scenes.js
 shell/faces.js
+voice/core.js
+seq/step-seq.js
 dr1/_open.js
 dr1/voices.js
 dr1/seq.js

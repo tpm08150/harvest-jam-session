@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Patchwork DR·1 — drum machine</title>
+<title>Patchwork BS·1 — bass</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Saira+Semi+Condensed:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -164,42 +164,52 @@ input[type="text"]::placeholder{color:#5a646a}
 :scope.face [data-deep]{display:none}
 }
 /* Everything below is scoped to this instrument's panel. @scope rather than nesting
-   because it adds no specificity, so the relative weight of every rule inside is exactly
-   what it was when this was a whole page to itself. */
-@scope (.unit.dr1) {
-/* DR·1 owns only what the shared chrome does not: the lane grid, and a violet accent so
-   the three panels are told apart by colour the way CS·1 and MS·1 already are. */
+   because it adds no specificity. */
+@scope (.unit.bs1) {
+/* BS·1 owns its accent and its sequencer grid; the rest comes from the shared chrome. */
 :scope{
-  --dr-accent:#8b74d6;
-  --dr-accent-hi:#a692e4;
-  --dr-accent-lo:#6b56b0;
-  --dr-accent-ink:#150e2b;
+  --bs-accent:#d9884a;
+  --bs-accent-hi:#e8a06a;
+  --bs-accent-lo:#b06a33;
+  --bs-accent-ink:#2b1608;
   width:100%;max-width:760px;
   background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
-  border:1px solid var(--edge);
-  border-radius:10px;
+  border:1px solid var(--edge);border-radius:10px;
   box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
-  padding:20px 18px 24px;
-  position:relative;overflow:clip;
+  padding:20px 18px 24px;position:relative;overflow:clip;
 }
-:scope::before{
-  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
-  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
-}
+:scope::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px)}
 :scope>*{position:relative;z-index:1}
 
-.rule{height:1px;background:linear-gradient(90deg,transparent,var(--dr-accent),transparent);
+.rule{height:1px;background:linear-gradient(90deg,transparent,var(--bs-accent),transparent);
   opacity:.55;margin:12px 0 16px}
 .screws{display:flex;gap:9px;align-items:center}
 .screw{width:9px;height:9px;border-radius:50%;
   background:radial-gradient(circle at 34% 30%,#68727a,#2b3237 68%,#171b1e);
   box-shadow:0 1px 0 rgba(255,255,255,.10),0 0 0 1px rgba(0,0,0,.5) inset}
 
+.card{background:var(--paper);border-radius:6px;padding:14px 14px 12px;color:var(--ink);
+  box-shadow:0 2px 0 rgba(0,0,0,.35),0 10px 22px rgba(0,0,0,.32)}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.now{font-family:Fraunces,Georgia,serif;font-size:30px;line-height:1.1;margin:6px 0 10px;
+  color:var(--ink);min-height:34px}
+.keys{display:flex;height:74px;border-radius:4px;overflow:hidden;
+  border:1px solid rgba(35,43,49,.2);background:#f4f1e8}
+.keys .k{flex:1 1 0;border-right:1px solid rgba(35,43,49,.18);cursor:pointer;position:relative}
+.keys .k:last-child{border-right:0}
+.keys .k.b{background:#2a3238;flex:0 0 0;width:0;margin:0 -7px;z-index:2;height:62%;
+  border-radius:0 0 2px 2px;border:0}
+.keys .k.b i{position:absolute;inset:0;width:14px;left:-7px;background:#2a3238;
+  border-radius:0 0 2px 2px}
+.keys .k.on{background:var(--bs-accent)}
+.keys .k.b.on i{background:var(--bs-accent-hi)}
+
 .transport{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 4px}
 .tempo{display:flex;align-items:center;background:var(--slot);border:1px solid var(--groove);
   border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;overflow:hidden}
-.tempo button{background:none;border:0;color:var(--silk-dim);font-size:15px;
-  padding:8px 12px;cursor:pointer;font-family:inherit}
+.tempo button{background:none;border:0;color:var(--silk-dim);font-size:15px;padding:8px 12px;
+  cursor:pointer;font-family:inherit}
 .tempo button:hover{color:var(--silk)}
 .tempo span{font-family:"DM Mono";font-size:13px;color:var(--mint);min-width:38px;
   text-align:center;font-variant-numeric:tabular-nums}
@@ -209,97 +219,82 @@ input[type="text"]::placeholder{color:#5a646a}
 .sect-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
   flex-wrap:wrap;margin-bottom:10px}
 .patrow{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
-.knobrow{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px}
+.knobrow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .knobrow .hfader{flex:1 1 150px}
 
-/* ---- the lanes ----
-   Name, then sixteen pads. Two rows of eight on a narrow panel, because sixteen across
-   at this width gives pads too small to hit — the same call CS·1's grid already made. */
-.lanes{display:flex;flex-direction:column;gap:5px}
-.lane{display:flex;align-items:center;gap:9px}
-.lane-name{
-  flex:0 0 44px;text-align:left;cursor:pointer;
-  background:var(--slot);border:1px solid var(--groove);border-radius:3px;
-  padding:6px 7px;font-family:"DM Mono";font-size:10px;letter-spacing:.06em;
-  color:var(--read-dim);box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
-}
-.lane-name:hover{color:var(--silk)}
-.lane-name.sel{color:var(--dr-accent-hi);border-color:var(--dr-accent-lo);
-  box-shadow:0 0 0 1px var(--dr-accent-lo) inset}
-.lane-name.hit{background:var(--dr-accent);color:var(--dr-accent-ink)}
-
-/* Sixteen across, one row per lane. MS·1 wraps its 16 steps into two rows of eight
-   because it has ONE lane and the extra height costs nothing; eight lanes wrapped would
-   be sixteen rows, and a drum grid that does not read left-to-right as a bar is not a
-   drum grid. Gap tightens rather than wrapping when the panel narrows. */
-.pads{display:grid;grid-template-columns:repeat(var(--steps,16),1fr);gap:3px;
-  flex:1 1 auto;min-width:0}
-.pad{
-  height:22px;border-radius:3px;padding:0;cursor:pointer;position:relative;
+/* ---- sequencer grid ---- */
+.seqwrap{display:flex;flex-direction:column;gap:5px}
+.seqrow{display:flex;align-items:center;gap:9px}
+.rlab{flex:0 0 44px;font-family:"DM Mono";font-size:9px;letter-spacing:.04em;
+  color:var(--read-dim);text-align:right}
+.steps{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;flex:1 1 auto;min-width:0}
+.step{
+  height:26px;border-radius:3px;padding:0;cursor:pointer;position:relative;
   background:var(--slot);border:1px solid var(--groove);
   box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
-  transition:background .09s ease;
+  font-family:"DM Mono";font-size:9px;letter-spacing:-.02em;color:var(--read-dim);
 }
-@media (prefers-reduced-motion:reduce){ .pad{transition:none} }
-.pad.on{background:linear-gradient(180deg,var(--dr-accent-hi),var(--dr-accent));
-  border-color:var(--dr-accent-lo);box-shadow:0 1px 0 rgba(255,255,255,.16) inset}
-.pad.acc{box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 0 0 1px var(--cap-yellow) inset}
-/* downbeat of each quarter, so sixteenths stay countable */
-.pad.beat::before{content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);
+.step.on{background:linear-gradient(180deg,var(--bs-accent-hi),var(--bs-accent));
+  border-color:var(--bs-accent-lo);color:var(--bs-accent-ink);
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset}
+.step.beat::before{content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);
   width:2px;height:2px;border-radius:50%;background:rgba(255,255,255,.45)}
-.pad.now{outline:2px solid var(--mint);outline-offset:1px;z-index:2}
-.pad.past{opacity:.35}
+.step.acc{box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 0 0 1px var(--cap-yellow) inset}
+.step.sld::after{content:"";position:absolute;bottom:2px;left:3px;right:3px;height:2px;
+  border-radius:1px;background:var(--stripe-mod)}
+.step.tie{background:linear-gradient(180deg,#5a6a76,#43505a);color:#cfd8de}
+.step.now{outline:2px solid var(--mint);outline-offset:1px;z-index:2}
 
-/* Horizontal faders. CS·1's and MS·1's versions had drifted apart by Phase 2, so these
-   were not among the 38 rules the shell could share — this is DR·1's own take, sized to
-   sit four across rather than one at a time. */
+.seqlegend{display:flex;gap:14px;flex-wrap:wrap;font-family:"DM Mono";font-size:9px;
+  letter-spacing:.04em;color:var(--read-dim);margin-top:9px}
+.seqlegend i{display:inline-block;width:9px;height:9px;border-radius:2px;
+  vertical-align:-1px;margin-right:5px}
+
+/* ---- faders ---- */
 .hfader{display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
   padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13)}
-.hslot{position:relative;flex:1 1 auto;min-width:60px;height:20px;border-radius:4px;
+.hslot{position:relative;flex:1 1 auto;min-width:52px;height:20px;border-radius:4px;
   background:linear-gradient(180deg,#20262a,#12161a 45%,#20262a);
   box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06)}
 .hslot::after{content:"";position:absolute;left:7px;right:7px;top:50%;height:3px;
   transform:translateY(-50%);background:#0b0e10;border-radius:2px}
-.hcap{position:absolute;top:-3px;height:26px;width:20px;border-radius:3px;
-  transform:translateX(-50%);
+.hcap{position:absolute;top:-3px;height:26px;width:20px;border-radius:3px;transform:translateX(-50%);
   background:linear-gradient(180deg,#5b656b,#394247);border:1px solid #14181b;
   box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset}
-.hcap::after{content:"";position:absolute;top:3px;bottom:3px;left:50%;width:3px;
-  margin-left:-1.5px;border-radius:2px;background:var(--dr-accent)}
+.hcap::after{content:"";position:absolute;top:3px;bottom:3px;left:50%;width:3px;margin-left:-1.5px;
+  border-radius:2px;background:var(--bs-accent)}
 .hfader.dragging .hcap{border-color:var(--mint)}
-.hfader .hval{font-family:"DM Mono";font-size:10px;color:#aeb8be;min-width:44px;text-align:right}
+.hfader .hval{font-family:"DM Mono";font-size:10px;color:#aeb8be;min-width:46px;text-align:right}
 .hfader .hlab{white-space:nowrap}
-
-.seqlegend{display:flex;gap:14px;flex-wrap:wrap;font-family:"DM Mono";font-size:9px;
-  letter-spacing:.04em;color:var(--read-dim);margin-top:10px}
-.seqlegend i{display:inline-block;width:9px;height:9px;border-radius:2px;
-  vertical-align:-1px;margin-right:5px}
-
-@media (max-width:560px){
-  :scope{padding:16px 14px 20px}
-  .pads{grid-template-columns:repeat(8,1fr)}
-  .lane-name{flex:0 0 38px}
-}
+.row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:10px}
 }
 </style>
 </head>
 <body>
 
-<div class="unit dr1" data-instrument="dr1">
+<div class="unit bs1" data-instrument="bs1">
 
   <div data-face class="plate">
     <div>
       <div class="brand">Patchwork</div>
-      <div class="model">DR·1 — drum machine</div>
+      <div class="model">BS·1 — bass</div>
     </div>
     <div class="screws"><i class="screw"></i><i class="screw"></i></div>
   </div>
   <div data-face class="rule"></div>
 
+  <div data-face class="card">
+    <div class="card-head">
+      <span class="card-title">Bass</span>
+      <span class="card-meta" id="nowMeta">mono · lowest note</span>
+    </div>
+    <div class="now" id="nowNote">—</div>
+    <div class="keys" id="keys" role="group" aria-label="Keyboard"></div>
+  </div>
+
   <div data-face class="transport">
     <button class="btn primary" id="play">▶ Play</button>
-    <button class="btn ghost" id="clearPat">Clear</button>
-    <button class="btn ghost" id="defaultPat">Reset pattern</button>
+    <button class="btn ghost" id="hold">Hold</button>
     <div class="tempo">
       <button id="bpmDown" aria-label="Slower">−</button>
       <span id="tempoOut">120</span>
@@ -310,103 +305,77 @@ input[type="text"]::placeholder{color:#5a646a}
 
   <div data-face class="sect">
     <div class="sect-head">
-      <span class="silk">Pattern</span>
+      <span class="silk">Sequence</span>
       <div class="patrow">
+        <div class="field" style="flex:0 0 84px">
+          <label for="seqLen">Steps</label>
+          <select id="seqLen"></select>
+        </div>
         <div class="field" style="flex:0 0 92px">
-          <label for="rate">Rate</label>
-          <select id="rate">
-            <option value="1/8">1/8</option>
-            <option value="1/8t">1/8 trip</option>
-            <option value="1/16" selected>1/16</option>
-            <option value="1/16t">1/16 trip</option>
-            <option value="1/32">1/32</option>
-          </select>
+          <label for="seqRate">Rate</label>
+          <select id="seqRate"></select>
         </div>
-        <div class="field" style="flex:0 0 86px">
-          <label for="len">Steps</label>
-          <select id="len">
-            <option value="8">8</option>
-            <option value="12">12</option>
-            <option value="16" selected>16</option>
-            <option value="24">24</option>
-            <option value="32">32</option>
-            <option value="48">48</option>
-            <option value="64">64</option>
-          </select>
+        <div class="field" style="flex:0 0 96px">
+          <label for="seqKey">Key</label>
+          <select id="seqKey"></select>
         </div>
-        <div class="hfader" id="swingF">
-          <span class="hlab">Swing</span>
-          <span class="hslot"><i class="hcap"></i></span>
-          <span class="hval">50%</span>
-        </div>
-        <div class="hfader" id="accentF">
-          <span class="hlab">Accent</span>
-          <span class="hslot"><i class="hcap"></i></span>
-          <span class="hval">35%</span>
+        <div class="field" style="flex:0 0 116px">
+          <label for="seqScale">Scale</label>
+          <select id="seqScale"></select>
         </div>
       </div>
     </div>
-
-    <!-- One row per voice. The grid is the instrument; the knobs are for shaping what it
-         plays, which is why the grid comes first and is the widest thing on the panel. -->
-    <div class="lanes" id="lanes"></div>
-
+    <div class="seqwrap" id="seqWrap"></div>
     <div class="seqlegend">
-      <span><i style="background:var(--dr-accent)"></i>step</span>
-      <span><i style="background:var(--cap-yellow)"></i>accent — click a lit step again</span>
-      <span><i style="background:var(--mint)"></i>playing now</span>
+      <span><i style="background:var(--bs-accent)"></i>step</span>
+      <span><i style="background:var(--cap-yellow)"></i>accent — click again</span>
+      <span>shift-click ties · alt-click slides · drag a step to pitch it</span>
     </div>
   </div>
 
-  <div class="sect">
-    <div class="sect-head">
-      <span class="silk">Voice <em id="voiceTag">BD</em></span>
-      <span class="card-meta" id="voiceMeta">Kick</span>
+  <div data-face class="sect">
+    <div class="sect-head"><span class="silk">Voice</span></div>
+    <div class="knobrow">
+      <div class="hfader" id="cutF"><span class="hlab">Cutoff</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="resF"><span class="hlab">Res</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="envF"><span class="hlab">Contour</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="decF"><span class="hlab">Decay</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="subF"><span class="hlab">Sub</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="lvlF"><span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="glideF"><span class="hlab">Glide</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
     </div>
-    <div class="knobrow" id="voiceKnobs">
-      <div class="hfader" id="tuneF">
-        <span class="hlab">Tune</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+    <div class="row">
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Wave</span>
+        <div class="seg sm" id="wave" role="group" aria-label="Oscillator waveform">
+          <button data-w="saw" class="on">Saw</button>
+          <button data-w="square">Square</button>
+        </div>
       </div>
-      <div class="hfader" id="toneF">
-        <span class="hlab">Tone</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
-      </div>
-      <div class="hfader" id="decayF">
-        <span class="hlab">Decay</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
-      </div>
-      <div class="hfader" id="levelF">
-        <span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Octave</span>
+        <div class="seg sm" id="oct" role="group" aria-label="Octave">
+          <button data-o="-2">−2</button>
+          <button data-o="-1" class="on">−1</button>
+          <button data-o="0">0</button>
+        </div>
       </div>
     </div>
-    <p class="note">Select a lane by its name to edit that voice. Click a pad to audition it.</p>
+    <p class="note">Dry by design — no chorus, delay or reverb. A bass wants to stay centred.</p>
   </div>
 
   <div class="sect">
     <div class="sect-head">
       <span class="silk"><i class="led" id="midiLed"></i>MIDI</span>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <span class="silk">Note out</span>
-        <div class="seg sm" id="noteOut" role="group" aria-label="Mirror hits to MIDI out">
-          <button data-o="off" class="on">Off</button>
-          <button data-o="on">On</button>
-        </div>
-      </div>
     </div>
     <div class="row">
       <div class="field">
         <label for="midiIn">Input</label>
         <select id="midiIn"><option value="">— none —</option></select>
       </div>
-      <div class="field">
-        <label for="midiOut">Output</label>
-        <select id="midiOut"><option value="">— none —</option></select>
-      </div>
       <div class="field" style="flex:0 0 74px">
         <label for="midiInCh">In ch</label>
         <select id="midiInCh"></select>
-      </div>
-      <div class="field" style="flex:0 0 74px">
-        <label for="midiCh">Out ch</label>
-        <select id="midiCh"></select>
       </div>
     </div>
     <p class="note" id="midiNote">—</p>
@@ -1239,682 +1208,414 @@ el.addEventListener("pointerdown", e => {
 render();
 return {render, paint};
 };
-/* DR·1 is built into whatever panel the page gives it, exactly as CS·1 and MS·1 are.
-   Standalone that panel is the only thing on the page; in the studio build it is one of
-   three. The code below cannot tell the difference, which is the point. */
-Patchwork.instrument("dr1", root => {
+/* BS·1 — the bass, as its own instrument. Was a section inside MS·1; see the handoff for
+   why the three sections were split. */
+Patchwork.instrument("bs1", root => {
 "use strict";
 
-/* Scoped to this instrument — every panel carries an element called #play. */
 const $  = s => root.querySelector(s);
 const $$ = s => root.querySelectorAll(s);
 const onKey = (type, fn) => Patchwork.onKey(root, type, fn);
 
-/* ============ voices ============ */
-/* Eight drum voices, synthesised. No samples anywhere in this repo, and a kit built the
-   same way as everything else costs nothing to ship and can be tuned rather than replaced.
 
-   808-shaped rather than 808-cloned: a kick is a sine with a pitch envelope, a snare is
-   two tones plus filtered noise, and the metal voices are six square oscillators at
-   inharmonic ratios — which is how the original made a cymbal without a sample, and the
-   only reason a hat sounds like metal instead of like filtered noise.
+/* ============ engine ============ */
+/* The bass voice, lifted from MS·1's bass section. A Taurus-shaped pedal synth: one
+   oscillator with a square sub an octave below, a ladder, and a single Decay knob shaping
+   filter contour and release together. Monophonic with lowest-note priority, and dry by
+   design — no chorus, delay or reverb, because a bass wants to stay dry and centred.
 
-   Every voice takes the same shape: build nodes, schedule against an absolute time, stop
-   at a known end, dispose. Nothing is pooled. A drum voice is a few nodes for a few
-   hundred milliseconds, and pooling them would buy nothing but a class of bug where a
-   retrigger inherits the last hit's envelope. */
+   As its own instrument it gains the one thing it never had inside MS·1: a sequencer. The
+   old notes were explicit that "the sequencer and arpeggiator drive the synth section
+   only", which was a reasonable limit for a section and a poor one for an instrument. */
 
-let ctx = null, kit = null, comp = null, noiseBuf = null;
+const V = Patchwork.voice;
+const {clampf, mtof, ladder, RCOMP, schedEnv, schedRelease, beginRelease,
+       envValueAt, AMP_REL_MIN} = V;
 
-/* The 808's metal oscillator ratios. Inharmonic on purpose — any harmonic set rings as a
-   pitch, and a cymbal must not have one. */
-const METAL = [1, 1.4471, 1.6170, 1.9265, 2.5028, 2.6637];
+let ctx = null, out = null, bassOut = null, comp = null;
 
-/* Per-voice trim, in dB, applied on top of the level control.
-
-   MEASURED, not dialled. Each voice is rendered offline and trimmed to hit its target;
-   the numbers below came out of __dr1.measure(). This is the discipline MS·1's twenty
-   patches have and CS·1's twelve voices do not — CS·1 carries a measured 8.2 dB spread
-   because it had no offline rig until Phase 3. A drum kit is the worst possible place to
-   dial by ear, because a hat and a kick share no frequency range to compare in. */
-const TRIM = {
-  bd: -9.95, sd:  1.79, cp:  6.02, lt: -11.55,
-  ht: -10.59, ch: 14.37, oh:  6.29, rs:   0.34
+/* One flat object IS the patch — MS·1's rule, and for the same reason: a patch that omits
+   a parameter must RESET it, not inherit whatever was dialled in before the load. */
+const DEFAULT = {
+  wave:"saw", oct:-1, level:.85, sub:.6,
+  cut:420, res:5, env:2.4, dec:.35, glide:0, tone:.5
 };
+const P = Object.assign({}, DEFAULT);
 
-/* Relative balance the kit is trimmed TO, in dB against the kick. A kit is not eight
-   equal sounds — a closed hat sitting at a kick's level is a kit nobody can play over.
-   These are the ratios; TARGET_BD is the absolute the whole kit hangs from. */
-const BALANCE = {bd: 0, sd: -3, cp: -5, lt: -4, ht: -4.5, ch: -10, oh: -9, rs: -8};
-const TARGET_BD = -20;                       // dBFS, see boot.js for how it is measured
-
-const VOICES = {
-  bd: {name: "BD", full: "Kick",      tune: 48,   decay: .42, level: .95},
-  sd: {name: "SD", full: "Snare",     tune: 185,  decay: .19, level: .8},
-  cp: {name: "CP", full: "Clap",      tune: 1000, decay: .22, level: .8},
-  lt: {name: "LT", full: "Low tom",   tune: 92,   decay: .34, level: .8},
-  ht: {name: "HT", full: "High tom",  tune: 175,  decay: .26, level: .8},
-  ch: {name: "CH", full: "Closed hat",tune: 40.5, decay: .045,level: .7},
-  oh: {name: "OH", full: "Open hat",  tune: 40.5, decay: .38, level: .7},
-  rs: {name: "RS", full: "Rimshot",   tune: 1700, decay: .034,level: .75}
-};
-const ORDER = ["bd", "sd", "cp", "lt", "ht", "ch", "oh", "rs"];
-
-/* live parameter state, one object per voice — the panel writes here */
-const P = {};
-ORDER.forEach(k => { P[k] = {tune: VOICES[k].tune, decay: VOICES[k].decay,
-                             level: VOICES[k].level, tone: .5}; });
-
-const dbGain = db => Math.pow(10, db / 20);
-
-function makeNoise(c){
-  /* Two seconds is long enough that a loop is never audible on a hit lasting 400 ms, and
-     each voice starts at its own offset anyway. */
-  const len = Math.floor(c.sampleRate * 2);
-  const b = c.createBuffer(1, len, c.sampleRate);
-  const d = b.getChannelData(0);
-  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-  return b;
-}
+const UNITY = 0.27;          // measured trim, as in MS·1
 
 function initAudio(useCtx){
   if (ctx) return;
   ctx = useCtx || Patchwork.audio.context();
-  const out = useCtx ? ctx.destination : Patchwork.audio.strip("dr1");
-
-  /* Light glue only. A kit bus that squashes is a mixing decision, and this one is here
-     to stop eight simultaneous hits clipping the strip, not to make the kit pump. */
+  out = useCtx ? ctx.destination : Patchwork.audio.strip("bs1");
   comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -10; comp.ratio.value = 4;
-  comp.attack.value = .003; comp.release.value = .12;
-
-  kit = ctx.createGain();
-  kit.gain.value = 1;
-  kit.connect(comp); comp.connect(out);
-
-  noiseBuf = makeNoise(ctx);
+  comp.threshold.value = -12; comp.ratio.value = 3; comp.attack.value = .005; comp.release.value = .2;
+  bassOut = ctx.createGain(); bassOut.gain.value = 1;
+  bassOut.connect(comp); comp.connect(out);
+}
+function ensureAudio(){
+  initAudio();
+  Patchwork.audio.resume();
+  return ctx.state;
 }
 
-/* A noise source starting at a random offset, so repeated hits are not identical.
-   Deliberately random per hit — the same choice MS·1 makes, and the reason its level
-   harness is stochastic. See the handoff before measuring anything with this. */
-function noise(t, dur){
-  const s = ctx.createBufferSource();
-  s.buffer = noiseBuf;
-  s.loop = true;
-  s.start(t, Math.random() * (noiseBuf.duration - dur - .05));
-  s.stop(t + dur + .05);
-  return s;
+function buildVoice(midi, vel, t){
+  const v = {t0:t, midi, released:false};
+  const f0 = mtof(midi) * Math.pow(2, P.oct);
+  const mix = ctx.createGain(); mix.gain.value = 1;
+
+  const o = ctx.createOscillator();
+  o.type = P.wave === "square" ? "square" : "sawtooth";
+  o.frequency.value = f0;
+  const og = ctx.createGain(); og.gain.value = UNITY;
+  o.connect(og); og.connect(mix); o.start(t);
+
+  const sub = ctx.createOscillator();
+  sub.type = "square"; sub.frequency.value = f0 / 2;
+  const sg = ctx.createGain(); sg.gain.value = UNITY * P.sub;
+  sub.connect(sg); sg.connect(mix); sub.start(t);
+
+  const L = ladder(clampf(P.res / 20, 0, 1));
+  const b1 = ctx.createBiquadFilter(); b1.type = "lowpass"; b1.Q.value = L.Q1dB;
+  const b2 = ctx.createBiquadFilter(); b2.type = "lowpass"; b2.Q.value = L.Q2dB;
+  const rg = ctx.createGain(); rg.gain.value = Math.pow(1 + L.k, RCOMP - 1);
+  const vca = ctx.createGain(); vca.gain.value = 0;
+  mix.connect(b1); b1.connect(b2); b2.connect(rg); rg.connect(vca); vca.connect(bassOut);
+
+  v.setCutoff = function(t2){
+    const base = clampf(P.cut, 20, ctx.sampleRate * 0.45 / L.rho2);
+    b1.frequency.setTargetAtTime(base * L.rho1, t2, .01);
+    b2.frequency.setTargetAtTime(base * L.rho2, t2, .01);
+  };
+  v.setCutoff(t);
+
+  /* contour -> cutoff, in cents */
+  const fEG = ctx.createConstantSource(); fEG.offset.value = 0; fEG.start(t);
+  const fAmt = ctx.createGain(); fAmt.gain.value = P.env * 1200;
+  fEG.connect(fAmt); fAmt.connect(b1.detune); fAmt.connect(b2.detune);
+
+  const aEG = ctx.createConstantSource(); aEG.offset.value = 0; aEG.start(t);
+  const pk = ctx.createGain();
+  pk.gain.value = P.level * (0.7 + 0.3 * (vel / 127));
+  aEG.connect(pk); pk.connect(vca.gain);
+
+  /* One Decay knob drives both: the filter plucks down to a low sustain, the amp holds
+     while the pedal is down and releases in proportion. That is the whole contour. */
+  const fEnv = {A:.004, D:Math.max(.01, P.dec), S:.12,
+                R:Math.max(.03, P.dec * .6), t0:t, tOff:null, vOff:0};
+  const aEnv = {A:.004, D:Math.max(.05, P.dec * 2), S:1,
+                R:Math.max(AMP_REL_MIN, P.dec * .6), t0:t, tOff:null, vOff:0};
+  schedEnv(fEG.offset, fEnv, t, 0);
+  schedEnv(aEG.offset, aEnv, t, 0);
+
+  v.o = o; v.sub = sub; v.og = og; v.sg = sg; v.pk = pk; v.fAmt = fAmt;
+  v.fEG = fEG; v.aEG = aEG; v.fEnv = fEnv; v.aEnv = aEnv;
+  v.nodes = [mix, og, sg, b1, b2, rg, vca, pk, fAmt];
+
+  v.setPitch = function(t2, m, glideT){
+    v.midi = m;
+    const f = mtof(m) * Math.pow(2, P.oct);
+    if (glideT > 0){
+      [[o, f], [sub, f / 2]].forEach(([node, target]) => {
+        node.frequency.cancelScheduledValues(t2);
+        node.frequency.setValueAtTime(Math.max(1e-4, node.frequency.value), t2);
+        node.frequency.exponentialRampToValueAtTime(Math.max(1e-4, target), t2 + glideT);
+      });
+    } else { o.frequency.setValueAtTime(f, t2); sub.frequency.setValueAtTime(f / 2, t2); }
+  };
+  v.retrigger = function(t2, m, vel2, glideT){
+    v.setPitch(t2, m, glideT);
+    pk.gain.setTargetAtTime(P.level * (0.7 + 0.3 * (vel2 / 127)), t2, .005);
+    const a0 = envValueAt(aEnv, t2), f0v = envValueAt(fEnv, t2);
+    aEnv.t0 = t2; aEnv.tOff = null; fEnv.t0 = t2; fEnv.tOff = null;
+    schedEnv(aEG.offset, aEnv, t2, a0);
+    schedEnv(fEG.offset, fEnv, t2, f0v);
+  };
+  v.release = function(t2){
+    if (v.released) return;
+    v.released = true;
+    /* release read AT release, not captured at note-on — turning Decay up while a pedal
+       is held lengthens that note's tail, which is the rule every knob here follows */
+    aEnv.R = Math.max(AMP_REL_MIN, P.dec * .6);
+    fEnv.R = Math.max(.03, P.dec * .6);
+    beginRelease(aEnv, t2); beginRelease(fEnv, t2);
+    schedRelease(aEG.offset, aEnv, t2);
+    schedRelease(fEG.offset, fEnv, t2);
+    const end = t2 + 2 * aEnv.R + .05;
+    try{ o.stop(end); sub.stop(end); fEG.stop(end); aEG.stop(end); }catch(e){}
+    setTimeout(() => v.dispose(), Math.max(60, (end - ctx.currentTime) * 1000 + 120));
+  };
+  v.dispose = function(){
+    active.delete(v);
+    v.nodes.forEach(n => { try{ n.disconnect(); }catch(e){} });
+  };
+  active.add(v);
+  return v;
 }
 
-/* An exponential fall from `peak` to silence. setTargetAtTime never actually reaches its
-   target, so every voice ends with an explicit ramp to zero at a known time — otherwise
-   a long-decay voice leaves a node running under everything that follows it. */
-function decayTo(param, t, peak, dur){
-  param.setValueAtTime(peak, t);
-  param.setTargetAtTime(0, t, Math.max(.004, dur / 4));
-  param.setValueAtTime(param.value, t + dur);
-  param.linearRampToValueAtTime(0, t + dur + .012);
+/* ---- mono, lowest-note priority ----
+   A pedalboard plays the lowest note you are standing on; anything else makes a two-foot
+   chord sound like whichever pedal you happened to press last. */
+const active = new Set();
+const held = new Map();          // midi -> velocity
+let cur = null;
+
+function pick(){
+  let lowest = null;
+  held.forEach((vel, n) => { if (lowest === null || n < lowest) lowest = n; });
+  return lowest;
+}
+function glideTime(from, to){
+  if (!P.glide || from == null) return 0;
+  return P.glide * Math.abs(to - from) / 12;
 }
 
-function bandpass(freq, q){
-  const f = ctx.createBiquadFilter();
-  f.type = "bandpass"; f.frequency.value = freq; f.Q.value = q;
-  return f;
-}
-function highpass(freq, q){
-  const f = ctx.createBiquadFilter();
-  f.type = "highpass"; f.frequency.value = freq; f.Q.value = q == null ? .7 : q;
-  return f;
-}
-
-/* ---- the voices ----
-   Each returns the time it finishes, so the scheduler knows when the node graph is free
-   and the open hat knows how long it has to live before a closed hat chokes it. */
-
-function hitKick(t, vel, p){
-  const g = ctx.createGain(); g.gain.value = 0;
-  const o = ctx.createOscillator(); o.type = "sine";
-  /* The pitch envelope IS the kick. A sine at 48 Hz is a test tone; the same sine swept
-     from 3.5x down to 48 Hz in 45 ms is a drum, and the sweep is what your ear reads as
-     the beater. Tone stretches the sweep rather than raising the pitch, so the knob
-     changes the character and not the note. */
-  const top = p.tune * (2.4 + p.tone * 2.6);
-  o.frequency.setValueAtTime(top, t);
-  o.frequency.exponentialRampToValueAtTime(p.tune, t + .012 + p.tone * .05);
-  decayTo(g.gain, t, vel, p.decay);
-  o.connect(g); g.connect(kit);
-  o.start(t); o.stop(t + p.decay + .05);
-
-  /* the beater click, separate so Tone can move it without touching the body */
-  const cg = ctx.createGain(); cg.gain.value = 0;
-  const hp = highpass(1200);
-  const n = noise(t, .01);
-  decayTo(cg.gain, t, vel * .35 * p.tone, .008);
-  n.connect(hp); hp.connect(cg); cg.connect(kit);
-  return t + p.decay + .06;
-}
-
-function hitSnare(t, vel, p){
-  /* Two tones a fifth-ish apart plus noise: the tones are the drum, the noise is the
-     snare wires, and Tone crossfades between them. A snare with no tone is a noise burst
-     and a snare with no noise is a tom. */
-  const bodyLvl = (1 - p.tone) * .9, noiseLvl = .35 + p.tone * .65;
-  [1, 1.78].forEach((mult, i) => {
-    const o = ctx.createOscillator(); o.type = "triangle";
-    o.frequency.value = p.tune * mult;
-    const g = ctx.createGain(); g.gain.value = 0;
-    decayTo(g.gain, t, vel * bodyLvl * (i ? .6 : 1), p.decay * .55);
-    o.connect(g); g.connect(kit);
-    o.start(t); o.stop(t + p.decay + .05);
-  });
-  const n = noise(t, p.decay);
-  const bp = bandpass(1750 + p.tone * 1800, 1.1);
-  const hp = highpass(500);
-  const g = ctx.createGain(); g.gain.value = 0;
-  decayTo(g.gain, t, vel * noiseLvl, p.decay);
-  n.connect(hp); hp.connect(bp); bp.connect(g); g.connect(kit);
-  return t + p.decay + .06;
-}
-
-function hitClap(t, vel, p){
-  /* Three fast bursts and a tail. The bursts are the whole trick — a clap is several
-     hands not quite together, and a single noise burst through the same filter reads as
-     a short snare instead. 909 spacing, roughly 10 ms apart. */
-  const bp = bandpass(p.tune, 1.5);
-  const hp = highpass(600);
-  bp.connect(hp);
-  const g = ctx.createGain(); g.gain.value = 0;
-  hp.connect(g); g.connect(kit);
-  const spread = .008 + p.tone * .012;
-  [0, spread, spread * 2].forEach((off, i) => {
-    const bg = ctx.createGain(); bg.gain.value = 0;
-    const n = noise(t + off, .015);
-    decayTo(bg.gain, t + off, vel * (1 - i * .18), .006);
-    n.connect(bg); bg.connect(bp);
-  });
-  const tail = noise(t + spread * 2, p.decay);
-  const tg = ctx.createGain(); tg.gain.value = 0;
-  decayTo(tg.gain, t + spread * 2, vel * .5, p.decay);
-  tail.connect(tg); tg.connect(bp);
-  g.gain.value = 1;
-  return t + spread * 2 + p.decay + .06;
-}
-
-function hitTom(t, vel, p){
-  const o = ctx.createOscillator(); o.type = "sine";
-  o.frequency.setValueAtTime(p.tune * (1.5 + p.tone), t);
-  o.frequency.exponentialRampToValueAtTime(p.tune, t + .05 + p.tone * .06);
-  const g = ctx.createGain(); g.gain.value = 0;
-  decayTo(g.gain, t, vel, p.decay);
-  o.connect(g); g.connect(kit);
-  o.start(t); o.stop(t + p.decay + .05);
-  /* a little noise for the skin, or it is a sine and reads as a bass note */
-  const n = noise(t, .03);
-  const ng = ctx.createGain(); ng.gain.value = 0;
-  const bp = bandpass(p.tune * 4, .9);
-  decayTo(ng.gain, t, vel * .22, .025);
-  n.connect(bp); bp.connect(ng); ng.connect(kit);
-  return t + p.decay + .06;
-}
-
-/* Both hats come from the same generator; the only difference is how long it lasts and
-   whether a closed hat cuts it off. That is also true of the hardware. */
-function metal(t, vel, p, dur, hpHz){
-  const g = ctx.createGain(); g.gain.value = 0;
-  const hp = highpass(hpHz, .8);
-  const bp = bandpass(hpHz * 1.35, 1.1);
-  hp.connect(bp); bp.connect(g); g.connect(kit);
-  const oscs = METAL.map(r => {
-    const o = ctx.createOscillator();
-    o.type = "square";
-    o.frequency.value = p.tune * r;
-    o.connect(hp);
-    o.start(t); o.stop(t + dur + .05);
-    return o;
-  });
-  decayTo(g.gain, t, vel * .5, dur);
-  return {end: t + dur + .06, gain: g, oscs};
-}
-
-let openHat = null;                 // the sounding open hat, so a closed one can choke it
-
-function hitClosedHat(t, vel, p){
-  chokeOpenHat(t);
-  return metal(t, vel, p, p.decay, 6500 + p.tone * 3500).end;
-}
-function hitOpenHat(t, vel, p){
-  chokeOpenHat(t);
-  const m = metal(t, vel, p, p.decay, 6000 + p.tone * 3500);
-  openHat = m;
-  return m.end;
-}
-/* A closed hat cuts an open one. Without this the two overlap into a wash that no drum
-   machine has ever made, because they are one physical hi-hat. */
-function chokeOpenHat(t){
-  if (!openHat) return;
-  const g = openHat.gain.gain;
-  try{
-    g.cancelScheduledValues(t);
-    g.setValueAtTime(Math.max(.0001, g.value), t);
-    g.linearRampToValueAtTime(0, t + .006);
-    openHat.oscs.forEach(o => { try{ o.stop(t + .02); }catch(e){} });
-  }catch(e){}
-  openHat = null;
-}
-
-function hitRim(t, vel, p){
-  /* Short, bright and pitched — a rimshot is a click with a note in it. */
-  const o = ctx.createOscillator(); o.type = "triangle";
-  o.frequency.value = p.tune;
-  const o2 = ctx.createOscillator(); o2.type = "square";
-  o2.frequency.value = p.tune * 1.47;
-  const g = ctx.createGain(); g.gain.value = 0;
-  const bp = bandpass(p.tune * 1.2, 2.2);
-  o.connect(bp); o2.connect(bp); bp.connect(g); g.connect(kit);
-  decayTo(g.gain, t, vel * .8, p.decay);
-  o.start(t); o.stop(t + p.decay + .05);
-  o2.start(t); o2.stop(t + p.decay + .05);
-  return t + p.decay + .06;
-}
-
-const HITS = {bd: hitKick, sd: hitSnare, cp: hitClap, lt: hitTom, ht: hitTom,
-              ch: hitClosedHat, oh: hitOpenHat, rs: hitRim};
-
-/* The one place a voice is sounded. Both the engine and MIDI out go through fire(), so
-   what you hear and what leaves the MIDI port cannot drift — the rule CS·1's
-   chordEvents() and MS·1's stepEvent() already follow. */
-function fire(id, t, vel){
-  if (!ctx) return 0;
-  const p = P[id];
-  const g = Math.max(0, Math.min(1, vel)) * p.level * dbGain(TRIM[id] || 0);
-  return HITS[id](t, g, p);
-}
-
-/* ============ sequencer ============ */
-/* Eight lanes of sixteen steps, on the shell's clock. Same swing model CS·1 and MS·1 use,
-   so all three shuffle identically — a kit that swings differently from the line over it
-   is worse than no swing at all. */
-
-const SEQ = {
-  len: 16, rate: "1/16", swing: .5, playing: false,
-  accentAmt: .35,          // how much louder an accented step is
-  lane: "bd"               // which lane the grid is showing for editing
-};
-
-/* steps[voice][i] = 0 off, 1 on, 2 on+accent. A flat integer per step rather than an
-   object, because there are 128 of them and two states beyond off. */
-const steps = {};
-const MAX_STEPS = 64;
-ORDER.forEach(k => { steps[k] = new Array(MAX_STEPS).fill(0); });
-
-const RATES = {"1/8": 2, "1/8t": 3, "1/16": 4, "1/16t": 6, "1/32": 8};
-
-/* A starter pattern, so the panel makes a sound the first time Play is pressed rather
-   than asking you to program one before you can hear anything. Four on the floor with a
-   backbeat and offbeat hats — the most boring possible bar, which is the right default:
-   it is recognisable enough to check the kit against, and nobody will mistake it for a
-   creative choice. */
-function loadDefaultPattern(){
-  ORDER.forEach(k => steps[k].fill(0));
-  [0, 4, 8, 12].forEach(i => steps.bd[i] = i === 0 ? 2 : 1);
-  [4, 12].forEach(i => steps.sd[i] = 2);
-  for (let i = 0; i < 16; i += 2) steps.ch[i] = 1;
-  steps.oh[14] = 1;
-}
-loadDefaultPattern();
-
-let timer = null, nextTime = 0, stepIndex = 0, marks = [];
-
-const beatSeconds = () => 60 / (Patchwork.clock.bpm || 120);
-const stepSeconds = () => beatSeconds() / (RATES[SEQ.rate] || 4);
-
-/* The single source of truth for what a step plays — engine and MIDI out both read it,
-   so they cannot drift. Returns null for a rest rather than a zero-velocity hit, because
-   a zero-velocity note-on is a note-off on most hardware. */
-function stepEvent(id, i, t){
-  const v = steps[id][i % SEQ.len];
-  if (!v) return null;
-  return {id, t, vel: v === 2 ? 1 : 1 - SEQ.accentAmt, accent: v === 2};
-}
-
-function scheduleStep(idx, t){
-  const i = idx % SEQ.len;
-  ORDER.forEach(id => {
-    const ev = stepEvent(id, i, t);
-    if (!ev) return;
-    fire(ev.id, ev.t, ev.vel);
-    sendHit(ev);
-  });
-  return i;
-}
-
-function tick(){
-  const step = stepSeconds();
-  while (nextTime < ctx.currentTime + .2){
-    const at = Math.max(ctx.currentTime + .005, nextTime);
-    /* A queued scene lands here, on the loop point, BEFORE anything for this step is
-       scheduled — so the pattern that plays from this boundary is the new one. Doing it
-       on wall time instead would land it 200 ms late, behind the lookahead. */
-    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("dr1");
-    const i = scheduleStep(stepIndex, at);
-    marks.push({i, t: at, end: at + step});
-    /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
-       pair, so the bar's total length is unchanged however hard it shuffles — CS·1's
-       model, copied deliberately rather than reinvented */
-    const r = Patchwork.clock.rate;
-    nextTime += r * ((stepIndex % 2 === 0) ? 2 * SEQ.swing * step : (2 - 2 * SEQ.swing) * step);
-    stepIndex++;
-  }
-  while (marks.length > 24) marks.shift();
-}
-
-function startPlay(){
+function noteOn(midi, vel, when){
   ensureAudio();
-  SEQ.playing = true;
-  stepIndex = 0; marks = [];
-  /* lands on the running grid when another instrument is already going — see shell/clock.js */
-  nextTime = Patchwork.clock.claim(4);
-  tick();
-  Patchwork.clock.run(tick);
-  timer = tick;
-  playBtn.classList.add("on");
-  playBtn.textContent = "■ Stop";
-  requestAnimationFrame(paint);
+  const t = when == null ? ctx.currentTime + .003 : when;
+  held.set(midi, vel);
+  const n = pick();
+  if (n == null) return;
+  if (cur && !cur.released){
+    cur.retrigger(t, n, held.get(n) || vel, glideTime(cur.midi, n));
+  } else {
+    cur = buildVoice(n, held.get(n) || vel, t);
+  }
+  paintNow();
+}
+function noteOff(midi, when){
+  const t = when == null ? ctx.currentTime + .003 : when;
+  held.delete(midi);
+  const n = pick();
+  if (n == null){
+    if (cur){ cur.release(t); cur = null; }
+  } else if (cur && !cur.released){
+    cur.retrigger(t, n, held.get(n) || 100, glideTime(cur.midi, n));
+  }
+  paintNow();
+}
+function allNotesOff(){
+  held.clear();
+  const t = ctx ? ctx.currentTime : 0;
+  if (cur){ cur.release(t); cur = null; }
+  active.forEach(v => { try{ v.release(t); }catch(e){} });
+  paintNow();
 }
 
-function stopPlay(){
-  SEQ.playing = false;
-  Patchwork.clock.stop(tick); timer = null;
-  chokeOpenHat(ctx ? ctx.currentTime : 0);
-  midiPanic();
-  playBtn.classList.remove("on");
-  playBtn.textContent = "▶ Play";
-  clearMarks();
+/* Live parameter moves, so every knob works under a sounding note — the rule MS·1 fell
+   short of and then fixed, kept here from the start. */
+function applyLive(){
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  active.forEach(v => {
+    v.setCutoff(t);
+    v.fAmt.gain.setTargetAtTime(P.env * 1200, t, .01);
+    v.pk.gain.setTargetAtTime(P.level * .85, t, .01);
+    v.sg.gain.setTargetAtTime(UNITY * P.sub, t, .01);
+    /* Resonance is structural — it sets both biquads' Q at build time — so it is the one
+       control here that waits for the next note. Everything else moves under a held pedal. */
+  });
 }
 
 /* ============ ui ============ */
 
-const playBtn = $("#play"), tempoOut = $("#tempoOut"), lanesEl = $("#lanes");
-const clampf = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const playBtn = $("#play"), tempoOut = $("#tempoOut"), nowNote = $("#nowNote");
+const NOTES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+const noteName = n => NOTES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
 
-/* ---- the lane grid ---- */
-function buildLanes(){
-  lanesEl.textContent = "";
-  ORDER.forEach(id => {
-    const row = document.createElement("div");
-    row.className = "lane";
-    const nm = document.createElement("button");
-    nm.className = "lane-name" + (id === SEQ.lane ? " sel" : "");
-    nm.textContent = VOICES[id].name;
-    nm.dataset.v = id;
-    nm.title = VOICES[id].full + " — click to edit, shift-click to audition";
-    row.appendChild(nm);
-    const pads = document.createElement("div");
-    pads.className = "pads";
-    for (let i = 0; i < MAX_STEPS; i++){
-      const b = document.createElement("button");
-      b.className = "pad";
-      b.dataset.v = id; b.dataset.i = i;
-      b.setAttribute("aria-label", VOICES[id].name + " step " + (i + 1));
-      pads.appendChild(b);
+/* ---- the sequencer ---- */
+const seq = Patchwork.makeSeq({
+  id: "bs1", maxSteps: 64, len: 16, rate: "1/16", root: 36,
+  fire: (ev, t) => {
+    ensureAudio();
+    /* Slide glides into a step without re-attacking it — a 303 line, and the reason the
+       bass needed a sequencer of its own rather than borrowing notes from elsewhere. */
+    if (ev.slide && cur && !cur.released){
+      cur.setPitch(t, ev.n, Math.max(.02, P.glide || .06));
+      return;
     }
-    row.appendChild(pads);
-    lanesEl.appendChild(row);
-  });
-  paintPads();
-}
-
-function paintPads(){
-  /* the grid's column count follows the pattern length, so 8 steps fill the row rather
-     than leaving half of it empty */
-  /* Sixteen columns is the widest a lane stays hittable at a panel's width, so anything
-     longer wraps into rows of 16 inside the same grid rather than shrinking the pads to
-     slivers. 64 steps is four rows per lane, which is what 64 steps looks like. */
-  const cols = Math.min(16, SEQ.len);
-  $$(".pads").forEach(p => p.style.setProperty("--steps", cols));
-  $$(".pad").forEach(b => {
-    const id = b.dataset.v, i = +b.dataset.i;
-    b.hidden = i >= SEQ.len;
-    const v = steps[id][i];
-    b.classList.toggle("on", v > 0);
-    b.classList.toggle("acc", v === 2);
-    b.classList.toggle("beat", i % 4 === 0);
-  });
-}
-
-/* A click cycles off → on → accent → off. Three states on one control, because a
-   separate accent mode means holding a modifier to program the thing you most want to
-   program — the downbeat of a kick is accented nearly every time. */
-lanesEl.addEventListener("click", e => {
-  const nm = e.target.closest(".lane-name");
-  if (nm){
-    if (e.shiftKey){ ensureAudio(); fire(nm.dataset.v, ctx.currentTime + .005, 1); flashLane(nm.dataset.v); }
-    else { SEQ.lane = nm.dataset.v; $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === SEQ.lane)); syncVoice(); }
-    return;
+    noteOn(ev.n, Math.round(ev.vel * 127), t);
+    const off = t + ev.dur;
+    setTimeout(() => noteOff(ev.n, Patchwork.audio.ctx.currentTime + .003),
+               Math.max(10, (off - Patchwork.audio.ctx.currentTime) * 1000));
+  },
+  onState: on => {
+    playBtn.classList.toggle("on", on);
+    playBtn.textContent = on ? "■ Stop" : "▶ Play";
+    if (!on) allNotesOff();
   }
-  const pad = e.target.closest(".pad");
-  if (!pad) return;
-  const id = pad.dataset.v, i = +pad.dataset.i;
-  steps[id][i] = (steps[id][i] + 1) % 3;
-  SEQ.lane = id;
-  $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === id));
-  syncVoice();
-  paintPads();
+});
+const grid = Patchwork.mountSeqGrid($("#seqWrap"), seq);
+
+/* selects */
+const lenSel = $("#seqLen"), rateSel = $("#seqRate"), keySel = $("#seqKey"), scaleSel = $("#seqScale");
+[8,12,16,24,32,48,64].forEach(n => lenSel.appendChild(Object.assign(
+  document.createElement("option"), {value:String(n), textContent:n + " steps"})));
+lenSel.value = "16";
+Object.keys(seq.RATES).forEach(r => rateSel.appendChild(Object.assign(
+  document.createElement("option"), {value:r, textContent:r})));
+rateSel.value = "1/16";
+for (let n = 24; n <= 48; n++) keySel.appendChild(Object.assign(
+  document.createElement("option"), {value:String(n), textContent:noteName(n)}));
+keySel.value = "36";
+Object.keys(seq.SCALES).forEach(s => scaleSel.appendChild(Object.assign(
+  document.createElement("option"),
+  {value:s, textContent:s.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase())})));
+scaleSel.value = "minor";
+
+lenSel.addEventListener("change", () => { seq.setLen(+lenSel.value); grid.render(); });
+rateSel.addEventListener("change", () => { seq.SEQ.rate = rateSel.value; });
+keySel.addEventListener("change", () => { seq.SEQ.root = +keySel.value; grid.paint(); });
+scaleSel.addEventListener("change", () => { seq.SEQ.scale = scaleSel.value; grid.paint(); });
+
+playBtn.addEventListener("click", () => { ensureAudio(); seq.toggle(); });
+$("#panic").addEventListener("click", () => { seq.stop(); allNotesOff(); midiPanic(); });
+
+let latch = false;
+$("#hold").addEventListener("click", () => {
+  latch = !latch;
+  $("#hold").classList.toggle("on", latch);
+  if (!latch) allNotesOff();
 });
 
-function flashLane(id){
-  const el = lanesEl.querySelector('.lane-name[data-v="' + id + '"]');
-  if (!el) return;
-  el.classList.add("hit");
-  setTimeout(() => el.classList.remove("hit"), 90);
-}
-
-/* ---- playhead ----
-   Painted from the marks the scheduler left, looked up against the audio clock — the
-   same approach CS·1 and MS·1 use. Reading stepIndex directly would show the lookahead's
-   position, which is up to 200 ms ahead of what you can hear. */
-function paint(){
-  if (!SEQ.playing){ clearMarks(); return; }
-  const now = ctx.currentTime;
-  let cur = -1;
-  for (let k = marks.length - 1; k >= 0; k--)
-    if (marks[k].t <= now && now < marks[k].end){ cur = marks[k].i; break; }
-  $$(".pad").forEach(b => b.classList.toggle("now", +b.dataset.i === cur));
-  if (cur >= 0 && cur !== lastPainted){
-    ORDER.forEach(id => { if (steps[id][cur]) flashLane(id); });
-    lastPainted = cur;
+/* ---- the keyboard ----
+   Two octaves from the sequencer's root, which is where a pedalboard sits. */
+const keysEl = $("#keys");
+const KEY_BASE = 36;
+const BLACK = {1:1,3:1,6:1,8:1,10:1};
+function buildKeys(){
+  keysEl.textContent = "";
+  for (let i = 0; i < 25; i++){
+    const n = KEY_BASE + i;
+    const k = document.createElement("div");
+    k.className = "k" + (BLACK[n % 12] ? " b" : "");
+    k.dataset.n = n;
+    if (BLACK[n % 12]) k.appendChild(document.createElement("i"));
+    keysEl.appendChild(k);
   }
-  requestAnimationFrame(paint);
 }
-let lastPainted = -1;
-function clearMarks(){ $$(".pad").forEach(b => b.classList.remove("now")); lastPainted = -1; }
+buildKeys();
+keysEl.addEventListener("pointerdown", e => {
+  const k = e.target.closest(".k"); if (!k) return;
+  ensureAudio();
+  const n = +k.dataset.n;
+  if (latch && held.has(n)) noteOff(n); else noteOn(n, 100);
+});
+window.addEventListener("pointerup", () => { if (!latch) allNotesOff(); });
 
-/* ---- horizontal faders ----
-   Registered the way CS·1's are, so MIDI learn and patch save would get them for free. */
-const faderCtl = {};
-/* min and max are functions, not numbers, because Tune's range depends on which voice is
-   selected — a kick tuned to a hat's 40 Hz fundamental is inaudible, and a hat at a
-   kick's 48 Hz is a buzz. One fader serving eight voices needs the range to move with
-   the selection rather than being remapped after the fact. */
-function makeFader(sel, get, set, fmt, min, max){
-  const el = $(sel), slot = el.querySelector(".hslot"), cap = el.querySelector(".hcap"),
-        val = el.querySelector(".hval");
-  const lo = () => (typeof min === "function" ? min() : min);
-  const hi = () => (typeof max === "function" ? max() : max);
+function paintNow(){
+  const n = cur && !cur.released ? cur.midi : null;
+  nowNote.textContent = n == null ? "—" : noteName(n);
+  keysEl.querySelectorAll(".k").forEach(k => k.classList.toggle("on", held.has(+k.dataset.n)));
+}
+
+/* the playhead, from the audio clock */
+(function paintLoop(){ grid.paint(); requestAnimationFrame(paintLoop); })();
+
+/* ---- tempo ---- */
+function setBpm(v, fromShell){
+  const b = Math.round(clampf(v, 40, 240));
+  tempoOut.textContent = b;
+  if (!fromShell) Patchwork.clock.setBpm(b, "bs1");
+}
+Patchwork.clock.onTempo("bs1", v => setBpm(v, true), 120);
+setBpm(Patchwork.clock.bpm, true);
+$("#bpmUp").addEventListener("click", () => setBpm(Patchwork.clock.bpm + 1));
+$("#bpmDown").addEventListener("click", () => setBpm(Patchwork.clock.bpm - 1));
+
+/* ---- voice faders ---- */
+function fader(sel, get, set, fmt, min, max){
+  const el = $(sel), slot = el.querySelector(".hslot"),
+        cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
   function paintF(){
-    const a = lo(), b = hi();
-    cap.style.left = (clampf((get() - a) / (b - a), 0, 1) * 100) + "%";
+    cap.style.left = (clampf((get() - min) / (max - min), 0, 1) * 100) + "%";
     val.textContent = fmt(get());
   }
   el.addEventListener("pointerdown", e => {
     const r = slot.getBoundingClientRect();
     const move = ev => {
       const cx = ev.clientX != null ? ev.clientX : (ev.touches && ev.touches[0].clientX);
-      const x = clampf((cx - r.left) / r.width, 0, 1);
-      const a = lo(), b = hi();
-      set(a + x * (b - a));
-      paintF();
+      set(min + clampf((cx - r.left) / r.width, 0, 1) * (max - min));
+      applyLive(); paintF();
     };
-    move(e);
-    el.classList.add("dragging");
-    el.setPointerCapture && e.pointerId != null && el.setPointerCapture(e.pointerId);
-    const up = () => {
-      el.classList.remove("dragging");
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
+    move(e); el.classList.add("dragging");
+    const up = () => { el.classList.remove("dragging");
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   });
-  faderCtl[sel] = paintF;
   paintF();
-  return paintF;
 }
+/* cutoff is exponential — a linear Hz fader spends most of its travel above where a bass
+   filter is ever set */
+fader("#cutF", () => Math.log2(P.cut / 20) / Math.log2(2000 / 20),
+      v => { P.cut = 20 * Math.pow(2000 / 20, v); },
+      () => Math.round(P.cut) + " Hz", 0, 1);
+fader("#resF", () => P.res, v => { P.res = v; }, v => v.toFixed(1) + " dB", 0, 18);
+fader("#envF", () => P.env, v => { P.env = v; }, v => v.toFixed(2) + " oct", 0, 5);
+fader("#decF", () => P.dec, v => { P.dec = v; }, v => (v*1000).toFixed(0) + " ms", .04, 1.5);
+fader("#subF", () => P.sub, v => { P.sub = v; }, v => Math.round(v*100) + "%", 0, 1);
+fader("#lvlF", () => P.level, v => { P.level = v; }, v => Math.round(v*100) + "%", 0, 1);
+fader("#glideF", () => P.glide, v => { P.glide = v; }, v => (v*1000).toFixed(0) + " ms", 0, .4);
 
-/* ---- per-voice controls ----
-   One set of faders serving whichever lane is selected, rather than four controls per
-   voice times eight voices. Thirty-two knobs on a panel this size is a wall, and a drum
-   machine is played on the grid — the voice faders are for setting up, not performing. */
-const TUNE_RANGE = {bd:[28,90], sd:[120,320], cp:[500,2200], lt:[55,180],
-                    ht:[100,320], ch:[24,70], oh:[24,70], rs:[900,2600]};
-const cur = () => P[SEQ.lane];
+$("#wave").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  P.wave = b.dataset.w;
+  $$("#wave button").forEach(x => x.classList.toggle("on", x === b));
+});
+$("#oct").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  P.oct = +b.dataset.o;
+  $$("#oct button").forEach(x => x.classList.toggle("on", x === b));
+});
 
-function syncVoice(){
-  const v = VOICES[SEQ.lane];
-  $("#voiceTag").textContent = v.name;
-  $("#voiceMeta").textContent = v.full;
-  ["#tuneF", "#toneF", "#decayF", "#levelF"].forEach(k => faderCtl[k] && faderCtl[k]());
-}
-
-makeFader("#tuneF",  () => cur().tune,  v => { cur().tune = v; },
-          v => (v < 100 ? v.toFixed(1) : Math.round(v)) + " Hz",
-          () => TUNE_RANGE[SEQ.lane][0], () => TUNE_RANGE[SEQ.lane][1]);
-makeFader("#toneF",  () => cur().tone,  v => { cur().tone = v; },
-          v => Math.round(v * 100) + "%", 0, 1);
-makeFader("#decayF", () => cur().decay, v => { cur().decay = v; },
-          v => (v * 1000).toFixed(0) + " ms", .02, 1.2);
-makeFader("#levelF", () => cur().level, v => { cur().level = v; },
-          v => Math.round(v * 100) + "%", 0, 1);
-makeFader("#swingF",  () => SEQ.swing,     v => { SEQ.swing = v; },
-          v => Math.round(v * 100) + "%", .5, .75);
-makeFader("#accentF", () => SEQ.accentAmt, v => { SEQ.accentAmt = v; },
-          v => Math.round(v * 100) + "%", 0, .8);
-
-/* ---- transport and pattern controls ---- */
-playBtn.addEventListener("click", () => SEQ.playing ? stopPlay() : startPlay());
-$("#clearPat").addEventListener("click", () => { ORDER.forEach(k => steps[k].fill(0)); paintPads(); });
-$("#defaultPat").addEventListener("click", () => { loadDefaultPattern(); paintPads(); });
-$("#panic").addEventListener("click", () => { stopPlay(); midiPanic(); });
-
-function setBpm(v, fromShell){
-  const b = Math.round(clampf(v, 40, 240));
-  tempoOut.textContent = b;
-  if (!fromShell) Patchwork.clock.setBpm(b, "dr1");
-}
-Patchwork.clock.onTempo("dr1", v => setBpm(v, true), 120);
-setBpm(Patchwork.clock.bpm, true);
-$("#bpmUp").addEventListener("click", () => setBpm(Patchwork.clock.bpm + 1));
-$("#bpmDown").addEventListener("click", () => setBpm(Patchwork.clock.bpm - 1));
-
-$("#rate").addEventListener("change", e => { SEQ.rate = e.target.value; });
-$("#len").addEventListener("change", e => { SEQ.len = +e.target.value; paintPads(); });
-
-/* Space plays, and only when this panel owns the keyboard — see shell/host.js. */
 onKey("keydown", e => {
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "select" || tag === "textarea") return;
-  if (e.key === " " && !e.repeat){ SEQ.playing ? stopPlay() : startPlay(); e.preventDefault(); }
+  if (e.key === " " && !e.repeat){ ensureAudio(); seq.toggle(); e.preventDefault(); }
 });
 
-buildLanes();
-syncVoice();
+paintNow();
 
 /* ============ midi ============ */
-/* General MIDI drum notes, so a pad controller or a DAW track drives the kit without a
-   mapping dialogue. These are the GM percussion numbers; anything not in the map is
-   ignored rather than triggering the nearest voice, because a wrong drum is worse than
-   no drum. */
-const GM = {36:"bd", 35:"bd", 38:"sd", 40:"sd", 39:"cp", 41:"lt", 45:"lt",
-            47:"ht", 48:"ht", 42:"ch", 44:"ch", 46:"oh", 37:"rs"};
-const OUT_NOTE = {bd:36, sd:38, cp:39, lt:41, ht:47, ch:42, oh:46, rs:37};
+/* Its own input channel, which is what splitting MS·1 buys: the bass used to share one
+   instrument's channel map with the synth and the vocoder, and each of the three now
+   simply answers on a channel of its own. */
 
-const MIDI = {access:null, in:null, out:null, ch:9, inCh:-1, noteOut:false};
-const ledEl = $("#midiLed");
-const midiInSel = $("#midiIn"), midiOutSel = $("#midiOut"),
-      midiChSel = $("#midiCh"), midiInChSel = $("#midiInCh");
+const MIDI = {access:null, in:null, inCh:-1};
+const ledEl = $("#midiLed"), midiInSel = $("#midiIn"), midiInChSel = $("#midiInCh");
 
-/* Channel 10 (index 9) is where drums live by convention, so that is the default out. */
-function fillChannels(){
+midiInChSel.appendChild(Object.assign(document.createElement("option"),
+  {value:"-1", textContent:"Omni"}));
+for (let c = 0; c < 16; c++)
   midiInChSel.appendChild(Object.assign(document.createElement("option"),
-    {value:"-1", textContent:"Omni"}));
-  for (let c = 0; c < 16; c++){
-    midiInChSel.appendChild(Object.assign(document.createElement("option"),
-      {value:String(c), textContent:String(c + 1)}));
-    midiChSel.appendChild(Object.assign(document.createElement("option"),
-      {value:String(c), textContent:String(c + 1)}));
-  }
-  midiInChSel.value = "-1";
-  midiChSel.value = "9";
-}
-fillChannels();
-midiInChSel.addEventListener("change", () => { MIDI.inCh = parseInt(midiInChSel.value, 10); describe(); });
-midiChSel.addEventListener("change", () => { MIDI.ch = parseInt(midiChSel.value, 10); });
+    {value:String(c), textContent:String(c + 1)}));
+midiInChSel.value = "-1";
+midiInChSel.addEventListener("change", () => {
+  MIDI.inCh = parseInt(midiInChSel.value, 10); allNotesOff(); describe();
+});
 
 function ports(kind){ return Patchwork.midi.ports(kind); }
-
 function fillPorts(){
-  [[midiInSel, "inputs"], [midiOutSel, "outputs"]].forEach(([sel, kind]) => {
-    const keep = sel.value;
-    sel.textContent = "";
-    sel.appendChild(Object.assign(document.createElement("option"),
-      {value:"", textContent:"— none —"}));
-    ports(kind).forEach(p => sel.appendChild(Object.assign(document.createElement("option"),
-      {value:p.id, textContent:p.name || p.id})));
-    if (keep && ports(kind).some(p => p.id === keep)) sel.value = keep;
-  });
+  const keep = midiInSel.value;
+  midiInSel.textContent = "";
+  midiInSel.appendChild(Object.assign(document.createElement("option"),
+    {value:"", textContent:"— none —"}));
+  ports("inputs").forEach(p => midiInSel.appendChild(Object.assign(
+    document.createElement("option"), {value:p.id, textContent:p.name || p.id})));
+  if (keep && ports("inputs").some(p => p.id === keep)) midiInSel.value = keep;
 }
 
 function onMidi(e){
   const d = e.data, s = d[0];
-  if (s >= 0xF0) return;                       // realtime carries no channel; the clock is the shell's
+  if (s >= 0xF0) return;                    // realtime carries no channel
   if (MIDI.inCh >= 0 && (s & 0x0F) !== MIDI.inCh) return;
   const type = s & 0xF0;
-  if (type !== 0x90 || d[2] === 0) return;     // note-off is meaningless for a one-shot
-  const id = GM[d[1]];
-  if (!id) return;
-  ensureAudio();
-  fire(id, ctx.currentTime + .003, d[2] / 127);
-  flashLane(id);
+  if (type === 0x90 && d[2] > 0){ ensureAudio(); noteOn(d[1], d[2]); }
+  else if (type === 0x80 || (type === 0x90 && d[2] === 0)) noteOff(d[1]);
+  else if (type === 0xB0 && d[1] === 123) allNotesOff();
 }
-
-/* Mirrors the sequencer only, and goes through the same stepEvent() the engine reads, so
-   what sounds and what leaves the port cannot drift. A drum hit has no duration worth
-   sending, so note-off follows immediately — the note length of a one-shot means nothing
-   to the receiver, and holding it open risks a stuck note on a panic. */
-function sendHit(ev){
-  if (!MIDI.noteOut || !MIDI.out) return;
-  const n = OUT_NOTE[ev.id];
-  if (n == null) return;
-  const t = (ev.t - ctx.currentTime) * 1000 + performance.now();
-  try{
-    MIDI.out.send([0x90 | MIDI.ch, n, Math.round(ev.vel * 127)], t);
-    MIDI.out.send([0x80 | MIDI.ch, n, 0], t + 20);
-  }catch(err){}
-}
-
-function midiPanic(){
-  if (!MIDI.out) return;
-  for (let c = 0; c < 16; c++){
-    try{ MIDI.out.send([0xB0 | c, 123, 0]); }catch(e){}
-  }
-}
-
-$("#noteOut").addEventListener("click", e => {
-  const b = e.target.closest("button"); if (!b) return;
-  MIDI.noteOut = b.dataset.o === "on";
-  $$("#noteOut button").forEach(x => x.classList.toggle("on", x === b));
-});
+function midiPanic(){ allNotesOff(); }
 
 function bindInput(){ MIDI.in = Patchwork.midi.select(midiInSel.value); }
 function followInput(pt){
@@ -1922,153 +1623,78 @@ function followInput(pt){
   if (midiInSel.value !== (pt ? pt.id : "")) midiInSel.value = pt ? pt.id : "";
   ledEl.classList.toggle("ready", !!pt && !ledEl.classList.contains("err"));
 }
-function bindOutput(){
-  midiPanic();
-  MIDI.out = midiOutSel.value ? ports("outputs").find(p => p.id === midiOutSel.value) || null : null;
-}
 midiInSel.addEventListener("change", bindInput);
-midiOutSel.addEventListener("change", bindOutput);
 
-function say(msg, bad){
-  $("#midiNote").innerHTML = msg;
-  ledEl.classList.toggle("err", !!bad);
-}
+function say(msg, bad){ $("#midiNote").innerHTML = msg; ledEl.classList.toggle("err", !!bad); }
 function describe(){
-  const i = ports("inputs").length, o = ports("outputs").length;
-  say(i + " input" + (i === 1 ? "" : "s") + " · " + o + " output" + (o === 1 ? "" : "s")
-    + " — GM drum notes trigger the kit (36 kick, 38 snare, 42 hat). "
-    + (MIDI.inCh < 0 ? "Listening on <b>every channel</b>."
-                     : "Listening on <b>channel " + (MIDI.inCh + 1) + "</b> only."));
+  const i = ports("inputs").length;
+  say(i + " input" + (i === 1 ? "" : "s") + " — "
+    + (MIDI.inCh < 0 ? "listening on <b>every channel</b>."
+                     : "listening on <b>channel " + (MIDI.inCh + 1) + "</b> only."));
 }
 
 function initMidi(){
   if (!navigator.requestMIDIAccess){
-    say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true);
-    return;
+    say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true); return;
   }
   if (!window.isSecureContext){
-    say("Web MIDI needs a secure context — serve over <code>localhost</code>.", true);
-    return;
+    say("Web MIDI needs a secure context — serve over <code>localhost</code>.", true); return;
   }
-  Patchwork.midi.route("dr1", onMidi, pt => { fillPorts(); followInput(pt); bindOutput(); describe(); });
+  Patchwork.midi.route("bs1", onMidi, pt => { fillPorts(); followInput(pt); describe(); });
   Patchwork.midi.open().then(a => {
-    MIDI.access = a;
-    fillPorts();
+    MIDI.access = a; fillPorts();
     const ins = ports("inputs");
     if (!Patchwork.midi.port && ins.length){ midiInSel.value = ins[0].id; bindInput(); }
     else followInput(Patchwork.midi.port);
     describe();
-  }).catch(err => {
-    say("MIDI access was denied or failed (" + ((err && err.name) || "error") + ").", true);
-  });
+  }).catch(err => say("MIDI access was denied or failed (" + ((err && err.name) || "error") + ").", true));
 }
 
 /* ============ boot ============ */
 
-function ensureAudio(){
-  initAudio();
-  Patchwork.audio.resume();
-  return ctx.state;
-}
-
-/* Render one voice offline, the way __ms1.renderPatch() and __cs1.renderChord() do.
-   This is what the kit's trims are measured with — see measure() below. */
-async function renderHit(id, opts){
-  const o = opts || {};
-  const dur = o.dur || 1.5, rate = o.rate || 48000;
-  const saved = {ctx, kit, comp, noiseBuf};
-  const savedOpen = openHat;
-  openHat = null;
-  ctx = null;
-  const off = new OfflineAudioContext(2, Math.ceil(rate * dur), rate);
-  try{
-    initAudio(off);
-    if (o.params) Object.assign(P[id], o.params);
-    /* `hits` renders a whole pattern rather than one voice, which is the only way to get
-       at the cost that matters: a drum machine's load is hits per second, and a single
-       one-shot in a long buffer measures mostly silence. */
-    if (o.hits) o.hits.forEach(h => fire(h.id, h.t, h.vel == null ? 1 : h.vel));
-    else fire(id, 0, o.vel == null ? 1 : o.vel);
-    return await off.startRendering();
-  } finally {
-    ctx = saved.ctx; kit = saved.kit; comp = saved.comp; noiseBuf = saved.noiseBuf;
-    openHat = savedOpen;
-  }
-}
-
-/* Measure every voice and report the trim each one needs.
-
-   The metric is the loudest 30 ms anywhere in the hit, not RMS over a fixed window.
-   That matters more here than anywhere else in the repo, because a kit spans 45 ms
-   (closed hat) to 420 ms (kick) and any fixed window is wrong for one end of it:
-
-     500 ms — MS·1's window. Divides a hat's energy by ten parts silence.
-     150 ms — the obvious fix. Still under-measures a 45 ms hat by ~5 dB while measuring
-              a 380 ms open hat in full, which handed two voices from the SAME generator
-              trims 13 dB apart. That is the metric being wrong, not the voices.
-     30 ms peak-RMS — self-scaling. Every voice is measured over the part of itself that
-              is actually loud, so length stops leaking into level.
-
-   It is also the better perceptual proxy: for transients the ear integrates over roughly
-   this long, which is why a short bright hit and a long quiet one can measure the same
-   in RMS and sound nothing alike.
-
-   ⚠️ Stochastic, for the same reason MS·1's harness is: every noise source starts at a
-   random offset per hit, so snare, clap, hats and the kick's click do not repeat exactly.
-   `runs` averages; 8 holds the numbers to about a tenth of a dB. Never read one run. */
-async function measure(runs){
-  const N = runs || 8;
-  const rows = {};
-  for (const id of ORDER){
-    let sum = 0;
-    for (let r = 0; r < N; r++){
-      const b = await renderHit(id, {dur: 1.5});
-      const L = b.getChannelData(0), R = b.getChannelData(1);
-      const win = Math.round(b.sampleRate * .03);
-      /* sliding sum-of-squares, so this stays one pass over the buffer */
-      let acc = 0, best = 0;
-      for (let i = 0; i < L.length; i++){
-        const m = (L[i] + R[i]) / 2;
-        acc += m * m;
-        if (i >= win){ const o = (L[i-win] + R[i-win]) / 2; acc -= o * o; }
-        if (i >= win && acc > best) best = acc;
-      }
-      sum += Math.sqrt(best / win);
-    }
-    const db = 20 * Math.log10(sum / N);
-    const target = TARGET_BD + BALANCE[id];
-    rows[id] = {measured: +db.toFixed(2), target: target,
-                needs: +(target - db).toFixed(2), applied: TRIM[id]};
-  }
-  return rows;
-}
-
-/* ---- scenes ----
-   A DR·1 pattern is the grid and how it is read. Not the voice parameters: firing a
-   scene should change the beat, not retune the kit under you. */
-Patchwork.scenes.register("dr1", {
-  name: "DR·1",
-  isPlaying: () => SEQ.playing,
-  capture: () => ({steps: JSON.parse(JSON.stringify(steps)),
-                   len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing, accentAmt: SEQ.accentAmt}),
+Patchwork.scenes.register("bs1", {
+  name: "BS·1",
+  isPlaying: () => seq.SEQ.playing,
+  capture: () => seq.capture(),
   apply: pat => {
-    ORDER.forEach(k => { if (pat.steps && pat.steps[k]) steps[k] = pat.steps[k].slice(); });
-    if (pat.len) SEQ.len = pat.len;
-    if (pat.rate) SEQ.rate = pat.rate;
-    if (pat.swing != null) SEQ.swing = pat.swing;
-    if (pat.accentAmt != null) SEQ.accentAmt = pat.accentAmt;
-    $("#len").value = String(SEQ.len);
-    $("#rate").value = SEQ.rate;
-    paintPads();
+    seq.apply(pat);
+    lenSel.value = String(seq.SEQ.len);
+    rateSel.value = seq.SEQ.rate;
+    keySel.value = String(seq.SEQ.root);
+    scaleSel.value = seq.SEQ.scale;
+    grid.render();
   }
 });
 
 initMidi();
 
-/* A test hook, not a feature — the same one CS·1 and MS·1 carry. */
-window.__dr1 = {P, SEQ, steps, ORDER, VOICES, TRIM, BALANCE, TARGET_BD,
-                fire, renderHit, measure, ensureAudio, MIDI, onMidi,
-                get ctx(){ return ctx; }};
+/* Offline render, mirroring the other instruments' harnesses so a bass patch can be
+   trimmed against a target rather than dialled. */
+async function renderNote(opts){
+  const o = opts || {};
+  const dur = o.dur || 2.0, rate = o.rate || 48000;
+  const saved = {ctx, out, bassOut, comp};
+  const savedCur = cur; cur = null;
+  const savedActive = Array.from(active); active.clear();
+  ctx = null;
+  const off = new OfflineAudioContext(2, Math.ceil(rate * dur), rate);
+  try{
+    initAudio(off);
+    if (o.params) Object.assign(P, o.params);
+    const v = buildVoice(o.midi == null ? 36 : o.midi, o.vel == null ? 100 : o.vel, 0);
+    if (o.gate > 0 && o.gate < dur) v.release(o.gate);
+    return await off.startRendering();
+  } finally {
+    active.clear();
+    ctx = saved.ctx; out = saved.out; bassOut = saved.bassOut; comp = saved.comp;
+    savedActive.forEach(v => active.add(v));
+    cur = savedCur;
+  }
+}
+
+window.__bs1 = {P, seq, noteOn, noteOff, allNotesOff, ensureAudio, renderNote, MIDI, onMidi,
+                get ctx(){ return ctx; }, get active(){ return active; },
+                get held(){ return held; }, get cur(){ return cur; }};
 });
 
 /* Runs last, once every instrument on the page has registered.

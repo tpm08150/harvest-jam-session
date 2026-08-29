@@ -1,0 +1,111 @@
+
+<div class="unit bs1" data-instrument="bs1">
+
+  <div data-face class="plate">
+    <div>
+      <div class="brand">Patchwork</div>
+      <div class="model">BS·1 — bass</div>
+    </div>
+    <div class="screws"><i class="screw"></i><i class="screw"></i></div>
+  </div>
+  <div data-face class="rule"></div>
+
+  <div data-face class="card">
+    <div class="card-head">
+      <span class="card-title">Bass</span>
+      <span class="card-meta" id="nowMeta">mono · lowest note</span>
+    </div>
+    <div class="now" id="nowNote">—</div>
+    <div class="keys" id="keys" role="group" aria-label="Keyboard"></div>
+  </div>
+
+  <div data-face class="transport">
+    <button class="btn primary" id="play">▶ Play</button>
+    <button class="btn ghost" id="hold">Hold</button>
+    <div class="tempo">
+      <button id="bpmDown" aria-label="Slower">−</button>
+      <span id="tempoOut">120</span>
+      <button id="bpmUp" aria-label="Faster">+</button>
+    </div>
+    <button class="btn panic" id="panic">Panic</button>
+  </div>
+
+  <div data-face class="sect">
+    <div class="sect-head">
+      <span class="silk">Sequence</span>
+      <div class="patrow">
+        <div class="field" style="flex:0 0 84px">
+          <label for="seqLen">Steps</label>
+          <select id="seqLen"></select>
+        </div>
+        <div class="field" style="flex:0 0 92px">
+          <label for="seqRate">Rate</label>
+          <select id="seqRate"></select>
+        </div>
+        <div class="field" style="flex:0 0 96px">
+          <label for="seqKey">Key</label>
+          <select id="seqKey"></select>
+        </div>
+        <div class="field" style="flex:0 0 116px">
+          <label for="seqScale">Scale</label>
+          <select id="seqScale"></select>
+        </div>
+      </div>
+    </div>
+    <div class="seqwrap" id="seqWrap"></div>
+    <div class="seqlegend">
+      <span><i style="background:var(--bs-accent)"></i>step</span>
+      <span><i style="background:var(--cap-yellow)"></i>accent — click again</span>
+      <span>shift-click ties · alt-click slides · drag a step to pitch it</span>
+    </div>
+  </div>
+
+  <div data-face class="sect">
+    <div class="sect-head"><span class="silk">Voice</span></div>
+    <div class="knobrow">
+      <div class="hfader" id="cutF"><span class="hlab">Cutoff</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="resF"><span class="hlab">Res</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="envF"><span class="hlab">Contour</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="decF"><span class="hlab">Decay</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="subF"><span class="hlab">Sub</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="lvlF"><span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="glideF"><span class="hlab">Glide</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Wave</span>
+        <div class="seg sm" id="wave" role="group" aria-label="Oscillator waveform">
+          <button data-w="saw" class="on">Saw</button>
+          <button data-w="square">Square</button>
+        </div>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Octave</span>
+        <div class="seg sm" id="oct" role="group" aria-label="Octave">
+          <button data-o="-2">−2</button>
+          <button data-o="-1" class="on">−1</button>
+          <button data-o="0">0</button>
+        </div>
+      </div>
+    </div>
+    <p class="note">Dry by design — no chorus, delay or reverb. A bass wants to stay centred.</p>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head">
+      <span class="silk"><i class="led" id="midiLed"></i>MIDI</span>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="midiIn">Input</label>
+        <select id="midiIn"><option value="">— none —</option></select>
+      </div>
+      <div class="field" style="flex:0 0 74px">
+        <label for="midiInCh">In ch</label>
+        <select id="midiInCh"></select>
+      </div>
+    </div>
+    <p class="note" id="midiNote">—</p>
+  </div>
+
+</div>
