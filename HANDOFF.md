@@ -1460,6 +1460,95 @@ LP·1 answers for its own column. It has no scene row, so `scenes.onRow` has nev
 it — the record spec grows a `liveSlot()` instead, and the live grid asks a slot track
 which slot it is working out of rather than asking the scene model.
 
+## Shared jam sessions
+
+`shell/session.js`. Everyone plays the same grid and nobody streams audio: every browser
+synthesises from patterns and parameters, so what crosses the wire is state, a few KB of it.
+
+That only works because of the seam. Nothing here says "change now", it says "change at
+boundary N", and each client works that out on its own — so a message only has to BEAT the
+boundary rather than arrive at it, and the 200 ms scheduling lookahead is a jitter buffer
+this app already paid for.
+
+### Two transports, one interface
+
+`{send, close, onMessage}`, and nothing below that point knows which one it has.
+
+| | reaches | clock |
+| --- | --- | --- |
+| `BroadcastChannel` | other TABS on this machine | `Date.now()`, exact and free |
+| `tools/jam-relay.py` | other machines | the relay's, estimated NTP-style |
+
+Which one you get is **explicit**, from `?relay=ws://host:port` in the URL. A silent
+fallback would let you set up a two-laptop test that quietly was not one, and the head bar
+names the transport for the same reason.
+
+The relay is stdlib-only Python — the WebSocket handshake is one SHA-1 and the framing is a
+few lines, so the whole dependency is avoidable. It relays and it keeps time; it holds no
+musical state and never reads a payload past its `kind`, because a relay that understood
+the music would be a second implementation of the model with its own opinions about who is
+right.
+
+### ⚠️ The server owns beat 0
+
+**The first version let the joining client stamp the epoch, and it was wrong.** At join time
+the client has not measured its offset yet, so `serverNow()` returns bare
+`performance.now()` — a number in that tab's own base, meaningless to anyone else. Both
+clients then derived a self-consistent origin from the same integer against *different*
+clock bases, so the arithmetic looked fine and the grids were not shared at all.
+
+The measurement that caught it looked like a pass: 26 ms apart. It was two clients each
+being internally consistent about a number that meant nothing.
+
+The relay stamps a room's epoch on first join and tells every joiner. `originFromEpoch()`
+also refuses to answer until `synced`, so an unsynced client uses a local grid rather than
+a confidently wrong shared one.
+
+| beat 0, in server ms, over the relay | |
+| --- | --- |
+| client A | 1788028276997 |
+| client B | 1788028276992 |
+
+### ⚠️ Date.now() cannot be the shared clock across machines
+
+Two laptops' system clocks are routinely seconds apart, which would put the grids seconds
+apart — the failure that reads as the feature simply not working. Between tabs on one
+machine it is exact, which is why the BroadcastChannel transport still uses it.
+
+The estimator is NTP's, including its trick: over several round trips keep the sample with
+the **smallest** round trip rather than averaging. A fast exchange is one where little
+queueing happened in either direction, so its midpoint is closest to the truth; averaging
+drags the estimate toward whichever direction was more congested. A burst of eight settles
+it, then a slow trickle revisits it, because crystals drift and an hour-long session should
+not be estimating from its first ten seconds.
+
+### ⚠️ clock.claim() ASKS for the origin
+
+It cannot be pushed in at join time: the mapping needs an AudioContext and there rarely is
+one yet. `claim()` is the one moment a fresh grid would be invented, so that is where it
+asks — and everything downstream already computes its seam from `origin`, so this is the
+whole of what a shared clock needs from `clock.js`.
+
+### Details worth not undoing
+
+- **Every message carries its sender and you ignore your own.** Applying a remote op also
+  sets a guard, because these models are notification-based and a remote change would
+  otherwise bounce straight back out. Same reason `setBpm()` has always taken a `from`.
+- **Rows are sent whole, not diffed.** At this size the diff costs more than the copy, and
+  a full snapshot cannot drift.
+- **A joiner is welcomed by the peers, not the server.** Whoever is already there answers
+  with a snapshot; several identical answers are harmless.
+- **Firing a row is the one gesture that must be said.** The rows themselves are already
+  shared state; "play row 3" is not implied by anything.
+- **Ownership is advisory.** It says who is holding an instrument, it does not lock anyone
+  out — a lock needs an authority to arbitrate it, and two people claiming at once would
+  just disagree.
+
+### Not yet
+
+Patch parameters (each instrument already serialises itself, so it is additive), an
+ownership UI, live notes, and the looper push.
+
 ### ⚠️ A sequencer must not drive a keyboard
 
 BS·1's sequencer called `noteOn()`/`noteOff()` — the **live-keyboard** path, with a

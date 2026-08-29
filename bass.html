@@ -1576,30 +1576,114 @@ const owners = new Map();      // instrument id -> peer id
    this session and no longer. */
 const me = {id: Math.random().toString(36).slice(2, 10), name: ""};
 
-/* ---- transports ---- */
+/* ---- transports ----
+   Two of them, same four methods, and nothing below this point knows which one it has.
+
+   BroadcastChannel reaches other TABS on this machine and nothing else. It is not a
+   fallback for the real one — it is how you jam with yourself, and how the model was
+   proven with two clients before a server existed.
+
+   The relay reaches other machines, and brings a clock with it. Which one you get is
+   explicit, from `?relay=` in the URL: a silent fallback would let you set up a
+   two-laptop test that quietly was not one. */
 function broadcastChannel(name){
   if (typeof BroadcastChannel === "undefined") return null;
   const ch = new BroadcastChannel("patchwork-jam-" + name);
   return {
+    kind: "this machine",
     send: msg => ch.postMessage(msg),
     close: () => ch.close(),
     onMessage: fn => { ch.onmessage = e => fn(e.data); }
   };
 }
 
+function webSocket(url, name){
+  let ws, handler = null, closed = false;
+  const queue = [];
+  try{ ws = new WebSocket(url); }catch(e){ return null; }
+
+  ws.addEventListener("open", () => {
+    ws.send(JSON.stringify({kind: "join", room: name}));
+    queue.splice(0).forEach(m => ws.send(m));
+    syncTime();
+    notify();
+  });
+  ws.addEventListener("close", () => { if (!closed) notify(); });
+  ws.addEventListener("error", () => notify());
+  ws.addEventListener("message", e => {
+    let m; try{ m = JSON.parse(e.data); }catch(err){ return; }
+    if (m.kind === "pong"){ takeSample(m); return; }
+    if (m.kind === "joined"){ adoptEpoch(m.epoch); notify(); return; }
+    if (handler) handler(m);
+  });
+
+  return {
+    kind: url.replace(/^wss?:\/\//, ""),
+    send: msg => {
+      const s2 = JSON.stringify(msg);
+      if (ws.readyState === 1) ws.send(s2); else if (ws.readyState === 0) queue.push(s2);
+    },
+    close: () => { closed = true; try{ ws.close(); }catch(e){} },
+    onMessage: fn => { handler = fn; },
+    ping: () => { if (ws.readyState === 1) ws.send(JSON.stringify({kind:"ping", t0: performance.now()})); },
+    get ready(){ return ws.readyState === 1; }
+  };
+}
+
 /* ---- the clock ----
    Two browsers have unrelated ctx.currentTime origins, so the session carries a shared
-   WALL-CLOCK epoch and each client maps it onto its own audio clock. Date.now() is the
-   only clock two tabs already agree on; a real session would take the epoch from the
-   server and estimate the offset, which is the same arithmetic with a correction term.
+   epoch in the SERVER's milliseconds and each client maps it onto its own audio clock.
+
+   ⚠️ Date.now() cannot be that shared clock across machines. Two laptops' system clocks
+   are routinely seconds apart, which would put the grids seconds apart — the failure that
+   sounds like the feature simply not working. Between tabs on one machine it is exact and
+   free, so that is what BroadcastChannel sessions use; a relay session estimates its
+   offset against the server instead.
+
+   NTP's estimator, and its trick: over several round trips, keep the sample with the
+   SMALLEST round trip rather than averaging. A fast exchange is one where little queueing
+   happened in either direction, so its midpoint is closest to the truth; averaging drags
+   the estimate toward whichever direction was more congested.
 
    ⚠️ This is the make-or-break part. Get it slightly wrong and it sounds NEARLY right,
    which is worse than obviously broken. */
+let offsetMs = 0;          // serverNow() - performance.now()
+let bestRtt = Infinity;
+let synced = false;
+
+function serverNow(){
+  return tx && tx.ping ? performance.now() + offsetMs : Date.now();
+}
+function takeSample(m){
+  const t1 = performance.now();
+  const rtt = t1 - m.t0;
+  if (!(rtt >= 0) || rtt > bestRtt) return;
+  bestRtt = rtt;
+  offsetMs = m.ts - (m.t0 + rtt / 2);
+  synced = true;
+  notify();
+}
+function syncTime(){
+  if (!tx || !tx.ping) return;
+  /* A burst to settle it, then a slow trickle: crystals drift, and a session that runs for
+     an hour would otherwise be estimating from the first ten seconds of it. */
+  let n = 0;
+  const burst = setInterval(() => { if (!tx || !tx.ping || ++n > 8) clearInterval(burst); else tx.ping(); }, 120);
+  clearInterval(trickle); trickle = setInterval(() => {
+    if (!tx || !tx.ping){ clearInterval(trickle); return; }
+    /* let a long-running estimate be revisited rather than frozen at whatever the first
+       minute happened to look like */
+    bestRtt *= 1.05;
+    tx.ping();
+  }, 5000);
+}
+let trickle = null;
+
 function originFromEpoch(){
-  if (epoch == null) return null;
+  if (epoch == null || !synced) return null;
   const ctx = Patchwork.audio && Patchwork.audio.ctx;
   if (!ctx) return null;
-  return ctx.currentTime - (Date.now() - epoch) / 1000;
+  return ctx.currentTime - (serverNow() - epoch) / 1000;
 }
 function adoptEpoch(ms){
   epoch = ms;
@@ -1720,18 +1804,26 @@ function join(name, who){
   leave();
   room = String(name || "jam").trim().toLowerCase();
   me.name = String(who || "").trim() || ("player " + me.id.slice(0, 3));
-  tx = broadcastChannel(room);
+  /* `?relay=ws://host:port` picks the networked transport. Explicit on purpose. */
+  const relay = new URLSearchParams(location.search).get("relay");
+  tx = relay ? webSocket(relay, room) : broadcastChannel(room);
   if (!tx){ room = null; notify(); return false; }
   tx.onMessage(onMessage);
-  /* The first one in defines the grid. Anyone already here overrides it in their welcome. */
-  if (epoch == null) adoptEpoch(Date.now());
+  offsetMs = 0; bestRtt = Infinity; synced = !tx.ping;
+  /* ⚠️ Only a BroadcastChannel session stamps its own beat 0, and only because two tabs
+     share one Date.now() exactly. A relay session waits to be told: at this moment the
+     offset has not been measured, so any number produced here would be in this tab's
+     performance.now() base and would mean nothing to the other end. */
+  if (!tx.ping && epoch == null) adoptEpoch(Date.now());
   send("hello", {name: me.name});
   notify();
   return true;
 }
 function leave(){
   if (tx){ send("bye", {}); tx.close(); }
+  clearInterval(trickle); trickle = null;
   tx = null; room = null; epoch = null;
+  offsetMs = 0; bestRtt = Infinity; synced = false;
   peers.clear(); owners.clear();
   notify();
 }
@@ -1767,6 +1859,11 @@ return {join, leave, claim, release, ownerName, onChange: fn => subs.push(fn),
         fired: row => send("fire", {row}),
         get active(){ return !!tx; },
         get room(){ return room; },
+        /* what the head bar tells you about the connection, so a two-laptop test that is
+           quietly two tabs is visible rather than mysterious */
+        get via(){ return tx ? tx.kind : null; },
+        get linked(){ return !!tx && (tx.ready === undefined || tx.ready); },
+        get clock(){ return {synced, offsetMs: Math.round(offsetMs), rttMs: bestRtt === Infinity ? null : Math.round(bestRtt)}; },
         get me(){ return {id: me.id, name: me.name}; },
         get owners(){ return new Map(owners); },
         get peers(){ return [...peers.values()].map(p => ({id: p.id, name: p.name})); }};

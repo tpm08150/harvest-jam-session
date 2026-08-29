@@ -351,11 +351,20 @@ function paint(){
   btn.textContent = on ? "Leave jam" : "Start a jam";
   btn.classList.toggle("st-on", on);
   if (!on){ who.textContent = ""; return; }
-  const peers = Patchwork.session.peers;
-  who.innerHTML = "<b>" + Patchwork.session.room + "</b> · "
-    + (peers.length ? "you and " + peers.length + " other" + (peers.length > 1 ? "s" : "")
-                    : "waiting for someone to join");
+  const peers = Patchwork.session.peers, S = Patchwork.session;
+  /* WHERE the jam is, not just that there is one. A two-laptop test that is quietly two
+     tabs on one machine looks identical otherwise, and so does a relay that never
+     connected — both would read "waiting for someone to join" forever. */
+  const clk = S.clock;
+  who.innerHTML = "<b>" + S.room + "</b> · via " + S.via
+    + (S.linked ? (clk.synced ? "" : " <em>(syncing clock…)</em>") : " <em>(connecting…)</em>")
+    + " · " + (peers.length
+        ? "you and " + peers.length + " other" + (peers.length > 1 ? "s" : "")
+        : "waiting for someone to join")
+    + (clk.rttMs == null ? "" : " · " + clk.rttMs + " ms");
 }
+/* the peer count and the clock estimate both move without anything else changing */
+setInterval(paint, 1000);
 Patchwork.session.onChange(paint);
 paint();
 })();

@@ -71,6 +71,7 @@ body{
   font-size:10.5px;letter-spacing:.06em;color:var(--silk-dim);
 }
 .st-jam-who b{color:var(--mint);font-weight:400}
+.st-jam-who em{font-style:normal;color:var(--cap-yellow)}
 .st-head .st-hint{
   font-family:"DM Mono",ui-monospace,monospace;
   font-size:10.5px;letter-spacing:.06em;color:var(--silk-dim);
