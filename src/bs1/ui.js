@@ -7,7 +7,7 @@ const noteName = n => NOTES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
 
 /* ---- the sequencer ---- */
 const seq = Patchwork.makeSeq({
-  id: "bs1", maxSteps: 64, len: 16, rate: "1/16", root: 36,
+  id: "bs1", maxSteps: 64, len: 16, params: P, rate: "1/16", root: 36,
   /* ⚠️ The sequencer drives the VOICE, and touches nothing the keyboard owns.
 
      It used to call noteOn()/noteOff() — the live-keyboard path, with a held-note map and
@@ -46,7 +46,25 @@ const seq = Patchwork.makeSeq({
     if (!on) allNotesOff();
   }
 });
-const grid = Patchwork.mountSeqGrid($("#seqWrap"), seq);
+/* What is under a finger right now — the note a click on a step will write. Lowest, the
+   same priority the voice itself uses, so what you hear and what lands agree. */
+const heldNote = () => { const n = pick(); return n == null ? null : n; };
+const faderReg = {};
+
+/* ⚠️ Every source of a PLAYED note calls this — the on-screen keys, the computer keyboard
+   and MIDI. Not noteOn(), which would be the obvious hook and is the wrong one: VC·1's
+   sequencer fires through noteOn(), so a step would write itself into whichever step was
+   selected, on every pass. "A human played this" is a different fact from "a note
+   sounded", and only the first one belongs in the grid. */
+function played(n){
+  if (seq.SEQ.mode !== "program") return;
+  seq.setStepNote(seq.SEQ.sel, n, 100);
+  grid.paint();
+}
+const grid = Patchwork.mountSeqGrid($("#seqWrap"), seq, {
+  held: heldNote,
+  onSelect: () => paintLocked()
+});
 
 /* Does the next SOUNDING step glide into this one? Ties are skipped, because a tie extends
    the note before it rather than sounding on its own — the same rule stepEvent() uses when
@@ -115,6 +133,7 @@ keysEl.addEventListener("pointerdown", e => {
   const n = +k.dataset.n;
   /* a played note reaches the grid only while armed and recording — see shell/record.js */
   Patchwork.record.note("bs1", n, 100);
+  played(n);
   if (latch && held.has(n)) noteOff(n); else noteOn(n, 100);
 });
 window.addEventListener("pointerup", () => { if (!latch) allNotesOff(); });
@@ -157,9 +176,12 @@ $("#bpmUp").addEventListener("click", () => setBpm(Patchwork.clock.bpm + 1));
 $("#bpmDown").addEventListener("click", () => setBpm(Patchwork.clock.bpm - 1));
 
 /* ---- voice faders ---- */
-function fader(sel, get, set, fmt, min, max){
+/* `id` is the key in P this fader owns. It is what a parameter lock is keyed on, and the
+   reason a fader has to say which one it is rather than just how to set it. */
+function fader(sel, get, set, fmt, min, max, id){
   const el = $(sel), slot = el.querySelector(".hslot"),
         cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
+  if (id) faderReg[id] = el;
   function paintF(){
     cap.style.left = (clampf((get() - min) / (max - min), 0, 1) * 100) + "%";
     val.textContent = fmt(get());
@@ -170,6 +192,9 @@ function fader(sel, get, set, fmt, min, max){
       const cx = ev.clientX != null ? ev.clientX : (ev.touches && ev.touches[0].clientX);
       set(min + clampf((cx - r.left) / r.width, 0, 1) * (max - min));
       applyLive(); paintF();
+      /* In program mode moving a control IS the lock gesture — no separate arm step, the
+         same as recording a note by holding one and clicking. */
+      if (id && seq.lock(id)) paintSeqEdit();
     };
     move(e); el.classList.add("dragging");
     const up = () => { el.classList.remove("dragging");
@@ -177,19 +202,24 @@ function fader(sel, get, set, fmt, min, max){
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   });
+  /* Double-click unlocks BEFORE it resets: otherwise there is no way to take a lock off a
+     control without also losing the patch setting underneath it. PM·1's rule. */
+  el.addEventListener("dblclick", () => {
+    if (id && seq.SEQ.mode === "program" && seq.unlock(id)){ paintSeqEdit(); return; }
+  });
   paintF();
 }
 /* cutoff is exponential — a linear Hz fader spends most of its travel above where a bass
    filter is ever set */
 fader("#cutF", () => Math.log2(P.cut / 20) / Math.log2(2000 / 20),
       v => { P.cut = 20 * Math.pow(2000 / 20, v); },
-      () => Math.round(P.cut) + " Hz", 0, 1);
-fader("#resF", () => P.res, v => { P.res = v; }, v => v.toFixed(1) + " dB", 0, 18);
-fader("#envF", () => P.env, v => { P.env = v; }, v => v.toFixed(2) + " oct", 0, 5);
-fader("#decF", () => P.dec, v => { P.dec = v; }, v => (v*1000).toFixed(0) + " ms", .04, 1.5);
-fader("#subF", () => P.sub, v => { P.sub = v; }, v => Math.round(v*100) + "%", 0, 1);
-fader("#lvlF", () => P.level, v => { P.level = v; }, v => Math.round(v*100) + "%", 0, 1);
-fader("#glideF", () => P.glide, v => { P.glide = v; }, v => (v*1000).toFixed(0) + " ms", 0, .4);
+      () => Math.round(P.cut) + " Hz", 0, 1, "cut");
+fader("#resF", () => P.res, v => { P.res = v; }, v => v.toFixed(1) + " dB", 0, 18, "res");
+fader("#envF", () => P.env, v => { P.env = v; }, v => v.toFixed(2) + " oct", 0, 5, "env");
+fader("#decF", () => P.dec, v => { P.dec = v; }, v => (v*1000).toFixed(0) + " ms", .04, 1.5, "dec");
+fader("#subF", () => P.sub, v => { P.sub = v; }, v => Math.round(v*100) + "%", 0, 1, "sub");
+fader("#lvlF", () => P.level, v => { P.level = v; }, v => Math.round(v*100) + "%", 0, 1, "level");
+fader("#glideF", () => P.glide, v => { P.glide = v; }, v => (v*1000).toFixed(0) + " ms", 0, .4, "glide");
 
 $("#wave").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -215,12 +245,60 @@ Patchwork.keys.mount(root, {
   on: (n, v) => {
     ensureAudio();
     Patchwork.record.note("bs1", n, v);
+    played(n);
     if (latch && held.has(n)) noteOff(n); else noteOn(n, v);
   },
   off: n => { if (!latch) noteOff(n); },
   paint: paintNow,
   octave: d => setOct(OCTS[Math.max(0, Math.min(OCTS.length - 1, OCTS.indexOf(P.oct) + d))])
 });
+
+
+/* ---- the sequencer's editing controls ----
+   The same three PM·1 has, driving the shared grid — see seq/step-seq.js. Two sequencers
+   with different gestures is two things to learn, and the one you are not looking at is
+   always the one whose rules you have forgotten. */
+const LANE_HINT = {
+  on: "click a step to turn it on \u00b7 shift-click ties \u00b7 alt-click slides",
+  pitch: "drag a step up or down to set its note",
+  accent: "click a step to accent it",
+  slide: "click a step to glide into it from the one before",
+  tie: "click a step to hold the note before it through this one"
+};
+const seqHint = $("#seqHint");
+function paintLocked(){
+  /* Which controls hold a lock for the SELECTED step, so a p-lock is something you can see
+     rather than remember — PM·1 marks its knobs the same way. */
+  Object.keys(faderReg).forEach(id => {
+    const el = faderReg[id];
+    if (el) el.classList.toggle("locked", seq.SEQ.mode === "program" && seq.isLocked(id));
+  });
+}
+function paintSeqEdit(){
+  const program = seq.SEQ.mode === "program";
+  $$("#seqMode button").forEach(b => b.classList.toggle("on", (b.dataset.p === "program") === program));
+  $$("#seqLane button").forEach(b => b.classList.toggle("on", b.dataset.l === seq.SEQ.lane));
+  if (seqHint) seqHint.textContent = program
+    ? "click a step, then play a note to write it \u2014 every knob you move locks to that step"
+    : (LANE_HINT[seq.SEQ.lane] || "hold a note and click a step to record it");
+  paintLocked();
+  grid.paint();
+}
+$("#seqMode").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  seq.SEQ.mode = b.dataset.p;
+  paintSeqEdit();
+});
+$("#seqLane").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  seq.SEQ.lane = b.dataset.l;
+  paintSeqEdit();
+});
+$("#clearLocks").addEventListener("click", e => {
+  seq.clearLocks(e.shiftKey);
+  paintSeqEdit();
+});
+paintSeqEdit();
 
 onKey("keydown", e => {
   const tag = (e.target.tagName || "").toLowerCase();

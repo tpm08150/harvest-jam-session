@@ -75,6 +75,14 @@
   border-radius:1px;background:var(--stripe-mod)}
 .step.tie{background:linear-gradient(180deg,#5a6a76,#43505a);color:#cfd8de}
 .step.now{outline:2px solid var(--mint);outline-offset:1px;z-index:2}
+/* the step Program mode is pointed at */
+.step.sel{outline:2px solid var(--cap-yellow);outline-offset:1px;z-index:3}
+/* carries parameter locks — a corner flag, so it reads even on a lit step */
+.step.lock::after{content:"";position:absolute;top:2px;right:2px;
+  border-top:5px solid var(--cap-yellow);border-left:5px solid transparent}
+/* a fader holding a lock for the selected step */
+.hfader.locked .hlab{color:var(--cap-yellow)}
+.seqedit{margin-top:10px;gap:8px;align-items:center}
 
 .seqlegend{display:flex;gap:14px;flex-wrap:wrap;font-family:"DM Mono";font-size:9px;
   letter-spacing:.04em;color:var(--read-dim);margin-top:9px}

@@ -35,6 +35,7 @@ function onMidi(e){
   const type = s & 0xF0;
   if (type === 0x90 && d[2] > 0){ ensureAudio();
     Patchwork.record.note("vc1", d[1], d[2]);
+    played(d[1]);
     noteOn(d[1], d[2]); }
   else if (type === 0x80 || (type === 0x90 && d[2] === 0)) noteOff(d[1]);
   else if (type === 0xB0 && d[1] === 123) allNotesOff();

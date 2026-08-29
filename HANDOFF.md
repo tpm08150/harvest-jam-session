@@ -1460,6 +1460,62 @@ LP·1 answers for its own column. It has no scene row, so `scenes.onRow` has nev
 it — the record spec grows a `liveSlot()` instead, and the live grid asks a slot track
 which slot it is working out of rather than asking the scene model.
 
+## One sequencer model, three instruments
+
+⚠️ **`seq/step-seq.js` used to be deliberately the simpler of the two models** — no lanes,
+no note recording, no per-step parameter locks — on the grounds that a bass line did not
+need PM·1's complexity. That was the wrong call for a **rack**: two sequencers with
+different gestures is two things to learn, and the one you are not currently looking at is
+always the one whose rules you have forgotten. BS·1 and VC·1 match PM·1 now.
+
+### Three ways to put a note on a step, all of them PM·1's
+
+- drag a step vertically for its pitch
+- **hold a note and click a step** — it beats the lane, because reaching for a key is
+  already an unambiguous statement about what you want that step to be
+- **Program mode**: click a step, then play a note, and every knob you move locks to it
+
+The modifiers survived. Shift for a tie and alt for a slide still work, but **only on the
+Gate lane** — on a Slide lane, a shift-click that set a tie would be the grid ignoring the
+control you had just chosen.
+
+### ⚠️ "A human played this" is not "a note sounded"
+
+The obvious hook for the Program-mode write is `noteOn()`, and it is the wrong one:
+**VC·1's sequencer fires through `noteOn()`**, so every pass would write a step into
+whichever step was selected. `played(n)` is called from the three places a person can
+originate a note — the on-screen keys, the computer keyboard and MIDI — and from nowhere
+else.
+
+Caught by testing: the first version hooked the on-screen key handler only, so a note typed
+on the computer keyboard selected a step and wrote nothing.
+
+### Parameter locks
+
+`st.locks` is `{param: value}`, absent until a step has one, so 64 steps are not 64 empty
+objects and `capture()` does not carry them. `withLocks(st, fn)` swaps the instrument's
+parameter object around the fire — voices read it at BUILD time, and because scheduling is
+synchronous the UI never observes the swapped values.
+
+| `withLocks` on a step locked to `cut: 1200` | `P.cut` |
+| --- | --- |
+| before | 420 |
+| inside the fire | 1200 |
+| after | 420 |
+| after a throw inside | 420 |
+
+⚠️ **The restore is in a `finally`.** A throw mid-step would otherwise leave the whole patch
+stuck on one step's settings — a fault that reads as the synth breaking rather than the
+sequencer.
+
+- **A fader has to name the parameter it owns.** `fader(sel, get, set, fmt, min, max, id)`,
+  where `id` is the key in `P`. A lock is keyed on that, and it is why knowing how to set a
+  value is not enough.
+- **Double-click unlocks BEFORE it resets.** Otherwise there is no way to take a lock off a
+  control without also losing the patch setting underneath it. PM·1's rule.
+- **Locks ride along in `capture()`** for free, because they live on the step objects the
+  scene copy already deep-copies.
+
 ## Shared jam sessions
 
 `shell/session.js`. Everyone plays the same grid and nobody streams audio: every browser
