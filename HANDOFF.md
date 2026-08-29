@@ -245,6 +245,45 @@ asserted on without hardware.
   there — anything rAF-driven can't be verified by DOM polling alone, only by screenshot.
 - **Intermittent clicks are not this app's fault.** Cost the better part of a day. See below.
 
+## Render cost, measured
+
+The plan's open question was whether four instruments fit inside CoreAudio's IO budget.
+Measured on a 2.0 GHz-class Mac at 48 kHz, `baseLatency` 5.33 ms — **note that is a
+256-frame cycle, not the 512-frame/10.67 ms one the click investigation logged.** The
+budget is the device's, not a constant.
+
+Method: render offline at several durations and fit a line. Graph construction — the
+reverb IR, the chorus, the vocoder bank — is a constant ~100 ms per render and would
+otherwise swamp everything; the SLOPE is the per-second cost and the intercept is setup.
+The first attempt skipped this and reported one note and unison ×5 as identical, which is
+what a fixed cost looks like when you divide by duration.
+
+| configuration | ms per audio second | % of realtime |
+| --- | --- | --- |
+| CS·1, 6-note chord, lightest voice (`wood`) | 27.5 | 2.8% |
+| CS·1, 6-note chord, heaviest voice (`chrome`) | 35.4 | 3.5% |
+| MS·1, one note, mono | 57.4 | 5.7% |
+| MS·1, one note, unison ×5 | 62.1 | 6.2% |
+| MS·1, 6-note poly chord | 132.7 | 13.3% |
+| MS·1, 6-note poly, heaviest lead (`cobalt`) | 161.4 | 16.1% |
+| **both instruments at their worst, summed** | **196.8** | **~20%** |
+
+Unison ×5 costing 8% more than one note rather than five times as much is the shared
+filter doing its job — the known compromise in the MS·1 section, showing up as the
+measurement predicts.
+
+**Caveats, because this number will be quoted.** Offline rendering is a proxy: no IO
+thread, no per-cycle overhead, and it can schedule differently from realtime. DR·1 is not
+in it, because DR·1 does not exist yet — a synthesised kit should be nearer CS·1's cost
+than MS·1's. And the click investigation's conclusion still stands above all of this: the
+overruns it found came from **system load, not from this app's render cost**, and an old
+Chromebook played the same app cleanly. Headroom here is necessary, not sufficient.
+
+`__cs1.renderChord()` is new, and mirrors `__ms1.renderPatch()`. CS·1 had no offline rig,
+which is why its twelve voices carry a measured 8.2 dB spread while MS·1's twenty patches
+sit within a fraction of a dB — one instrument's levels were dialled and the other's were
+measured. Trimming CS·1's is now possible.
+
 ## The level harness is stochastic — one run proves nothing
 
 `__ms1.renderPatch()` is not deterministic, and the spread is **larger than the

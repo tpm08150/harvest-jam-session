@@ -318,5 +318,6 @@ initMidi();
 /* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input
    path can be driven and asserted on without hardware, which is how the channel filter
    above was verified. */
-window.__cs1 = {MIDI, onMidi, state, P,
-                get held(){ return held; }, get litPads(){ return litPads; }};
+window.__cs1 = {MIDI, onMidi, state, P, renderChord, VOICES,
+                get held(){ return held; }, get litPads(){ return litPads; },
+                get ctx(){ return ctx; }, get active(){ return active; }, ensureAudio};

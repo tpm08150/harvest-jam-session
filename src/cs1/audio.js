@@ -437,6 +437,40 @@ function scheduleChord(i, t){
   });
 }
 
+/* Render a chord into an OfflineAudioContext, the way MS·1's renderPatch does.
+
+   CS·1 had no offline harness, which is why its twelve voices carry a measured 8.2 dB
+   spread while MS·1's twenty patches sit within a fraction of a dB — one instrument's
+   levels were dialled and the other's were measured. This is the rig that makes CS·1's
+   measurable too, and Phase 3 needed it for a different reason: without it there was no
+   way to put a number on what the two instruments cost together.
+
+   Saves and restores the live graph exactly as MS·1's does, so calling it while the
+   transport is running does not disturb what is sounding. */
+async function renderChord(opts){
+  const o = opts || {};
+  const dur = o.dur || 2.0, rate = o.rate || 48000;
+  const saved = {ctx, master, dry, wet, verb, comp, cutSrc, periodic};
+  const savedActive = Array.from(active);
+  active.clear();
+  ctx = null;
+  const off = new OfflineAudioContext(2, Math.ceil(rate * dur), rate);
+  try{
+    initAudio(off);
+    if (o.voice) state.voice = o.voice;
+    const notes = o.notes || [48, 52, 55, 59, 62, 67];
+    const gate = o.gate == null ? dur : o.gate;
+    notes.forEach((n, i) => trigger(n, 0, gate, {gain: o.gain, pan: o.pan ? (i / notes.length - .5) * 2 : 0}));
+    return await off.startRendering();
+  } finally {
+    active.forEach(v => { try{ v.stop && v.stop(); }catch(e){} });
+    active.clear();
+    ctx = saved.ctx; master = saved.master; dry = saved.dry; wet = saved.wet;
+    verb = saved.verb; comp = saved.comp; cutSrc = saved.cutSrc; periodic = saved.periodic;
+    savedActive.forEach(v => active.add(v));
+  }
+}
+
 /* ---- transport ---- */
 /* gridBeats is the musical position of nextTime, in beats since playback started. Keeping
    it alongside nextTime is what makes phase measurable at all: nextTime alone says when the
