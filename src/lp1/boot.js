@@ -17,10 +17,11 @@ Patchwork.record.register("lp1", {
   recordSlot: n => arm("rec", n),
   playSlot: n => fireSlot(n),
   hasSlot: n => hasSlot(n),
+  clearSlot: n => clearSlot(n),
   disarm: () => { if (LP.mode === "rec" || LP.mode === "armed") stopLoop(); }
 });
 
-window.__lp1 = {LP, arm, play, fireSlot, selectSlot, hasSlot, stopLoop, clearLoop, undo,
+window.__lp1 = {LP, arm, play, fireSlot, selectSlot, hasSlot, clearSlot, stopLoop, clearLoop, undo,
                 openInput, closeInput,
                 ensureNode, allocate, loopFrames,
                 get ctx(){ return ctx; }, get node(){ return node; }};

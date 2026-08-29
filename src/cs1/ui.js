@@ -258,7 +258,16 @@ function relabelKeys(){
   for (let pc = 0; pc < 12; pc++) keySel.options[pc].textContent = noteName(pc, pc, m);
 }
 
+/* The "pattern" boundary is CS·1's progression coming round, so the shell needs its
+   length in bars. Reported whenever the progression is drawn, which is every time it
+   changes. */
+function reportPatternBars(){
+  if (!state.prog || !window.Patchwork || !Patchwork.scenes) return;
+  const bars = state.prog.chords.reduce((n, c) => n + (c.bars || 1), 0);
+  Patchwork.scenes.setPatternBars(Math.max(1, Math.round(bars)));
+}
 function renderProgression(){
+  reportPatternBars();
   const p = state.prog;
   /* 3 wide, filled bottom-up, so chord 1 sits bottom-left like pad 1 on the EP-133.
      Placement is explicit rather than reversing the DOM — that keeps document order at
@@ -420,12 +429,17 @@ function syncMotionOpts(){
 /* the percentages musicians read on a DAW swing control; 50% is straight */
 const SWING_OPTS = [[.5,"Straight"],[.54,"54%"],[.58,"58%"],[.62,"62%"],
                     [.667,"67% · triplet"],[.71,"71%"],[.75,"75% · hard"]];
-const swingSel = $("#swing"), swingHint = $("#swingHint");
+var swingSel = $("#swing"), swingHint = $("#swingHint");
 SWING_OPTS.forEach(o => swingSel.appendChild(
   Object.assign(document.createElement("option"), {value:String(o[0]), textContent:o[1]})));
 swingSel.value = String(SW.ratio);
 
 function updateSwingHint(){
+  /* setBpm() reaches here, and setBpm() can run during boot: the shell hands a newly
+     registered instrument the page's tempo the moment it registers, and CS·1 registers
+     before this element is looked up. Harmless to skip — the hint is painted again by
+     everything that changes it. */
+  if (!swingHint) return;
   if (SW.ratio <= .5){ swingHint.textContent = "even steps"; return; }
   const beat = 60 / state.bpm;
   let step;

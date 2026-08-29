@@ -252,3 +252,6 @@ body.living .st-seg#stFaces{display:none}
 .st-arm:disabled{opacity:.32;cursor:not-allowed}
 .st-live-grid .st-cell{height:34px}
 .st-live-grid .st-fire{height:34px}
+
+.st-quant{align-self:center}
+.st-quant button{padding:8px 12px}

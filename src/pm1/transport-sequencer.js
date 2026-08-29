@@ -222,7 +222,7 @@ function tick(){
     const at = Math.max(ctx.currentTime + .005, nextTime);
     /* a queued scene lands on the loop point, ahead of this step being scheduled — see
        shell/scenes.js for why this cannot be done on wall time */
-    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("pm1");
+    Patchwork.scenes.take("pm1", at);
     /* take() can STOP this instrument, when the row it fired has nothing for it.
        The loop would otherwise carry on scheduling into a transport that is no
        longer running and leave a bar of notes behind after the stop. */

@@ -192,7 +192,14 @@ function hasSlot(i){ return LP.filled.indexOf(i | 0) >= 0; }
 function clearLoop(){
   if (!node) return;
   node.port.postMessage({op: "clear"});
-  LP.bpmAtRecord = null;
+  setMode("idle");
+}
+/* Empty one row's take. The LENGTH survives — bpmAtRecord stays — because the other rows
+   are still that long and a bank of mixed lengths could not be fired together. */
+function clearSlot(i){
+  if (!node) return;
+  selectSlot(i);
+  node.port.postMessage({op: "clear"});
   setMode("idle");
 }
 function undo(){

@@ -771,6 +771,33 @@ const pending = new Map();        // id -> pattern, waiting for that instrument'
 const queued = new Map();         // id -> row index, for the UI to show what is armed
 const subs = [];
 
+/* ---- when a fired row actually lands ----
+     instant   on the click
+     bar       the next bar line
+     pattern   when CS·1's progression starts over
+
+   All three are computed from the shared clock rather than signalled between instruments:
+   the boundary is every N bars from the grid origin, and CS·1 reports how many bars its
+   progression is. Every instrument arrives at the same answer on its own, and checks it
+   INSIDE its scheduling loop, so the change is accurate to the grid rather than 200 ms
+   late behind the lookahead. */
+let quantum = "pattern";
+let patternBars = 4;                  // CS·1 keeps this current
+const lastSeen = new Map();           // id -> the time of the last step it scheduled
+
+function setQuantum(q){
+  if (["instant", "bar", "pattern"].indexOf(q) < 0) return;
+  quantum = q;
+  notify();
+}
+function setPatternBars(n){
+  patternBars = Math.max(1, n | 0);
+}
+function quantumSeconds(){
+  const bar = 4 * Patchwork.clock.beatSeconds();
+  return quantum === "bar" ? bar : patternBars * bar;
+}
+
 const COUNT = 8;
 for (let i = 0; i < COUNT; i++) rows.push({name: String(i + 1), cells: {}});
 
@@ -822,17 +849,21 @@ function fire(row, id){
   targets.forEach(it => {
     const pat = rows[row].cells[it.id];
     if (!pat){
-      if (it.isPlaying()){
+      if (it.isPlaying() && quantum !== "instant"){
         /* null is the pending STOP — take() reads it at the seam */
         pending.set(it.id, null);
         queued.set(it.id, row);
+      } else if (it.isPlaying()){
+        it.stop();
+        pending.delete(it.id);
+        queued.delete(it.id);
       } else {
         pending.delete(it.id);
         queued.delete(it.id);
       }
       return;
     }
-    if (it.isPlaying()){
+    if (it.isPlaying() && quantum !== "instant"){
       pending.set(it.id, pat);
       queued.set(it.id, row);
     } else {
@@ -853,9 +884,24 @@ function start(id){
   notify();
 }
 
-/* Called by an instrument from inside its tick, at its own loop point. */
-function take(id){
+/* Called by an instrument from inside its tick for EVERY step it schedules, with the
+   audio time of that step. It used to be called only at a loop point, which hard-coded
+   pattern-length quantisation; the boundary is a setting now, so the shell has to see
+   every step to know when one is crossed.
+
+   `lastSeen` is updated even with nothing pending, or the first crossing after a fire has
+   no previous step to compare against and would be missed. */
+function take(id, when){
+  const prev = lastSeen.get(id);
+  if (when != null) lastSeen.set(id, when);
   if (!pending.has(id)) return false;
+  if (quantum !== "instant"){
+    const origin = Patchwork.clock.origin;
+    const q = quantumSeconds();
+    if (origin == null || prev == null || !(q > 0)) return false;
+    /* did this step cross a boundary the previous one had not? */
+    if (Math.floor((when - origin) / q) <= Math.floor((prev - origin) / q)) return false;
+  }
   const it = insts.find(x => x.id === id);
   const pat = pending.get(id);
   pending.delete(id);
@@ -876,6 +922,9 @@ function playing(id){
 }
 
 return {register, store, storeAll, clear, fire, take, onChange, playing, start,
+        setQuantum, setPatternBars,
+        get quantum(){ return quantum; },
+        get patternBars(){ return patternBars; },
         get rows(){ return rows; },
         get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
         get queued(){ return new Map(queued); },
@@ -1015,6 +1064,7 @@ function register(id, spec){
             recordSlot: spec.recordSlot || null,
             playSlot: spec.playSlot || null,
             hasSlot: spec.hasSlot || null,
+            clearSlot: spec.clearSlot || null,
             /* Armable by default. Arming means "put what you have into the row I press",
                which every registered track can do — CS·1's progression captures as readily
                as a step grid. write() is a SEPARATE, narrower capability: taking notes you
@@ -1257,7 +1307,7 @@ function tick(){
   const step = stepSeconds();
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
-    if (stepIndex % SEQ.len === 0 && spec.id) Patchwork.scenes.take(spec.id);
+    if (spec.id) Patchwork.scenes.take(spec.id, at);
     /* take() can STOP this instrument, when the row it fired has nothing for it.
        The loop would otherwise carry on scheduling into a transport that is no
        longer running and leave a bar of notes behind after the stop. */

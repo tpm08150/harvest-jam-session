@@ -64,7 +64,7 @@ function tick(){
     /* A queued scene lands here, on the loop point, BEFORE anything for this step is
        scheduled — so the pattern that plays from this boundary is the new one. Doing it
        on wall time instead would land it 200 ms late, behind the lookahead. */
-    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("dr1");
+    Patchwork.scenes.take("dr1", at);
     /* take() can STOP this instrument, when the row it fired has nothing for it.
        The loop would otherwise carry on scheduling into a transport that is no
        longer running and leave a bar of notes behind after the stop. */

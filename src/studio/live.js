@@ -111,6 +111,10 @@ function paint(){
   pb.textContent = anyPlaying ? "■ Stop all" : "▶ Play all";
   pb.classList.toggle("st-on", anyPlaying);
   document.querySelector("#liveBpm").textContent = Patchwork.clock.bpm;
+  quant.querySelectorAll("button").forEach(b =>
+    b.classList.toggle("st-sel", b.dataset.q === Patchwork.scenes.quantum));
+  quant.querySelector('[data-q="pattern"]').title =
+    "When CS·1's progression starts over — " + Patchwork.scenes.patternBars + " bars";
 }
 
 grid.addEventListener("click", e => {
@@ -119,6 +123,15 @@ grid.addEventListener("click", e => {
   const cell = e.target.closest(".st-cell");
   if (cell && !cell.disabled){
     const ri = +cell.dataset.row, id = cell.dataset.inst;
+    /* Cmd/Ctrl-shift-click empties a cell. Two modifiers on purpose: a block is a take
+       you may have spent a while getting, and one slip on a launcher you are playing
+       should not be able to throw it away. */
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey){
+      const t2 = Patchwork.record && Patchwork.record.track(id);
+      if (t2 && t2.slots && t2.clearSlot) t2.clearSlot(ri);
+      else Patchwork.scenes.clear(ri, id);
+      return;
+    }
     const t = Patchwork.record.track(id);
     if (t && t.slots){
       if (e.shiftKey && t.recordSlot) t.recordSlot(ri);
@@ -152,6 +165,14 @@ document.querySelector("#livePlay").addEventListener("click", () => {
   });
   setTimeout(paint, 60);
 });
+/* When a fired row lands. "Pattern" is CS·1's progression coming round — the harmony is
+   the thing everything else should change with. */
+const quant = document.querySelector("#liveQuant");
+quant.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  Patchwork.scenes.setQuantum(b.dataset.q);
+});
+
 document.querySelector("#liveUp").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm + 1));
 document.querySelector("#liveDown").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm - 1));
 

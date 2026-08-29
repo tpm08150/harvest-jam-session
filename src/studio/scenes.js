@@ -72,6 +72,15 @@ grid.addEventListener("click", e => {
   const cell = e.target.closest(".st-cell");
   if (cell){
     const ri = +cell.dataset.row, id = cell.dataset.inst;
+    /* Cmd/Ctrl-shift-click empties a cell. Two modifiers on purpose: a block is a take
+       you may have spent a while getting, and one slip on a launcher you are playing
+       should not be able to throw it away. */
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey){
+      const t2 = Patchwork.record && Patchwork.record.track(id);
+      if (t2 && t2.slots && t2.clearSlot) t2.clearSlot(ri);
+      else Patchwork.scenes.clear(ri, id);
+      return;
+    }
     if (e.shiftKey) Patchwork.scenes.store(ri, id);
     else if (Patchwork.scenes.has(ri, id)) Patchwork.scenes.fire(ri, id);
     return;

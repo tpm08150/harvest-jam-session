@@ -1210,6 +1210,36 @@ Things the removal simplified rather than merely deleted, each worth keeping:
 
 The scene launcher made big, with an arm per track. `Live` / `Studio` in the header.
 
+### When a fired row lands
+
+Three settings, on the live bar: **Instant**, **Bar**, **Pattern**. Pattern is the default
+and means *when CS·1's progression starts over* — the harmony is the thing everything else
+should change with.
+
+All three are computed from the shared clock rather than signalled between instruments: the
+boundary is every N bars from the grid origin, and CS·1 reports how many bars its
+progression is whenever it is drawn. Every instrument arrives at the same answer on its
+own, and checks it **inside its scheduling loop**, so a change is accurate to the grid
+rather than 200 ms late behind the lookahead.
+
+`take(id, when)` is therefore called on **every** step an instrument schedules, not only at
+its loop point — the boundary is a setting now, so the shell has to see every step to know
+when one is crossed. `lastSeen` is updated even with nothing pending, or the first crossing
+after a fire has no previous step to compare against.
+
+⚠️ **The reorder exposed a latent bug in CS·1 worth knowing about.** `onTempo()` hands a
+newly registered instrument the page's tempo the moment it registers, if the page already
+has one. CS·1 registered first before, so it *set* the tempo and no callback ran; with DR·1
+first, CS·1 adopts 120 and `setBpm()` runs during boot — reaching `updateSwingHint()` before
+its element has been looked up. Anything a tempo callback can reach has to tolerate running
+mid-construction.
+
+### Deleting a block
+
+**Cmd/Ctrl-shift-click** empties a cell, in both views, and clears that row's take on LP·1.
+Two modifiers on purpose: a block is a take you may have spent a while getting, and one slip
+on a launcher you are playing should not be able to throw it away.
+
 ### Firing a row starts what it lands on
 
 ⚠️ **This was missing and it made the whole gesture look broken.** A launcher whose cells

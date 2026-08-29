@@ -29,6 +29,7 @@ function register(id, spec){
             recordSlot: spec.recordSlot || null,
             playSlot: spec.playSlot || null,
             hasSlot: spec.hasSlot || null,
+            clearSlot: spec.clearSlot || null,
             /* Armable by default. Arming means "put what you have into the row I press",
                which every registered track can do — CS·1's progression captures as readily
                as a step grid. write() is a SEPARATE, narrower capability: taking notes you
