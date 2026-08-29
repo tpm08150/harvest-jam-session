@@ -278,6 +278,25 @@ function take(id, when){
   return true;
 }
 
+/* ---- the live pattern ----
+   What an instrument is playing RIGHT NOW, as opposed to the copy sitting in a cell. A cell
+   only changes when someone stores into it, so a session that shared cells alone showed an
+   edit to the other machines when a row was fired and not before — you would change a step
+   and watch nothing happen anywhere else.
+
+   Same capture()/apply() a scene uses. They have always been the instrument's whole pattern;
+   nothing needed adding to them. */
+function livePattern(id){
+  const it = insts.find(x => x.id === id);
+  if (!it) return null;
+  try{ return it.capture(); }catch(e){ return null; }
+}
+function setLivePattern(id, pat){
+  const it = insts.find(x => x.id === id);
+  if (!it || !pat) return;
+  try{ it.apply(JSON.parse(JSON.stringify(pat))); }catch(e){}
+}
+
 /* Whether an instrument's own transport is running. The live page needs it to draw a
    master Play that reflects what is actually going, rather than a button with an opinion. */
 function playing(id){
@@ -293,7 +312,7 @@ return {register, store, storeAll, clear, fire, take, onChange, playing, start,
         get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
         get queued(){ return new Map(queued); },
         get onRow(){ return new Map(onRow); },
-        live, restore, loadRows,
+        live, restore, loadRows, livePattern, setLivePattern,
         /* Nothing here can see an instrument's own Play button. The transports are the
            instruments' and they change without telling the model, so a caller that has
            just moved one says so — the same signal record.changed() is. */

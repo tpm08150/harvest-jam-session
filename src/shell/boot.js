@@ -7,8 +7,9 @@
 (() => {
 "use strict";
 Patchwork.faces.mount();
-/* after faces, so the two plate buttons land in a stable order */
+/* after faces, so the plate buttons land in a stable order */
 Patchwork.record.mount();
+Patchwork.session.mountOwners();
 
 /* The default derives from the page rather than from a per-build flag: a lone instrument
    is its whole self, and a page with several opens on faces, because three full panels is

@@ -202,7 +202,38 @@ function pollPatches(){
     send("patch", {inst: it.id, params: JSON.parse(snap)});
   });
 }
-setInterval(pollPatches, 220);
+/* ---- live patterns ----
+   The same polling, for the same reasons, on the pattern an instrument is playing rather
+   than the sound it is playing it with. A step grid has a dozen ways to change — a click, a
+   drag, a held note, a lane, a p-lock, a recorded take — and pushing from each of them would
+   be a dozen hooks that the next gesture forgets to add itself to. */
+const patternSeen = new Map();
+function patternSnapshot(){
+  const out = {};
+  Patchwork.scenes.instruments.forEach(i => {
+    const p = Patchwork.scenes.livePattern(i.id);
+    if (p) out[i.id] = p;
+  });
+  return out;
+}
+function pollPatterns(){
+  if (!tx || applying) return;
+  Patchwork.scenes.instruments.forEach(i => {
+    let snap;
+    try{ snap = JSON.stringify(Patchwork.scenes.livePattern(i.id)); }catch(e){ return; }
+    if (snap == null || patternSeen.get(i.id) === snap) return;
+    patternSeen.set(i.id, snap);
+    send("pattern", {inst: i.id, pattern: JSON.parse(snap)});
+  });
+}
+function takePattern(id, pat){
+  applying = true;
+  try{ Patchwork.scenes.setLivePattern(id, pat); } finally { applying = false; }
+  /* remember what we took, or the next poll sends it straight back */
+  try{ patternSeen.set(id, JSON.stringify(Patchwork.scenes.livePattern(id))); }catch(e){}
+}
+
+setInterval(() => { pollPatches(); pollPatterns(); }, 220);
 
 /* ---- what a session shares ----
    The whole musical state, small enough to send entire on join. Patch parameters are NOT
@@ -216,6 +247,7 @@ function snapshot(){
     patternBars: Patchwork.scenes.patternBars,
     rows: Patchwork.scenes.rows.map(r => ({name: r.name, cells: r.cells})),
     patches: patchSnapshot(),
+    patterns: patternSnapshot(),
     owners: [...owners]
   };
 }
@@ -227,6 +259,10 @@ function applySnapshot(s){
     if (s.quantum) Patchwork.scenes.setQuantum(s.quantum);
     if (s.patternBars) Patchwork.scenes.setPatternBars(s.patternBars);
     if (s.rows) Patchwork.scenes.loadRows(s.rows);
+    if (s.patterns) Object.keys(s.patterns).forEach(id => {
+      Patchwork.scenes.setLivePattern(id, s.patterns[id]);
+      try{ patternSeen.set(id, JSON.stringify(Patchwork.scenes.livePattern(id))); }catch(e){}
+    });
     if (s.patches) Object.keys(s.patches).forEach(id => {
       const it = patchKit.find(x => x.id === id);
       if (!it) return;
@@ -306,6 +342,10 @@ function onMessage(m){
   if (m.kind === "patch"){
     applyPatch(m.inst, m.params);
     return;                                   // no notify: a knob move is not a roster change
+  }
+  if (m.kind === "pattern"){
+    takePattern(m.inst, m.pattern);
+    return;                                   // nor is a step
   }
   if (m.kind === "own"){
     if (m.owner) owners.set(m.inst, m.owner); else owners.delete(m.inst);
@@ -418,6 +458,9 @@ function join(name, who){
   /* seed the poll with what everything currently sounds like, so joining does not
      immediately broadcast six unchanged patches */
   patchKit.forEach(it => { try{ patchSeen.set(it.id, JSON.stringify(it.capture())); }catch(e){} });
+  Patchwork.scenes.instruments.forEach(i => {
+    try{ patternSeen.set(i.id, JSON.stringify(Patchwork.scenes.livePattern(i.id))); }catch(e){}
+  });
   /* ⚠️ Only a BroadcastChannel session stamps its own beat 0, and only because two tabs
      share one Date.now() exactly. A relay session waits to be told: at this moment the
      offset has not been measured, so any number produced here would be in this tab's
@@ -435,6 +478,54 @@ function leave(){
   peers.clear(); owners.clear();
   notify();
 }
+
+/* ---- the owner label ----
+   Injected into each plate, the way faces.js does the Panel button and record.js the Arm —
+   one implementation, and an instrument added later gets it without being told to.
+
+   It is only visible in a jam, because outside one there is nobody to be told. Claiming
+   does not lock anyone out; it says who is holding an instrument, which is most of the
+   value and all that can honestly be offered without a server to arbitrate it. What it
+   really prevents is two people editing the same step grid and each wondering why their
+   changes keep reverting — the patterns are last-writer-wins, so knowing whose hands are
+   on which panel IS the mechanism. */
+function mountOwners(){
+  Patchwork.roots.forEach(root => {
+    if (root.querySelector(".owner-tag")) return;
+    const plate = root.querySelector(".plate");
+    if (!plate) return;
+    const b = document.createElement("button");
+    b.className = "btn ghost sm owner-tag";
+    b.type = "button";
+    b.dataset.inst = root.dataset.instrument;
+    b.hidden = true;
+    b.addEventListener("click", () => {
+      const id = b.dataset.inst;
+      if (owners.get(id) === me.id) release(id); else claim(id);
+    });
+    const screws = plate.querySelector(".screws");
+    if (screws) plate.insertBefore(b, screws); else plate.appendChild(b);
+  });
+  paintOwners();
+}
+function paintOwners(){
+  Patchwork.roots.forEach(root => {
+    const b = root.querySelector(".owner-tag");
+    if (!b) return;
+    b.hidden = !tx;
+    if (!tx) return;
+    const id = b.dataset.inst, holder = owners.get(id);
+    const mine = holder === me.id;
+    b.classList.toggle("mine", mine);
+    b.classList.toggle("theirs", !!holder && !mine);
+    b.textContent = holder ? (mine ? "You" : (ownerName(id) || "someone")) : "Free";
+    b.title = holder
+      ? (mine ? "You are holding this — click to let it go"
+              : (ownerName(id) || "someone") + " is holding this. Click to take it over.")
+      : "Nobody is holding this — click to take it";
+  });
+}
+subs.push(paintOwners);
 
 /* ---- ownership ----
    Advisory, and deliberately so for now: it says who is holding an instrument, it does not
@@ -463,7 +554,7 @@ function ownerName(inst){
 Patchwork.scenes.onChange(pushScenes);
 Patchwork.clock.onTempo("session", pushTransport, null);
 
-return {join, leave, browse, claim, release, ownerName, registerPatch,
+return {join, leave, browse, claim, release, ownerName, registerPatch, mountOwners,
         onChange: fn => subs.push(fn),
         fired: row => send("fire", {row}),
         get active(){ return !!tx; },

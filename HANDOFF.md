@@ -1630,9 +1630,37 @@ nothing here lands on a seam.
 - **CS·1 has no patch here.** Its progression, key and mood *are* its pattern, and the scene
   already carries them. LP·1's takes are audio and are still not shared.
 
+### Live patterns, not just stored blocks
+
+A cell only changes when someone stores into it, so a session that shared cells alone showed
+an edit to the other machines **when a row was fired and not before** — you would change a
+step and watch nothing happen anywhere else.
+
+`scenes.livePattern(id)` / `setLivePattern(id, pat)` expose what an instrument is playing
+right now, through the same `capture()`/`apply()` a scene has always used. Nothing needed
+adding to the instruments: `apply()` already re-renders the grid, which is why a remote edit
+redraws the far side's step buttons, rate select and length.
+
+Polled on the same 220 ms tick as the patches, for the same reason: a step grid has a dozen
+ways to change — a click, a drag, a held note, a lane, a p-lock, a recorded take — and
+pushing from each would be a dozen hooks the next gesture forgets to join.
+
+### Who is holding what
+
+⚠️ **Patterns are last-writer-wins.** Two people editing one grid will overwrite each other
+every tick, and the owner label is the mechanism that prevents it rather than a decoration:
+knowing whose hands are on which panel is the whole of the coordination on offer without a
+server to arbitrate it.
+
+Injected into each plate, the way `faces.js` does the Panel button and `record.js` the Arm.
+Hidden outside a jam, because there is nobody to be told. Mint for you, yellow for someone
+else — the studio's own words for "yours to move" and "waiting on someone". Claiming does
+not lock anyone out; clicking an instrument someone else holds takes it, and says so in the
+tooltip.
+
 ### Not yet
 
-An ownership UI, live notes, and the looper push.
+Live notes, and the looper push.
 
 ### ⚠️ A sequencer must not drive a keyboard
 

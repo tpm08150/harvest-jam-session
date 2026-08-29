@@ -107,6 +107,12 @@ input[type="text"]::placeholder{color:#5a646a}
   background:linear-gradient(180deg,#ec6146,var(--cap-red));
   border-color:#8c2a17;color:#fff2ee;
 }
+/* Who is holding this instrument, in a jam. Mint for you, yellow for somebody else — the
+   studio's own words for "this is yours to move" and "this is waiting on someone". */
+.owner-tag{align-self:flex-start;flex:0 0 auto;min-width:52px}
+.owner-tag.mine{border-color:#2f8f74;color:var(--mint)}
+.owner-tag.theirs{border-color:#8a6a15;color:var(--cap-yellow)}
+.owner-tag[hidden]{display:none}
 /* The plate is a flex row ending in the screws; the toggle sits before them. */
 :scope.face .plate,:scope .plate{align-items:center}
 :scope.face [data-deep]{display:none}
