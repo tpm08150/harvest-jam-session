@@ -912,6 +912,94 @@ input[type="text"]::placeholder{color:#5a646a}
   .lane-name{flex:0 0 38px}
 }
 }
+/* Everything below is scoped to this instrument's panel. @scope rather than nesting
+   because it adds no specificity, so the relative weight of every rule inside is exactly
+   what it was when this was a whole page to itself. */
+@scope (.unit.lp1) {
+/* LP·1 owns the loop display; everything else comes from the shared chrome. */
+:scope{
+  --lp-accent:#5ec8c0;
+  --lp-accent-hi:#7fdad3;
+  --lp-accent-lo:#3f9b95;
+  --lp-rec:#e04b2f;
+  width:100%;max-width:760px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  padding:20px 18px 24px;position:relative;overflow:clip;
+}
+:scope::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+}
+:scope>*{position:relative;z-index:1}
+
+.rule{height:1px;background:linear-gradient(90deg,transparent,var(--lp-accent),transparent);
+  opacity:.55;margin:12px 0 16px}
+.screws{display:flex;gap:9px;align-items:center}
+.screw{width:9px;height:9px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#68727a,#2b3237 68%,#171b1e);
+  box-shadow:0 1px 0 rgba(255,255,255,.10),0 0 0 1px rgba(0,0,0,.5) inset}
+
+/* ---- the loop ----
+   One bar, filled as the loop plays. A waveform would be prettier and would say less:
+   what you need while playing is where you are in the loop and whether it is recording. */
+.loopview{margin-bottom:14px}
+.loopbar{
+  position:relative;height:44px;border-radius:5px;overflow:hidden;
+  background:linear-gradient(180deg,#20262a,#12161a 45%,#20262a);
+  box-shadow:0 2px 5px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06);
+}
+.loopfill{
+  position:absolute;left:0;top:0;bottom:0;width:0;
+  background:linear-gradient(180deg,rgba(94,200,192,.30),rgba(94,200,192,.14));
+  border-right:1px solid rgba(94,200,192,.5);
+}
+.loophead{position:absolute;top:0;bottom:0;width:2px;left:0;background:var(--lp-accent-hi);
+  box-shadow:0 0 8px var(--lp-accent)}
+:scope.recording .loopfill{background:linear-gradient(180deg,rgba(224,75,47,.32),rgba(224,75,47,.15));
+  border-right-color:rgba(224,75,47,.6)}
+:scope.recording .loophead{background:#ff8a6e;box-shadow:0 0 9px var(--lp-rec)}
+/* Armed and waiting for the bar line — the same yellow the scene launcher arms with, so
+   "queued" means one thing across the whole studio. */
+:scope.armed .loopbar{box-shadow:0 2px 5px rgba(0,0,0,.6) inset,0 0 0 1px var(--cap-yellow) inset}
+
+.loopmeta{display:flex;align-items:center;gap:12px;margin-top:7px;
+  font-family:"DM Mono";font-size:10px;letter-spacing:.06em;color:var(--silk-dim)}
+.loopmeta .state{color:var(--lp-accent-hi);text-transform:uppercase;letter-spacing:.14em;min-width:78px}
+:scope.recording .loopmeta .state{color:#ff8a6e}
+:scope.armed .loopmeta .state{color:var(--cap-yellow)}
+.loopmeta .cut{margin-left:auto}
+.meter{flex:1 1 auto;height:4px;border-radius:2px;background:#12161a;overflow:hidden;max-width:140px}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--lp-accent),var(--cap-yellow) 82%,var(--lp-rec));
+  transition:width .08s linear}
+@media (prefers-reduced-motion:reduce){ .meter i{transition:none} }
+
+.transport{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0 4px}
+.btn.rec{background:linear-gradient(180deg,#ec6146,var(--lp-rec));border-color:#8c2a17;color:#fff2ee}
+:scope.recording .btn.rec,:scope.armed .btn.rec{box-shadow:0 0 0 2px var(--cap-yellow) inset}
+.btn.on{box-shadow:0 0 0 2px var(--lp-accent) inset}
+
+.row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px}
+.hfader{display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
+  padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13);flex:1 1 160px}
+.hslot{position:relative;flex:1 1 auto;min-width:60px;height:20px;border-radius:4px;
+  background:linear-gradient(180deg,#20262a,#12161a 45%,#20262a);
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06)}
+.hslot::after{content:"";position:absolute;left:7px;right:7px;top:50%;height:3px;
+  transform:translateY(-50%);background:#0b0e10;border-radius:2px}
+.hcap{position:absolute;top:-3px;height:26px;width:20px;border-radius:3px;transform:translateX(-50%);
+  background:linear-gradient(180deg,#5b656b,#394247);border:1px solid #14181b;
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset}
+.hcap::after{content:"";position:absolute;top:3px;bottom:3px;left:50%;width:3px;margin-left:-1.5px;
+  border-radius:2px;background:var(--lp-accent)}
+.hfader .hval{font-family:"DM Mono";font-size:10px;color:#aeb8be;min-width:40px;text-align:right}
+.hfader .hlab{white-space:nowrap}
+
+.sect{margin-top:20px;padding-top:16px;border-top:1px solid rgba(0,0,0,.4);
+  box-shadow:0 -1px 0 rgba(255,255,255,.05)}
+.sect-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+}
 
 /* ---- studio layout ----
    The shared reset centres a single panel, which is right for a standalone instrument
@@ -1845,6 +1933,77 @@ body{
   </div>
 
 </div>
+
+<div class="unit lp1" data-instrument="lp1">
+
+  <div data-face class="plate">
+    <div>
+      <div class="brand">Patchwork</div>
+      <div class="model">LP·1 — audio looper</div>
+    </div>
+    <div class="screws"><i class="screw"></i><i class="screw"></i></div>
+  </div>
+  <div data-face class="rule"></div>
+
+  <div data-face class="loopview">
+    <div class="loopbar"><i class="loophead" id="loopHead"></i><i class="loopfill" id="loopFill"></i></div>
+    <div class="loopmeta">
+      <span class="state" id="loopState">Empty</span>
+      <span class="meter"><i id="inMeter"></i></span>
+      <span class="cut" id="loopCut">—</span>
+    </div>
+  </div>
+
+  <div data-face class="transport">
+    <button class="btn primary rec" id="rec">● Record</button>
+    <button class="btn ghost" id="dub">Overdub</button>
+    <button class="btn ghost" id="playStop">▶ Play</button>
+    <button class="btn ghost" id="undo">Undo</button>
+    <button class="btn ghost" id="clear">Clear</button>
+  </div>
+
+  <div data-face class="row">
+    <div class="field" style="flex:0 0 96px">
+      <label for="bars">Bars</label>
+      <select id="bars">
+        <option value="1">1</option>
+        <option value="2" selected>2</option>
+        <option value="4">4</option>
+        <option value="8">8</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="inSel">Input</label>
+      <select id="inSel"><option value="__bus">Studio output</option></select>
+    </div>
+    <div class="field" style="flex:0 0 auto">
+      <span class="silk">Monitor</span>
+      <div class="seg sm" id="mon" role="group" aria-label="Hear the input while recording">
+        <button data-m="on" class="on">On</button>
+        <button data-m="off">Off</button>
+      </div>
+    </div>
+    <div class="hfader" id="levelF">
+      <span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">90%</span>
+    </div>
+  </div>
+
+  <p data-face class="note" id="loopNote">Record starts on the bar line, not when you press it — arm it a beat early and play into the count.</p>
+
+  <div class="sect">
+    <div class="sect-head"><span class="silk">About the loop</span></div>
+    <p class="note">
+      The loop is a fixed number of <b>samples</b>, worked out from the tempo when you armed it.
+      Audio cannot stretch, so changing tempo afterwards means it no longer fits the bar — the
+      tempo it was cut at is shown beside the state. Re-record to move it.
+    </p>
+    <p class="note">
+      <b>Use headphones.</b> An open microphone into speakers records its own output, and an
+      overdub builds that up every pass until it howls.
+    </p>
+  </div>
+
+</div>
 </div>
 
 <script>
@@ -1967,8 +2126,34 @@ function strip(id){
     g.gain.value = 1;
     g.connect(master);
     strips.set(id, g);
+    taps.forEach(wireTap);          // an instrument built after a tap still reaches it
   }
   return strips.get(id);
+}
+
+/* A sum of every instrument's strip EXCEPT one — what the looper records when you point
+   it at the studio rather than a microphone.
+
+   Excluding the caller is the whole point: the looper's own output goes to its strip and
+   on to master, so recording master would record the looper recording itself and build
+   until it clips. Taps are kept and re-wired when a new strip appears, because an
+   instrument can be built after the tap was made. */
+const taps = [];
+function tap(excludeId){
+  context();
+  const g = ctx.createGain();
+  g.gain.value = 1;
+  const t = {node: g, exclude: excludeId, wired: new Set()};
+  taps.push(t);
+  wireTap(t);
+  return g;
+}
+function wireTap(t){
+  strips.forEach((strip, id) => {
+    if (id === t.exclude || t.wired.has(id)) return;
+    strip.connect(t.node);
+    t.wired.add(id);
+  });
 }
 
 /* iOS parks the context in "suspended" until a gesture and in "interrupted" after a
@@ -1983,7 +2168,7 @@ function resume(){
   return ctx.state;
 }
 
-return {context, strip, resume,
+return {context, strip, resume, tap,
         get ctx(){ return ctx; },
         get master(){ return master; },
         get strips(){ return new Map(strips); }};
@@ -9776,6 +9961,451 @@ initMidi();
 window.__dr1 = {P, SEQ, steps, ORDER, VOICES, TRIM, BALANCE, TARGET_BD,
                 fire, renderHit, measure, ensureAudio, MIDI, onMidi,
                 get ctx(){ return ctx; }};
+});
+/* LP·1 is built into whatever panel the page gives it, exactly as the others are. */
+Patchwork.instrument("lp1", root => {
+"use strict";
+
+const $  = s => root.querySelector(s);
+const $$ = s => root.querySelectorAll(s);
+const onKey = (type, fn) => Patchwork.onKey(root, type, fn);
+
+/* ============ the recording core ============ */
+/* An AudioWorklet, as source, loaded from a Blob URL at runtime.
+
+   It has to be a worklet. Recording means reading every input sample, and the only two
+   other options are worse: MediaRecorder encodes to Opus and hands back something that
+   needs decoding and is not sample-aligned, and ScriptProcessorNode runs on the main
+   thread, where the click investigation's own findings say a stall is exactly what you
+   get under load. A worklet runs on the audio thread and sees every frame.
+
+   The Blob URL is what keeps the one-file rule: addModule() needs a URL, and this is the
+   repo's first use of the trick the handoff already proposed for a PolyBLEP sync
+   oscillator. Nothing is fetched. */
+const LOOP_WORKLET = `
+class LoopProcessor extends AudioWorkletProcessor {
+  constructor(){
+    super();
+    this.buf = null;      // [Float32Array per channel]
+    this.undo = null;     // one level, taken before each overdub
+    this.len = 0;
+    this.pos = 0;
+    this.mode = "idle";   // idle | rec | play | dub
+    this.next = null;     // {mode, frame} — a change waiting for its sample
+    this.tick = 0;
+    this.peak = 0;
+    this.port.onmessage = e => this.msg(e.data);
+  }
+
+  msg(m){
+    if (m.op === "alloc"){
+      this.len = m.frames|0;
+      this.buf = [new Float32Array(this.len), new Float32Array(this.len)];
+      this.undo = null;
+      this.pos = 0; this.mode = "idle"; this.next = null;
+    }
+    else if (m.op === "at"){
+      /* A mode change scheduled for an exact sample, so record starts on the bar line
+         rather than whenever a message happened to arrive. */
+      this.next = {mode: m.mode, frame: m.frame};
+    }
+    else if (m.op === "now"){ this.mode = m.mode; if (m.reset) this.pos = 0; }
+    else if (m.op === "clear"){
+      if (this.buf){ this.buf[0].fill(0); this.buf[1].fill(0); }
+      this.undo = null; this.mode = "idle"; this.pos = 0; this.next = null;
+    }
+    else if (m.op === "undo"){
+      if (this.undo){ this.buf = this.undo; this.undo = null; }
+    }
+  }
+
+  /* Copy before an overdub, so one level of undo is always available. A looper without
+     undo punishes the take you were happy with. */
+  snapshot(){
+    this.undo = [this.buf[0].slice(), this.buf[1].slice()];
+  }
+
+  process(inputs, outputs){
+    const out = outputs[0];
+    const inp = inputs[0];
+    const n = out[0].length;
+    if (!this.buf || !this.len){
+      for (let c = 0; c < out.length; c++) out[c].fill(0);
+      return true;
+    }
+    const inL = inp && inp[0] ? inp[0] : null;
+    const inR = inp && inp[1] ? inp[1] : inL;
+
+    for (let i = 0; i < n; i++){
+      /* the scheduled change lands on its exact frame, inside the block */
+      if (this.next && currentFrame + i >= this.next.frame){
+        if (this.next.mode === "dub") this.snapshot();
+        this.mode = this.next.mode;
+        this.pos = 0;
+        this.next = null;
+        this.port.postMessage({ev:"started", mode:this.mode});
+      }
+
+      const rec = this.mode === "rec", dub = this.mode === "dub";
+      const old0 = this.buf[0][this.pos], old1 = this.buf[1][this.pos];
+
+      if (rec || dub){
+        const s0 = inL ? inL[i] : 0, s1 = inR ? inR[i] : 0;
+        const a = Math.abs(s0);
+        if (a > this.peak) this.peak = a;
+        this.buf[0][this.pos] = rec ? s0 : old0 + s0;
+        this.buf[1][this.pos] = rec ? s1 : old1 + s1;
+      }
+
+      /* Output the material as it was BEFORE this pass. Overdubbing outputs the new sum
+         instead would double the live input, which is already being monitored. */
+      const play = this.mode !== "idle" && this.mode !== "rec";
+      out[0][i] = play ? old0 : 0;
+      if (out[1]) out[1][i] = play ? old1 : 0;
+
+      if (this.mode !== "idle"){
+        this.pos++;
+        if (this.pos >= this.len){
+          this.pos = 0;
+          /* A first pass records exactly one loop and then plays it — a looper that keeps
+             recording until you press stop records your reaction time onto the end. */
+          if (this.mode === "rec"){ this.mode = "play"; this.port.postMessage({ev:"looped", mode:"play"}); }
+          else this.port.postMessage({ev:"looped", mode:this.mode});
+        }
+      }
+    }
+
+    /* position and peak, a few times a second — enough for a playhead and a meter */
+    if ((this.tick = (this.tick + 1) % 8) === 0){
+      this.port.postMessage({ev:"pos", pos:this.pos, len:this.len, mode:this.mode, peak:this.peak});
+      this.peak = 0;
+    }
+    return true;
+  }
+}
+registerProcessor("pw-looper", LoopProcessor);
+`;
+
+/* ============ engine ============ */
+
+let ctx = null, out = null, node = null, monitor = null, inGain = null,
+    stream = null, src = null, ready = false;
+
+/* The sentinel for "the studio's own output" in the input list. */
+const BUS = "__bus";
+
+const LP = {
+  bars: 2,                  // loop length, in bars of the shell's grid
+  monitorOn: true,
+  level: .9,
+  input: "__bus",           // device id, or __bus for the studio's own output
+  mode: "idle",             // idle | armed | rec | play | dub
+  pos: 0, len: 0, peak: 0,
+  bpmAtRecord: null         // the tempo the loop was cut at — see the note in the panel
+};
+
+function initAudio(useCtx){
+  if (ctx) return;
+  ctx = useCtx || Patchwork.audio.context();
+  out = useCtx ? ctx.destination : Patchwork.audio.strip("lp1");
+  inGain = ctx.createGain(); inGain.gain.value = 1;
+  monitor = ctx.createGain(); monitor.gain.value = LP.monitorOn ? 1 : 0;
+  monitor.connect(out);
+}
+
+/* addModule takes a URL, so the processor source becomes a Blob. Nothing is fetched and
+   the app stays one file. */
+let modulePromise = null;
+function loadWorklet(){
+  if (modulePromise) return modulePromise;
+  const url = URL.createObjectURL(new Blob([LOOP_WORKLET], {type: "text/javascript"}));
+  modulePromise = ctx.audioWorklet.addModule(url)
+    .then(() => { URL.revokeObjectURL(url); ready = true; })
+    .catch(e => { modulePromise = null; throw e; });
+  return modulePromise;
+}
+
+async function ensureNode(){
+  initAudio();
+  Patchwork.audio.resume();
+  if (node) return node;
+  if (!ctx.audioWorklet){
+    say("This browser has no AudioWorklet, so the looper can't record.", true);
+    return null;
+  }
+  await loadWorklet();
+  node = new AudioWorkletNode(ctx, "pw-looper", {
+    numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2]
+  });
+  const lvl = ctx.createGain(); lvl.gain.value = LP.level;
+  node.connect(lvl); lvl.connect(out);
+  node.__level = lvl;
+  inGain.connect(node);
+  node.port.onmessage = e => onWorklet(e.data);
+  allocate();
+  return node;
+}
+
+/* Loop length is fixed in SAMPLES at the moment you arm, from the tempo then. That is how
+   hardware loopers behave and it is the honest choice: the audio cannot stretch, so a
+   tempo change afterwards means the loop no longer fits the bar. The panel shows the
+   tempo the loop was cut at for exactly that reason. */
+function loopFrames(){
+  const bpm = Patchwork.clock.bpm || 120;
+  return Math.max(1, Math.round(LP.bars * 4 * (60 / bpm) * ctx.sampleRate));
+}
+function allocate(){
+  if (!node) return;
+  LP.len = loopFrames();
+  node.port.postMessage({op: "alloc", frames: LP.len});
+  LP.bpmAtRecord = null;
+  setMode("idle");
+}
+
+function onWorklet(m){
+  if (m.ev === "pos"){ LP.pos = m.pos; LP.len = m.len; LP.peak = m.peak; return; }
+  if (m.ev === "started" || m.ev === "looped"){ setMode(m.mode); }
+}
+
+function setMode(mode){
+  LP.mode = mode;
+  paintState();
+}
+
+/* ---- input ---- */
+async function openInput(deviceId){
+  initAudio();
+  /* Recording the studio itself rather than a microphone. On a jam tool this is the more
+     useful of the two — capture the band, then overdub over it — and it needs no
+     permission, no headphones and no feedback risk, because the tap excludes this
+     instrument's own strip. */
+  if (deviceId === BUS){
+    closeInput();
+    src = Patchwork.audio.tap("lp1");
+    src.connect(inGain);
+    stream = BUS;                   // "an input is open", without a MediaStream
+    say("Recording the <b>studio output</b> — everything the other instruments play, but "
+      + "not this looper, so an overdub cannot record itself.");
+    return true;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    say("This browser can't open an audio input.", true);
+    return false;
+  }
+  closeInput();
+  try{
+    /* Same three flags off as the vocoder, and for the same reason: echo cancellation and
+       noise suppression are built to remove exactly the signal being recorded, and AGC
+       rides the level of a take you wanted flat. */
+    stream = await navigator.mediaDevices.getUserMedia({audio:{
+      deviceId: deviceId ? {exact: deviceId} : undefined,
+      echoCancellation: false, noiseSuppression: false, autoGainControl: false
+    }});
+    src = ctx.createMediaStreamSource(stream);
+    src.connect(inGain);
+    inGain.connect(monitor);
+    say("Listening on <b>" + inputLabel(deviceId) + "</b>. <b>Use headphones</b> — an open "
+      + "microphone into speakers will record its own output and build until it howls.");
+    return true;
+  }catch(e){
+    say("Couldn't open that input (" + ((e && e.name) || e) + ").", true);
+    return false;
+  }
+}
+function closeInput(){
+  if (src){ try{ src.disconnect(); }catch(e){} src = null; }
+  if (stream && stream !== BUS){
+    stream.getTracks().forEach(t => { try{ t.stop(); }catch(e){} });
+  }
+  stream = null;
+}
+
+/* ---- transport ----
+   Arming schedules the mode change for an exact sample rather than applying it now, so a
+   take starts on the bar line however early or late the button was pressed. That is the
+   same seam the scene launcher fires on, and it comes from the same place. */
+async function arm(mode){
+  const n = await ensureNode();
+  if (!n) return;
+  if (!stream && (mode === "rec" || mode === "dub")){
+    const ok = await openInput(LP.input);
+    if (!ok) return;
+  }
+  if (mode === "rec"){
+    allocate();
+    LP.bpmAtRecord = Patchwork.clock.bpm;
+  }
+  const at = Patchwork.clock.claim(LP.bars * 4);
+  n.port.postMessage({op: "at", mode: mode, frame: Math.round(at * ctx.sampleRate)});
+  setMode("armed");
+  paintState();
+}
+function stopLoop(){
+  if (!node) return;
+  node.port.postMessage({op: "now", mode: "idle"});
+  setMode("idle");
+}
+function play(){
+  if (!node) return;
+  node.port.postMessage({op: "now", mode: "play", reset: true});
+  setMode("play");
+}
+function clearLoop(){
+  if (!node) return;
+  node.port.postMessage({op: "clear"});
+  LP.bpmAtRecord = null;
+  setMode("idle");
+}
+function undo(){
+  if (!node) return;
+  node.port.postMessage({op: "undo"});
+}
+
+/* ============ ui ============ */
+
+const stateEl = $("#loopState"), cutEl = $("#loopCut"), noteEl = $("#loopNote"),
+      fillEl = $("#loopFill"), headEl = $("#loopHead"), meterEl = $("#inMeter"),
+      recBtn = $("#rec"), dubBtn = $("#dub"), playBtn = $("#playStop");
+const clampf = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+function say(msg, bad){
+  noteEl.innerHTML = msg;
+  noteEl.classList.toggle("err", !!bad);
+}
+
+const LABEL = {idle:"Empty", armed:"Armed", rec:"Recording", play:"Playing", dub:"Overdub"};
+
+function paintState(){
+  const m = LP.mode;
+  stateEl.textContent = (m === "idle" && LP.bpmAtRecord) ? "Stopped" : (LABEL[m] || m);
+  root.classList.toggle("recording", m === "rec" || m === "dub");
+  root.classList.toggle("armed", m === "armed");
+  playBtn.textContent = (m === "play" || m === "dub") ? "■ Stop" : "▶ Play";
+  dubBtn.classList.toggle("on", m === "dub");
+  cutEl.textContent = LP.bpmAtRecord ? (LP.bars + " bars · cut at " + LP.bpmAtRecord + " bpm") : "—";
+  /* A loop cut at another tempo no longer fits the bar, and silently drifting is worse
+     than being told. */
+  const now = Patchwork.clock.bpm;
+  cutEl.classList.toggle("bad", !!LP.bpmAtRecord && now !== LP.bpmAtRecord);
+}
+
+/* The playhead comes from the worklet's own position, not from a timer — a timer would
+   show where the main thread thinks the loop is, which is not where it is. */
+function paintLoop(){
+  if (LP.len > 0 && LP.mode !== "idle"){
+    const p = (LP.pos / LP.len) * 100;
+    fillEl.style.width = p + "%";
+    headEl.style.left = p + "%";
+  } else if (LP.mode === "idle"){
+    fillEl.style.width = "0%"; headEl.style.left = "0%";
+  }
+  meterEl.style.width = Math.min(100, LP.peak * 140) + "%";
+  requestAnimationFrame(paintLoop);
+}
+requestAnimationFrame(paintLoop);
+
+recBtn.addEventListener("click", () => {
+  if (LP.mode === "rec" || LP.mode === "armed") stopLoop();
+  else arm("rec");
+});
+dubBtn.addEventListener("click", () => {
+  if (LP.mode === "dub"){ node && node.port.postMessage({op:"now", mode:"play"}); setMode("play"); }
+  else if (LP.bpmAtRecord) arm("dub");
+  else say("Record a loop first — there is nothing to overdub onto.", true);
+});
+playBtn.addEventListener("click", () => {
+  if (LP.mode === "play" || LP.mode === "dub") stopLoop();
+  else if (LP.bpmAtRecord) play();
+  else say("Nothing recorded yet.", true);
+});
+$("#undo").addEventListener("click", undo);
+$("#clear").addEventListener("click", () => { clearLoop(); say("Cleared."); });
+
+$("#bars").addEventListener("change", e => {
+  LP.bars = parseInt(e.target.value, 10);
+  if (node) allocate();
+  paintState();
+});
+
+$("#mon").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  LP.monitorOn = b.dataset.m === "on";
+  $$("#mon button").forEach(x => x.classList.toggle("on", x === b));
+  if (monitor) monitor.gain.setTargetAtTime(LP.monitorOn ? 1 : 0, ctx.currentTime, .01);
+});
+
+const inSel = $("#inSel");
+inSel.addEventListener("change", () => { LP.input = inSel.value; if (stream) openInput(LP.input); });
+
+let devices = [];
+function inputLabel(id){
+  if (id === "__bus") return "the studio output";
+  const d = devices.find(x => x.deviceId === id);
+  return d && d.label ? d.label : (id ? "the selected input" : "the default input");
+}
+async function listInputs(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  try{
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    devices = devs.filter(d => d.kind === "audioinput");
+    const keep = inSel.value;
+    inSel.textContent = "";
+    inSel.appendChild(Object.assign(document.createElement("option"),
+      {value:"__bus", textContent:"Studio output"}));
+    inSel.appendChild(Object.assign(document.createElement("option"),
+      {value:"", textContent:"Default microphone"}));
+    devices.forEach((d, i) => inSel.appendChild(Object.assign(document.createElement("option"),
+      {value:d.deviceId, textContent:d.label || ("Input " + (i + 1))})));
+    if (keep && devices.some(d => d.deviceId === keep)) inSel.value = keep;
+  }catch(e){}
+}
+listInputs();
+if (navigator.mediaDevices) navigator.mediaDevices.addEventListener("devicechange", listInputs);
+
+/* level */
+(function(){
+  const el = $("#levelF"), slot = el.querySelector(".hslot"),
+        cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
+  function paintF(){
+    cap.style.left = (LP.level * 100) + "%";
+    val.textContent = Math.round(LP.level * 100) + "%";
+  }
+  el.addEventListener("pointerdown", e => {
+    const r = slot.getBoundingClientRect();
+    const move = ev => {
+      const cx = ev.clientX != null ? ev.clientX : (ev.touches && ev.touches[0].clientX);
+      LP.level = clampf((cx - r.left) / r.width, 0, 1);
+      if (node && node.__level) node.__level.gain.setTargetAtTime(LP.level, ctx.currentTime, .01);
+      paintF();
+    };
+    move(e); el.classList.add("dragging");
+    const up = () => { el.classList.remove("dragging");
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+  paintF();
+})();
+
+/* Space records, and only when this panel owns the keyboard. */
+onKey("keydown", e => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "select" || tag === "textarea") return;
+  if (e.key === " " && !e.repeat){ recBtn.click(); e.preventDefault(); }
+});
+
+paintState();
+
+/* ============ boot ============ */
+
+/* Not a scene member. A scene changes what an instrument PLAYS, and a looper's content is
+   a recording — swapping it from a scene row would either throw away a take or need the
+   bank to carry audio. Both are wrong; the looper is played by hand, the way MS·1's
+   vocoder and bass are. */
+
+window.__lp1 = {LP, arm, play, stopLoop, clearLoop, undo, openInput, closeInput,
+                ensureNode, allocate, loopFrames,
+                get ctx(){ return ctx; }, get node(){ return node; }};
 });
 
 /* ---- the scene launcher ----

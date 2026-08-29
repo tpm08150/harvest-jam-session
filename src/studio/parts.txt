@@ -16,6 +16,9 @@ ms1/_panel-close.css
 dr1/_panel-open.css
 dr1/panel.css
 dr1/_panel-close.css
+lp1/_panel-open.css
+lp1/panel.css
+lp1/_panel-close.css
 studio/page.css
 shell/page-open.html
 studio/head-bar.html
@@ -24,6 +27,7 @@ studio/scenes.html
 cs1/panel.html
 ms1/panel.html
 dr1/panel.html
+lp1/panel.html
 studio/rack-close.html
 shell/script-open.html
 shell/host.js
@@ -59,6 +63,12 @@ dr1/ui.js
 dr1/midi.js
 dr1/boot.js
 dr1/_close.js
+lp1/_open.js
+lp1/worklet.js
+lp1/engine.js
+lp1/ui.js
+lp1/boot.js
+lp1/_close.js
 studio/scenes.js
 studio/boot.js
 shell/boot.js

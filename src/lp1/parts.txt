@@ -1,0 +1,25 @@
+# LP·1 standalone. The same fragments the studio build uses.
+lp1/head.html
+shell/tokens.css
+shell/reset.css
+shell/chrome.css
+lp1/_panel-open.css
+lp1/panel.css
+lp1/_panel-close.css
+shell/page-open.html
+lp1/panel.html
+shell/script-open.html
+shell/host.js
+shell/bus.js
+shell/clock.js
+shell/midi.js
+shell/scenes.js
+shell/faces.js
+lp1/_open.js
+lp1/worklet.js
+lp1/engine.js
+lp1/ui.js
+lp1/boot.js
+lp1/_close.js
+shell/boot.js
+shell/tail.html

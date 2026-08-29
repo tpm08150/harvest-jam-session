@@ -1,6 +1,6 @@
 # Patchwork
 
-Three instruments that run entirely in the browser, separately or together. One HTML file
+Four instruments that run entirely in the browser, separately or together. One HTML file
 each, no dependencies —
 generate and play music, shape it with a small synth engine, and drive external hardware
 over MIDI. Each ships as a single self-contained file; they are assembled from `src/` by a
@@ -11,6 +11,7 @@ concatenation script that needs nothing but Python.
 | **CS·1** | `patchwork-chord-synth.html` | chord synthesizer — progressions, pads, harmony |
 | **MS·1** | `patchwork-mono-synth.html` | mono/poly synth, vocoder and bass pedals |
 | **DR·1** | `patchwork-drums.html` | drum machine — eight synthesised voices, sixteen steps |
+| **LP·1** | `patchwork-looper.html` | audio looper — record, loop and overdub in time |
 | **Studio** | `patchwork-studio.html` | all three on one page, sharing a clock and an audio bus |
 
 Each is a complete program on its own — CS·1 plays the changes, MS·1 plays the line over
@@ -189,6 +190,21 @@ started **30.6 dB apart** and land within **0.31 dB** of where they should be.
 
 **MIDI.** GM drum notes in — 36 kick, 38 snare, 42 hat — so a pad controller drives the kit
 with no mapping. Hits mirror out on channel 10 by default.
+
+## Patchwork LP·1 — audio looper
+
+**Record, loop, overdub** — in time, without you having to be. Arming does not start
+anything: the take begins on the next bar line and runs for exactly the loop length you
+chose, so you can arm it a beat early and play into the count. A first pass records one
+loop and then plays; overdub keeps layering until you stop it, with one level of undo.
+
+**It records the studio by default**, not a microphone — everything the other instruments
+are playing, minus the looper itself, so an overdub can never record its own output. Point
+it at a microphone instead and it behaves the same way (**use headphones**).
+
+The loop is a fixed number of samples, worked out from the tempo when you armed it. Audio
+cannot stretch, so the panel shows the tempo it was cut at and tells you when that no
+longer matches.
 
 ## Scenes
 

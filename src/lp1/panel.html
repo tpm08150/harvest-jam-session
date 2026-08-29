@@ -1,0 +1,71 @@
+
+<div class="unit lp1" data-instrument="lp1">
+
+  <div data-face class="plate">
+    <div>
+      <div class="brand">Patchwork</div>
+      <div class="model">LP·1 — audio looper</div>
+    </div>
+    <div class="screws"><i class="screw"></i><i class="screw"></i></div>
+  </div>
+  <div data-face class="rule"></div>
+
+  <div data-face class="loopview">
+    <div class="loopbar"><i class="loophead" id="loopHead"></i><i class="loopfill" id="loopFill"></i></div>
+    <div class="loopmeta">
+      <span class="state" id="loopState">Empty</span>
+      <span class="meter"><i id="inMeter"></i></span>
+      <span class="cut" id="loopCut">—</span>
+    </div>
+  </div>
+
+  <div data-face class="transport">
+    <button class="btn primary rec" id="rec">● Record</button>
+    <button class="btn ghost" id="dub">Overdub</button>
+    <button class="btn ghost" id="playStop">▶ Play</button>
+    <button class="btn ghost" id="undo">Undo</button>
+    <button class="btn ghost" id="clear">Clear</button>
+  </div>
+
+  <div data-face class="row">
+    <div class="field" style="flex:0 0 96px">
+      <label for="bars">Bars</label>
+      <select id="bars">
+        <option value="1">1</option>
+        <option value="2" selected>2</option>
+        <option value="4">4</option>
+        <option value="8">8</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="inSel">Input</label>
+      <select id="inSel"><option value="__bus">Studio output</option></select>
+    </div>
+    <div class="field" style="flex:0 0 auto">
+      <span class="silk">Monitor</span>
+      <div class="seg sm" id="mon" role="group" aria-label="Hear the input while recording">
+        <button data-m="on" class="on">On</button>
+        <button data-m="off">Off</button>
+      </div>
+    </div>
+    <div class="hfader" id="levelF">
+      <span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">90%</span>
+    </div>
+  </div>
+
+  <p data-face class="note" id="loopNote">Record starts on the bar line, not when you press it — arm it a beat early and play into the count.</p>
+
+  <div class="sect">
+    <div class="sect-head"><span class="silk">About the loop</span></div>
+    <p class="note">
+      The loop is a fixed number of <b>samples</b>, worked out from the tempo when you armed it.
+      Audio cannot stretch, so changing tempo afterwards means it no longer fits the bar — the
+      tempo it was cut at is shown beside the state. Re-record to move it.
+    </p>
+    <p class="note">
+      <b>Use headphones.</b> An open microphone into speakers records its own output, and an
+      overdub builds that up every pass until it howls.
+    </p>
+  </div>
+
+</div>

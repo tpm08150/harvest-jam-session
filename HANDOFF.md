@@ -963,6 +963,69 @@ Result, all eight voices, ten runs averaged:
 noise source starts at a random offset per hit. `measure()` averages 8 runs by default.
 Never read a single one.
 
+## LP·1 — audio looper
+
+Record, loop and overdub audio in time with the pattern. A fourth instrument, and the
+first one that is not a synthesiser.
+
+### It has to be an AudioWorklet
+
+Recording means seeing every input sample, and the two alternatives are both worse:
+`MediaRecorder` encodes to Opus and returns something that needs decoding and is not
+sample-aligned, and `ScriptProcessorNode` runs on the main thread — where the click
+investigation's own findings say a stall is exactly what you get under load.
+
+The processor source is a template literal turned into a **Blob URL** at runtime, because
+`addModule()` needs a URL. Nothing is fetched and the app stays one file. This is the first
+use of the trick the MS·1 notes already proposed for a PolyBLEP sync oscillator, so it is
+now proven if anyone wants hard sync.
+
+### The take starts on the bar line
+
+Arming does not start anything. It posts the mode change to the worklet **with the exact
+sample frame to apply it at**, taken from `Patchwork.clock.claim()` — the same seam the
+scene launcher fires on. The worklet compares `currentFrame + i` per sample, so the switch
+is sample-accurate rather than block-accurate.
+
+Measured, arming at 407, 914 and 1533 ms into a bar: the take started 0, 16 and 5.3 ms off
+the line. **Those residuals are the measurement, not the mechanism** — position is posted
+to the main thread every 8 render quanta (~21 ms), so the test cannot resolve better than
+that.
+
+A first pass records **exactly one loop length and then plays**. A looper that keeps
+recording until you press stop records your reaction time onto the end of the take.
+
+### It records the studio, not just a microphone
+
+The default input is the studio's own output — `Patchwork.audio.tap("lp1")`, a sum of every
+instrument's strip **except this one**. On a jam tool that is the more useful of the two:
+capture what the band just played, then overdub over it. It also needs no permission, no
+headphones and cannot feed back.
+
+⚠️ **The exclusion is load-bearing.** Tapping `master` instead would record the looper
+recording itself, and an overdub would build that up every pass until it clips. Taps are
+re-wired when a new strip appears, because an instrument can be built after the tap was
+made.
+
+### Details worth not undoing
+
+- **Overdub outputs the material as it was BEFORE this pass.** Outputting the new sum
+  would double the live input, which is already being monitored.
+- **Overdub keeps layering until you stop it**, like hardware. Record does not.
+- **One level of undo**, snapshotted at the start of each overdub. A looper without undo
+  punishes the take you were happy with. Measured: 0.21 after record, 0.62 after
+  overdubbing, 0.19 after undo, 0 after clear.
+- **The loop length is fixed in SAMPLES**, from the tempo when you armed. Audio cannot
+  stretch, so a tempo change afterwards means it no longer fits the bar. The panel shows
+  the tempo it was cut at and marks it when the two disagree, because silently drifting is
+  worse than being told.
+- **LP·1 is deliberately not a scene member.** A scene changes what an instrument *plays*,
+  and a looper's content is a recording — firing one from a scene row would either throw
+  away a take or make the bank carry audio. It is played by hand, like MS·1's vocoder and
+  bass.
+- **The playhead is the worklet's own position**, not a main-thread timer, which would show
+  where the main thread *thinks* the loop is.
+
 ## Scenes
 
 A scene is a row: one pattern per instrument, fired together. Eight of them, in the studio

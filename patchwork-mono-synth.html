@@ -990,8 +990,34 @@ function strip(id){
     g.gain.value = 1;
     g.connect(master);
     strips.set(id, g);
+    taps.forEach(wireTap);          // an instrument built after a tap still reaches it
   }
   return strips.get(id);
+}
+
+/* A sum of every instrument's strip EXCEPT one — what the looper records when you point
+   it at the studio rather than a microphone.
+
+   Excluding the caller is the whole point: the looper's own output goes to its strip and
+   on to master, so recording master would record the looper recording itself and build
+   until it clips. Taps are kept and re-wired when a new strip appears, because an
+   instrument can be built after the tap was made. */
+const taps = [];
+function tap(excludeId){
+  context();
+  const g = ctx.createGain();
+  g.gain.value = 1;
+  const t = {node: g, exclude: excludeId, wired: new Set()};
+  taps.push(t);
+  wireTap(t);
+  return g;
+}
+function wireTap(t){
+  strips.forEach((strip, id) => {
+    if (id === t.exclude || t.wired.has(id)) return;
+    strip.connect(t.node);
+    t.wired.add(id);
+  });
 }
 
 /* iOS parks the context in "suspended" until a gesture and in "interrupted" after a
@@ -1006,7 +1032,7 @@ function resume(){
   return ctx.state;
 }
 
-return {context, strip, resume,
+return {context, strip, resume, tap,
         get ctx(){ return ctx; },
         get master(){ return master; },
         get strips(){ return new Map(strips); }};
