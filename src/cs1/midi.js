@@ -141,7 +141,7 @@ function loadMap(){
 }
 
 function arm(target, el){
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   LEARN.target = target;
   if (el) el.classList.add("arm");
   learnSay();
@@ -178,7 +178,7 @@ function bindLearn(kind, num){
   }
   saveMap();
   LEARN.target = null;
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   refreshBinds();
   learnSay();
 }
@@ -199,8 +199,8 @@ function learnSay(){
 function setLearn(on){
   LEARN.on = on;
   LEARN.target = null;
-  document.body.classList.toggle("learning", on);
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  root.classList.toggle("learning", on);
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   const b = $("#learn");
   b.classList.toggle("on", on);
   b.setAttribute("aria-pressed", on ? "true" : "false");
@@ -694,7 +694,7 @@ $("#clearMap").addEventListener("click", () => {
   padMap.clear(); ccMap.clear(); patchNotes.clear();
   saveMap(); refreshBinds();
   LEARN.target = null;
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   say("Map cleared — pads are back to white keys from C4, faders are mouse-only.");
 });
 

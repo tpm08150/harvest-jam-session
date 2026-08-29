@@ -1,5 +1,4 @@
 /* ============ ui ============ */
-const $ = s => document.querySelector(s);
 const chordsEl = $("#chords"), metaEl = $("#meta"), playBtn = $("#play"), keySel = $("#key"), moodSel = $("#mood"), tempoOut = $("#tempoOut"), lenSel = $("#len"), modeSel = $("#mode"), modeNote = $("#modeNote"), totalBarsEl = $("#totalBars");
 
 const title = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -175,7 +174,7 @@ function syncPadEditors(){
   if (openPad != null && openPad >= pads.length) openPad = null;
 }
 document.addEventListener("click", () => { if (openPad != null){ openPad = null; syncPadEditors(); } });
-document.addEventListener("keydown", e => {
+onKey("keydown", e => {
   if (e.key === "Escape" && openPad != null){ openPad = null; syncPadEditors(); }
 });
 
@@ -526,7 +525,7 @@ arpRateSel.addEventListener("change", () => {
 buildStepGrid();
 syncMotionOpts();
 
-document.addEventListener("keydown", e => {
+onKey("keydown", e => {
   /* target isn't always an Element — a key event dispatched at document has none of this */
   const el = e.target instanceof Element ? e.target : null;
   const tag = el ? el.tagName : "";

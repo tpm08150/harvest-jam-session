@@ -1,62 +1,8 @@
 /* Tokens are CS·1's, value for value — two synths with the same grey and different
    accents read as one product line; two different greys read as two products. */
-:root{
-  --panel:#333a3f;
-  --panel-hi:#3e464c;
-  --panel-lo:#262c31;
-  --edge:#1b2024;
-  --silk:#c6cdd2;
-  --silk-dim:#828d95;
-  --paper:#e7e2d5;
-  --ink:#232b31;
-  --slot:#1d2226;
-  --mint:#63d6b0;        /* focus, running, "now" — semantic, never decorative */
-  --cap-yellow:#e8b23a;  /* MIDI learn. Identical to CS·1 or the gesture stops reading */
-  --cap-red:#e04b2f;     /* kept, but ONLY for destructive things: panic, errors */
-
-  /* CS·1 is a red instrument; MS·1 is a blue one. That, the knobs and the stripes are
-     the whole model tell — the panel itself is deliberately unchanged. */
-  --accent:#4a8fd6;
-  --accent-hi:#6ea9e6;
-  --accent-lo:#2f6fb5;
-  --accent-ink:#0b1f31;
-
-  /* section stripes, read left-to-right down the signal path */
-  --stripe-mod:#8b74d6;
-  --stripe-osc:var(--accent);
-  --stripe-flt:var(--cap-yellow);
-  --stripe-amp:#9aa5ac;
-  --stripe-voc:#d67ab1;    /* vocoder — its own identity, not a variant of the filter */
-  --stripe-bass:#d9884a;   /* bass pedals */
-
-  /* named here rather than repeated as literals the way CS·1 does */
-  --groove:#12161a;
-  --groove-hi:#20262a;
-  --groove-deep:#0b0e10;
-  --cap-hi:#5b656b;
-  --cap-lo:#394247;
-  --cap-edge:#14181b;
-  --read:#aeb8be;
-  --read-hi:#a9b3b9;
-  --read-dim:#5f696f;
-  --chrome-hi:#eef3f5;
-  --field:#dfe6ea;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html{height:100%}
-body{
-  background:#1a1e21;
-  background-image:radial-gradient(120% 90% at 50% 0%,#2b3237 0%,#15181b 100%);
-  color:var(--silk);
-  font-family:"Saira Semi Condensed",system-ui,sans-serif;
-  min-height:100%;
-  padding:18px 14px 40px;
-  display:flex;justify-content:center;align-items:flex-start;
-  -webkit-font-smoothing:antialiased;
-}
 /* clip, not hidden: the mobile transport is sticky inside this box, and overflow:hidden
    would establish a scroll container that pins it to the top of the panel instead. */
-.unit{
+:scope{
   width:100%;max-width:760px;
   background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
   border:1px solid var(--edge);
@@ -65,11 +11,11 @@ body{
   padding:20px 18px 24px;
   position:relative;overflow:clip;
 }
-.unit::before{
+:scope::before{
   content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
   background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
 }
-.unit>*{position:relative;z-index:1}
+:scope>*{position:relative;z-index:1}
 
 /* ---------- header plate ---------- */
 .plate{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
@@ -333,10 +279,10 @@ input[type="text"]::placeholder{color:#5a646a}
 .legend span:nth-child(6)::before{background:var(--stripe-bass)}
 
 :focus-visible{outline:2px solid var(--mint);outline-offset:2px}
-body.learning .knob,body.learning .hfader{cursor:crosshair}
+:scope.learning .knob,:scope.learning .hfader{cursor:crosshair}
 
 @media (max-width:560px){
-  .unit{padding:16px 14px 20px}
+  :scope{padding:16px 14px 20px}
   .brand{font-size:21px;letter-spacing:.28em}
   .btn{flex:1 1 auto;text-align:center}
   .rack-pair{grid-template-columns:1fr;gap:0}

@@ -1,0 +1,14 @@
+*{box-sizing:border-box;margin:0;padding:0}
+/* height:100% on body would pin it to exactly one viewport; .unit then stretches to that
+   fixed height and its overflow:hidden clips everything below the fold, unreachably. */
+html{height:100%}
+body{
+  background:#1a1e21;
+  background-image:radial-gradient(120% 90% at 50% 0%,#2b3237 0%,#15181b 100%);
+  color:var(--silk);
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  min-height:100%;
+  padding:18px 14px 40px;
+  display:flex;justify-content:center;align-items:flex-start;
+  -webkit-font-smoothing:antialiased;
+}

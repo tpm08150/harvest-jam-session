@@ -1,18 +1,25 @@
-# Concatenated in this order by tools/build.py. Every line of the shipped
-# file lives in exactly one of these, so the build is a pure join.
-head.html
-style.css
-body.html
-_open.js
-patch.js
-audio.js
-note-layer.js
-transport-sequencer.js
-ui.js
-vocoder.js
-patches.js
-midi.js
-audio-io.js
-boot.js
-_close.js
-tail.html
+# Concatenated in this order by tools/build.py. Paths are relative to src/, so the
+# shell and the shared stylesheets are the same files CS·1 and the studio build use.
+ms1/head.html
+shell/tokens.css
+shell/reset.css
+ms1/_panel-open.css
+ms1/panel.css
+ms1/_panel-close.css
+shell/page-open.html
+ms1/panel.html
+shell/script-open.html
+shell/host.js
+ms1/_open.js
+ms1/patch.js
+ms1/audio.js
+ms1/note-layer.js
+ms1/transport-sequencer.js
+ms1/ui.js
+ms1/vocoder.js
+ms1/patches.js
+ms1/midi.js
+ms1/audio-io.js
+ms1/boot.js
+ms1/_close.js
+shell/tail.html

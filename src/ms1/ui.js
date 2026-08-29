@@ -1,5 +1,4 @@
 /* ============ ui ============ */
-const $ = s => document.querySelector(s);
 const playBtn = $("#play"), tempoOut = $("#tempoOut"), octOut = $("#octOut"),
       nowNote = $("#nowNote"), nowDetail = $("#nowDetail"), voiceMeta = $("#voiceMeta"),
       patchTag = $("#patchTag");

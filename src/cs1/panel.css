@@ -1,33 +1,4 @@
-:root{
-  --panel:#333a3f;
-  --panel-hi:#3e464c;
-  --panel-lo:#262c31;
-  --edge:#1b2024;
-  --silk:#c6cdd2;
-  --silk-dim:#828d95;
-  --paper:#e7e2d5;
-  --paper-dim:#d3cec1;
-  --ink:#232b31;
-  --cap-red:#e04b2f;
-  --cap-yellow:#e8b23a;
-  --mint:#63d6b0;
-  --slot:#1d2226;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-/* height:100% on body would pin it to exactly one viewport; .unit then stretches to that
-   fixed height and its overflow:hidden clips everything below the fold, unreachably. */
-html{height:100%}
-body{
-  background:#1a1e21;
-  background-image:radial-gradient(120% 90% at 50% 0%,#2b3237 0%,#15181b 100%);
-  color:var(--silk);
-  font-family:"Saira Semi Condensed",system-ui,sans-serif;
-  min-height:100%;
-  padding:18px 14px 40px;
-  display:flex;justify-content:center;align-items:flex-start;
-  -webkit-font-smoothing:antialiased;
-}
-.unit{
+:scope{
   width:100%;max-width:760px;
   background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
   border:1px solid var(--edge);
@@ -37,11 +8,11 @@ body{
   position:relative;
   overflow:hidden;
 }
-.unit::before{
+:scope::before{
   content:"";position:absolute;inset:0;pointer-events:none;
   background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
 }
-.unit>*{position:relative}
+:scope>*{position:relative}
 
 /* ---------- header plate ---------- */
 .plate{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px}
@@ -306,8 +277,8 @@ input[type="text"]::placeholder{color:#5a646a}
 .btn.sm{padding:8px 12px;font-size:11px;letter-spacing:.12em}
 .btn.learn.on{background:linear-gradient(180deg,#f0c45a,var(--cap-yellow));border-color:#8a6a15;color:#2f2405}
 .btn.panic{background:linear-gradient(180deg,#ec6146,var(--cap-red));border-color:#8c2a17;color:#fff2ee}
-body.learning .chord,body.learning .fader{cursor:crosshair}
-body.learning .fader{cursor:crosshair}
+:scope.learning .chord,:scope.learning .fader{cursor:crosshair}
+:scope.learning .fader{cursor:crosshair}
 .chord.arm{border-color:var(--cap-yellow)!important;background:rgba(232,178,58,.16)}
 .fader.arm{box-shadow:0 0 0 2px var(--cap-yellow) inset}
 .chord .bind{

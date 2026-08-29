@@ -1,0 +1,37 @@
+
+/* ---- studio layout ----
+   The shared reset centres a single panel, which is right for a standalone instrument
+   and wrong here. Two panels stack in a column on a narrow screen and sit side by side
+   once there is room for both at their natural 760px. */
+body{
+  display:block;
+  padding:0 0 48px;
+}
+.st-rack{
+  display:flex;flex-wrap:wrap;gap:18px;
+  align-items:flex-start;justify-content:center;
+  padding:18px 14px 0;
+}
+.st-rack > .unit{flex:1 1 620px;max-width:760px}
+
+/* Which instrument the computer keyboard is talking to. The shell only marks this when
+   there is more than one panel, so a standalone build never shows a ring it cannot
+   change. Colour-coded to the instrument: CS·1 is the red one, MS·1 the blue. */
+.unit{outline:2px solid transparent;outline-offset:3px;transition:outline-color .12s}
+@media (prefers-reduced-motion:reduce){ .unit{transition:none} }
+.unit.cs1.focused{outline-color:var(--cap-red)}
+.unit.ms1.focused{outline-color:var(--accent)}
+
+.st-head{
+  display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+  max-width:1556px;margin:0 auto;padding:22px 20px 4px;
+}
+.st-head .st-brand{
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:21px;font-weight:600;letter-spacing:.34em;text-transform:uppercase;
+  color:#e4e9ec;
+}
+.st-head .st-hint{
+  font-family:"DM Mono",ui-monospace,monospace;
+  font-size:10.5px;letter-spacing:.06em;color:var(--silk-dim);
+}

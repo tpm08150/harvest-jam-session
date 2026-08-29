@@ -1,0 +1,44 @@
+# The studio build: both instruments on one page, sharing the shell.
+#
+# The instrument fragments are the SAME files the standalone builds use — there is no
+# studio-specific copy of either synth. Only the page around them differs, which is
+# what stops the two configurations drifting apart.
+studio/head.html
+shell/tokens.css
+shell/reset.css
+cs1/_panel-open.css
+cs1/panel.css
+cs1/_panel-close.css
+ms1/_panel-open.css
+ms1/panel.css
+ms1/_panel-close.css
+studio/page.css
+shell/page-open.html
+studio/rack-open.html
+cs1/panel.html
+ms1/panel.html
+studio/rack-close.html
+shell/script-open.html
+shell/host.js
+cs1/_open.js
+cs1/theory.js
+cs1/audio.js
+cs1/ui.js
+cs1/midi.js
+cs1/audio-io.js
+cs1/patches.js
+cs1/_close.js
+ms1/_open.js
+ms1/patch.js
+ms1/audio.js
+ms1/note-layer.js
+ms1/transport-sequencer.js
+ms1/ui.js
+ms1/vocoder.js
+ms1/patches.js
+ms1/midi.js
+ms1/audio-io.js
+ms1/boot.js
+ms1/_close.js
+studio/boot.js
+shell/tail.html

@@ -10,55 +10,100 @@ miss. That is what keeps the "one HTML file, no build dependencies" rule honest 
     python3 tools/build.py              # write the apps
     python3 tools/build.py --check      # verify they match src/ without writing
 
---check is the Phase 1 contract and belongs in any pre-commit or CI hook: it fails
-if a shipped file was hand-edited instead of its source, which is the one way this
+--check is the build contract and belongs in any pre-commit or CI hook: it fails if
+a shipped file was hand-edited instead of its source, which is the one way this
 layout can silently rot.
+
+Manifest entries are paths relative to src/, so an app can pull in shared fragments —
+shell/host.js is built into all three outputs, and the token and reset sheets are one
+copy rather than a matched pair that can drift.
 """
-import sys, pathlib
+import re, sys, pathlib
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SRC = REPO / "src"
 
 APPS = {"cs1": "patchwork-chord-synth.html",
-        "ms1": "patchwork-mono-synth.html"}
+        "ms1": "patchwork-mono-synth.html",
+        "studio": "patchwork-studio.html"}
 
 
-def parts(app):
-    """The fragments of one app, in build order.
+def manifest(app):
+    """The fragments of one app, in build order, as paths relative to src/."""
+    listed = [ln.strip() for ln in (SRC / app / "parts.txt").read_text().splitlines()]
+    return [ln for ln in listed if ln and not ln.startswith("#")]
 
-    Every file in the directory must be listed. A fragment that exists but is not in
-    parts.txt would otherwise be silently dropped from the build — the failure mode
-    an explicit manifest exists to catch, so it is an error rather than a warning.
+
+def audit():
+    """Every fragment under src/ must be built into something.
+
+    A file that exists but appears in no manifest is silently dropped from every
+    output — the failure an explicit manifest exists to catch, and one a diff of the
+    built files cannot show you, because the missing lines were never there.
     """
-    d = SRC / app
-    listed = [ln.strip() for ln in (d / "parts.txt").read_text().splitlines()]
-    listed = [ln for ln in listed if ln and not ln.startswith("#")]
+    listed, problems = set(), []
+    for app in APPS:
+        for rel in manifest(app):
+            listed.add(rel)
+            if not (SRC / rel).is_file():
+                problems.append(f"{app}/parts.txt lists a file that does not exist: {rel}")
+    on_disk = {str(p.relative_to(SRC)) for p in SRC.rglob("*")
+               if p.is_file() and p.name != "parts.txt"}
+    for orphan in sorted(on_disk - listed):
+        problems.append(f"no manifest builds src/{orphan}")
+    if problems:
+        sys.exit("\n".join(problems))
 
-    on_disk = {p.name for p in d.iterdir() if p.name != "parts.txt"}
-    missing = [n for n in listed if n not in on_disk]
-    unlisted = sorted(on_disk - set(listed))
-    if missing:
-        sys.exit(f"{app}/parts.txt lists files that do not exist: {', '.join(missing)}")
-    if unlisted:
-        sys.exit(f"{app}/ has fragments missing from parts.txt: {', '.join(unlisted)}")
-    return [d / n for n in listed]
+
+# The panel identity classes are shared on purpose: the shell styles the panel it hosts.
+PANEL_CLASSES = {"unit", "focused"} | set(APPS)
+
+
+def collisions():
+    """The shell's own chrome must not use a class name an instrument uses.
+
+    Both instruments were written as whole pages, so their class names are short and
+    generic — `rack`, `row`, `card`, `brand`. An unscoped rule in the studio stylesheet
+    silently restyles the inside of a panel, which is the exact failure this layout
+    exists to prevent. Instrument sheets cannot collide with each other, because @scope
+    confines them; only the shell's is page-wide, so only the shell needs checking.
+    """
+    def in_css(rel):
+        s = re.sub(r"/\*.*?\*/", "", (SRC / rel).read_text(), flags=re.S)
+        return set(re.findall(r"\.([a-zA-Z][\w-]*)", s))
+    def in_html(rel):
+        return {c for m in re.findall(r'class="([^"]+)"', (SRC / rel).read_text())
+                for c in m.split()}
+
+    owned = set()
+    for rel in (r for r in manifest("studio") if r.startswith("studio/")):
+        owned |= in_css(rel) if rel.endswith(".css") else in_html(rel) if rel.endswith(".html") else set()
+    instrument = set()
+    for app in ("cs1", "ms1"):
+        instrument |= in_css(f"{app}/panel.css") | in_html(f"{app}/panel.html")
+
+    clash = sorted((owned & instrument) - PANEL_CLASSES)
+    if clash:
+        sys.exit("the studio stylesheet uses class names an instrument already owns: "
+                 + ", ".join(clash) + "\nprefix them st- so they cannot reach inside a panel")
 
 
 def render(app):
-    return "".join(p.read_text() for p in parts(app))
+    return "".join((SRC / rel).read_text() for rel in manifest(app))
 
 
 if __name__ == "__main__":
+    audit()
+    collisions()
     check = "--check" in sys.argv[1:]
     stale = []
     for app, out in APPS.items():
         built, dest = render(app), REPO / out
         if check:
             current = dest.read_text() if dest.exists() else None
-            state = "ok" if current == built else "STALE"
             if current != built:
                 stale.append(out)
-            print(f"{state:>5}  {out}")
+            print(f"{'ok' if current == built else 'STALE':>5}  {out}")
         else:
             dest.write_text(built)
             print(f"{len(built.splitlines()):>5} lines  {out}")

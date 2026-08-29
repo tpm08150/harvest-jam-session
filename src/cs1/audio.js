@@ -494,7 +494,7 @@ function stopPlay(){
   midiPanic();
   playBtn.classList.remove("on");
   playBtn.textContent = "▶ Play";
-  document.querySelectorAll(".chord").forEach((c, idx) => {
+  $$(".chord").forEach((c, idx) => {
     c.classList.toggle("on", litPads.has(idx));
     c.querySelector(".wipe").style.width = "0%";
   });
@@ -505,7 +505,7 @@ function paint(){
   const now = ctx.currentTime;
   let cur = null;
   for (const m of marks) if (now >= m.t && now < m.end) cur = m;
-  const cards = document.querySelectorAll(".chord");
+  const cards = $$(".chord");
   cards.forEach((c, idx) => {
     const on = cur && cur.i === idx;
     c.classList.toggle("on", !!on || litPads.has(idx));

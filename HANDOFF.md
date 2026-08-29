@@ -24,9 +24,14 @@ dependencies.
 ```
 patchwork-chord-synth.html   CS·1 — BUILT. Do not edit; edit src/cs1/ and rebuild
 patchwork-mono-synth.html    MS·1 — likewise, from src/ms1/
+patchwork-studio.html        both instruments on one page, from src/studio/
 src/
-  cs1/, ms1/                 the fragments each app is assembled from
-  */parts.txt                the order they concatenate in
+  shell/                     what only one of can exist on a page
+    host.js                  panel roots and keyboard arbitration
+    tokens.css, reset.css    one copy, shared by every build
+  cs1/, ms1/                 each instrument: panel.html, panel.css, and its script
+  studio/                    the page that hosts both
+  */parts.txt                the fragments that build, in order, as paths under src/
 tools/build.py               joins them. `--check` fails if a built file was hand-edited
 serve.py                     dev server that disables caching (see gotchas)
 netlify.toml                 publish from root, rewrite / to the html, no-store on html
@@ -64,6 +69,41 @@ python3 tools/build.py --check   # verify they match src/, write nothing
 `--check` catches the one way this layout rots: a shipped file edited directly, whose change
 the next build silently reverts. Worth a pre-commit hook. It also fails on a fragment that
 exists but is absent from `parts.txt`, since that would otherwise just quietly not ship.
+
+### Instruments are built into a panel, not into the document
+
+Both apps were written as whole pages, which is why they share 28 element ids and 30 CSS
+class names and never noticed. An instrument now receives a **root element** and queries
+inside it:
+
+```js
+Patchwork.instrument("cs1", root => {
+  const $  = s => root.querySelector(s);
+  const $$ = s => root.querySelectorAll(s);
+```
+
+That one change is what makes the duplicate ids harmless — `#play` resolves per panel. It
+was cheap because neither app ever used `getElementById`; every lookup already went through
+`$`.
+
+CSS is scoped with **`@scope`, not nesting**, because `@scope` adds no specificity: every
+rule inside keeps exactly the weight it had when the stylesheet was a whole page. Rules that
+cannot be scoped — `:root`, `*`, `html`, `body` — moved to `shell/`. They were byte-identical
+in both apps, and so were all 12 shared tokens, so this merged rather than picked a winner.
+
+**The shell's own stylesheet is the one that can still collide**, since it is page-wide by
+definition. `tools/build.py` fails the build if it uses a class name an instrument owns —
+added after the studio's layout class `.rack` silently restyled the inside of MS·1, which
+already had one.
+
+⚠️ **The computer keyboard goes through `Patchwork.onKey`, never `document`.** Both apps
+listening on `document` meant every instrument saw every key: with both on one page, `n`
+made a new progression while you were playing MS·1. A **keyup is routed to whichever panel
+received its keydown**, not to whatever has focus now — route it by focus and a note held
+while you click the other panel never gets released.
+
+A page with one instrument takes the identical path, so the standalone builds are not a
+second configuration that can rot untested.
 
 ## Running it
 

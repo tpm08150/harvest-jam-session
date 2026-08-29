@@ -455,8 +455,8 @@ function paintMotionView(){
   const arp = SEQ.motion === "arp";
   arpRoll.hidden = !arp;
   seqWrap.hidden = arp;
-  document.querySelectorAll("[data-seqonly]").forEach(el => { el.hidden = arp; });
-  document.querySelectorAll("[data-arponly]").forEach(el => { el.hidden = !arp; });
+  $$("[data-seqonly]").forEach(el => { el.hidden = arp; });
+  $$("[data-arponly]").forEach(el => { el.hidden = !arp; });
 }
 function renderRoll(){
   paintMotionView();
@@ -774,7 +774,7 @@ $("#panic").addEventListener("click", () => {
 /* computer keyboard, so the thing is playable without hardware */
 const KEYMAP = {a:0,w:1,s:2,e:3,d:4,f:5,t:6,g:7,y:8,h:9,u:10,j:11,k:12,o:13,l:14,p:15,";":16};
 const kbHeld = new Set();
-document.addEventListener("keydown", e => {
+onKey("keydown", e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "select" || tag === "textarea") return;
@@ -791,7 +791,7 @@ document.addEventListener("keydown", e => {
   if (k == null || e.repeat || kbHeld.has(k)) return;
   kbHeld.add(k); noteOn(KEY_BASE + k, 100); paintKeys(); e.preventDefault();
 });
-document.addEventListener("keyup", e => {
+onKey("keyup", e => {
   const k = KEYMAP[e.key.toLowerCase()];
   if (k == null || !kbHeld.has(k)) return;
   kbHeld.delete(k); noteOff(KEY_BASE + k); paintKeys();

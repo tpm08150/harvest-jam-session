@@ -116,7 +116,7 @@ function loadMap(){
   }catch(e){}
 }
 function arm(target, el){
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   LEARN.target = target;
   if (el) el.classList.add("arm");
   learnSay();
@@ -135,7 +135,7 @@ function bindLearn(cc){
   ccMap.set(cc, t.id);
   saveMap();
   LEARN.target = null;
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   refreshBinds(); learnSay();
 }
 function learnSay(){
@@ -146,8 +146,8 @@ function learnSay(){
 }
 function setLearn(on){
   LEARN.on = on; LEARN.target = null;
-  document.body.classList.toggle("learning", on);
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  root.classList.toggle("learning", on);
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   const b = $("#learn");
   b.classList.toggle("on", on);
   b.setAttribute("aria-pressed", on ? "true" : "false");
@@ -339,7 +339,7 @@ $("#learn").addEventListener("click", () => setLearn(!LEARN.on));
 $("#clearMap").addEventListener("click", () => {
   ccMap.clear(); saveMap(); refreshBinds();
   LEARN.target = null;
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   say("Map cleared — knobs are mouse and keyboard only again.");
 });
 function initMidi(){

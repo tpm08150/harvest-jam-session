@@ -8,7 +8,17 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Saira+Semi+Condensed:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+/* One token set for every instrument.
+
+   These were already shared: MS·1's stylesheet copied CS·1's values verbatim, with a
+   comment saying why — two synths with the same grey and different accents read as one
+   product line. All 12 common tokens matched byte for byte, so merging them here loses
+   nothing and removes the chance of the two drifting.
+
+   Instrument-specific tokens sit alongside rather than in scopes of their own: none of
+   them collide, and there is no cost to a panel seeing a token it does not use. */
 :root{
+  /* --- CS·1 --- */
   --panel:#333a3f;
   --panel-hi:#3e464c;
   --panel-lo:#262c31;
@@ -22,6 +32,33 @@
   --cap-yellow:#e8b23a;
   --mint:#63d6b0;
   --slot:#1d2226;
+
+  /* --- MS·1 adds --- */
+  /* CS·1 is a red instrument; MS·1 is a blue one. That, the knobs and the stripes are
+     the whole model tell — the panel itself is deliberately unchanged. */
+  --accent:#4a8fd6;
+  --accent-hi:#6ea9e6;
+  --accent-lo:#2f6fb5;
+  --accent-ink:#0b1f31;
+  /* section stripes, read left-to-right down the signal path */
+  --stripe-mod:#8b74d6;
+  --stripe-osc:var(--accent);
+  --stripe-flt:var(--cap-yellow);
+  --stripe-amp:#9aa5ac;
+  --stripe-voc:#d67ab1;    /* vocoder — its own identity, not a variant of the filter */
+  --stripe-bass:#d9884a;   /* bass pedals */
+  /* named here rather than repeated as literals the way CS·1 does */
+  --groove:#12161a;
+  --groove-hi:#20262a;
+  --groove-deep:#0b0e10;
+  --cap-hi:#5b656b;
+  --cap-lo:#394247;
+  --cap-edge:#14181b;
+  --read:#aeb8be;
+  --read-hi:#a9b3b9;
+  --read-dim:#5f696f;
+  --chrome-hi:#eef3f5;
+  --field:#dfe6ea;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 /* height:100% on body would pin it to exactly one viewport; .unit then stretches to that
@@ -37,7 +74,11 @@ body{
   display:flex;justify-content:center;align-items:flex-start;
   -webkit-font-smoothing:antialiased;
 }
-.unit{
+/* Everything below is scoped to this instrument's panel. @scope rather than
+   nesting because it adds no specificity, so the relative weight of every rule
+   inside is exactly what it was when this was a whole page to itself. */
+@scope (.unit.cs1) {
+:scope{
   width:100%;max-width:760px;
   background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
   border:1px solid var(--edge);
@@ -47,11 +88,11 @@ body{
   position:relative;
   overflow:hidden;
 }
-.unit::before{
+:scope::before{
   content:"";position:absolute;inset:0;pointer-events:none;
   background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
 }
-.unit>*{position:relative}
+:scope>*{position:relative}
 
 /* ---------- header plate ---------- */
 .plate{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px}
@@ -316,8 +357,8 @@ input[type="text"]::placeholder{color:#5a646a}
 .btn.sm{padding:8px 12px;font-size:11px;letter-spacing:.12em}
 .btn.learn.on{background:linear-gradient(180deg,#f0c45a,var(--cap-yellow));border-color:#8a6a15;color:#2f2405}
 .btn.panic{background:linear-gradient(180deg,#ec6146,var(--cap-red));border-color:#8c2a17;color:#fff2ee}
-body.learning .chord,body.learning .fader{cursor:crosshair}
-body.learning .fader{cursor:crosshair}
+:scope.learning .chord,:scope.learning .fader{cursor:crosshair}
+:scope.learning .fader{cursor:crosshair}
 .chord.arm{border-color:var(--cap-yellow)!important;background:rgba(232,178,58,.16)}
 .fader.arm{box-shadow:0 0 0 2px var(--cap-yellow) inset}
 .chord .bind{
@@ -343,10 +384,11 @@ body.learning .fader{cursor:crosshair}
   .btn{flex:1 1 auto;text-align:center}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+}
 </style>
 </head>
 <body>
-<div class="unit">
+<div class="unit cs1" data-instrument="cs1">
 
   <div class="plate">
     <div>
@@ -607,8 +649,98 @@ body.learning .fader{cursor:crosshair}
 </div>
 
 <script>
-(() => {
+/* The shell.
+
+   Everything singular on the page lives here, so instruments can stop each assuming
+   they own the document. Phase 2 gives it the two that actually collide — the root an
+   instrument queries within, and the computer keyboard. The clock, the audio bus and
+   the MIDI router follow in Phase 3.
+
+   It is deliberately the same code standalone and hosted. A page with one instrument
+   takes the identical path a page with three does, so the standalone builds are not a
+   second configuration that can rot untested. */
+window.Patchwork = (() => {
 "use strict";
+
+const roots = [];          // every instrument panel on this page, in document order
+let focused = null;        // the one the computer keyboard is talking to
+const handlers = [];       // {root, type, fn}
+
+/* Which root a keydown went to, keyed by e.code. A keyup MUST reach the instrument that
+   received its keydown even if focus moved in between — route it by focus instead and
+   the first instrument holds that note forever. Held notes are exactly the thing a
+   focus change is likely to interrupt, so this is the common case, not the corner. */
+const pressed = new Map();
+
+function instrument(id, build){
+  const root = document.querySelector(`[data-instrument="${id}"]`);
+  if (!root) return null;                   // this build does not include that panel
+  roots.push(root);
+  if (!focused) focused = root;
+  build(root);
+  return root;
+}
+
+/* With one instrument there is nothing to arbitrate and it is always focused, so a
+   standalone build behaves exactly as it did before the shell existed. */
+const contested = () => roots.length > 1;
+
+/* Idempotent on purpose. The first instrument to register is focused before there is
+   anything to contest, so an early return when the root is already focused left the
+   panel that owns the keyboard with no ring on it — the one case that matters most,
+   since it is the state the page opens in. */
+function focus(root){
+  if (!root || roots.indexOf(root) < 0) return;
+  focused = root;
+  if (!contested()) return;              // nothing to show with a single panel
+  roots.forEach(r => r.classList.toggle("focused", r === focused));
+}
+
+document.addEventListener("pointerdown", e => {
+  const el = e.target instanceof Element ? e.target.closest("[data-instrument]") : null;
+  if (el) focus(el);
+}, true);
+
+function onKey(root, type, fn){
+  handlers.push({root, type, fn});
+}
+
+/* One listener per event type for the whole page, dispatching to the instrument that
+   owns the keyboard. Registering each instrument's handler on document directly is what
+   made this a collision in the first place: every instrument saw every key. */
+["keydown", "keyup"].forEach(type => {
+  document.addEventListener(type, e => {
+    let target = focused;
+    if (type === "keydown") {
+      if (e.code) pressed.set(e.code, focused);
+    } else if (e.code && pressed.has(e.code)) {
+      target = pressed.get(e.code);
+      pressed.delete(e.code);
+    }
+    handlers.forEach(h => { if (h.type === type && h.root === target) h.fn(e); });
+  });
+});
+
+/* A key held while the window loses focus never sends its keyup, so the note that was
+   sounding has nothing to release it. Instruments already handle blur themselves; this
+   just stops the routing table growing without bound. */
+window.addEventListener("blur", () => pressed.clear());
+
+return {instrument, onKey, focus,
+        get roots(){ return roots.slice(); },
+        get focused(){ return focused; }};
+})();
+/* CS·1 is built into whatever panel the page gives it, rather than into the document.
+   Standalone that panel is the only thing on the page; in the studio build it is one of
+   several. The code below cannot tell the difference, which is the point. */
+Patchwork.instrument("cs1", root => {
+"use strict";
+
+/* Scoped to this instrument. Both apps used to query the document, which is why they
+   share 28 element ids and never noticed. */
+const $  = s => root.querySelector(s);
+const $$ = s => root.querySelectorAll(s);
+const onKey = (type, fn) => Patchwork.onKey(root, type, fn);
 
 /* ============ theory ============ */
 const SHARPS = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
@@ -1380,7 +1512,7 @@ function stopPlay(){
   midiPanic();
   playBtn.classList.remove("on");
   playBtn.textContent = "▶ Play";
-  document.querySelectorAll(".chord").forEach((c, idx) => {
+  $$(".chord").forEach((c, idx) => {
     c.classList.toggle("on", litPads.has(idx));
     c.querySelector(".wipe").style.width = "0%";
   });
@@ -1391,7 +1523,7 @@ function paint(){
   const now = ctx.currentTime;
   let cur = null;
   for (const m of marks) if (now >= m.t && now < m.end) cur = m;
-  const cards = document.querySelectorAll(".chord");
+  const cards = $$(".chord");
   cards.forEach((c, idx) => {
     const on = cur && cur.i === idx;
     c.classList.toggle("on", !!on || litPads.has(idx));
@@ -1434,7 +1566,6 @@ function stab(i){
 }
 
 /* ============ ui ============ */
-const $ = s => document.querySelector(s);
 const chordsEl = $("#chords"), metaEl = $("#meta"), playBtn = $("#play"), keySel = $("#key"), moodSel = $("#mood"), tempoOut = $("#tempoOut"), lenSel = $("#len"), modeSel = $("#mode"), modeNote = $("#modeNote"), totalBarsEl = $("#totalBars");
 
 const title = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -1610,7 +1741,7 @@ function syncPadEditors(){
   if (openPad != null && openPad >= pads.length) openPad = null;
 }
 document.addEventListener("click", () => { if (openPad != null){ openPad = null; syncPadEditors(); } });
-document.addEventListener("keydown", e => {
+onKey("keydown", e => {
   if (e.key === "Escape" && openPad != null){ openPad = null; syncPadEditors(); }
 });
 
@@ -1961,7 +2092,7 @@ arpRateSel.addEventListener("change", () => {
 buildStepGrid();
 syncMotionOpts();
 
-document.addEventListener("keydown", e => {
+onKey("keydown", e => {
   /* target isn't always an Element — a key event dispatched at document has none of this */
   const el = e.target instanceof Element ? e.target : null;
   const tag = el ? el.tagName : "";
@@ -2121,7 +2252,7 @@ function loadMap(){
 }
 
 function arm(target, el){
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   LEARN.target = target;
   if (el) el.classList.add("arm");
   learnSay();
@@ -2158,7 +2289,7 @@ function bindLearn(kind, num){
   }
   saveMap();
   LEARN.target = null;
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   refreshBinds();
   learnSay();
 }
@@ -2179,8 +2310,8 @@ function learnSay(){
 function setLearn(on){
   LEARN.on = on;
   LEARN.target = null;
-  document.body.classList.toggle("learning", on);
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  root.classList.toggle("learning", on);
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   const b = $("#learn");
   b.classList.toggle("on", on);
   b.setAttribute("aria-pressed", on ? "true" : "false");
@@ -2674,7 +2805,7 @@ $("#clearMap").addEventListener("click", () => {
   padMap.clear(); ccMap.clear(); patchNotes.clear();
   saveMap(); refreshBinds();
   LEARN.target = null;
-  document.querySelectorAll(".arm").forEach(x => x.classList.remove("arm"));
+  $$(".arm").forEach(x => x.classList.remove("arm"));
   say("Map cleared — pads are back to white keys from C4, faders are mouse-only.");
 });
 
@@ -3159,7 +3290,7 @@ initMidi();
    above was verified. */
 window.__cs1 = {MIDI, onMidi, state, P,
                 get held(){ return held; }, get litPads(){ return litPads; }};
-})();
+});
 </script>
 </body>
 </html>

@@ -1,0 +1,4 @@
+/* Everything below is scoped to this instrument's panel. @scope rather than
+   nesting because it adds no specificity, so the relative weight of every rule
+   inside is exactly what it was when this was a whole page to itself. */
+@scope (.unit.cs1) {

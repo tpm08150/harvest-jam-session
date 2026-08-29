@@ -1,0 +1,52 @@
+/* One token set for every instrument.
+
+   These were already shared: MS·1's stylesheet copied CS·1's values verbatim, with a
+   comment saying why — two synths with the same grey and different accents read as one
+   product line. All 12 common tokens matched byte for byte, so merging them here loses
+   nothing and removes the chance of the two drifting.
+
+   Instrument-specific tokens sit alongside rather than in scopes of their own: none of
+   them collide, and there is no cost to a panel seeing a token it does not use. */
+:root{
+  /* --- CS·1 --- */
+  --panel:#333a3f;
+  --panel-hi:#3e464c;
+  --panel-lo:#262c31;
+  --edge:#1b2024;
+  --silk:#c6cdd2;
+  --silk-dim:#828d95;
+  --paper:#e7e2d5;
+  --paper-dim:#d3cec1;
+  --ink:#232b31;
+  --cap-red:#e04b2f;
+  --cap-yellow:#e8b23a;
+  --mint:#63d6b0;
+  --slot:#1d2226;
+
+  /* --- MS·1 adds --- */
+  /* CS·1 is a red instrument; MS·1 is a blue one. That, the knobs and the stripes are
+     the whole model tell — the panel itself is deliberately unchanged. */
+  --accent:#4a8fd6;
+  --accent-hi:#6ea9e6;
+  --accent-lo:#2f6fb5;
+  --accent-ink:#0b1f31;
+  /* section stripes, read left-to-right down the signal path */
+  --stripe-mod:#8b74d6;
+  --stripe-osc:var(--accent);
+  --stripe-flt:var(--cap-yellow);
+  --stripe-amp:#9aa5ac;
+  --stripe-voc:#d67ab1;    /* vocoder — its own identity, not a variant of the filter */
+  --stripe-bass:#d9884a;   /* bass pedals */
+  /* named here rather than repeated as literals the way CS·1 does */
+  --groove:#12161a;
+  --groove-hi:#20262a;
+  --groove-deep:#0b0e10;
+  --cap-hi:#5b656b;
+  --cap-lo:#394247;
+  --cap-edge:#14181b;
+  --read:#aeb8be;
+  --read-hi:#a9b3b9;
+  --read-dim:#5f696f;
+  --chrome-hi:#eef3f5;
+  --field:#dfe6ea;
+}
