@@ -80,10 +80,32 @@ not take and you are on BroadcastChannel, which reaches other tabs and nothing e
 - ⚠️ **Talkback's send half is untested.** Microphone capture is blocked in the harness, so
   `start()` has been read and not run. The receive path, the strip exclusion and the failure
   mode are all verified. **This is the first thing to try on real hardware.**
-- ⚠️ **`setInterval(pump, 25)` in `shell/clock.js`.** Background tabs throttle it. Today that
-  is only your problem when you switch tabs; in a session your throttled tab becomes
-  everyone's. A Worker or an audio-thread tick is the fix, and it should happen before any
-  of this is used in anger.
+- ⚠️ **`setInterval(pump, 25)` in `shell/clock.js` — MEASURED, and worse than assumed.**
+  A plain `setInterval(fn, 25)` in a non-visible tab produced **4 ticks in 3 seconds** where
+  120 were asked for: about 1.3 Hz, against a scheduler that looks 200 ms ahead. That is not
+  a degraded tick, it is a stopped one.
+
+  ⚠️ **Caveat on that number:** it was taken in an automation pane whose visibility state is
+  not a normal foreground tab, so read it as "throttling is real and severe when hidden",
+  not as "this happens in the foreground". Chrome also exempts pages that are *playing audio*
+  from timer throttling, which is why a jam in progress has looked fine — the exposure is a
+  client that is **in a session but silent**, waiting to fire a row, whose clock has stalled
+  by the time it does.
+
+  **The fix, in order of preference.** An **AudioWorklet ticker** is the right one: the audio
+  thread is real-time and never throttled while the context runs, and this clock is about
+  audio time anyway. A processor that posts a message every 8 render quanta is ~21 ms at
+  48 kHz. Two details it will need — the node must be connected (through a zero gain to
+  `destination`) or `process()` is never pulled, and the module loads asynchronously, so keep
+  the `setInterval` running until it is live. Double-ticking during the overlap is harmless:
+  every instrument's `tick()` only schedules while `nextTime < now + .2`, so an extra call
+  finds nothing to do. A Worker timer is the easier second choice and is what the classic
+  "Tale of Two Clocks" recommends, but it is not as certain: Chrome has throttled worker
+  timers owned by hidden pages.
+
+  ⚠️ **Do not put the AudioWorklet source in a template literal with a backtick in it.** See
+  `lp1/worklet.js` and the note in `HANDOFF.md`; it cost this session an afternoon-shaped
+  bug where every script after it silently failed to parse.
 - ⚠️ **Patterns are last-writer-wins.** Two people editing one grid overwrite each other every
   220 ms tick. The owner label is the only coordination on offer. Real locks need the relay to
   arbitrate, which is a small addition now that the relay exists.
@@ -100,6 +122,17 @@ not take and you are on BroadcastChannel, which reaches other tabs and nothing e
 CS·1 has no patch channel: its progression, key and mood *are* its pattern and the scene
 already carries them. LP·1 shares takes only when pushed, never automatically. Nobody's
 transport position is shared — everyone fires their own rows, which is deliberate.
+
+## Where this stopped
+
+Mid-way through the clock fix above: the problem was measured and the approach settled, and
+**no code was written for it**. The tree is clean and everything below is committed and
+pushed. Picking it up means starting at `shell/clock.js` with the plan in the open items.
+
+⚠️ **Housekeeping learned the hard way:** the browser automation pane plays through the
+machine's own speakers, and test tabs left with DR·1 running are audible to whoever is
+sitting there. Stop every transport AND suspend the audio context at the end of a test, not
+just at the end of a session.
 
 ## Working habits that paid off again
 
