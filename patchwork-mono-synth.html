@@ -1029,6 +1029,72 @@ return {claim, run, stop, setBpm, onTempo, beatSeconds, setRate,
         get origin(){ return origin; },
         get running(){ return running.size; }};
 })();
+
+/* One MIDI router for the page.
+
+   `port.onmidimessage` is a single-handler PROPERTY, not an event target. Two
+   instruments each assigning it means the second silently replaces the first, so on a
+   page with both, whichever bound last received everything and the other was deaf —
+   with no error and nothing in the console to suggest it.
+
+   The router binds once and fans out. Channel routing does not move here: each
+   instrument already filters by channel on the way in, and that is where it belongs —
+   MS·1 splits synth, vocoder, bass and CC across four channels of its own, which is not
+   something a shared router should have opinions about.
+
+   The input port is the page's, like the tempo. Selecting one on either panel binds it
+   for everything, and every panel's selector follows. */
+Patchwork.midi = (() => {
+"use strict";
+
+let accessPromise = null, access = null, port = null;
+const subs = [];                 // {id, onMidi, onPort}
+
+/* One requestMIDIAccess for the page — two calls mean two permission paths and two
+   onstatechange owners racing to rebuild the same port lists. */
+function open(){
+  if (accessPromise) return accessPromise;
+  if (!navigator.requestMIDIAccess)
+    return accessPromise = Promise.reject(new Error("unavailable"));
+  accessPromise = navigator.requestMIDIAccess({sysex:false}).then(a => {
+    access = a;
+    a.onstatechange = () => {
+      /* A port can vanish while bound — unplugging the interface. Drop the stale
+         reference before telling anyone, or every subscriber re-reads a dead port. */
+      if (port && !ports("inputs").some(p => p.id === port.id)) port = null;
+      subs.forEach(s => { try{ s.onPort(port); }catch(e){} });
+    };
+    return a;
+  });
+  return accessPromise;
+}
+
+function ports(kind){ return access ? Array.from(access[kind].values()) : []; }
+
+function fanout(e){
+  /* A handler that throws must not stop the message reaching the other instruments. */
+  subs.forEach(s => { try{ s.onMidi(e); }catch(err){ console.error("midi handler failed", err); } });
+}
+
+/* Register an instrument. onMidi gets every message — filter by channel yourself.
+   onPort is called when the page's input changes, including when the OTHER panel
+   changed it, so a selector and an LED can follow. */
+function route(id, onMidi, onPort){
+  subs.push({id, onMidi, onPort: onPort || function(){}});
+}
+
+function select(portId){
+  if (port){ try{ port.onmidimessage = null; }catch(e){} }
+  port = portId ? (ports("inputs").find(p => p.id === portId) || null) : null;
+  if (port) port.onmidimessage = fanout;
+  subs.forEach(s => { try{ s.onPort(port); }catch(e){} });
+  return port;
+}
+
+return {open, ports, route, select,
+        get access(){ return access; },
+        get port(){ return port; }};
+})();
 /* MS·1 is built into whatever panel the page gives it, rather than into the document.
    Standalone that panel is the only thing on the page; in the studio build it is one of
    several. The code below cannot tell the difference, which is the point. */
@@ -4640,12 +4706,18 @@ function describe(){
     + " — " + how + " Learn a knob to any CC. Program change 0–19 recalls the factory bank. "
     + "MS·1 runs its own clock and ignores incoming MIDI clock.");
 }
+/* The port belongs to the page, not to this panel — see shell/midi.js. Assigning
+   onmidimessage here is what made the two instruments steal it from each other. */
 function bindInput(){
-  if (MIDI.in){ try{ MIDI.in.onmidimessage = null; }catch(e){} }
   allNotesOff();
-  MIDI.in = midiInSel.value ? ports("inputs").find(p => p.id === midiInSel.value) || null : null;
-  if (MIDI.in) MIDI.in.onmidimessage = onMidi;
+  MIDI.in = Patchwork.midi.select(midiInSel.value);
   ledEl.classList.toggle("ready", !!MIDI.in && !ledEl.classList.contains("err"));
+}
+/* Called when the page's input changes, including from the other panel. */
+function followInput(pt){
+  MIDI.in = pt;
+  if (midiInSel.value !== (pt ? pt.id : "")) midiInSel.value = pt ? pt.id : "";
+  ledEl.classList.toggle("ready", !!pt && !ledEl.classList.contains("err"));
 }
 function bindOutput(){
   midiPanic();
@@ -4731,12 +4803,17 @@ function initMidi(){
       + "rather than opening it with <code>file://</code>.", true);
     return;
   }
-  navigator.requestMIDIAccess({sysex:false}).then(a => {
+  Patchwork.midi.route("ms1", onMidi, pt => {
+    fillPorts(); followInput(pt); bindOutput(); describe();
+  });
+  Patchwork.midi.open().then(a => {
     MIDI.access = a;
-    a.onstatechange = () => { fillPorts(); bindInput(); bindOutput(); describe(); };
     fillPorts();
+    /* Only claim the default port if nothing has claimed one yet — otherwise the second
+       instrument to boot rebinds the page's input out from under the first. */
     const ins = ports("inputs");
-    if (ins.length){ midiInSel.value = ins[0].id; bindInput(); }
+    if (!Patchwork.midi.port && ins.length){ midiInSel.value = ins[0].id; bindInput(); }
+    else followInput(Patchwork.midi.port);
     describe();
   }).catch(err => {
     say("MIDI access was denied or failed (" + ((err && err.name) || "error") + ").", true);

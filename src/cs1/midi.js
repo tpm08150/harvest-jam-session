@@ -632,12 +632,18 @@ function describe(){
         : "Incoming MIDI clock is followed automatically."));
 }
 
+/* The port belongs to the page, not to this panel — see shell/midi.js. Assigning
+   onmidimessage here is what made the two instruments steal it from each other. */
 function bindInput(){
-  if (MIDI.in){ try{ MIDI.in.onmidimessage = null; }catch(e){} }
   allPadsOff();
-  MIDI.in = midiInSel.value ? ports("inputs").find(p => p.id === midiInSel.value) || null : null;
-  if (MIDI.in) MIDI.in.onmidimessage = onMidi;
+  MIDI.in = Patchwork.midi.select(midiInSel.value);
   ledEl.classList.toggle("ready", !!MIDI.in && !ledEl.classList.contains("err"));
+}
+/* Called when the page's input changes, including from the other panel. */
+function followInput(pt){
+  MIDI.in = pt;
+  if (midiInSel.value !== (pt ? pt.id : "")) midiInSel.value = pt ? pt.id : "";
+  ledEl.classList.toggle("ready", !!pt && !ledEl.classList.contains("err"));
 }
 
 function bindOutput(){
@@ -723,12 +729,17 @@ function initMidi(){
       + "rather than opening it with <code>file://</code>.", true);
     return;
   }
-  navigator.requestMIDIAccess({sysex:false}).then(a => {
+  Patchwork.midi.route("cs1", onMidi, pt => {
+    fillPorts(); followInput(pt); bindOutput(); describe();
+  });
+  Patchwork.midi.open().then(a => {
     MIDI.access = a;
-    a.onstatechange = () => { fillPorts(); bindInput(); bindOutput(); describe(); };
     fillPorts();
+    /* Only claim the default port if nothing has claimed one yet — otherwise the second
+       instrument to boot rebinds the page's input out from under the first. */
     const ins = ports("inputs");
-    if (ins.length){ midiInSel.value = ins[0].id; bindInput(); }
+    if (!Patchwork.midi.port && ins.length){ midiInSel.value = ins[0].id; bindInput(); }
+    else followInput(Patchwork.midi.port);
     describe();
   }).catch(err => {
     say("MIDI access was denied or failed (" + ((err && err.name) || "error") + ").", true);

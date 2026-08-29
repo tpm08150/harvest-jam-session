@@ -22,6 +22,7 @@ shell/script-open.html
 shell/host.js
 shell/bus.js
 shell/clock.js
+shell/midi.js
 cs1/_open.js
 cs1/theory.js
 cs1/audio.js
