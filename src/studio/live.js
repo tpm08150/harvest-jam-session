@@ -40,14 +40,16 @@ function build(){
     arm.className = "st-arm"; arm.dataset.arm = c.id;
     arm.textContent = "Arm";
     arm.setAttribute("aria-pressed", "false");
-    const can = Patchwork.record.tracks.some(t => t.id === c.id && t.canRecord);
-    if (!can){
-      arm.disabled = true;
-      /* CS·1's pattern is a chord progression, not steps — there is no honest way to write
-         a played note into it, so it says so rather than offering a button that does
-         nothing. */
-      arm.title = "This instrument's pattern is not a step grid, so there is nothing to record into";
-    }
+    /* Every track can be armed. What differs is whether playing also writes to the grid
+       as you go, which the tooltip says rather than leaving you to find out. */
+    const t = Patchwork.record.tracks.find(x => x.id === c.id);
+    if (!t || !t.canRecord) arm.disabled = true;
+    else if (t.slots)
+      arm.title = "Armed: pressing a row records an audio take into it";
+    else if (t.live)
+      arm.title = "Armed: notes you play land on the grid, and pressing a row puts the pattern there";
+    else
+      arm.title = "Armed: pressing a row puts this instrument's current pattern into it";
     cell.appendChild(arm);
     head.appendChild(cell);
   });

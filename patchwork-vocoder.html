@@ -1010,10 +1010,18 @@ function register(id, spec){
             arm: spec.arm || function(){},
             disarm: spec.disarm || function(){},
             slots: !!spec.slots,
+            /* whether played notes land on the grid as you play, as opposed to the
+               pattern being copied when a row is pressed */
+            live: !!spec.write,
             recordSlot: spec.recordSlot || null,
             playSlot: spec.playSlot || null,
             hasSlot: spec.hasSlot || null,
-            canRecord: spec.canRecord == null ? !!spec.write : spec.canRecord});
+            /* Armable by default. Arming means "put what you have into the row I press",
+               which every registered track can do — CS·1's progression captures as readily
+               as a step grid. write() is a SEPARATE, narrower capability: taking notes you
+               play live onto a grid as you play them. Conflating the two is what greyed
+               out CS·1's arm for no good reason. */
+            canRecord: spec.canRecord == null ? true : spec.canRecord});
   notify();
 }
 function track(id){ return kit.find(x => x.id === id) || null; }
@@ -1062,7 +1070,10 @@ function captureRow(row){
 
 /* Live note capture stays gated on the track being armed. There is no global record
    switch any more, so an armed track writes what you play as you play it, and the row
-   button is what commits the result to a scene. */
+   button is what commits the result to a scene.
+
+   A track with no write() — CS·1 — simply ignores this and is captured whole when a row
+   is pressed. Being armed still means something for it. */
 function note(id, midi, vel, when){
   if (!armed.has(id)) return -1;
   const it = kit.find(x => x.id === id);
@@ -1072,7 +1083,9 @@ function note(id, midi, vel, when){
 
 return {register, setArmed, toggleArm, captureRow, note, onChange, track,
         isArmed: id => armed.has(id),
-        get tracks(){ return kit.map(k => ({id: k.id, name: k.name, canRecord: k.canRecord})); },
+        get tracks(){ return kit.map(k => ({id: k.id, name: k.name,
+                                            canRecord: k.canRecord, live: k.live,
+                                            slots: k.slots})); },
         get armedCount(){ return armed.size; }};
 })();
 

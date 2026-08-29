@@ -1251,7 +1251,25 @@ the nearest step.
 | --- | --- |
 | PM·1, VC·1, BS·1, DR·1 | a copy of the pattern in its sequencer right now |
 | LP·1 | a real audio take, into that row's slot |
-| CS·1 | nothing — its pattern is a progression, and its arm is disabled with a reason |
+| CS·1 | a copy of its progression |
+
+### Arming is about capture, not about writing notes
+
+⚠️ **CS·1 was greyed out for the wrong reason.** `canRecord` defaulted to "has a `write()`
+hook", and `write()` is the narrow capability of taking notes you play onto a grid *as you
+play them* — which a chord progression genuinely cannot do. But arming for the row gesture
+does not need it: pressing a row copies whatever the instrument has right now, and a
+progression captures as readily as a step grid.
+
+Every registered track is armable by default now. `live` is the separate flag for whether
+played notes also land on the grid, and the arm's tooltip says which kind it is rather than
+leaving you to find out:
+
+| | armed means |
+| --- | --- |
+| PM·1, VC·1, BS·1, DR·1 | notes land on the grid as you play, and a row press stores the pattern |
+| CS·1 | a row press stores the progression |
+| LP·1 | a row press records an audio take into that row |
 
 ### LP·1 has a slot per row
 

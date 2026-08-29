@@ -345,6 +345,12 @@ Patchwork.scenes.register("cs1", {
   }
 });
 
+/* CS·1 is armable like everything else. It has no write(): a played note cannot be
+   written into a chord progression the way it can into a step grid, so nothing is captured
+   as you play. What arming means here is the other half — press a row and the progression
+   you have right now goes into it. */
+Patchwork.record.register("cs1", {name: "CS\u00b71"});
+
 /* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input
    path can be driven and asserted on without hardware, which is how the channel filter
    above was verified. */

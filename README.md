@@ -217,8 +217,9 @@ every unarmed track just plays that row back. The row buttons turn from ▶ to �
 anything is armed.
 
 LP·1 keeps a **separate audio take per row**, so a row can carry a loop as well as patterns.
-CS·1 cannot be armed — its pattern is a chord progression rather than a step grid, and its
-arm says so.
+Every track can be armed. PM·1, VC·1, BS·1 and DR·1 also take notes you play onto the grid
+as you play them; CS·1 and LP·1 do not — a row press captures CS·1's progression and records
+LP·1 an audio take.
 
 ## Scenes
 

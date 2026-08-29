@@ -3105,10 +3105,18 @@ function register(id, spec){
             arm: spec.arm || function(){},
             disarm: spec.disarm || function(){},
             slots: !!spec.slots,
+            /* whether played notes land on the grid as you play, as opposed to the
+               pattern being copied when a row is pressed */
+            live: !!spec.write,
             recordSlot: spec.recordSlot || null,
             playSlot: spec.playSlot || null,
             hasSlot: spec.hasSlot || null,
-            canRecord: spec.canRecord == null ? !!spec.write : spec.canRecord});
+            /* Armable by default. Arming means "put what you have into the row I press",
+               which every registered track can do — CS·1's progression captures as readily
+               as a step grid. write() is a SEPARATE, narrower capability: taking notes you
+               play live onto a grid as you play them. Conflating the two is what greyed
+               out CS·1's arm for no good reason. */
+            canRecord: spec.canRecord == null ? true : spec.canRecord});
   notify();
 }
 function track(id){ return kit.find(x => x.id === id) || null; }
@@ -3157,7 +3165,10 @@ function captureRow(row){
 
 /* Live note capture stays gated on the track being armed. There is no global record
    switch any more, so an armed track writes what you play as you play it, and the row
-   button is what commits the result to a scene. */
+   button is what commits the result to a scene.
+
+   A track with no write() — CS·1 — simply ignores this and is captured whole when a row
+   is pressed. Being armed still means something for it. */
 function note(id, midi, vel, when){
   if (!armed.has(id)) return -1;
   const it = kit.find(x => x.id === id);
@@ -3167,7 +3178,9 @@ function note(id, midi, vel, when){
 
 return {register, setArmed, toggleArm, captureRow, note, onChange, track,
         isArmed: id => armed.has(id),
-        get tracks(){ return kit.map(k => ({id: k.id, name: k.name, canRecord: k.canRecord})); },
+        get tracks(){ return kit.map(k => ({id: k.id, name: k.name,
+                                            canRecord: k.canRecord, live: k.live,
+                                            slots: k.slots})); },
         get armedCount(){ return armed.size; }};
 })();
 
@@ -6186,6 +6199,12 @@ Patchwork.scenes.register("cs1", {
     renderProgression();
   }
 });
+
+/* CS·1 is armable like everything else. It has no write(): a played note cannot be
+   written into a chord progression the way it can into a step grid, so nothing is captured
+   as you play. What arming means here is the other half — press a row and the progression
+   you have right now goes into it. */
+Patchwork.record.register("cs1", {name: "CS\u00b71"});
 
 /* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input
    path can be driven and asserted on without hardware, which is how the channel filter
@@ -12158,14 +12177,16 @@ function build(){
     arm.className = "st-arm"; arm.dataset.arm = c.id;
     arm.textContent = "Arm";
     arm.setAttribute("aria-pressed", "false");
-    const can = Patchwork.record.tracks.some(t => t.id === c.id && t.canRecord);
-    if (!can){
-      arm.disabled = true;
-      /* CS·1's pattern is a chord progression, not steps — there is no honest way to write
-         a played note into it, so it says so rather than offering a button that does
-         nothing. */
-      arm.title = "This instrument's pattern is not a step grid, so there is nothing to record into";
-    }
+    /* Every track can be armed. What differs is whether playing also writes to the grid
+       as you go, which the tooltip says rather than leaving you to find out. */
+    const t = Patchwork.record.tracks.find(x => x.id === c.id);
+    if (!t || !t.canRecord) arm.disabled = true;
+    else if (t.slots)
+      arm.title = "Armed: pressing a row records an audio take into it";
+    else if (t.live)
+      arm.title = "Armed: notes you play land on the grid, and pressing a row puts the pattern there";
+    else
+      arm.title = "Armed: pressing a row puts this instrument's current pattern into it";
     cell.appendChild(arm);
     head.appendChild(cell);
   });
