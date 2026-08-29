@@ -190,6 +190,17 @@ started **30.6 dB apart** and land within **0.31 dB** of where they should be.
 **MIDI.** GM drum notes in — 36 kick, 38 snare, 42 hat — so a pad controller drives the kit
 with no mapping. Hits mirror out on channel 10 by default.
 
+## Scenes
+
+The studio build adds a **scene launcher** over the three panels: eight rows, one cell per
+instrument. Click a cell to fire that instrument's pattern, the row's ▶ to fire all three,
+shift-click either to capture what is currently playing into it.
+
+Nothing lands where you click it. A fired scene is *armed* — the cell pulses — and takes
+effect at that instrument's next loop point, so switching mid-bar stays in time instead of
+lurching. A scene changes what an instrument **plays**, never the sound it plays with; the
+patch you dialled survives the switch.
+
 ## Running it
 
 Web MIDI requires a secure context, so `file://` will not work — it needs `localhost` or

@@ -36,3 +36,56 @@ body{
   font-family:"DM Mono",ui-monospace,monospace;
   font-size:10.5px;letter-spacing:.06em;color:var(--silk-dim);
 }
+
+/* ---- scene launcher ---- */
+.st-scenes{
+  max-width:1556px;margin:0 auto;padding:4px 20px 16px;
+}
+.st-scenes-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:9px}
+.st-grid{
+  display:inline-block;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel-lo));
+  border:1px solid var(--edge);border-radius:8px;
+  padding:10px 12px;
+  box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 10px 24px rgba(0,0,0,.4);
+}
+.st-row{
+  display:grid;
+  grid-template-columns:26px repeat(var(--cols,3),86px) 34px;
+  gap:5px;align-items:center;
+}
+.st-row + .st-row{margin-top:5px}
+.st-num,.st-inst{
+  font-family:"DM Mono",ui-monospace,monospace;font-size:9.5px;letter-spacing:.1em;
+  color:var(--silk-dim);text-transform:uppercase;text-align:center;
+}
+.st-inst{font-size:10px;color:var(--silk)}
+.st-row-head{margin-bottom:3px}
+
+.st-cell{
+  height:26px;border-radius:4px;cursor:pointer;
+  background:var(--slot);border:1px solid var(--groove);
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  position:relative;
+}
+/* An empty cell is not a button you can press by mistake — it reads as a hole. */
+.st-cell::after{
+  content:"";position:absolute;inset:0;margin:auto;width:7px;height:7px;border-radius:2px;
+  background:rgba(255,255,255,.10);
+}
+.st-cell.full::after{background:var(--mint);box-shadow:0 0 7px rgba(99,214,176,.5)}
+.st-cell:hover{border-color:var(--silk-dim)}
+/* Armed and waiting for the loop point. It pulses because "queued" and "playing" have to
+   be tellable apart at a glance while something else has your attention. */
+.st-cell.armed{border-color:var(--cap-yellow);box-shadow:0 0 0 1px var(--cap-yellow) inset}
+.st-cell.armed::after{background:var(--cap-yellow);animation:st-pulse .5s steps(2,end) infinite}
+@keyframes st-pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){ .st-cell.armed::after{animation:none;opacity:.6} }
+
+.st-fire{
+  height:26px;border-radius:4px;cursor:pointer;
+  background:linear-gradient(180deg,#3e464c,#2b3237);
+  border:1px solid var(--edge);color:var(--silk-dim);
+  font-size:10px;line-height:1;
+}
+.st-fire:hover{color:var(--mint);border-color:var(--silk-dim)}

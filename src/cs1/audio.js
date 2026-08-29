@@ -509,6 +509,9 @@ function tick(){
     /* a queued patch lands here, on the seam, before anything for this chord is scheduled —
        so the progression that gets played from this boundary is the new one */
     takePending();
+    /* and a queued scene, at the loop point rather than every chord — same reasoning,
+       generalised across the instruments in shell/scenes.js */
+    if (nextIndex === 0) Patchwork.scenes.take("cs1");
     const at = Math.max(ctx.currentTime + .005, nextTime + off);
     const bars = chordBars(nextIndex);
     const dur = barSeconds() * bars;

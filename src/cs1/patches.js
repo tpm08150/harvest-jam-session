@@ -315,6 +315,35 @@ newProgression();
 refreshBinds();
 initMidi();
 
+/* ---- scenes ----
+   A CS·1 pattern is the progression — the changes, not the voice. Firing a scene swaps
+   what the chords ARE and leaves the sound you dialled alone, which is the rule the whole
+   scene bank follows.
+
+   Reuses snapshot()'s shape for `prog` so there is one description of a progression
+   rather than two that can disagree. */
+Patchwork.scenes.register("cs1", {
+  name: "CS\u00b71",
+  isPlaying: () => state.playing,
+  capture: () => ({
+    prog: state.prog ? {mood: state.prog.mood, minor: !!state.prog.minor,
+                        chords: state.prog.chords.map(c => ({r: c.r, q: c.q, bars: c.bars || 1}))} : null,
+    keyPc: state.keyPc, key: keySel.value
+  }),
+  apply: pat => {
+    if (!pat.prog) return;
+    state.prog = {mood: pat.prog.mood, minor: !!pat.prog.minor,
+                  chords: pat.prog.chords.map(c => ({r: c.r, q: c.q, bars: c.bars || 1}))};
+    if (typeof pat.keyPc === "number") state.keyPc = pat.keyPc;
+    if (pat.key != null) keySel.value = pat.key;
+    /* buildVoicings before rendering — restore() does the same, and without it the
+       chords have no voicings and the engine plays nothing */
+    buildVoicings(state.prog);
+    openPad = null;
+    renderProgression();
+  }
+});
+
 /* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input
    path can be driven and asserted on without hardware, which is how the channel filter
    above was verified. */

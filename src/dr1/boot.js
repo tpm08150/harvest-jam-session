@@ -79,6 +79,26 @@ async function measure(runs){
   return rows;
 }
 
+/* ---- scenes ----
+   A DR·1 pattern is the grid and how it is read. Not the voice parameters: firing a
+   scene should change the beat, not retune the kit under you. */
+Patchwork.scenes.register("dr1", {
+  name: "DR·1",
+  isPlaying: () => SEQ.playing,
+  capture: () => ({steps: JSON.parse(JSON.stringify(steps)),
+                   len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing, accentAmt: SEQ.accentAmt}),
+  apply: pat => {
+    ORDER.forEach(k => { if (pat.steps && pat.steps[k]) steps[k] = pat.steps[k].slice(); });
+    if (pat.len) SEQ.len = pat.len;
+    if (pat.rate) SEQ.rate = pat.rate;
+    if (pat.swing != null) SEQ.swing = pat.swing;
+    if (pat.accentAmt != null) SEQ.accentAmt = pat.accentAmt;
+    $("#len").value = String(SEQ.len);
+    $("#rate").value = SEQ.rate;
+    paintPads();
+  }
+});
+
 initMidi();
 
 /* A test hook, not a feature — the same one CS·1 and MS·1 carry. */

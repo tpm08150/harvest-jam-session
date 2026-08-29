@@ -963,6 +963,54 @@ Result, all eight voices, ten runs averaged:
 noise source starts at a random offset per hit. `measure()` averages 8 runs by default.
 Never read a single one.
 
+## Scenes
+
+A scene is a row: one pattern per instrument, fired together. Eight of them, in the studio
+build only — the model in `shell/scenes.js` is headless and runs in every build, so the
+standalone apps register and simply never draw a launcher.
+
+### The seam is a scheduling boundary, not a wall-clock one
+
+This is the whole reason the module exists rather than a `setTimeout`. Every instrument
+schedules **~200 ms ahead**, so swapping a pattern when `ctx.currentTime` crosses the bar
+line lands the change a fifth of a second late: the old pattern has already been placed
+past the seam.
+
+CS·1 solved this before the shell existed — `takePending()` is called inside `tick()`,
+right before the next chord is scheduled. `Patchwork.scenes.take(id)` generalises it: each
+instrument calls it at its own loop point, inside its scheduling loop, so the swap happens
+in the same time domain the notes are placed in.
+
+Measured: after firing a scene mid-bar, every hit of the new pattern landed **0.0 ms** off
+the bar line.
+
+### A scene captures the pattern, not the sound
+
+Firing one changes what an instrument plays and leaves the filter you just dialled alone.
+That keeps the deep panels for setting up and the launcher for performing, and it is the
+least surprising rule — a scene that silently retuned the kit would make the bank unusable
+mid-take.
+
+| | what a pattern is |
+| --- | --- |
+| CS·1 | the progression — chords, mood, key |
+| MS·1 | the step sequence, plus len/rate/motion/scale |
+| DR·1 | the eight lanes, plus len/rate/swing/accent |
+
+### Details worth not undoing
+
+- **An instrument that is not running takes the change immediately.** There is no seam
+  coming, and firing a scene with the transport stopped otherwise does nothing visible and
+  reads as broken.
+- **Capture is a deep copy.** Storing a live reference makes every scene captured from the
+  same grid point at one object, so editing the grid silently rewrites the whole bank.
+- **Shift is capture, plain click is fire.** A modifier rather than a record-arm mode,
+  because a launcher with a mode is one you can be in the wrong half of while playing.
+- **The armed state pulses.** "Queued" and "playing" have to be tellable apart at a glance
+  while something else has your attention.
+- **CS·1's loop point is its whole progression**, so an armed scene can wait several bars —
+  four chords at 120 bpm is eight seconds. That is correct, not a hang.
+
 ## Working style that suited this project
 
 Measure rather than assume — most of the real bugs here were found by rendering audio

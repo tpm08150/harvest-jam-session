@@ -217,6 +217,9 @@ function tick(){
   const step = stepSeconds();
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
+    /* a queued scene lands on the loop point, ahead of this step being scheduled — see
+       shell/scenes.js for why this cannot be done on wall time */
+    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("ms1");
     const ai = scheduleStep(stepIndex, at);
     marks.push({i:stepIndex % SEQ.len, ai:ai, t:at, end:at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a

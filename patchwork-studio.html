@@ -938,6 +938,59 @@ body{
   font-family:"DM Mono",ui-monospace,monospace;
   font-size:10.5px;letter-spacing:.06em;color:var(--silk-dim);
 }
+
+/* ---- scene launcher ---- */
+.st-scenes{
+  max-width:1556px;margin:0 auto;padding:4px 20px 16px;
+}
+.st-scenes-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:9px}
+.st-grid{
+  display:inline-block;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel-lo));
+  border:1px solid var(--edge);border-radius:8px;
+  padding:10px 12px;
+  box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 10px 24px rgba(0,0,0,.4);
+}
+.st-row{
+  display:grid;
+  grid-template-columns:26px repeat(var(--cols,3),86px) 34px;
+  gap:5px;align-items:center;
+}
+.st-row + .st-row{margin-top:5px}
+.st-num,.st-inst{
+  font-family:"DM Mono",ui-monospace,monospace;font-size:9.5px;letter-spacing:.1em;
+  color:var(--silk-dim);text-transform:uppercase;text-align:center;
+}
+.st-inst{font-size:10px;color:var(--silk)}
+.st-row-head{margin-bottom:3px}
+
+.st-cell{
+  height:26px;border-radius:4px;cursor:pointer;
+  background:var(--slot);border:1px solid var(--groove);
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  position:relative;
+}
+/* An empty cell is not a button you can press by mistake — it reads as a hole. */
+.st-cell::after{
+  content:"";position:absolute;inset:0;margin:auto;width:7px;height:7px;border-radius:2px;
+  background:rgba(255,255,255,.10);
+}
+.st-cell.full::after{background:var(--mint);box-shadow:0 0 7px rgba(99,214,176,.5)}
+.st-cell:hover{border-color:var(--silk-dim)}
+/* Armed and waiting for the loop point. It pulses because "queued" and "playing" have to
+   be tellable apart at a glance while something else has your attention. */
+.st-cell.armed{border-color:var(--cap-yellow);box-shadow:0 0 0 1px var(--cap-yellow) inset}
+.st-cell.armed::after{background:var(--cap-yellow);animation:st-pulse .5s steps(2,end) infinite}
+@keyframes st-pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){ .st-cell.armed::after{animation:none;opacity:.6} }
+
+.st-fire{
+  height:26px;border-radius:4px;cursor:pointer;
+  background:linear-gradient(180deg,#3e464c,#2b3237);
+  border:1px solid var(--edge);color:var(--silk-dim);
+  font-size:10px;line-height:1;
+}
+.st-fire:hover{color:var(--mint);border-color:var(--silk-dim)}
 </style>
 </head>
 <body>
@@ -945,6 +998,14 @@ body{
 <div class="st-head">
   <span class="st-brand">Patchwork</span>
   <span class="st-hint">studio — click a panel to give it the keyboard</span>
+</div>
+
+<div class="st-scenes">
+  <div class="st-scenes-head">
+    <span class="st-brand">Scenes</span>
+    <span class="st-hint">click a cell to fire it &middot; shift-click to capture &middot; nothing lands until the next loop point</span>
+  </div>
+  <div class="st-grid" id="stGrid"></div>
 </div>
 
 <div class="st-rack">
@@ -2034,6 +2095,103 @@ return {open, ports, route, select,
         get access(){ return access; },
         get port(){ return port; }};
 })();
+
+/* Scenes.
+
+   A scene is a row: one pattern per instrument, fired together. Firing does not take
+   effect where you clicked — it takes effect at the next musical seam, which is what
+   makes this playable rather than a series of small mistakes.
+
+   A scene captures the PATTERN, not the sound. Firing one changes what an instrument
+   plays and leaves the filter you just dialled alone. That is the least surprising rule,
+   and it keeps the deep panels for setting up and the scene row for performing.
+
+   ---
+
+   The seam has to be a SCHEDULING boundary, not a wall-clock one. Every instrument
+   schedules ~200 ms ahead, so swapping a pattern when ctx.currentTime crosses the bar
+   line lands the change a fifth of a second late — the old pattern has already been
+   scheduled past the seam. CS·1 solved this before the shell existed, with takePending()
+   called inside its tick right before the next chord is scheduled. This generalises that:
+   an instrument calls take() at its own loop point, so the swap happens on the seam in
+   the same time domain the notes are placed in. */
+Patchwork.scenes = (() => {
+"use strict";
+
+const insts = [];                 // {id, name, capture, apply, isPlaying}
+const rows = [];                  // rows[i] = {name, cells:{id: pattern}}
+const pending = new Map();        // id -> pattern, waiting for that instrument's seam
+const queued = new Map();         // id -> row index, for the UI to show what is armed
+const subs = [];
+
+const COUNT = 8;
+for (let i = 0; i < COUNT; i++) rows.push({name: String(i + 1), cells: {}});
+
+function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
+function onChange(fn){ subs.push(fn); }
+
+function register(id, spec){
+  insts.push({id, name: spec.name || id, capture: spec.capture, apply: spec.apply,
+              isPlaying: spec.isPlaying || (() => false)});
+  notify();
+}
+
+/* Capture is a deep copy at the moment you press it. Storing a live reference would make
+   every scene in the bank point at the same object, so editing the grid would silently
+   rewrite every scene that had ever been captured from it. */
+function store(row, id){
+  const it = insts.find(x => x.id === id);
+  if (!it || !rows[row]) return;
+  rows[row].cells[id] = JSON.parse(JSON.stringify(it.capture()));
+  notify();
+}
+function storeAll(row){ insts.forEach(it => store(row, it.id)); }
+
+function clear(row, id){
+  if (!rows[row]) return;
+  if (id) delete rows[row].cells[id];
+  else rows[row].cells = {};
+  notify();
+}
+
+/* Arm a pattern. An instrument that is not running has no seam coming, so it takes the
+   change immediately — otherwise firing a scene with the transport stopped does nothing
+   visible and looks broken. */
+function fire(row, id){
+  if (!rows[row]) return;
+  const targets = id ? insts.filter(x => x.id === id) : insts;
+  targets.forEach(it => {
+    const pat = rows[row].cells[it.id];
+    if (!pat) return;
+    if (it.isPlaying()){
+      pending.set(it.id, pat);
+      queued.set(it.id, row);
+    } else {
+      it.apply(JSON.parse(JSON.stringify(pat)));
+      queued.delete(it.id);
+    }
+  });
+  notify();
+}
+
+/* Called by an instrument from inside its tick, at its own loop point. */
+function take(id){
+  if (!pending.has(id)) return false;
+  const it = insts.find(x => x.id === id);
+  const pat = pending.get(id);
+  pending.delete(id);
+  queued.delete(id);
+  if (it) it.apply(JSON.parse(JSON.stringify(pat)));
+  notify();
+  return true;
+}
+
+return {register, store, storeAll, clear, fire, take, onChange,
+        get rows(){ return rows; },
+        get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
+        get queued(){ return new Map(queued); },
+        has(row, id){ return !!(rows[row] && rows[row].cells[id]); }};
+})();
 /* CS·1 is built into whatever panel the page gives it, rather than into the document.
    Standalone that panel is the only thing on the page; in the studio build it is one of
    several. The code below cannot tell the difference, which is the point. */
@@ -2831,6 +2989,9 @@ function tick(){
     /* a queued patch lands here, on the seam, before anything for this chord is scheduled —
        so the progression that gets played from this boundary is the new one */
     takePending();
+    /* and a queued scene, at the loop point rather than every chord — same reasoning,
+       generalised across the instruments in shell/scenes.js */
+    if (nextIndex === 0) Patchwork.scenes.take("cs1");
     const at = Math.max(ctx.currentTime + .005, nextTime + off);
     const bars = chordBars(nextIndex);
     const dur = barSeconds() * bars;
@@ -4646,6 +4807,35 @@ refreshPatchList(patchSel.value);
 newProgression();
 refreshBinds();
 initMidi();
+
+/* ---- scenes ----
+   A CS·1 pattern is the progression — the changes, not the voice. Firing a scene swaps
+   what the chords ARE and leaves the sound you dialled alone, which is the rule the whole
+   scene bank follows.
+
+   Reuses snapshot()'s shape for `prog` so there is one description of a progression
+   rather than two that can disagree. */
+Patchwork.scenes.register("cs1", {
+  name: "CS\u00b71",
+  isPlaying: () => state.playing,
+  capture: () => ({
+    prog: state.prog ? {mood: state.prog.mood, minor: !!state.prog.minor,
+                        chords: state.prog.chords.map(c => ({r: c.r, q: c.q, bars: c.bars || 1}))} : null,
+    keyPc: state.keyPc, key: keySel.value
+  }),
+  apply: pat => {
+    if (!pat.prog) return;
+    state.prog = {mood: pat.prog.mood, minor: !!pat.prog.minor,
+                  chords: pat.prog.chords.map(c => ({r: c.r, q: c.q, bars: c.bars || 1}))};
+    if (typeof pat.keyPc === "number") state.keyPc = pat.keyPc;
+    if (pat.key != null) keySel.value = pat.key;
+    /* buildVoicings before rendering — restore() does the same, and without it the
+       chords have no voicings and the engine plays nothing */
+    buildVoicings(state.prog);
+    openPad = null;
+    renderProgression();
+  }
+});
 
 /* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input
    path can be driven and asserted on without hardware, which is how the channel filter
@@ -6495,6 +6685,9 @@ function tick(){
   const step = stepSeconds();
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
+    /* a queued scene lands on the loop point, ahead of this step being scheduled — see
+       shell/scenes.js for why this cannot be done on wall time */
+    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("ms1");
     const ai = scheduleStep(stepIndex, at);
     marks.push({i:stepIndex % SEQ.len, ai:ai, t:at, end:at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
@@ -8593,6 +8786,28 @@ function applyParamsQuiet(src){
 
 /* A test hook, not a feature: the offline harness needs to build a voice and read the
    patch without driving the UI. Mirrors CS·1's habit of making the engine measurable. */
+/* ---- scenes ----
+   An MS·1 pattern is the step sequence and how it is read — not the patch. Firing a
+   scene changes the line, not the sound it is played with. */
+Patchwork.scenes.register("ms1", {
+  name: "MS·1",
+  isPlaying: () => SEQ.playing,
+  capture: () => ({steps: JSON.parse(JSON.stringify(SEQ.steps)),
+                   len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing,
+                   motion: SEQ.motion, dir: SEQ.dir, octaves: SEQ.octaves,
+                   root: SEQ.root, scale: SEQ.scale, gate: SEQ.gate}),
+  apply: pat => {
+    if (pat.steps) SEQ.steps = JSON.parse(JSON.stringify(pat.steps));
+    ["len","rate","swing","motion","dir","octaves","root","scale","gate"].forEach(k => {
+      if (pat[k] != null) SEQ[k] = pat[k];
+    });
+    seqLenSel.value = String(SEQ.len);
+    seqRateSel.value = SEQ.rate;
+    paintSeqKey();
+    paintSteps();
+  }
+});
+
 window.__ms1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
                 applyParams, noteOn, noteOff, buildVoice, renderPatch,
                 stepEvent, nextSounding, stepSeconds, swungAt, envValueAt,
@@ -8963,6 +9178,10 @@ function tick(){
   const step = stepSeconds();
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
+    /* A queued scene lands here, on the loop point, BEFORE anything for this step is
+       scheduled — so the pattern that plays from this boundary is the new one. Doing it
+       on wall time instead would land it 200 ms late, behind the lookahead. */
+    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("dr1");
     const i = scheduleStep(stepIndex, at);
     marks.push({i, t: at, end: at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
@@ -9405,6 +9624,26 @@ async function measure(runs){
   return rows;
 }
 
+/* ---- scenes ----
+   A DR·1 pattern is the grid and how it is read. Not the voice parameters: firing a
+   scene should change the beat, not retune the kit under you. */
+Patchwork.scenes.register("dr1", {
+  name: "DR·1",
+  isPlaying: () => SEQ.playing,
+  capture: () => ({steps: JSON.parse(JSON.stringify(steps)),
+                   len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing, accentAmt: SEQ.accentAmt}),
+  apply: pat => {
+    ORDER.forEach(k => { if (pat.steps && pat.steps[k]) steps[k] = pat.steps[k].slice(); });
+    if (pat.len) SEQ.len = pat.len;
+    if (pat.rate) SEQ.rate = pat.rate;
+    if (pat.swing != null) SEQ.swing = pat.swing;
+    if (pat.accentAmt != null) SEQ.accentAmt = pat.accentAmt;
+    $("#len").value = String(SEQ.len);
+    $("#rate").value = SEQ.rate;
+    paintPads();
+  }
+});
+
 initMidi();
 
 /* A test hook, not a feature — the same one CS·1 and MS·1 carry. */
@@ -9412,6 +9651,85 @@ window.__dr1 = {P, SEQ, steps, ORDER, VOICES, TRIM, BALANCE, TARGET_BD,
                 fire, renderHit, measure, ensureAudio, MIDI, onMidi,
                 get ctx(){ return ctx; }};
 });
+
+/* ---- the scene launcher ----
+   Studio only. The model lives in shell/scenes.js and works headless; this is the row of
+   buttons over it.
+
+   Deliberately small. The panels below already carry every control an instrument has —
+   what is missing when you are playing is a way to change WHAT is played without going
+   back to a grid and editing it, and that is all this does. */
+(() => {
+"use strict";
+const grid = document.querySelector("#stGrid");
+if (!grid || !window.Patchwork || !Patchwork.scenes) return;
+
+function build(){
+  const insts = Patchwork.scenes.instruments;
+  grid.style.setProperty("--cols", insts.length);
+  grid.textContent = "";
+
+  const head = document.createElement("div");
+  head.className = "st-row st-row-head";
+  head.appendChild(Object.assign(document.createElement("span"), {className: "st-num"}));
+  insts.forEach(i => head.appendChild(Object.assign(document.createElement("span"),
+    {className: "st-inst", textContent: i.name})));
+  head.appendChild(Object.assign(document.createElement("span"), {className: "st-num"}));
+  grid.appendChild(head);
+
+  Patchwork.scenes.rows.forEach((row, ri) => {
+    const el = document.createElement("div");
+    el.className = "st-row";
+    el.appendChild(Object.assign(document.createElement("span"),
+      {className: "st-num", textContent: row.name}));
+    insts.forEach(i => {
+      const b = document.createElement("button");
+      b.className = "st-cell";
+      b.dataset.row = ri; b.dataset.inst = i.id;
+      b.setAttribute("aria-label", i.name + " scene " + row.name);
+      el.appendChild(b);
+    });
+    const fire = document.createElement("button");
+    fire.className = "st-fire";
+    fire.dataset.row = ri;
+    fire.textContent = "▶";
+    fire.title = "Fire the whole scene (shift-click to capture every instrument into it)";
+    fire.setAttribute("aria-label", "Fire scene " + row.name);
+    el.appendChild(fire);
+    grid.appendChild(el);
+  });
+  paint();
+}
+
+function paint(){
+  const q = Patchwork.scenes.queued;
+  grid.querySelectorAll(".st-cell").forEach(b => {
+    const ri = +b.dataset.row, id = b.dataset.inst;
+    b.classList.toggle("full", Patchwork.scenes.has(ri, id));
+    b.classList.toggle("armed", q.get(id) === ri);
+  });
+}
+
+/* Shift is capture, plain is fire. One modifier rather than a mode, because a launcher
+   with a record-arm state is a launcher you can be in the wrong half of while playing. */
+grid.addEventListener("click", e => {
+  const cell = e.target.closest(".st-cell");
+  if (cell){
+    const ri = +cell.dataset.row, id = cell.dataset.inst;
+    if (e.shiftKey) Patchwork.scenes.store(ri, id);
+    else if (Patchwork.scenes.has(ri, id)) Patchwork.scenes.fire(ri, id);
+    return;
+  }
+  const fire = e.target.closest(".st-fire");
+  if (!fire) return;
+  const ri = +fire.dataset.row;
+  if (e.shiftKey) Patchwork.scenes.storeAll(ri);
+  else Patchwork.scenes.fire(ri);
+});
+
+Patchwork.scenes.onChange(paint);
+build();
+})();
 
 /* Both instruments are built by now. Nothing else to do yet — the clock, the audio bus
    and the MIDI router are Phase 3, and until then each panel still runs its own. */

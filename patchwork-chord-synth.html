@@ -1039,6 +1039,103 @@ return {open, ports, route, select,
         get access(){ return access; },
         get port(){ return port; }};
 })();
+
+/* Scenes.
+
+   A scene is a row: one pattern per instrument, fired together. Firing does not take
+   effect where you clicked — it takes effect at the next musical seam, which is what
+   makes this playable rather than a series of small mistakes.
+
+   A scene captures the PATTERN, not the sound. Firing one changes what an instrument
+   plays and leaves the filter you just dialled alone. That is the least surprising rule,
+   and it keeps the deep panels for setting up and the scene row for performing.
+
+   ---
+
+   The seam has to be a SCHEDULING boundary, not a wall-clock one. Every instrument
+   schedules ~200 ms ahead, so swapping a pattern when ctx.currentTime crosses the bar
+   line lands the change a fifth of a second late — the old pattern has already been
+   scheduled past the seam. CS·1 solved this before the shell existed, with takePending()
+   called inside its tick right before the next chord is scheduled. This generalises that:
+   an instrument calls take() at its own loop point, so the swap happens on the seam in
+   the same time domain the notes are placed in. */
+Patchwork.scenes = (() => {
+"use strict";
+
+const insts = [];                 // {id, name, capture, apply, isPlaying}
+const rows = [];                  // rows[i] = {name, cells:{id: pattern}}
+const pending = new Map();        // id -> pattern, waiting for that instrument's seam
+const queued = new Map();         // id -> row index, for the UI to show what is armed
+const subs = [];
+
+const COUNT = 8;
+for (let i = 0; i < COUNT; i++) rows.push({name: String(i + 1), cells: {}});
+
+function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
+function onChange(fn){ subs.push(fn); }
+
+function register(id, spec){
+  insts.push({id, name: spec.name || id, capture: spec.capture, apply: spec.apply,
+              isPlaying: spec.isPlaying || (() => false)});
+  notify();
+}
+
+/* Capture is a deep copy at the moment you press it. Storing a live reference would make
+   every scene in the bank point at the same object, so editing the grid would silently
+   rewrite every scene that had ever been captured from it. */
+function store(row, id){
+  const it = insts.find(x => x.id === id);
+  if (!it || !rows[row]) return;
+  rows[row].cells[id] = JSON.parse(JSON.stringify(it.capture()));
+  notify();
+}
+function storeAll(row){ insts.forEach(it => store(row, it.id)); }
+
+function clear(row, id){
+  if (!rows[row]) return;
+  if (id) delete rows[row].cells[id];
+  else rows[row].cells = {};
+  notify();
+}
+
+/* Arm a pattern. An instrument that is not running has no seam coming, so it takes the
+   change immediately — otherwise firing a scene with the transport stopped does nothing
+   visible and looks broken. */
+function fire(row, id){
+  if (!rows[row]) return;
+  const targets = id ? insts.filter(x => x.id === id) : insts;
+  targets.forEach(it => {
+    const pat = rows[row].cells[it.id];
+    if (!pat) return;
+    if (it.isPlaying()){
+      pending.set(it.id, pat);
+      queued.set(it.id, row);
+    } else {
+      it.apply(JSON.parse(JSON.stringify(pat)));
+      queued.delete(it.id);
+    }
+  });
+  notify();
+}
+
+/* Called by an instrument from inside its tick, at its own loop point. */
+function take(id){
+  if (!pending.has(id)) return false;
+  const it = insts.find(x => x.id === id);
+  const pat = pending.get(id);
+  pending.delete(id);
+  queued.delete(id);
+  if (it) it.apply(JSON.parse(JSON.stringify(pat)));
+  notify();
+  return true;
+}
+
+return {register, store, storeAll, clear, fire, take, onChange,
+        get rows(){ return rows; },
+        get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
+        get queued(){ return new Map(queued); },
+        has(row, id){ return !!(rows[row] && rows[row].cells[id]); }};
+})();
 /* CS·1 is built into whatever panel the page gives it, rather than into the document.
    Standalone that panel is the only thing on the page; in the studio build it is one of
    several. The code below cannot tell the difference, which is the point. */
@@ -1836,6 +1933,9 @@ function tick(){
     /* a queued patch lands here, on the seam, before anything for this chord is scheduled —
        so the progression that gets played from this boundary is the new one */
     takePending();
+    /* and a queued scene, at the loop point rather than every chord — same reasoning,
+       generalised across the instruments in shell/scenes.js */
+    if (nextIndex === 0) Patchwork.scenes.take("cs1");
     const at = Math.max(ctx.currentTime + .005, nextTime + off);
     const bars = chordBars(nextIndex);
     const dur = barSeconds() * bars;
@@ -3651,6 +3751,35 @@ refreshPatchList(patchSel.value);
 newProgression();
 refreshBinds();
 initMidi();
+
+/* ---- scenes ----
+   A CS·1 pattern is the progression — the changes, not the voice. Firing a scene swaps
+   what the chords ARE and leaves the sound you dialled alone, which is the rule the whole
+   scene bank follows.
+
+   Reuses snapshot()'s shape for `prog` so there is one description of a progression
+   rather than two that can disagree. */
+Patchwork.scenes.register("cs1", {
+  name: "CS\u00b71",
+  isPlaying: () => state.playing,
+  capture: () => ({
+    prog: state.prog ? {mood: state.prog.mood, minor: !!state.prog.minor,
+                        chords: state.prog.chords.map(c => ({r: c.r, q: c.q, bars: c.bars || 1}))} : null,
+    keyPc: state.keyPc, key: keySel.value
+  }),
+  apply: pat => {
+    if (!pat.prog) return;
+    state.prog = {mood: pat.prog.mood, minor: !!pat.prog.minor,
+                  chords: pat.prog.chords.map(c => ({r: c.r, q: c.q, bars: c.bars || 1}))};
+    if (typeof pat.keyPc === "number") state.keyPc = pat.keyPc;
+    if (pat.key != null) keySel.value = pat.key;
+    /* buildVoicings before rendering — restore() does the same, and without it the
+       chords have no voicings and the engine plays nothing */
+    buildVoicings(state.prog);
+    openPad = null;
+    renderProgression();
+  }
+});
 
 /* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input
    path can be driven and asserted on without hardware, which is how the channel filter

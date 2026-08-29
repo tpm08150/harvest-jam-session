@@ -13,6 +13,7 @@ shell/host.js
 shell/bus.js
 shell/clock.js
 shell/midi.js
+shell/scenes.js
 dr1/_open.js
 dr1/voices.js
 dr1/seq.js

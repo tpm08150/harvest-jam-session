@@ -18,6 +18,8 @@ dr1/panel.css
 dr1/_panel-close.css
 studio/page.css
 shell/page-open.html
+studio/head-bar.html
+studio/scenes.html
 studio/rack-open.html
 cs1/panel.html
 ms1/panel.html
@@ -28,6 +30,7 @@ shell/host.js
 shell/bus.js
 shell/clock.js
 shell/midi.js
+shell/scenes.js
 cs1/_open.js
 cs1/theory.js
 cs1/audio.js
@@ -55,5 +58,6 @@ dr1/ui.js
 dr1/midi.js
 dr1/boot.js
 dr1/_close.js
+studio/scenes.js
 studio/boot.js
 shell/tail.html

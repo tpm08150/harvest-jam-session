@@ -60,6 +60,10 @@ function tick(){
   const step = stepSeconds();
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
+    /* A queued scene lands here, on the loop point, BEFORE anything for this step is
+       scheduled — so the pattern that plays from this boundary is the new one. Doing it
+       on wall time instead would land it 200 ms late, behind the lookahead. */
+    if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("dr1");
     const i = scheduleStep(stepIndex, at);
     marks.push({i, t: at, end: at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
