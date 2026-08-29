@@ -19,8 +19,19 @@ class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
 
+class Server(socketserver.ThreadingTCPServer):
+    """Threaded, because the single-threaded TCPServer deadlocks in normal use.
+
+    A browser holding a keep-alive connection occupies the one handler thread, and every
+    other request — including a reload of the page you just edited — hangs until it times
+    out. Looks exactly like the server having crashed. daemon_threads so Ctrl-C still exits.
+    """
+
+    allow_reuse_address = True
+    daemon_threads = True
+
+
 if __name__ == "__main__":
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("", PORT), NoCacheHandler) as httpd:
+    with Server(("", PORT), NoCacheHandler) as httpd:
         print(f"serving {PORT} with caching disabled")
         httpd.serve_forever()

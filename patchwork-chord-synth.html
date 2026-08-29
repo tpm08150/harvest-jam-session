@@ -573,7 +573,11 @@ body.learning .fader{cursor:crosshair}
         <select id="midiOut"><option value="">— none —</option></select>
       </div>
       <div class="field" style="flex:0 0 74px">
-        <label for="midiCh">Channel</label>
+        <label for="midiInCh">In ch</label>
+        <select id="midiInCh"></select>
+      </div>
+      <div class="field" style="flex:0 0 74px">
+        <label for="midiCh">Out ch</label>
         <select id="midiCh"></select>
       </div>
     </div>
@@ -954,7 +958,10 @@ function normBass(v){
   if (v === "decay") return {on:true, sus:.7};
   return {on:true, sus:null};
 }
-const MIDI = {access:null, in:null, out:null, ch:0, sync:"int", clockOn:true};
+/* `ch` is the OUTPUT channel and never filtered anything coming IN — the app answered on
+   every channel whatever this was set to. `inCh` is the input filter: -1 is omni, which is
+   what the behaviour always effectively was, so the default changes nothing. */
+const MIDI = {access:null, in:null, out:null, ch:0, inCh:-1, sync:"int", clockOn:true};
 const IS_IOS = /iPad|iPhone|iPod/.test(navigator.platform)
             || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
 /* Shifts the transport's grid against incoming MIDI clock. Browser output latency puts
@@ -1982,6 +1989,21 @@ for (let c = 0; c < 16; c++){
 }
 midiChSel.value = "0";
 
+/* input channel filter — omni by default, which is how this behaved before it existed */
+const midiInChSel = $("#midiInCh");
+midiInChSel.appendChild(Object.assign(document.createElement("option"),
+  {value:"-1", textContent:"Omni"}));
+for (let c = 0; c < 16; c++)
+  midiInChSel.appendChild(Object.assign(document.createElement("option"),
+    {value:String(c), textContent:String(c + 1)}));
+midiInChSel.value = "-1";
+midiInChSel.addEventListener("change", () => {
+  MIDI.inCh = parseInt(midiInChSel.value, 10);
+  allPadsOff();
+  saveMap();
+  describe();
+});
+
 /* ---- out ---- */
 /* The two clocks: ctx.currentTime counts audio the graph has *accepted*, performance.now()
    is wall time. getOutputTimestamp pairs them at the frame actually leaving the device, so
@@ -2072,7 +2094,7 @@ function padNoteFor(slot){
 function saveMap(){
   try{ localStorage.setItem(MAP_KEY,
     JSON.stringify({pads:[...padMap], ccs:[...ccMap], progs:[...progMap],
-                    notes:[...patchNotes], recall:RECALL.when})); }catch(e){}
+                    notes:[...patchNotes], recall:RECALL.when, inCh:MIDI.inCh})); }catch(e){}
 }
 function loadMap(){
   try{
@@ -2091,6 +2113,10 @@ function loadMap(){
       if (n >= 0 && n <= 127 && typeof p[1] === "string") patchNotes.set(n, p[1]);
     });
     if (["instant","bar","pattern"].indexOf(o.recall) >= 0) RECALL.when = o.recall;
+    if (typeof o.inCh === "number" && o.inCh >= -1 && o.inCh < 16){
+      MIDI.inCh = o.inCh;
+      if (typeof midiInChSel !== "undefined" && midiInChSel) midiInChSel.value = String(o.inCh);
+    }
   }catch(e){}
 }
 
@@ -2458,6 +2484,9 @@ function onMidi(e){
     return;
   }
   if (s >= 0xF0) return;
+  /* Channel filter. Everything above this point is system-realtime, which has no channel,
+     so clock and start/stop are unaffected by it. */
+  if (MIDI.inCh >= 0 && (s & 0x0F) !== MIDI.inCh) return;
   const type = s & 0xF0;
   if (type === 0x90 && d[2] > 0){
     if (LEARN.on && LEARN.target){ bindLearn("note", d[1]); return; }
@@ -2572,6 +2601,8 @@ function describe(){
   const ins = ports("inputs").length, outs = ports("outputs").length;
   say(ins + " input" + (ins === 1 ? "" : "s") + " · " + outs + " output" + (outs === 1 ? "" : "s")
     + " — white keys trigger chord slots (C4 = slot 1) and wrap in every octave. "
+    + (MIDI.inCh < 0 ? "Listening on <b>every channel</b>. "
+                     : "Listening on <b>channel " + (MIDI.inCh + 1) + "</b> only. ")
     + (MIDI.sync === "ext"
         ? "<b>Following external clock.</b> Use Offset to line it up against your gear."
         : "Incoming MIDI clock is followed automatically."));
@@ -3122,6 +3153,12 @@ refreshPatchList(patchSel.value);
 newProgression();
 refreshBinds();
 initMidi();
+
+/* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input
+   path can be driven and asserted on without hardware, which is how the channel filter
+   above was verified. */
+window.__cs1 = {MIDI, onMidi, state, P,
+                get held(){ return held; }, get litPads(){ return litPads; }};
 })();
 </script>
 </body>
