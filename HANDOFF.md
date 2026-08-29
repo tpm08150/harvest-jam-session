@@ -230,6 +230,21 @@ asserted on without hardware.
 
 ## Gotchas that cost real time
 
+**Testing through a headless or hidden browser pane invalidates two whole classes of
+measurement**, and both produce confident, plausible, wrong answers:
+
+- **`innerWidth`/`innerHeight` report 0**, so *every* `max-width` media query matches. A
+  computed-style baseline captured with the pane visible and compared against one captured
+  while hidden shows a scatter of "regressions" in exactly the properties a media query
+  touches. Emulate an explicit viewport before capturing anything, and compare only
+  like-for-like.
+- **Transitions never advance**, because no frames are produced, so a transitioning
+  property reports its START value forever. A focus ring with `transition:outline-color`
+  reads as `transparent` no matter what the rule says. `requestAnimationFrame` never fires
+  either, which will hang any test that awaits one.
+
+Both of these cost time during Phase 4 and each looked exactly like a CSS bug.
+
 - **iOS has no Web MIDI, in any browser.** All iOS browsers are WebKit. A PWA doesn't
   change it. That's the entire reason the wrapper exists.
 - **The ring/silent switch mutes WebKit audio** in the browser. Cost an hour of
@@ -266,18 +281,26 @@ what a fixed cost looks like when you divide by duration.
 | MS·1, one note, unison ×5 | 62.1 | 6.2% |
 | MS·1, 6-note poly chord | 132.7 | 13.3% |
 | MS·1, 6-note poly, heaviest lead (`cobalt`) | 161.4 | 16.1% |
-| **both instruments at their worst, summed** | **196.8** | **~20%** |
+| DR·1, ordinary pattern (8 hits/sec) | 54.4 | 5.4% |
+| **all three at their worst, summed** | **251.2** | **~25%** |
+| ⚠️ DR·1, every voice on every sixteenth (64 hits/sec) | 838.1 | **83.8%** |
 
 Unison ×5 costing 8% more than one note rather than five times as much is the shared
 filter doing its job — the known compromise in the MS·1 section, showing up as the
 measurement predicts.
 
-**Caveats, because this number will be quoted.** Offline rendering is a proxy: no IO
-thread, no per-cycle overhead, and it can schedule differently from realtime. DR·1 is not
-in it, because DR·1 does not exist yet — a synthesised kit should be nearer CS·1's cost
-than MS·1's. And the click investigation's conclusion still stands above all of this: the
-overruns it found came from **system load, not from this app's render cost**, and an old
-Chromebook played the same app cleanly. Headroom here is necessary, not sufficient.
+The last row is the one to remember. A realistic arrangement sits near 25%, but **DR·1
+alone can exceed the budget** if every voice fires on every sixteenth: nothing is pooled,
+so 64 hits a second is 64 independent node graphs alive at once. Nobody programs that
+pattern on purpose, and a busy one is nearer 20 hits/sec, but the ceiling is real and it
+is the first place to look if the kit ever glitches. Pooling voices, or capping
+simultaneous hits per voice, is the fix if it becomes one.
+
+**Caveats, because these numbers will be quoted.** Offline rendering is a proxy: no IO
+thread, no per-cycle overhead, and it can schedule differently from realtime. And the
+click investigation's conclusion still stands above all of it: the overruns it found came
+from **system load, not from this app's render cost**, and an old Chromebook played the
+same app cleanly. Headroom here is necessary, not sufficient.
 
 `__cs1.renderChord()` is new, and mirrors `__ms1.renderPatch()`. CS·1 had no offline rig,
 which is why its twelve voices carry a measured 8.2 dB spread while MS·1's twenty patches
@@ -872,6 +895,73 @@ smear a bass.
   the `AVAudioSession` category moved from `.playback` to `.playAndRecord` — which brings
   back the ring/silent-switch mute documented above. Desktop-first is much cleaner.
 - The step grid has no copy/paste, randomise, or pattern length beyond 32.
+
+## DR·1 — drum machine
+
+Eight synthesised voices, a sixteen-step grid per voice, on the shell's clock. Added in
+Phase 4 as the third instrument, and the first one written after the shell existed — so it
+is the shape the other two are being moved towards rather than a fourth exception.
+
+### Map
+
+| Area | Where |
+| --- | --- |
+| Voice synthesis | `src/dr1/voices.js` — one function per drum, `HITS` dispatches |
+| Metal ratios | `METAL` — the 808's six inharmonic squares, shared by both hats |
+| Levels | `TRIM` (measured), `BALANCE` (the ratios), `TARGET_BD` (the absolute) |
+| Step events | `stepEvent()` — single source of truth for engine *and* MIDI out |
+| Transport | `tick()` in `seq.js`, same 25 ms / 200 ms shape as the other two |
+| Offline rig | `__dr1.renderHit()`, `__dr1.measure()` |
+
+### Design decisions worth not undoing
+
+- **The metal voices are six square oscillators at inharmonic ratios**, not filtered
+  noise. That is how the original made a cymbal without a sample, and it is the only
+  reason a hat reads as metal. Any harmonic set rings as a pitch, which a cymbal must not
+  have.
+- **A closed hat chokes an open one.** They are one physical hi-hat; without the choke
+  they overlap into a wash no drum machine has ever made.
+- **The kick's pitch envelope is the kick.** A sine at 48 Hz is a test tone; the same sine
+  swept from 3.5× down to 48 Hz in 45 ms is a drum. Tone stretches the sweep rather than
+  raising the pitch, so the knob changes character and not the note.
+- **A clap is three bursts and a tail**, ~10 ms apart. One burst through the same filter
+  is a short snare.
+- **Nothing is pooled.** A drum voice is a few nodes for a few hundred milliseconds, and
+  pooling buys nothing but a class of bug where a retrigger inherits the last hit's
+  envelope. The cost of that choice is the 83.8% row in the render table above.
+- **Sixteen pads across, one row per lane.** MS·1 wraps its 16 steps into two rows of
+  eight because it has one lane and the height is free; eight lanes wrapped is sixteen
+  rows, and a drum grid that does not read left-to-right as a bar is not a drum grid.
+- **One set of voice faders serving the selected lane**, not four per voice. Thirty-two
+  controls on this panel is a wall, and a drum machine is played on the grid.
+
+### Levels — measured, and the window matters more than anywhere else
+
+The kit spans 45 ms (closed hat) to 420 ms (kick), so **any fixed measurement window is
+wrong for one end of it**:
+
+| window | what it does |
+| --- | --- |
+| 500 ms — MS·1's | divides a hat's energy by ten parts silence |
+| 150 ms — the obvious fix | still under-measures a 45 ms hat by ~5 dB while measuring a 380 ms open hat in full. Handed two voices from the **same generator** trims 13 dB apart |
+| **30 ms peak-RMS** | self-scaling: every voice measured over the part of itself that is loud |
+
+The 150 ms attempt is worth knowing about because its output looked plausible — an ordered
+table of sensible-looking trims — and was wrong in a way only visible by noticing that CH
+and OH share a generator and should not have needed different corrections.
+
+Result, all eight voices, ten runs averaged:
+
+| | |
+| --- | --- |
+| spread before trimming | **30.6 dB** |
+| spread after | **0.34 dB** |
+| worst deviation from target | **0.31 dB** |
+| mean deviation | 0.09 dB |
+
+⚠️ **The harness is stochastic**, exactly as MS·1's is and for the same reason — every
+noise source starts at a random offset per hit. `measure()` averages 8 runs by default.
+Never read a single one.
 
 ## Working style that suited this project
 

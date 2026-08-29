@@ -1,6 +1,7 @@
 # Patchwork
 
-Two synthesizers that run entirely in the browser. One HTML file each, no dependencies —
+Three instruments that run entirely in the browser, separately or together. One HTML file
+each, no dependencies —
 generate and play music, shape it with a small synth engine, and drive external hardware
 over MIDI. Each ships as a single self-contained file; they are assembled from `src/` by a
 concatenation script that needs nothing but Python.
@@ -9,9 +10,14 @@ concatenation script that needs nothing but Python.
 | --- | --- | --- |
 | **CS·1** | `patchwork-chord-synth.html` | chord synthesizer — progressions, pads, harmony |
 | **MS·1** | `patchwork-mono-synth.html` | mono/poly synth, vocoder and bass pedals |
+| **DR·1** | `patchwork-drums.html` | drum machine — eight synthesised voices, sixteen steps |
+| **Studio** | `patchwork-studio.html` | all three on one page, sharing a clock and an audio bus |
 
-They are deliberately independent programs. CS·1 plays the changes; MS·1 plays the line
-over them. Neither depends on the other, and each can drive hardware on its own.
+Each is a complete program on its own — CS·1 plays the changes, MS·1 plays the line over
+them, DR·1 keeps time — and each can drive hardware by itself. The **studio** build hosts
+all three on one page, where they share a single audio context, one transport and one MIDI
+router: start a second instrument while the first is running and it joins on the next bar
+rather than wherever you happened to press the button.
 
 ---
 
@@ -165,6 +171,25 @@ note matches it without a gain ride in the mixer.
 
 ---
 
+## Patchwork DR·1 — drum machine
+
+**Voices.** Eight, synthesised: kick, snare, clap, two toms, closed and open hats, and a
+rimshot. 808-shaped rather than 808-cloned — the kick is a sine with a pitch envelope, the
+snare is two tones crossfaded against filtered noise, and both hats come from six square
+oscillators at inharmonic ratios, which is how the original made metal without a sample. A
+closed hat chokes an open one, because they are one hi-hat.
+
+**Grid.** Sixteen steps per voice, eight lanes, all visible at once. A click cycles a step
+off → on → accent, so the thing you most want to program — an accented downbeat — takes one
+gesture rather than a modifier. Lengths of 8, 12, 16 or 32, rates from 1/8 to 1/32 including
+triplets, and the same swing model CS·1 and MS·1 use, so all three shuffle identically.
+
+**Levels.** Every voice is trimmed against a measured target rather than dialled. The eight
+started **30.6 dB apart** and land within **0.31 dB** of where they should be.
+
+**MIDI.** GM drum notes in — 36 kick, 38 snare, 42 hat — so a pad controller drives the kit
+with no mapping. Hits mirror out on channel 10 by default.
+
 ## Running it
 
 Web MIDI requires a secure context, so `file://` will not work — it needs `localhost` or
@@ -174,8 +199,8 @@ HTTPS. There is a tiny no-cache dev server included:
 python3 serve.py
 ```
 
-Then open <http://localhost:8123/patchwork-chord-synth.html> or
-<http://localhost:8123/patchwork-mono-synth.html>. One server serves both.
+Then open any of `patchwork-chord-synth.html`, `patchwork-mono-synth.html`,
+`patchwork-drums.html` or `patchwork-studio.html` on that port. One server serves them all.
 
 The two HTML files are assembled from `src/` by `tools/build.py` — **edit the fragments, not
 the built files.** The build is a plain concatenation and needs nothing but Python, so the

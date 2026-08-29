@@ -1,0 +1,126 @@
+
+<div class="unit dr1" data-instrument="dr1">
+
+  <div class="plate">
+    <div>
+      <div class="brand">Patchwork</div>
+      <div class="model">DR·1 — drum machine</div>
+    </div>
+    <div class="screws"><i class="screw"></i><i class="screw"></i></div>
+  </div>
+  <div class="rule"></div>
+
+  <div class="transport">
+    <button class="btn primary" id="play">▶ Play</button>
+    <button class="btn ghost" id="clearPat">Clear</button>
+    <button class="btn ghost" id="defaultPat">Reset pattern</button>
+    <div class="tempo">
+      <button id="bpmDown" aria-label="Slower">−</button>
+      <span id="tempoOut">120</span>
+      <button id="bpmUp" aria-label="Faster">+</button>
+    </div>
+    <button class="btn panic" id="panic">Panic</button>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head">
+      <span class="silk">Pattern</span>
+      <div class="patrow">
+        <div class="field" style="flex:0 0 92px">
+          <label for="rate">Rate</label>
+          <select id="rate">
+            <option value="1/8">1/8</option>
+            <option value="1/8t">1/8 trip</option>
+            <option value="1/16" selected>1/16</option>
+            <option value="1/16t">1/16 trip</option>
+            <option value="1/32">1/32</option>
+          </select>
+        </div>
+        <div class="field" style="flex:0 0 86px">
+          <label for="len">Steps</label>
+          <select id="len">
+            <option value="8">8</option>
+            <option value="12">12</option>
+            <option value="16" selected>16</option>
+            <option value="32">32</option>
+          </select>
+        </div>
+        <div class="hfader" id="swingF">
+          <span class="hlab">Swing</span>
+          <span class="hslot"><i class="hcap"></i></span>
+          <span class="hval">50%</span>
+        </div>
+        <div class="hfader" id="accentF">
+          <span class="hlab">Accent</span>
+          <span class="hslot"><i class="hcap"></i></span>
+          <span class="hval">35%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- One row per voice. The grid is the instrument; the knobs are for shaping what it
+         plays, which is why the grid comes first and is the widest thing on the panel. -->
+    <div class="lanes" id="lanes"></div>
+
+    <div class="seqlegend">
+      <span><i style="background:var(--dr-accent)"></i>step</span>
+      <span><i style="background:var(--cap-yellow)"></i>accent — click a lit step again</span>
+      <span><i style="background:var(--mint)"></i>playing now</span>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head">
+      <span class="silk">Voice <em id="voiceTag">BD</em></span>
+      <span class="card-meta" id="voiceMeta">Kick</span>
+    </div>
+    <div class="knobrow" id="voiceKnobs">
+      <div class="hfader" id="tuneF">
+        <span class="hlab">Tune</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+      <div class="hfader" id="toneF">
+        <span class="hlab">Tone</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+      <div class="hfader" id="decayF">
+        <span class="hlab">Decay</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+      <div class="hfader" id="levelF">
+        <span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+    </div>
+    <p class="note">Select a lane by its name to edit that voice. Click a pad to audition it.</p>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head">
+      <span class="silk"><i class="led" id="midiLed"></i>MIDI</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span class="silk">Note out</span>
+        <div class="seg sm" id="noteOut" role="group" aria-label="Mirror hits to MIDI out">
+          <button data-o="off" class="on">Off</button>
+          <button data-o="on">On</button>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="midiIn">Input</label>
+        <select id="midiIn"><option value="">— none —</option></select>
+      </div>
+      <div class="field">
+        <label for="midiOut">Output</label>
+        <select id="midiOut"><option value="">— none —</option></select>
+      </div>
+      <div class="field" style="flex:0 0 74px">
+        <label for="midiInCh">In ch</label>
+        <select id="midiInCh"></select>
+      </div>
+      <div class="field" style="flex:0 0 74px">
+        <label for="midiCh">Out ch</label>
+        <select id="midiCh"></select>
+      </div>
+    </div>
+    <p class="note" id="midiNote">—</p>
+  </div>
+
+</div>

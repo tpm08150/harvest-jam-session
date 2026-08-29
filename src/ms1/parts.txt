@@ -3,6 +3,7 @@
 ms1/head.html
 shell/tokens.css
 shell/reset.css
+shell/chrome.css
 ms1/_panel-open.css
 ms1/panel.css
 ms1/_panel-close.css

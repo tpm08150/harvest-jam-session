@@ -21,6 +21,7 @@ body{
 @media (prefers-reduced-motion:reduce){ .unit{transition:none} }
 .unit.cs1.focused{outline-color:var(--cap-red)}
 .unit.ms1.focused{outline-color:var(--accent)}
+.unit.dr1.focused{outline-color:var(--stripe-mod)}
 
 .st-head{
   display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;

@@ -1,0 +1,23 @@
+# DR·1 standalone. The same fragments the studio build uses — see src/studio/parts.txt.
+dr1/head.html
+shell/tokens.css
+shell/reset.css
+shell/chrome.css
+dr1/_panel-open.css
+dr1/panel.css
+dr1/_panel-close.css
+shell/page-open.html
+dr1/panel.html
+shell/script-open.html
+shell/host.js
+shell/bus.js
+shell/clock.js
+shell/midi.js
+dr1/_open.js
+dr1/voices.js
+dr1/seq.js
+dr1/ui.js
+dr1/midi.js
+dr1/boot.js
+dr1/_close.js
+shell/tail.html

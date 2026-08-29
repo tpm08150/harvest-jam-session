@@ -25,6 +25,7 @@ SRC = REPO / "src"
 
 APPS = {"cs1": "patchwork-chord-synth.html",
         "ms1": "patchwork-mono-synth.html",
+        "dr1": "patchwork-drums.html",
         "studio": "patchwork-studio.html"}
 
 

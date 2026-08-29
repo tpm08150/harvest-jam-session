@@ -74,6 +74,83 @@ body{
   display:flex;justify-content:center;align-items:flex-start;
   -webkit-font-smoothing:antialiased;
 }
+/* Panel chrome a new instrument can build on.
+
+   CS·1 and MS·1 were written as separate whole pages and independently grew the same
+   controls — the plate, the buttons, the fields, the LEDs. 38 of their rules are
+   byte-identical, which is what happens when one is copied from the other and neither is
+   edited after. DR·1 needs those rules to look like a Patchwork panel at all, and a
+   third hand-written copy is the worst of the available options.
+
+   ⚠️ These are ALSO still present in cs1/panel.css and ms1/panel.css, deliberately.
+   Deleting them there and relying on this file broke both apps: 8 changed computed-style
+   signatures in CS·1 and 22 in MS·1. @scope adds no specificity, so source order decides
+   every equal-specificity conflict, and lifting a rule to the top of the cascade flips
+   any conflict that previously resolved the other way. Extracting safely means proving no
+   such conflict exists for each rule, which is a bigger job than adding an instrument.
+
+   So this file loads FIRST and the instrument sheets override it with identical values —
+   CS·1 and MS·1 cannot change, by construction, and DR·1 gets a panel. The duplication
+   is real and is the honest price; Phase 6 rewrites these panels for the live faces and
+   is the place to resolve it. */
+@scope (.unit) {
+
+.brand{font-family:"Saira Semi Condensed";font-weight:600;font-size:26px;letter-spacing:.34em;text-transform:uppercase;color:#e4e9ec;line-height:1}
+.model{font-family:"DM Mono";font-size:10.5px;letter-spacing:.14em;color:var(--silk-dim);margin-top:6px;text-transform:uppercase}
+.screws{display:flex;gap:8px;opacity:.5}
+.screw{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#6d777d,#2c3236);box-shadow:0 1px 0 rgba(255,255,255,.12)}
+.card-title{font-family:"DM Mono";font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#5d6469}
+.card-meta{font-family:"DM Mono";font-size:11px;letter-spacing:.06em;color:#3b464e}
+.card-title em{font-style:normal;color:#8a6157;margin-left:9px}
+
+/* ---------- transport ---------- */
+.transport{display:flex;gap:9px;flex-wrap:wrap;align-items:stretch;margin:16px 0 4px}
+.btn{
+  font-family:"Saira Semi Condensed";font-weight:600;font-size:13px;letter-spacing:.16em;text-transform:uppercase;
+  background:linear-gradient(180deg,#4a5359,#394247);
+  color:#e6ebee;border:1px solid var(--edge);border-radius:5px;
+  padding:11px 16px;cursor:pointer;
+  box-shadow:0 1px 0 rgba(255,255,255,.13) inset,0 2px 0 #1c2124;
+}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(255,255,255,.08) inset}
+.btn.play{min-width:112px}
+.btn.play.on{background:linear-gradient(180deg,#79e6c3,var(--mint));border-color:#1f7a61;color:#0d2c24}
+
+/* ---------- selects & tempo ---------- */
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
+.field{display:flex;flex-direction:column;gap:5px;flex:1 1 118px;min-width:0}
+label,.silk{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--silk-dim);font-weight:500}
+input[type="text"]::placeholder{color:#5a646a}
+.patch-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end}
+.tempo button{width:32px;flex:none;background:none;border:none;color:var(--silk-dim);font-size:17px;cursor:pointer;padding:8px 0;font-family:inherit}
+.tempo button:hover{color:#fff}
+.tempo output{flex:1;text-align:center;font-family:"DM Mono";font-size:15px;color:var(--mint);letter-spacing:.04em}
+.seg button{
+  font-family:"Saira Semi Condensed";font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  background:var(--slot);border:none;color:var(--silk-dim);padding:8px 11px;cursor:pointer;
+}
+.step:hover{background:#2b3339}
+.step.now{outline:2px solid var(--mint);outline-offset:1px}
+.hfader .hlab{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--silk-dim)}
+.hfader .bind{font-family:"DM Mono";font-size:9px;color:var(--cap-yellow)}
+.hfader.dragging .hcap{box-shadow:0 0 0 1px var(--mint),0 2px 3px rgba(0,0,0,.55)}
+.hfader.arm{box-shadow:0 0 0 2px var(--cap-yellow) inset}
+
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--silk-dim);margin-top:14px}
+
+/* ---------- midi & audio i/o ---------- */
+.sect{margin-top:20px;border-top:1px solid rgba(0,0,0,.4);box-shadow:0 -1px 0 rgba(255,255,255,.05);padding-top:16px}
+.sect-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.led.ready{background:#2f6b5a}
+.led.err{background:var(--cap-red)}
+.led.lit{background:var(--mint);box-shadow:0 0 7px var(--mint)}
+.note{font-family:"DM Mono";font-size:10px;letter-spacing:.04em;color:#6d777e;line-height:1.75;margin-top:14px}
+.note.bad{color:#c98a7a}
+
+/* ---------- midi learn ---------- */
+.btn.sm{padding:8px 12px;font-size:11px;letter-spacing:.12em}
+.btn.learn.on{background:linear-gradient(180deg,#f0c45a,var(--cap-yellow));border-color:#8a6a15;color:#2f2405}
+.btn.panic{background:linear-gradient(180deg,#ec6146,var(--cap-red));border-color:#8c2a17;color:#fff2ee}}
 /* Everything below is scoped to this instrument's panel. @scope rather than
    nesting because it adds no specificity, so the relative weight of every rule
    inside is exactly what it was when this was a whole page to itself. */

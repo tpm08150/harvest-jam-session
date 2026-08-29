@@ -1,0 +1,113 @@
+/* DR·1 owns only what the shared chrome does not: the lane grid, and a violet accent so
+   the three panels are told apart by colour the way CS·1 and MS·1 already are. */
+:scope{
+  --dr-accent:#8b74d6;
+  --dr-accent-hi:#a692e4;
+  --dr-accent-lo:#6b56b0;
+  --dr-accent-ink:#150e2b;
+  width:100%;max-width:760px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);
+  border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  padding:20px 18px 24px;
+  position:relative;overflow:clip;
+}
+:scope::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+}
+:scope>*{position:relative;z-index:1}
+
+.rule{height:1px;background:linear-gradient(90deg,transparent,var(--dr-accent),transparent);
+  opacity:.55;margin:12px 0 16px}
+.screws{display:flex;gap:9px;align-items:center}
+.screw{width:9px;height:9px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#68727a,#2b3237 68%,#171b1e);
+  box-shadow:0 1px 0 rgba(255,255,255,.10),0 0 0 1px rgba(0,0,0,.5) inset}
+
+.transport{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 4px}
+.tempo{display:flex;align-items:center;background:var(--slot);border:1px solid var(--groove);
+  border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;overflow:hidden}
+.tempo button{background:none;border:0;color:var(--silk-dim);font-size:15px;
+  padding:8px 12px;cursor:pointer;font-family:inherit}
+.tempo button:hover{color:var(--silk)}
+.tempo span{font-family:"DM Mono";font-size:13px;color:var(--mint);min-width:38px;
+  text-align:center;font-variant-numeric:tabular-nums}
+
+.sect{margin-top:20px;padding-top:16px;border-top:1px solid rgba(0,0,0,.4);
+  box-shadow:0 -1px 0 rgba(255,255,255,.05)}
+.sect-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:10px}
+.patrow{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.knobrow{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px}
+.knobrow .hfader{flex:1 1 150px}
+
+/* ---- the lanes ----
+   Name, then sixteen pads. Two rows of eight on a narrow panel, because sixteen across
+   at this width gives pads too small to hit — the same call CS·1's grid already made. */
+.lanes{display:flex;flex-direction:column;gap:5px}
+.lane{display:flex;align-items:center;gap:9px}
+.lane-name{
+  flex:0 0 44px;text-align:left;cursor:pointer;
+  background:var(--slot);border:1px solid var(--groove);border-radius:3px;
+  padding:6px 7px;font-family:"DM Mono";font-size:10px;letter-spacing:.06em;
+  color:var(--read-dim);box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+.lane-name:hover{color:var(--silk)}
+.lane-name.sel{color:var(--dr-accent-hi);border-color:var(--dr-accent-lo);
+  box-shadow:0 0 0 1px var(--dr-accent-lo) inset}
+.lane-name.hit{background:var(--dr-accent);color:var(--dr-accent-ink)}
+
+/* Sixteen across, one row per lane. MS·1 wraps its 16 steps into two rows of eight
+   because it has ONE lane and the extra height costs nothing; eight lanes wrapped would
+   be sixteen rows, and a drum grid that does not read left-to-right as a bar is not a
+   drum grid. Gap tightens rather than wrapping when the panel narrows. */
+.pads{display:grid;grid-template-columns:repeat(var(--steps,16),1fr);gap:3px;
+  flex:1 1 auto;min-width:0}
+.pad{
+  height:22px;border-radius:3px;padding:0;cursor:pointer;position:relative;
+  background:var(--slot);border:1px solid var(--groove);
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  transition:background .09s ease;
+}
+@media (prefers-reduced-motion:reduce){ .pad{transition:none} }
+.pad.on{background:linear-gradient(180deg,var(--dr-accent-hi),var(--dr-accent));
+  border-color:var(--dr-accent-lo);box-shadow:0 1px 0 rgba(255,255,255,.16) inset}
+.pad.acc{box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 0 0 1px var(--cap-yellow) inset}
+/* downbeat of each quarter, so sixteenths stay countable */
+.pad.beat::before{content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);
+  width:2px;height:2px;border-radius:50%;background:rgba(255,255,255,.45)}
+.pad.now{outline:2px solid var(--mint);outline-offset:1px;z-index:2}
+.pad.past{opacity:.35}
+
+/* Horizontal faders. CS·1's and MS·1's versions had drifted apart by Phase 2, so these
+   were not among the 38 rules the shell could share — this is DR·1's own take, sized to
+   sit four across rather than one at a time. */
+.hfader{display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
+  padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13)}
+.hslot{position:relative;flex:1 1 auto;min-width:60px;height:20px;border-radius:4px;
+  background:linear-gradient(180deg,#20262a,#12161a 45%,#20262a);
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06)}
+.hslot::after{content:"";position:absolute;left:7px;right:7px;top:50%;height:3px;
+  transform:translateY(-50%);background:#0b0e10;border-radius:2px}
+.hcap{position:absolute;top:-3px;height:26px;width:20px;border-radius:3px;
+  transform:translateX(-50%);
+  background:linear-gradient(180deg,#5b656b,#394247);border:1px solid #14181b;
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset}
+.hcap::after{content:"";position:absolute;top:3px;bottom:3px;left:50%;width:3px;
+  margin-left:-1.5px;border-radius:2px;background:var(--dr-accent)}
+.hfader.dragging .hcap{border-color:var(--mint)}
+.hfader .hval{font-family:"DM Mono";font-size:10px;color:#aeb8be;min-width:44px;text-align:right}
+.hfader .hlab{white-space:nowrap}
+
+.seqlegend{display:flex;gap:14px;flex-wrap:wrap;font-family:"DM Mono";font-size:9px;
+  letter-spacing:.04em;color:var(--read-dim);margin-top:10px}
+.seqlegend i{display:inline-block;width:9px;height:9px;border-radius:2px;
+  vertical-align:-1px;margin-right:5px}
+
+@media (max-width:560px){
+  :scope{padding:16px 14px 20px}
+  .pads{grid-template-columns:repeat(8,1fr)}
+  .lane-name{flex:0 0 38px}
+}
