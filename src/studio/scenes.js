@@ -359,7 +359,8 @@ btn.addEventListener("click", () => {
   const room = window.prompt("Name your jam — anyone who joins it plays with you", "jam");
   if (room == null) return;
   if (!Patchwork.session.join(room, askName()))
-    who.textContent = "this browser cannot open a session";
+    who.innerHTML = "<em>" + (Patchwork.session.problem
+      || "this browser cannot open a session") + "</em>";
 });
 
 /* ⚠️ Typing the same string on two machines is the single most likely way to end up in two
@@ -432,7 +433,11 @@ function paint(){
   btn.textContent = on ? "Leave jam" : "Start a jam";
   btn.classList.toggle("st-on", on);
   joinBtn.hidden = on;
-  if (!on){ who.textContent = ""; return; }
+  if (!on){
+    /* keep an explanation on screen; clearing it would hide the only thing that says why */
+    if (!Patchwork.session.problem) who.textContent = "";
+    return;
+  }
   const peers = Patchwork.session.peers, S = Patchwork.session;
   /* WHERE the jam is, not just that there is one. A two-laptop test that is quietly two
      tabs on one machine looks identical otherwise, and so does a relay that never

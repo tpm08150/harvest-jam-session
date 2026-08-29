@@ -2058,6 +2058,7 @@ let tx = null;                 // the transport, or null when playing alone
 let room = null;
 let applying = false;          // a remote op is being applied — do not echo it
 let epoch = null;              // Date.now() of the session's beat 0
+let problem = null;            // why the last join could not happen, in words
 const peers = new Map();       // id -> {id, name, seen}
 const owners = new Map();      // instrument id -> peer id
 
@@ -2411,6 +2412,23 @@ function onMessage(m){
    which looks like the jam being broken rather than a typo. If you are serving the page
    from the same machine as the relay, and you almost always are, `?relay` alone is right
    and cannot be got wrong. */
+/* ⚠️ A page served over HTTPS cannot open a ws:// socket. The browser blocks it as mixed
+   content, silently as far as the page is concerned — the socket simply never opens and the
+   head bar sits on "connecting…" forever, which reads as the relay being down rather than
+   as the one thing it is.
+
+   It bit the moment this went up on Netlify: the studio was https, the relay on a laptop was
+   ws, and there is no combination of those two that a browser will allow. A relay reachable
+   from an https page needs TLS, which in practice means a tunnel (`cloudflared tunnel --url
+   http://localhost:8124` hands you a wss:// address) or hosting it somewhere that terminates
+   TLS for you. */
+function relayProblem(url){
+  if (!url) return null;
+  if (location.protocol === "https:" && /^ws:\/\//i.test(url))
+    return "this page is https, so it cannot reach a ws:// relay — it needs a wss:// address";
+  return null;
+}
+
 function relayFromUrl(){
   const raw = new URLSearchParams(location.search).get("relay");
   if (raw == null) return null;
@@ -2447,6 +2465,8 @@ openLobby();
 function browse(cb){
   const relay = relayFromUrl();
   if (relay){
+    const bad = relayProblem(relay);
+    if (bad){ cb(null, bad); return; }
     /* a throwaway connection: ask, answer, close. Asking on the live one would mean being
        joined before you had chosen. */
     let ws;
@@ -2487,6 +2507,8 @@ function join(name, who){
   /* `?relay` picks the networked transport. Explicit on purpose — a silent fallback would
      let you set up a two-laptop test that quietly was not one. */
   const relay = relayFromUrl();
+  problem = relayProblem(relay);
+  if (problem){ room = null; notify(); return false; }
   tx = relay ? webSocket(relay, room) : broadcastChannel(room);
   if (!tx){ room = null; notify(); return false; }
   tx.onMessage(onMessage);
@@ -2510,7 +2532,7 @@ function leave(){
   if (Patchwork.talk && Patchwork.talk.on) Patchwork.talk.stop();
   if (tx){ send("bye", {}); tx.close(); }
   clearInterval(trickle); trickle = null;
-  tx = null; room = null; epoch = null;
+  tx = null; room = null; epoch = null; problem = null;
   offsetMs = 0; bestRtt = Infinity; synced = false;
   peers.clear(); owners.clear();
   notify();
@@ -2673,6 +2695,7 @@ return {join, leave, browse, claim, release, ownerName, registerPatch, mountOwne
         /* what the head bar tells you about the connection, so a two-laptop test that is
            quietly two tabs is visible rather than mysterious */
         get via(){ return tx ? tx.kind : null; },
+        get problem(){ return problem; },
         get linked(){ return !!tx && (tx.ready === undefined || tx.ready); },
         get clock(){ return {synced, offsetMs: Math.round(offsetMs), rttMs: bestRtt === Infinity ? null : Math.round(bestRtt)}; },
         get me(){ return {id: me.id, name: me.name}; },
