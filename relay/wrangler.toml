@@ -1,0 +1,34 @@
+# The relay's deployment. Everything here is one command's worth of configuration:
+#
+#     cd relay && npx wrangler login && npx wrangler deploy
+#
+# It prints an https://<name>.<your-subdomain>.workers.dev URL. That URL, with the scheme
+# changed to wss://, is what HOME_RELAY in src/shell/session.js must be set to.
+
+name = "harvest-jam-relay"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+# The workers.dev hostname is the whole point — it is a public TLS endpoint without owning
+# a domain, which is exactly what an https page needs and what a laptop cannot be.
+workers_dev = true
+
+# One object, holding every room. See the comment at the top of worker.js for why this is
+# not one-object-per-room.
+[[durable_objects.bindings]]
+name = "RELAY"
+class_name = "Relay"
+
+# ⚠️ new_sqlite_classes, NOT new_classes. Durable Objects are available on the free plan
+# only with the SQLite storage backend; the older key-value backend is a paid feature and
+# `new_classes` fails the deploy with error 10097. This matters twice, because an
+# already-deployed class CANNOT be converted between backends afterwards without deleting
+# its data — getting it right the first time is the only cheap time to get it right.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Relay"]
+
+# So a jam that misbehaves in the wild leaves something to read. `npx wrangler tail` streams
+# it live, which is the only debugger a relay with no state really needs.
+[observability]
+enabled = true

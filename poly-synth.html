@@ -2469,43 +2469,107 @@ function broadcastChannel(name){
   if (typeof BroadcastChannel === "undefined") return null;
   const ch = new BroadcastChannel("patchwork-jam-" + name);
   return {
-    kind: "this machine",
+    kind: "this machine only",
     send: msg => ch.postMessage(msg),
     close: () => ch.close(),
     onMessage: fn => { ch.onmessage = e => fn(e.data); }
   };
 }
 
-function webSocket(url, name){
-  let ws, handler = null, closed = false;
-  const queue = [];
-  try{ ws = new WebSocket(url); }catch(e){ return null; }
+/* ⚠️ A SOCKET OVER THE INTERNET WILL DROP, and on a LAN it essentially never did — which
+   is why the first version of this had no reconnect and seemed fine. A phone locking, a
+   laptop lid, a wifi handover, a tunnel restart and a deploy of the relay itself all close
+   it, and without this the jam simply stopped: no error, no message, the head bar still
+   reading like a live session while nothing crossed the wire. That is the worst failure
+   this app can have, because it looks exactly like everybody else having stopped playing.
 
-  ws.addEventListener("open", () => {
-    ws.send(JSON.stringify({kind: "join", room: name}));
-    queue.splice(0).forEach(m => ws.send(m));
-    syncTime();
+   So the socket is disposable and the TRANSPORT is not. `ws` is swapped underneath; `tx`
+   never changes identity, and nothing above this point learns that the link went away and
+   came back. */
+function webSocket(url, name){
+  let ws = null, handler = null, closed = false, tries = 0, timer = null, linked = false;
+  const queue = [];
+
+  function attach(sock){
+    sock.addEventListener("open", () => {
+      if (closed || ws !== sock) return;
+      tries = 0;
+      sock.send(JSON.stringify({kind: "join", room: name}));
+      queue.splice(0).forEach(m => sock.send(m));
+      /* ⚠️ Only on a RE-connect. The first hello is the one join() sent into the queue
+         above; sending another here would have every peer answer a second identical
+         welcome for no reason. On a reconnect the queue is empty by design (see send)
+         and this is what re-announces us and pulls the room's state back. */
+      if (linked) send("hello", {name: me.name});
+      linked = true;
+      syncTime();
+      notify();
+    });
+    /* One path for both: a socket that fails to open fires error and then close. */
+    sock.addEventListener("close", () => { if (ws === sock) retry(); });
+    sock.addEventListener("error", () => { if (ws === sock) notify(); });
+    sock.addEventListener("message", e => {
+      let m; try{ m = JSON.parse(e.data); }catch(err){ return; }
+      if (m.kind === "pong"){ takeSample(m); return; }
+      if (m.kind === "joined"){ adoptEpoch(m.epoch); notify(); return; }
+      if (handler) handler(m);
+    });
+  }
+
+  function retry(){
+    if (closed) return;
     notify();
-  });
-  ws.addEventListener("close", () => { if (!closed) notify(); });
-  ws.addEventListener("error", () => notify());
-  ws.addEventListener("message", e => {
-    let m; try{ m = JSON.parse(e.data); }catch(err){ return; }
-    if (m.kind === "pong"){ takeSample(m); return; }
-    if (m.kind === "joined"){ adoptEpoch(m.epoch); notify(); return; }
-    if (handler) handler(m);
-  });
+    /* Backed off, and jittered: a relay deploy drops every socket in the room at the same
+       instant, and an unjittered backoff would have them all come back in lockstep and do
+       it again on the next failure. */
+    const wait = Math.min(8000, 500 * Math.pow(2, tries++)) * (0.7 + Math.random() * 0.6);
+    clearTimeout(timer);
+    timer = setTimeout(dial, wait);
+  }
+  function dial(){
+    if (closed) return;
+    let sock;
+    try{ sock = new WebSocket(url); }catch(e){ retry(); return; }
+    ws = sock;
+    attach(sock);
+  }
+
+  /* The first dial is synchronous so a URL the browser will not even construct — a typo, or
+     the mixed-content block — is reported as a failed join rather than retried forever. */
+  try{ ws = new WebSocket(url); }catch(e){ return null; }
+  attach(ws);
+
+  /* The browser knows before we do. Waiting out a backoff after the wifi is demonstrably
+     back is several seconds of a jam that could already be running. */
+  const wake = () => { if (!closed && (!ws || ws.readyState > 1)){ clearTimeout(timer); tries = 0; dial(); } };
+  addEventListener("online", wake);
 
   return {
     kind: url.replace(/^wss?:\/\//, ""),
     send: msg => {
       const s2 = JSON.stringify(msg);
-      if (ws.readyState === 1) ws.send(s2); else if (ws.readyState === 0) queue.push(s2);
+      if (ws && ws.readyState === 1){ ws.send(s2); return; }
+      /* Queued only before the FIRST connection, which is the window join()'s hello lands
+         in. Queuing through a reconnect would bank a poll's worth of stale state every
+         220 ms for as long as the link was down and then flush all of it at once — and it
+         would be pointless, because the hello above pulls the room's real state back. */
+      if (!linked && queue.length < 32) queue.push(s2);
     },
-    close: () => { closed = true; try{ ws.close(); }catch(e){} },
+    close: () => {
+      closed = true;
+      clearTimeout(timer);
+      removeEventListener("online", wake);
+      try{ if (ws) ws.close(); }catch(e){}
+    },
     onMessage: fn => { handler = fn; },
-    ping: () => { if (ws.readyState === 1) ws.send(JSON.stringify({kind:"ping", t0: performance.now()})); },
-    get ready(){ return ws.readyState === 1; }
+    ping: () => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({kind:"ping", t0: performance.now()})); },
+    get ready(){ return !!ws && ws.readyState === 1; },
+    /* So the head bar can tell "still trying to reach it" from "reached it once and lost
+       it" — the first is usually a wrong address and the second is usually the network. */
+    get state(){
+      if (ws && ws.readyState === 1) return "open";
+      return linked ? "retrying" : "connecting";
+    }
   };
 }
 
@@ -2788,12 +2852,16 @@ function onMessage(m){
 }
 
 /* ---- where the relay is ----
-   `?relay=` in the URL, in whatever form is least likely to be mistyped:
+   With no `?relay=` at all you get HOME_RELAY, the one this build ships with, so the
+   deployed link works for whoever opens it without anybody having to know a query string
+   exists. `?relay=` is for everything else, in whatever form is least likely to be mistyped:
 
-     ?relay                    this host, port 8124   <- use this one
+     (nothing)                 the relay this build ships with   <- the deployed site
+     ?relay                    this host, port 8124              <- two laptops on a LAN
      ?relay=9000               this host, that port
      ?relay=192.168.68.51      that host, port 8124
      ?relay=ws://host:9000     spelled out in full
+     ?relay=off                no relay: other tabs on this machine, and nothing else
 
    ⚠️ The bare form exists because retyping an IP address twice in one URL is a trap. It
    cost a real two-laptop test: the page half was right, the relay half said 192.168.1.51
@@ -2818,11 +2886,30 @@ function relayProblem(url){
   return null;
 }
 
+/* ---- the relay this build ships with ----
+   ⚠️ SET THIS TO THE DEPLOYED WORKER, as wss://. It is the difference between a link you
+   can hand somebody and a link that quietly puts each visitor in a jam of their own.
+
+   Until it is set, a page with no `?relay=` falls back to BroadcastChannel — which reaches
+   other TABS on that machine and nothing else. That is the right thing locally and exactly
+   the wrong thing on the deployed site, where it means two people on one link each get a
+   private room, both see "waiting for someone to join", and nothing on screen is wrong
+   enough to explain it. That was the bug this whole relay exists to fix.
+
+   Hard-coded rather than fetched, because the build is a pure join of src/ with no
+   substitution step — see tools/build.py. Changing it means a rebuild and a deploy of the
+   studio, which is the honest cost of the rule that every shipped line lives in exactly
+   one fragment. `relay/wrangler.toml` prints the URL to put here. */
+const HOME_RELAY = "wss://harvest-jam-relay.tmorton-e18.workers.dev";
+
 function relayFromUrl(){
   const raw = new URLSearchParams(location.search).get("relay");
-  if (raw == null) return null;
-  const v = String(raw).trim();
   const proto = location.protocol === "https:" ? "wss://" : "ws://";
+  if (raw == null) return HOME_RELAY || null;
+  const v = String(raw).trim();
+  /* An explicit way back to the same-machine transport, for testing the model with two
+     tabs now that the networked one is what you get by default. */
+  if (/^(off|none|0|no|solo|local)$/i.test(v)) return null;
   if (v === "" || v === "1" || v === "true") return proto + location.hostname + ":8124";
   if (/^[0-9]+$/.test(v)) return proto + location.hostname + ":" + v;
   if (/^wss?:\/\//.test(v)) return v;
@@ -2985,6 +3072,20 @@ async function pushTake(slot){
     if (!chans) return {ok: false, why: "that take is empty"};
     const rate = t.sampleRate ? t.sampleRate() : 48000;
     const packed = await Patchwork.codec.encode(chans, rate);
+    /* ⚠️ ONE MEBIBYTE IS THE CEILING on a WebSocket message through the hosted relay, and
+       going over it does not drop the message — Cloudflare closes the socket with 1009.
+       So the failure mode without this check is not "the take did not arrive", it is
+       "pushing a long take ends the jam", and the reconnect above would paper over it just
+       well enough to make it hard to find.
+
+       Opus is nowhere near it (~50 KB for two bars, ~67 KB once base64 has taken its
+       third). The PCM fallback is, and it is the path a browser without WebCodecs takes —
+       so this is the browser-dependent bug that does not reproduce on the machine you
+       wrote it on. Said in terms of what to do about it rather than in bytes. */
+    if (packed.data.length > 900000)
+      return {ok: false, why: "that take is too long to send" +
+        (packed.kind === "pcm" ? " — this browser has no Opus encoder, so takes have to be short"
+                               : "") + ". Push a shorter one."};
     /* the length and the tempo travel with it, because the receiver may have no bank yet */
     send("take", {slot: slot | 0, take: packed, meta: t.takeMeta ? t.takeMeta() : null});
     return {ok: true, kind: packed.kind, bytes: packed.data.length};
@@ -3086,6 +3187,10 @@ return {join, leave, browse, claim, release, ownerName, registerPatch, mountOwne
         get via(){ return tx ? tx.kind : null; },
         get problem(){ return problem; },
         get linked(){ return !!tx && (tx.ready === undefined || tx.ready); },
+        /* "open" | "connecting" | "retrying" — a relay that was never reached is usually a
+           wrong address, one that was reached and lost is usually the network, and reading
+           the same "connecting…" for both sent a real debugging session down the wrong path. */
+        get link(){ return tx ? (tx.state || "open") : null; },
         get clock(){ return {synced, offsetMs: Math.round(offsetMs), rttMs: bestRtt === Infinity ? null : Math.round(bestRtt)}; },
         get me(){ return {id: me.id, name: me.name}; },
         get owners(){ return new Map(owners); },

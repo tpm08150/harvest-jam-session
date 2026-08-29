@@ -274,6 +274,64 @@ Deployed on Netlify, CS·1 is at the root and the rest have clean paths of their
 `/poly`, `/vocoder`, `/bass`, `/drums`, `/looper` and `/studio`. `/mono` was MS·1 and now
 points at PM·1, which is most of what MS·1 was.
 
+## Jamming
+
+Everyone on a jam plays the same grid. **Nobody streams audio** — every browser synthesises
+its own sound from the patterns and parameters that cross the wire, which are a few KB. The
+looper, the metronome and the talkback microphone are the exceptions, because they are the
+things that have no pattern to send.
+
+That works over a network because of the seam: nothing in this app says *change now*, it
+says *change at boundary N*, and each client works out when that is from a clock the relay
+hands out. A message only has to beat the boundary, so 150 ms of internet still lands on the
+same bar line for everyone.
+
+Press **Join…** and pick a running jam rather than typing its name — typing the same string
+on two machines is the single most likely way to end up in two empty rooms. Read the head
+bar: it names the transport, so a two-laptop test that is quietly two tabs is visible.
+
+### Where the jam meets
+
+| | |
+| --- | --- |
+| *(no query string)* | the hosted relay this build ships with — the deployed link |
+| `?relay` | a relay on this host, port 8124 — two laptops on one network |
+| `?relay=192.168.68.51` | that host, port 8124 |
+| `?relay=wss://host` | spelled out in full |
+| `?relay=off` | no relay: other tabs on this machine, and nothing else |
+
+For two laptops on one network, run the relay on either machine and open both browsers on
+`http://<that machine>:8123/?relay` — the bare `?relay` means "the relay is on this host"
+and exists because retyping an IP twice in one URL is a trap that cost a real test:
+
+```bash
+python3 serve.py                    # the studio, 8123
+python3 tools/jam-relay.py          # the relay, 8124
+```
+
+Over the internet, the deployed site talks to a Cloudflare Worker — see [`relay/`](relay/)
+for what it is and how to deploy your own. ⚠️ **A page served over https cannot open a
+`ws://` socket**, which is the whole reason the hosted relay exists; the studio now says so
+rather than sitting on "connecting…" forever.
+
+There are two relay implementations and one protocol. `tools/relay-check.py` is what stops
+them drifting:
+
+```bash
+python3 tools/relay-check.py ws://localhost:8124
+```
+
+### What a jam does not share
+
+CS·1 has no patch channel: its progression, key and mood *are* its pattern, and the scene
+already carries them. LP·1 shares takes only when you push one — a take you are not sure
+about should not be everybody's problem. Nobody's transport position is shared; everyone
+fires their own rows, deliberately.
+
+⚠️ **Patterns are last-writer-wins.** Two people editing one grid overwrite each other. The
+owner label on each plate says whose hands are on which panel, which is coordination rather
+than a lock — a lock needs the relay to arbitrate, which is possible now that there is one.
+
 ## Browser support
 
 Chrome or Edge are the target. Both of the hardware-facing features are Chromium-first:

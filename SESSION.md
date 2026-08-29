@@ -33,11 +33,20 @@ It started as a studio you played alone and ended as one two people play togethe
 network. Three phases: making the rack playable, making the looper a real looper, and shared
 jams.
 
-## Running a jam — and the trap
+## Running a jam
 
-There are two routes, and **the deployed site is not the easy one**.
+**Over the internet, from harvest-jam.netlify.app.** Open the link; that is the whole
+procedure. A page with no `?relay=` now uses `HOME_RELAY` — the Cloudflare Worker in
+`relay/` at `wss://harvest-jam-relay.tmorton-e18.workers.dev` — so two people on one link
+land in the same room. Redeploying the relay needs no studio rebuild; only *changing its
+address* does. See `relay/README.md`.
 
-**Local, two laptops on one network.** Simplest, nothing to babysit:
+The old trap is worth keeping written down, because the constraint has not gone away, only
+been paid for: **an https page cannot open a `ws://` socket.** Chrome blocks it as mixed
+content before the socket is constructed. That is caught and explained now, and it is the
+entire reason a hosted relay exists rather than a laptop with a port open.
+
+**Local, two laptops on one network.** Still the simplest, and needs no account:
 
 ```bash
 python3 serve.py                    # the studio, 8123
@@ -48,23 +57,13 @@ Both machines open `http://<that machine>:8123/?relay`. The bare `?relay` means 
 on this host, port 8124" and exists because retyping an IP twice in one URL is a trap that
 cost a real two-laptop test.
 
-**From harvest-jam.netlify.app.** ⚠️ **An https page cannot open a `ws://` socket.** Chrome
-blocks it as mixed content before the socket is constructed, so `join()` fails silently — the
-symptom is "the other computer cannot see my jam" with nothing on screen to say why. That is
-now caught and explained, but the constraint stands: **a relay reachable from the deployed
-site needs TLS.** `cloudflared` is installed on the dev machine:
-
-```bash
-cloudflared tunnel --url http://localhost:8124
-```
-
-It prints an `https://…trycloudflare.com` host; open both machines on
-`https://harvest-jam.netlify.app/?relay=wss://<that host>`. Note **wss**. The URL changes
-every restart, which is the argument for giving the relay a real home.
+**Two tabs, no relay at all:** `?relay=off`. That is BroadcastChannel, which reaches other
+tabs on this machine and nothing else — it needs asking for now that the networked transport
+is the default.
 
 Whichever route: press **Join…** and pick the room rather than typing its name, and read the
-head bar — it names the transport. `via this machine` means BroadcastChannel, which reaches
-other tabs and nothing else.
+head bar — it names the transport, and now distinguishes *connecting…* (never reached it,
+probably the wrong address) from *reconnecting…* (had it, lost it, probably the network).
 
 ## Do these first
 
@@ -76,9 +75,18 @@ other tabs and nothing else.
    an AudioWorklet — 47.9 ticks/s where `setInterval` gave 1.0 in a hidden tab. The mechanism
    changed, not what it calls, so the risk is low, but the step playhead is rAF-painted and
    the harness tab is hidden, so nobody has *listened*. One pass of a drum pattern settles it.
-3. **Give the relay a home with TLS**, if the public site is meant to work without a tunnel
-   running. It is a 200-line stdlib Python file; Fly, Railway or Render will each host it.
-   Netlify cannot — it serves static files only.
+3. ✅ **The relay is deployed and `HOME_RELAY` is set** —
+   `wss://harvest-jam-relay.tmorton-e18.workers.dev`, on the free plan. A page with no
+   `?relay=` now reaches it, so the deployed link jams. Verified: `tools/relay-check.py`
+   passes 25/25 against the live relay, against the Worker in workerd and against
+   `tools/jam-relay.py`; two tabs with no query string joined it at 24 ms and traded BPM and
+   pattern edits both ways; killing the relay mid-jam put the head bar on *reconnecting…*
+   and it recovered on its own with state intact.
+
+   ⚠️ The subdomain is `tmorton-e18`, not the `hmxlive` that was typed into the dashboard —
+   that registration did not take and Cloudflare fell back to an email-derived name. It is
+   invisible plumbing, but changing it later means rebuilding all seven pages, because the
+   address is a source line and the build has no substitution step.
 
 ## Then
 
@@ -86,7 +94,13 @@ other tabs and nothing else.
   220 ms tick. The owner label on each plate is the only coordination on offer. Real locks
   need the relay to arbitrate, which is a small addition now that the relay exists.
 - **The relay speaks text frames only**, so all audio is base64 — a third larger than it needs
-  to be. Binary frames are worth adding the day something bigger than a loop travels.
+  to be. Binary frames are worth adding the day something bigger than a loop travels, and
+  there is now a second reason: the hosted relay caps a message at 1 MiB and closes the
+  socket over it, so `pushTake()` refuses a take that would not fit. Opus is nowhere near
+  the cap; the PCM fallback, on a browser with no WebCodecs, can be.
+- ⚠️ **There are two relays now** — `tools/jam-relay.py` for a LAN and `relay/worker.js` for
+  the internet — speaking one protocol, and nothing but `tools/relay-check.py` stops them
+  drifting. Run it against both after touching either.
 - **`[hidden]{display:none !important}` ships only in the studio build**, so script-hidden
   controls stay visible in the standalone pages. PM·1's arp controls are the visible symptom.
 - **No hardware MIDI test**, still. All MIDI is verified against `tools/build-midi-harness.py`.

@@ -443,8 +443,15 @@ function paint(){
      tabs on one machine looks identical otherwise, and so does a relay that never
      connected — both would read "waiting for someone to join" forever. */
   const clk = S.clock;
-  who.innerHTML = "<b>" + S.room + "</b> · via " + S.via
-    + (S.linked ? (clk.synced ? "" : " <em>(syncing clock…)</em>") : " <em>(connecting…)</em>")
+  /* ⚠️ "connecting…" and "reconnecting…" are different diagnoses and used to read the same.
+     The first means the relay has never answered — a wrong address, or a relay that is not
+     running. The second means it answered and the link went away, which is the network and
+     will very likely come back on its own. Telling somebody to check the address when they
+     should just wait ten seconds is the cost of collapsing them. */
+  const link = S.link === "retrying" ? " <em>(reconnecting…)</em>"
+             : S.link === "connecting" ? " <em>(connecting…)</em>"
+             : clk.synced ? "" : " <em>(syncing clock…)</em>";
+  who.innerHTML = "<b>" + S.room + "</b> · via " + S.via + link
     + " · " + (peers.length
         ? "you and " + peers.length + " other" + (peers.length > 1 ? "s" : "")
         : "waiting for someone to join")
