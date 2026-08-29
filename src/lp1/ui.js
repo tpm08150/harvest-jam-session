@@ -144,6 +144,23 @@ playBtn.addEventListener("click", () => {
   else if (hasTake()) play();
   else say(takeName() + " is empty. Pick a take that is lit, or record this one.", true);
 });
+/* ---- pushing a take to the jam ----
+   Visible only in a session, because outside one there is nobody to push to. */
+const pushBtn = $("#push");
+pushBtn.addEventListener("click", async () => {
+  const n = LP.slot;
+  if (!hasTake()){ say(takeName() + " is empty — record it before pushing it.", true); return; }
+  pushBtn.disabled = true;
+  say("Pushing " + takeName() + "…");
+  const r = await Patchwork.session.pushTake(n);
+  pushBtn.disabled = false;
+  say(r.ok
+    ? takeName() + " pushed — " + Math.round(r.bytes / 1024) + " KB as " + r.kind
+      + ". Everyone in the jam has it now."
+    : "Could not push: " + r.why, !r.ok);
+});
+Patchwork.session.onChange(() => { pushBtn.hidden = !Patchwork.session.active; });
+
 $("#undo").addEventListener("click", undo);
 $("#clear").addEventListener("click", () => { const n = takeName(); clearLoop(); say(n + " cleared."); });
 $("#clearAll").addEventListener("click", () => {

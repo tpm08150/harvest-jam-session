@@ -332,3 +332,11 @@ Patchwork.session.registerPatch("bs1", {
     refreshAllControls();
   }
 });
+
+/* ---- somebody else's notes ----
+   The same noteOn/noteOff a person here uses. Nothing is special about a remote note once
+   it has arrived — it is a note. */
+Patchwork.session.registerVoice("bs1", {
+  on: (n, v) => { ensureAudio(); noteOn(n, v); paintNow(); },
+  off: n => { noteOff(n); paintNow(); }
+});

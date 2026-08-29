@@ -32,7 +32,9 @@ function mount(root, spec){
   const release = i => {
     const v = held.get(i);
     held.delete(i);
-    if (v != null && spec.off) spec.off(v);
+    if (v == null) return;
+    if (spec.off) spec.off(v);
+    if (Patchwork.session) Patchwork.session.played(root.dataset.instrument, v, 0, false);
   };
 
   Patchwork.onKey(root, "keydown", e => {
@@ -63,6 +65,11 @@ function mount(root, spec){
     if (v == null) return;         // fewer things to play than there are keys — a drum kit
     held.set(i, v);
     spec.on(v, 100);
+    /* Everyone else hears it too. Here rather than in each instrument because this IS the
+       one place every instrument's typed notes pass through — and because a note played by
+       a PERSON is what travels; a sequencer's notes are already implied by the shared
+       pattern and would arrive twice. */
+    if (Patchwork.session) Patchwork.session.played(root.dataset.instrument, v, 100, true);
     if (spec.paint) spec.paint();
     e.preventDefault();
   });

@@ -37,6 +37,11 @@ function register(id, spec){
                scenes.stop(); a slot track keeps its transport privately, so it has to
                offer one or a master stop would leave the looper running. */
             stop: spec.stop || null,
+            /* audio in and out of a slot, for a shared jam */
+            grabTake: spec.grabTake || null,
+            loadTake: spec.loadTake || null,
+            sampleRate: spec.sampleRate || null,
+            takeMeta: spec.takeMeta || null,
             /* Armable by default. Arming means "put what you have into the row I press",
                which every registered track can do — CS·1's progression captures as readily
                as a step grid. write() is a SEPARATE, narrower capability: taking notes you

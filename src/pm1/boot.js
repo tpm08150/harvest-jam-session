@@ -17,6 +17,12 @@ Patchwork.session.registerPatch("pm1", {
   apply: src => applyParams(src)
 });
 
+/* ---- somebody else's notes ---- see shell/session.js for why a note is not state. */
+Patchwork.session.registerVoice("pm1", {
+  on: (n, v) => { ensureAudio(); noteOn(n, v); paintKeys(); },
+  off: n => { noteOff(n); paintKeys(); }
+});
+
 initMidi();
 
 /* ---- offline render, for measurement ----

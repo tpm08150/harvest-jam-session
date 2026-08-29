@@ -85,6 +85,42 @@ class LoopProcessor extends AudioWorkletProcessor {
       this.undo = null; this.mode = "idle"; this.pos = 0; this.next = null;
       this.port.postMessage({ev:"slots", filled:this.filled(), slot:this.slot});
     }
+    else if (m.op === "grab"){
+      /* Hand a slot's audio to the main thread so it can be shared. Copied, not
+         transferred: transferring would detach the buffers the loop is playing out of. */
+      const b = this.slots[m.slot|0];
+      if (!b){ this.port.postMessage({ev:"take", slot:m.slot|0, empty:true}); }
+      else {
+        const a0 = b[0].slice(), a1 = b[1].slice();
+        this.port.postMessage({ev:"take", slot:m.slot|0, len:this.len, ch0:a0, ch1:a1},
+                              [a0.buffer, a1.buffer]);
+      }
+    }
+    else if (m.op === "load"){
+      /* Somebody else's take, and it brings its own length.
+
+         ⚠️ ONE message, not an alloc followed by a load. Two would have the alloc answer
+         first with an empty filled list, which the main thread reads as "no takes, so no
+         committed length" and uses to drop the tempo the loop was cut at — the one field
+         the drift warning is computed from. One message has one reply and the bank is
+         never briefly empty. */
+      const want = (m.len | 0) || this.len;
+      if (want && want !== this.len){
+        /* a different length is a different bank: a loop IS its sample count */
+        this.len = want; this.slots = []; this.buf = null; this.undo = null;
+        this.pos = 0; this.mode = "idle"; this.next = null;
+      }
+      const n = this.len;
+      if (n){
+        const a = new Float32Array(n), b2 = new Float32Array(n);
+        const src0 = m.ch0, src1 = m.ch1 || m.ch0;
+        const k = Math.min(n, src0.length);
+        a.set(src0.subarray(0, k)); b2.set(src1.subarray(0, k));
+        this.slots[m.slot|0] = [a, b2];
+        if ((m.slot|0) === this.slot) this.buf = this.slots[this.slot];
+        this.port.postMessage({ev:"slots", filled:this.filled(), slot:this.slot});
+      }
+    }
     else if (m.op === "undo"){
       if (this.undo){ this.buf = this.undo; this.slots[this.slot] = this.buf; this.undo = null; }
     }

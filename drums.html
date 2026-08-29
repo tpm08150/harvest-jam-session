@@ -1363,7 +1363,9 @@ function mount(root, spec){
   const release = i => {
     const v = held.get(i);
     held.delete(i);
-    if (v != null && spec.off) spec.off(v);
+    if (v == null) return;
+    if (spec.off) spec.off(v);
+    if (Patchwork.session) Patchwork.session.played(root.dataset.instrument, v, 0, false);
   };
 
   Patchwork.onKey(root, "keydown", e => {
@@ -1394,6 +1396,11 @@ function mount(root, spec){
     if (v == null) return;         // fewer things to play than there are keys — a drum kit
     held.set(i, v);
     spec.on(v, 100);
+    /* Everyone else hears it too. Here rather than in each instrument because this IS the
+       one place every instrument's typed notes pass through — and because a note played by
+       a PERSON is what travels; a sequencer's notes are already implied by the shared
+       pattern and would arrive twice. */
+    if (Patchwork.session) Patchwork.session.played(root.dataset.instrument, v, 100, true);
     if (spec.paint) spec.paint();
     e.preventDefault();
   });
@@ -1455,6 +1462,11 @@ function register(id, spec){
                scenes.stop(); a slot track keeps its transport privately, so it has to
                offer one or a master stop would leave the looper running. */
             stop: spec.stop || null,
+            /* audio in and out of a slot, for a shared jam */
+            grabTake: spec.grabTake || null,
+            loadTake: spec.loadTake || null,
+            sampleRate: spec.sampleRate || null,
+            takeMeta: spec.takeMeta || null,
             /* Armable by default. Arming means "put what you have into the row I press",
                which every registered track can do — CS·1's progression captures as readily
                as a step grid. write() is a SEPARATE, narrower capability: taking notes you
@@ -1587,6 +1599,166 @@ return {register, setArmed, toggleArm, captureRow, note, onChange, track, mount,
                                             canRecord: k.canRecord, live: k.live,
                                             slots: k.slots})); },
         get armedCount(){ return armed.size; }};
+})();
+
+/* Audio, small enough to send.
+
+   The looper is the one thing in this studio that is not reducible to state. A pattern is a
+   few hundred bytes and a patch is a few dozen; a two-bar take at 48k stereo is 1.5 MB of
+   Float32, which is not something to put on a wire once, let alone every time somebody likes
+   a take.
+
+   ENCODE TO OPUS when the browser has WebCodecs, which is ~50 KB for those two bars at
+   96 kbps — thirty times smaller, and inaudibly so for a loop. Fall back to 16-bit PCM
+   where it does not, because half size and definitely-works beats thirty times smaller and
+   maybe. The fallback is not a nicety: WebCodecs' AudioEncoder is still missing from some
+   browsers this app otherwise runs in perfectly.
+
+   ⚠️ EVERYTHING HERE IS BASE64 at the edge, because the relay speaks text frames and
+   nothing else. That is a third larger than the bytes it carries, which is a real cost and
+   still leaves Opus far ahead of raw. Teaching the relay binary frames is the obvious
+   improvement and is worth doing the day something bigger than a loop needs to travel. */
+Patchwork.codec = (() => {
+"use strict";
+
+const hasWebCodecs = typeof AudioEncoder !== "undefined" && typeof AudioDecoder !== "undefined";
+
+/* ---- base64, in chunks ----
+   String.fromCharCode.apply with a whole megabyte of bytes overflows the argument list and
+   throws — a failure that looks like the encoder breaking on large takes only. */
+function toBase64(bytes){
+  let out = "";
+  const step = 0x8000;
+  for (let i = 0; i < bytes.length; i += step)
+    out += String.fromCharCode.apply(null, bytes.subarray(i, i + step));
+  return btoa(out);
+}
+function fromBase64(s){
+  const bin = atob(s), out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/* ---- the fallback: 16-bit PCM ----
+   Interleaved, because it is going straight back out as one blob and de-interleaving on
+   arrival is cheaper than carrying two arrays through base64. */
+function pcmEncode(chans){
+  const n = chans[0].length, ch = chans.length;
+  const out = new Int16Array(n * ch);
+  for (let i = 0; i < n; i++)
+    for (let c = 0; c < ch; c++){
+      const v = Math.max(-1, Math.min(1, chans[c][i]));
+      out[i * ch + c] = v < 0 ? v * 0x8000 : v * 0x7fff;
+    }
+  return new Uint8Array(out.buffer);
+}
+function pcmDecode(bytes, ch, frames){
+  const src = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
+  const out = [];
+  for (let c = 0; c < ch; c++) out.push(new Float32Array(frames));
+  for (let i = 0; i < frames; i++)
+    for (let c = 0; c < ch; c++) out[c][i] = src[i * ch + c] / 0x8000;
+  return out;
+}
+
+/* ---- Opus ----
+   Every Opus packet is a key frame, so each encoded chunk is self-contained and the wire
+   format is just their lengths and their bytes. */
+function packChunks(chunks){
+  let total = 0;
+  chunks.forEach(c => { total += 4 + c.length; });
+  const out = new Uint8Array(total);
+  const view = new DataView(out.buffer);
+  let o = 0;
+  chunks.forEach(c => { view.setUint32(o, c.length); o += 4; out.set(c, o); o += c.length; });
+  return out;
+}
+function unpackChunks(bytes){
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const out = [];
+  let o = 0;
+  while (o + 4 <= bytes.length){
+    const n = view.getUint32(o); o += 4;
+    if (o + n > bytes.length) break;
+    out.push(bytes.subarray(o, o + n)); o += n;
+  }
+  return out;
+}
+
+/* Opus runs at 48k and takes 20 ms frames. Anything else is resampled by the encoder, but
+   the FRAME SIZE is ours to get right: feeding it ragged lengths produces chunks that
+   decode to a different total than they went in as, and a loop that is a few samples short
+   is a loop that drifts a little further out of the bar on every pass. */
+const FRAME = 960;                                   // 20 ms at 48 kHz
+
+async function encode(chans, sampleRate){
+  const frames = chans[0].length, ch = chans.length;
+  if (!hasWebCodecs) return {kind: "pcm", sampleRate, ch, frames, data: toBase64(pcmEncode(chans))};
+
+  const packets = [];
+  let fail = null;
+  const enc = new AudioEncoder({
+    output: c => { const b = new Uint8Array(c.byteLength); c.copyTo(b); packets.push(b); },
+    error: e => { fail = e; }
+  });
+  try{
+    enc.configure({codec: "opus", sampleRate, numberOfChannels: ch, bitrate: 96000});
+    /* one planar block per 20 ms, padded at the end so the last frame is whole */
+    for (let off = 0; off < frames; off += FRAME){
+      const n = Math.min(FRAME, frames - off);
+      const flat = new Float32Array(FRAME * ch);
+      for (let c = 0; c < ch; c++) flat.set(chans[c].subarray(off, off + n), c * FRAME);
+      enc.encode(new AudioData({
+        format: "f32-planar", sampleRate, numberOfFrames: FRAME, numberOfChannels: ch,
+        timestamp: Math.round(off / sampleRate * 1e6), data: flat
+      }));
+    }
+    await enc.flush();
+    enc.close();
+  }catch(e){ fail = e; try{ enc.close(); }catch(e2){} }
+
+  /* Anything at all wrong and it goes as PCM. A take that arrives large is a take that
+     arrived; a take that fails to encode is silence nobody can explain. */
+  if (fail || !packets.length)
+    return {kind: "pcm", sampleRate, ch, frames, data: toBase64(pcmEncode(chans))};
+  return {kind: "opus", sampleRate, ch, frames, data: toBase64(packChunks(packets))};
+}
+
+async function decode(p){
+  const bytes = fromBase64(p.data);
+  if (p.kind === "pcm") return pcmDecode(bytes, p.ch, p.frames);
+
+  const out = [];
+  for (let c = 0; c < p.ch; c++) out.push(new Float32Array(p.frames));
+  let wrote = 0, fail = null;
+  const dec = new AudioDecoder({
+    output: d => {
+      const n = Math.min(d.numberOfFrames, p.frames - wrote);
+      if (n > 0){
+        const tmp = new Float32Array(d.numberOfFrames);
+        for (let c = 0; c < p.ch; c++){
+          d.copyTo(tmp, {planeIndex: c, format: "f32-planar"});
+          out[c].set(tmp.subarray(0, n), wrote);
+        }
+        wrote += n;
+      }
+      d.close();
+    },
+    error: e => { fail = e; }
+  });
+  try{
+    dec.configure({codec: "opus", sampleRate: p.sampleRate, numberOfChannels: p.ch});
+    unpackChunks(bytes).forEach((b, i) => dec.decode(new EncodedAudioChunk({
+      type: "key", timestamp: Math.round(i * FRAME / p.sampleRate * 1e6), data: b
+    })));
+    await dec.flush();
+    dec.close();
+  }catch(e){ fail = e; try{ dec.close(); }catch(e2){} }
+  if (fail) return null;
+  return out;
+}
+
+return {encode, decode, get opus(){ return hasWebCodecs; }};
 })();
 
 /* Shared jam sessions.
@@ -1937,6 +2109,14 @@ function onMessage(m){
     takePattern(m.inst, m.pattern);
     return;                                   // nor is a step
   }
+  if (m.kind === "note"){
+    takeNote(m);
+    return;                                   // nor, most of all, is a note
+  }
+  if (m.kind === "take"){
+    takeTake(m);
+    return;
+  }
   if (m.kind === "own"){
     if (m.owner) owners.set(m.inst, m.owner); else owners.delete(m.inst);
     notify();
@@ -2069,6 +2249,78 @@ function leave(){
   notify();
 }
 
+/* ---- live notes ----
+   The one thing here that is NOT state. A pattern, a patch and a block are all "what is
+   true now" and can be polled; a note is an event, and an event that arrives late is
+   simply a late note.
+
+   Sent the moment it is played and played the moment it arrives. No seam, deliberately:
+   a seam is what you want for a change of MATERIAL, and exactly what you do not want for
+   somebody's fingers. On a LAN that is a millisecond or two and genuinely playable. Over a
+   long link it will not be, and the honest fix there is Ninjam's — put everyone a bar
+   behind, which this codebase could do because every event already carries a musical
+   position. That is a decision about the room, not about this file.
+
+   ⚠️ `applying` is set around the local playback of a remote note. VC·1 and PM·1 route
+   their sequencers through the same noteOn() a person uses, so without the guard a note
+   arriving here would be broadcast straight back out. */
+const voiceKit = [];             // {id, on, off}
+function registerVoice(id, spec){
+  if (!spec || !spec.on) return;
+  voiceKit.push({id, on: spec.on, off: spec.off || function(){}});
+}
+function played(id, note, vel, isOn){
+  if (!tx || applying) return;
+  send("note", {inst: id, n: note, v: vel, on: !!isOn});
+}
+function takeNote(m){
+  const it = voiceKit.find(x => x.id === m.inst);
+  if (!it) return;
+  applying = true;
+  try{ if (m.on) it.on(m.n, m.v == null ? 100 : m.v); else it.off(m.n); }
+  catch(e){}
+  finally { applying = false; }
+}
+
+/* ---- pushing a take ----
+   The looper works exactly as it does alone: you record, you listen, you re-record. Nobody
+   else hears any of it until you push it. That is deliberate and it is the whole shape of
+   the feature — a take you are not sure about should not be everybody's problem, and a
+   looper you cannot experiment on in company is a looper you will not use in company.
+
+   ⚠️ In a session the looper must record its INPUT and not the studio bus. Locally the bus
+   is the useful source: capture what the band just played, then overdub. In a session your
+   render of the bus already contains everybody's parts, so pushing it would have the room
+   hear the band twice — once live and once printed, and doubled again by the first overdub.
+   The exclusion the bus tap already does for one strip has to be the whole idea: what
+   travels as audio is what has no pattern. See setInput() in lp1's engine.
+
+   It is a REQUEST, not a broadcast of state: the take is not polled, has no "current" value
+   worth reconciling, and a second push of the same slot simply replaces it. */
+let pushing = false;
+async function pushTake(slot){
+  const t = Patchwork.record.track("lp1");
+  if (!tx || !t || !t.grabTake || pushing) return {ok: false, why: "not in a jam"};
+  pushing = true;
+  try{
+    const chans = await t.grabTake(slot);
+    if (!chans) return {ok: false, why: "that take is empty"};
+    const rate = t.sampleRate ? t.sampleRate() : 48000;
+    const packed = await Patchwork.codec.encode(chans, rate);
+    /* the length and the tempo travel with it, because the receiver may have no bank yet */
+    send("take", {slot: slot | 0, take: packed, meta: t.takeMeta ? t.takeMeta() : null});
+    return {ok: true, kind: packed.kind, bytes: packed.data.length};
+  } finally { pushing = false; }
+}
+async function takeTake(m){
+  const t = Patchwork.record.track("lp1");
+  if (!t || !t.loadTake || !m.take) return;
+  const chans = await Patchwork.codec.decode(m.take);
+  if (!chans) return;
+  t.loadTake(m.slot, chans, m.meta);
+  notify();
+}
+
 /* ---- the owner label ----
    Injected into each plate, the way faces.js does the Panel button and record.js the Arm —
    one implementation, and an instrument added later gets it without being told to.
@@ -2145,6 +2397,7 @@ Patchwork.scenes.onChange(pushScenes);
 Patchwork.clock.onTempo("session", pushTransport, null);
 
 return {join, leave, browse, claim, release, ownerName, registerPatch, mountOwners,
+        registerVoice, played, pushTake,
         onChange: fn => subs.push(fn),
         fired: row => send("fire", {row}),
         get active(){ return !!tx; },
@@ -3288,6 +3541,14 @@ Patchwork.session.registerPatch("dr1", {
     });
     syncVoice();
   }
+});
+
+/* ---- somebody else's hits ----
+   A lane id rather than a note number, because that is what DR·1's keyboard sends. A drum
+   voice rings out on its own, so there is nothing to release. */
+Patchwork.session.registerVoice("dr1", {
+  on: id => { if (VOICES[id]) audition(id); },
+  off: () => {}
 });
 
 /* ============ midi ============ */

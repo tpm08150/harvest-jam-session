@@ -21,12 +21,17 @@ Patchwork.record.register("lp1", {
   /* armed is not yet a row — it is a row about to start on the bar line, and the launcher
      already draws that as the queued state */
   liveSlot: () => (LP.mode === "idle" || LP.mode === "armed") ? null : LP.slot,
+  /* how the session gets a take out of here and puts one back — see shell/codec.js */
+  grabTake: n => grabTake(n),
+  loadTake: (n, chans, meta) => loadTake(n, chans, meta),
+  takeMeta: () => ({bars: LP.bars, bpm: LP.bpmAtRecord || Patchwork.clock.bpm || 120}),
+  sampleRate: () => (ctx ? ctx.sampleRate : 48000),
   disarm: () => { if (LP.mode === "rec" || LP.mode === "armed") stopLoop(); },
   stop: () => stopLoop()
 });
 
 window.__lp1 = {LP, arm, play, fireSlot, selectSlot, hasSlot, clearSlot, stopLoop, clearLoop, undo,
-                setDub, queueSlot,
+                setDub, queueSlot, grabTake, loadTake,
                 openInput, closeInput,
                 ensureNode, allocate, loopFrames,
                 get ctx(){ return ctx; }, get node(){ return node; }};

@@ -86,8 +86,54 @@ function allocate(){
   setMode("idle");
 }
 
+/* ---- sharing a take ----
+   Pulled out of the worklet, encoded, and pushed by hand. NOT automatically: a take is
+   private until you decide it is worth other people hearing, which is the whole difference
+   between a looper you can experiment on and one you perform into. */
+let grabWait = null;
+function grabTake(slot){
+  return new Promise(resolve => {
+    if (!node) return resolve(null);
+    grabWait = resolve;
+    node.port.postMessage({op: "grab", slot: slot | 0});
+    setTimeout(() => { if (grabWait){ grabWait = null; resolve(null); } }, 3000);
+  });
+}
+/* ⚠️ A received take has to bring its own LENGTH. The receiving browser may never have
+   touched its looper — no worklet, no allocation, this.len still zero — and the load would
+   land in a bank with no room in it and do nothing at all, silently. The take's own frame
+   count is the honest source: it is what the room is already looping to. */
+async function loadTake(slot, chans, meta){
+  if (!chans || !chans.length) return;
+  const n = await ensureNode();
+  if (!n) return;
+  if (!LP.len){
+    LP.len = chans[0].length;
+    if (meta && meta.bars) LP.bars = meta.bars;
+    const barsSel = $("#bars"); if (barsSel) barsSel.value = String(LP.bars);
+  }
+  /* the tempo it was CUT at, not ours — the panel warns when the two disagree, and it
+     should be warning about the take that exists rather than one we never made */
+  LP.bpmAtRecord = (meta && meta.bpm) || LP.bpmAtRecord || Patchwork.clock.bpm || 120;
+  loadingTake = true;
+  n.port.postMessage({op: "load", slot: slot | 0, len: chans[0].length,
+                      ch0: chans[0], ch1: chans[1] || chans[0]});
+  /* never leave the guard up if the worklet never answers */
+  setTimeout(() => { loadingTake = false; }, 3000);
+  paintState();
+}
+
 function onWorklet(m){
-  if (m.filled){ LP.filled = m.filled; releaseLength(); }
+  if (m.ev === "take"){
+    const fn = grabWait; grabWait = null;
+    if (fn) fn(m.empty ? null : [m.ch0, m.ch1]);
+    return;
+  }
+  if (m.filled){
+    LP.filled = m.filled;
+    if (m.filled.length) loadingTake = false;      // it landed
+    releaseLength();
+  }
   if (m.slot != null) LP.slot = m.slot;
   if (m.ev === "pos"){ LP.pos = m.pos; LP.len = m.len; LP.peak = m.peak; return; }
   if (m.ev === "slots"){ paintState(); return; }
@@ -103,7 +149,14 @@ function setMode(mode){
 /* The length is committed only while a take exists. An arm cancelled before it recorded,
    or the last take cleared, leaves the bank free to be given a different number of bars —
    which is otherwise refused, because re-lengthing empties every slot. */
+/* ⚠️ Not while a pushed take is on its way in. ensureNode() allocates, and an allocation
+   answers with an empty `filled` — which this reads as "no takes, so no committed length"
+   and uses to drop the tempo the arriving take was cut at. The flag covers exactly the
+   window between setting that tempo and the take landing; it cost three attempts to see,
+   because the take itself always arrived correctly and only the drift warning was wrong. */
+let loadingTake = false;
 function releaseLength(){
+  if (loadingTake) return;
   if (LP.mode === "idle" && !LP.filled.length) LP.bpmAtRecord = null;
 }
 

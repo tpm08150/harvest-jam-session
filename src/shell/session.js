@@ -347,6 +347,14 @@ function onMessage(m){
     takePattern(m.inst, m.pattern);
     return;                                   // nor is a step
   }
+  if (m.kind === "note"){
+    takeNote(m);
+    return;                                   // nor, most of all, is a note
+  }
+  if (m.kind === "take"){
+    takeTake(m);
+    return;
+  }
   if (m.kind === "own"){
     if (m.owner) owners.set(m.inst, m.owner); else owners.delete(m.inst);
     notify();
@@ -479,6 +487,78 @@ function leave(){
   notify();
 }
 
+/* ---- live notes ----
+   The one thing here that is NOT state. A pattern, a patch and a block are all "what is
+   true now" and can be polled; a note is an event, and an event that arrives late is
+   simply a late note.
+
+   Sent the moment it is played and played the moment it arrives. No seam, deliberately:
+   a seam is what you want for a change of MATERIAL, and exactly what you do not want for
+   somebody's fingers. On a LAN that is a millisecond or two and genuinely playable. Over a
+   long link it will not be, and the honest fix there is Ninjam's — put everyone a bar
+   behind, which this codebase could do because every event already carries a musical
+   position. That is a decision about the room, not about this file.
+
+   ⚠️ `applying` is set around the local playback of a remote note. VC·1 and PM·1 route
+   their sequencers through the same noteOn() a person uses, so without the guard a note
+   arriving here would be broadcast straight back out. */
+const voiceKit = [];             // {id, on, off}
+function registerVoice(id, spec){
+  if (!spec || !spec.on) return;
+  voiceKit.push({id, on: spec.on, off: spec.off || function(){}});
+}
+function played(id, note, vel, isOn){
+  if (!tx || applying) return;
+  send("note", {inst: id, n: note, v: vel, on: !!isOn});
+}
+function takeNote(m){
+  const it = voiceKit.find(x => x.id === m.inst);
+  if (!it) return;
+  applying = true;
+  try{ if (m.on) it.on(m.n, m.v == null ? 100 : m.v); else it.off(m.n); }
+  catch(e){}
+  finally { applying = false; }
+}
+
+/* ---- pushing a take ----
+   The looper works exactly as it does alone: you record, you listen, you re-record. Nobody
+   else hears any of it until you push it. That is deliberate and it is the whole shape of
+   the feature — a take you are not sure about should not be everybody's problem, and a
+   looper you cannot experiment on in company is a looper you will not use in company.
+
+   ⚠️ In a session the looper must record its INPUT and not the studio bus. Locally the bus
+   is the useful source: capture what the band just played, then overdub. In a session your
+   render of the bus already contains everybody's parts, so pushing it would have the room
+   hear the band twice — once live and once printed, and doubled again by the first overdub.
+   The exclusion the bus tap already does for one strip has to be the whole idea: what
+   travels as audio is what has no pattern. See setInput() in lp1's engine.
+
+   It is a REQUEST, not a broadcast of state: the take is not polled, has no "current" value
+   worth reconciling, and a second push of the same slot simply replaces it. */
+let pushing = false;
+async function pushTake(slot){
+  const t = Patchwork.record.track("lp1");
+  if (!tx || !t || !t.grabTake || pushing) return {ok: false, why: "not in a jam"};
+  pushing = true;
+  try{
+    const chans = await t.grabTake(slot);
+    if (!chans) return {ok: false, why: "that take is empty"};
+    const rate = t.sampleRate ? t.sampleRate() : 48000;
+    const packed = await Patchwork.codec.encode(chans, rate);
+    /* the length and the tempo travel with it, because the receiver may have no bank yet */
+    send("take", {slot: slot | 0, take: packed, meta: t.takeMeta ? t.takeMeta() : null});
+    return {ok: true, kind: packed.kind, bytes: packed.data.length};
+  } finally { pushing = false; }
+}
+async function takeTake(m){
+  const t = Patchwork.record.track("lp1");
+  if (!t || !t.loadTake || !m.take) return;
+  const chans = await Patchwork.codec.decode(m.take);
+  if (!chans) return;
+  t.loadTake(m.slot, chans, m.meta);
+  notify();
+}
+
 /* ---- the owner label ----
    Injected into each plate, the way faces.js does the Panel button and record.js the Arm —
    one implementation, and an instrument added later gets it without being told to.
@@ -555,6 +635,7 @@ Patchwork.scenes.onChange(pushScenes);
 Patchwork.clock.onTempo("session", pushTransport, null);
 
 return {join, leave, browse, claim, release, ownerName, registerPatch, mountOwners,
+        registerVoice, played, pushTake,
         onChange: fn => subs.push(fn),
         fired: row => send("fire", {row}),
         get active(){ return !!tx; },

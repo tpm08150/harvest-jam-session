@@ -286,3 +286,9 @@ Patchwork.session.registerPatch("vc1", {
     refreshAllControls();
   }
 });
+
+/* ---- somebody else's notes ---- see BS·1's. */
+Patchwork.session.registerVoice("vc1", {
+  on: (n, v) => { ensureAudio(); noteOn(n, v); paintNow(); },
+  off: n => { noteOff(n); paintNow(); }
+});

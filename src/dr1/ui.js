@@ -256,3 +256,11 @@ Patchwork.session.registerPatch("dr1", {
     syncVoice();
   }
 });
+
+/* ---- somebody else's hits ----
+   A lane id rather than a note number, because that is what DR·1's keyboard sends. A drum
+   voice rings out on its own, so there is nothing to release. */
+Patchwork.session.registerVoice("dr1", {
+  on: id => { if (VOICES[id]) audition(id); },
+  off: () => {}
+});
