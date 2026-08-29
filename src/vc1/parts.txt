@@ -1,0 +1,27 @@
+# VC·1 standalone.
+vc1/head.html
+shell/tokens.css
+shell/reset.css
+shell/chrome.css
+vc1/_panel-open.css
+vc1/panel.css
+vc1/_panel-close.css
+shell/page-open.html
+vc1/panel.html
+shell/script-open.html
+shell/host.js
+shell/bus.js
+shell/clock.js
+shell/midi.js
+shell/scenes.js
+shell/faces.js
+voice/core.js
+seq/step-seq.js
+vc1/_open.js
+vc1/engine.js
+vc1/ui.js
+vc1/midi.js
+vc1/boot.js
+vc1/_close.js
+shell/boot.js
+shell/tail.html

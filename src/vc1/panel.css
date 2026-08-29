@@ -1,0 +1,108 @@
+/* BS·1 owns its accent and its sequencer grid; the rest comes from the shared chrome. */
+:scope{
+  --vc-accent:#d67ab1;
+  --vc-accent-hi:#e59ac7;
+  --vc-accent-lo:#a85287;
+  --vc-accent-ink:#2b0e20;
+  width:100%;max-width:760px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  padding:20px 18px 24px;position:relative;overflow:clip;
+}
+:scope::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px)}
+:scope>*{position:relative;z-index:1}
+
+.rule{height:1px;background:linear-gradient(90deg,transparent,var(--vc-accent),transparent);
+  opacity:.55;margin:12px 0 16px}
+.screws{display:flex;gap:9px;align-items:center}
+.screw{width:9px;height:9px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#68727a,#2b3237 68%,#171b1e);
+  box-shadow:0 1px 0 rgba(255,255,255,.10),0 0 0 1px rgba(0,0,0,.5) inset}
+
+.card{background:var(--paper);border-radius:6px;padding:14px 14px 12px;color:var(--ink);
+  box-shadow:0 2px 0 rgba(0,0,0,.35),0 10px 22px rgba(0,0,0,.32)}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.now{font-family:Fraunces,Georgia,serif;font-size:30px;line-height:1.1;margin:6px 0 10px;
+  color:var(--ink);min-height:34px}
+.keys{display:flex;height:74px;border-radius:4px;overflow:hidden;
+  border:1px solid rgba(35,43,49,.2);background:#f4f1e8}
+.keys .k{flex:1 1 0;border-right:1px solid rgba(35,43,49,.18);cursor:pointer;position:relative}
+.keys .k:last-child{border-right:0}
+.keys .k.b{background:#2a3238;flex:0 0 0;width:0;margin:0 -7px;z-index:2;height:62%;
+  border-radius:0 0 2px 2px;border:0}
+.keys .k.b i{position:absolute;inset:0;width:14px;left:-7px;background:#2a3238;
+  border-radius:0 0 2px 2px}
+.keys .k.on{background:var(--vc-accent)}
+.keys .k.b.on i{background:var(--vc-accent-hi)}
+
+.transport{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 4px}
+.tempo{display:flex;align-items:center;background:var(--slot);border:1px solid var(--groove);
+  border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;overflow:hidden}
+.tempo button{background:none;border:0;color:var(--silk-dim);font-size:15px;padding:8px 12px;
+  cursor:pointer;font-family:inherit}
+.tempo button:hover{color:var(--silk)}
+.tempo span{font-family:"DM Mono";font-size:13px;color:var(--mint);min-width:38px;
+  text-align:center;font-variant-numeric:tabular-nums}
+
+.sect{margin-top:20px;padding-top:16px;border-top:1px solid rgba(0,0,0,.4);
+  box-shadow:0 -1px 0 rgba(255,255,255,.05)}
+.sect-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:10px}
+.patrow{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.knobrow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.knobrow .hfader{flex:1 1 150px}
+
+/* ---- sequencer grid ---- */
+.seqwrap{display:flex;flex-direction:column;gap:5px}
+.seqrow{display:flex;align-items:center;gap:9px}
+.rlab{flex:0 0 44px;font-family:"DM Mono";font-size:9px;letter-spacing:.04em;
+  color:var(--read-dim);text-align:right}
+.steps{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;flex:1 1 auto;min-width:0}
+.step{
+  height:26px;border-radius:3px;padding:0;cursor:pointer;position:relative;
+  background:var(--slot);border:1px solid var(--groove);
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  font-family:"DM Mono";font-size:9px;letter-spacing:-.02em;color:var(--read-dim);
+}
+.step.on{background:linear-gradient(180deg,var(--vc-accent-hi),var(--vc-accent));
+  border-color:var(--vc-accent-lo);color:var(--vc-accent-ink);
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset}
+.step.beat::before{content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);
+  width:2px;height:2px;border-radius:50%;background:rgba(255,255,255,.45)}
+.step.acc{box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 0 0 1px var(--cap-yellow) inset}
+.step.sld::after{content:"";position:absolute;bottom:2px;left:3px;right:3px;height:2px;
+  border-radius:1px;background:var(--stripe-mod)}
+.step.tie{background:linear-gradient(180deg,#5a6a76,#43505a);color:#cfd8de}
+.step.now{outline:2px solid var(--mint);outline-offset:1px;z-index:2}
+
+.seqlegend{display:flex;gap:14px;flex-wrap:wrap;font-family:"DM Mono";font-size:9px;
+  letter-spacing:.04em;color:var(--read-dim);margin-top:9px}
+.seqlegend i{display:inline-block;width:9px;height:9px;border-radius:2px;
+  vertical-align:-1px;margin-right:5px}
+
+/* ---- faders ---- */
+.hfader{display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
+  padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13)}
+.hslot{position:relative;flex:1 1 auto;min-width:52px;height:20px;border-radius:4px;
+  background:linear-gradient(180deg,#20262a,#12161a 45%,#20262a);
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06)}
+.hslot::after{content:"";position:absolute;left:7px;right:7px;top:50%;height:3px;
+  transform:translateY(-50%);background:#0b0e10;border-radius:2px}
+.hcap{position:absolute;top:-3px;height:26px;width:20px;border-radius:3px;transform:translateX(-50%);
+  background:linear-gradient(180deg,#5b656b,#394247);border:1px solid #14181b;
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset}
+.hcap::after{content:"";position:absolute;top:3px;bottom:3px;left:50%;width:3px;margin-left:-1.5px;
+  border-radius:2px;background:var(--vc-accent)}
+.hfader.dragging .hcap{border-color:var(--mint)}
+.hfader .hval{font-family:"DM Mono";font-size:10px;color:#aeb8be;min-width:46px;text-align:right}
+.hfader .hlab{white-space:nowrap}
+.row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:10px}
+
+/* input meter — the only way to tell "nothing arriving" from "signal fine, no notes held" */
+.meter{flex:0 0 90px;height:5px;border-radius:3px;background:#12161a;overflow:hidden}
+.meter i{display:block;height:100%;width:0;
+  background:linear-gradient(90deg,var(--vc-accent),var(--cap-yellow) 84%,var(--cap-red));
+  transition:width .08s linear}
+@media (prefers-reduced-motion:reduce){ .meter i{transition:none} }

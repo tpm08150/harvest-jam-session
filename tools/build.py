@@ -28,6 +28,7 @@ APPS = {"cs1": "patchwork-chord-synth.html",
         "dr1": "patchwork-drums.html",
         "lp1": "patchwork-looper.html",
         "bs1": "patchwork-bass.html",
+        "vc1": "patchwork-vocoder.html",
         "studio": "patchwork-studio.html"}
 
 

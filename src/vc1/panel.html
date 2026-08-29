@@ -1,0 +1,123 @@
+
+<div class="unit vc1" data-instrument="vc1">
+
+  <div data-face class="plate">
+    <div>
+      <div class="brand">Patchwork</div>
+      <div class="model">VC·1 — vocoder</div>
+    </div>
+    <div class="screws"><i class="screw"></i><i class="screw"></i></div>
+  </div>
+  <div data-face class="rule"></div>
+
+  <div data-face class="card">
+    <div class="card-head">
+      <span class="card-title">Carrier</span>
+      <span class="card-meta" id="nowMeta">paraphonic · 6 notes</span>
+    </div>
+    <div class="now" id="nowNote">—</div>
+    <div class="keys" id="keys" role="group" aria-label="Carrier keyboard"></div>
+  </div>
+
+  <div data-face class="transport">
+    <button class="btn primary" id="play">▶ Play</button>
+    <button class="btn ghost" id="hold">Hold</button>
+    <button class="btn ghost" id="listen">Listen</button>
+    <div class="tempo">
+      <button id="bpmDown" aria-label="Slower">−</button>
+      <span id="tempoOut">120</span>
+      <button id="bpmUp" aria-label="Faster">+</button>
+    </div>
+    <span class="meter"><i id="inMeter"></i></span>
+    <button class="btn panic" id="panic">Panic</button>
+  </div>
+
+  <div data-face class="row">
+    <div class="field">
+      <label for="inSel">Modulator</label>
+      <select id="inSel">
+        <option value="__mic">Microphone</option>
+        <option value="__bus">Studio output</option>
+      </select>
+    </div>
+    <div class="field" style="flex:0 0 auto">
+      <span class="silk">Bands</span>
+      <div class="seg sm" id="bands" role="group" aria-label="Band count">
+        <button data-b="8">8</button>
+        <button data-b="16" class="on">16</button>
+        <button data-b="24">24</button>
+      </div>
+    </div>
+    <div class="field" style="flex:0 0 auto">
+      <span class="silk">Carrier</span>
+      <div class="seg sm" id="wave" role="group" aria-label="Carrier waveform">
+        <button data-w="saw" class="on">Saw</button>
+        <button data-w="square">Pulse</button>
+        <button data-w="triangle">Tri</button>
+      </div>
+    </div>
+  </div>
+
+  <div data-face class="sect">
+    <div class="sect-head">
+      <span class="silk">Sequence</span>
+      <div class="patrow">
+        <div class="field" style="flex:0 0 84px">
+          <label for="seqLen">Steps</label><select id="seqLen"></select>
+        </div>
+        <div class="field" style="flex:0 0 92px">
+          <label for="seqRate">Rate</label><select id="seqRate"></select>
+        </div>
+        <div class="field" style="flex:0 0 96px">
+          <label for="seqKey">Key</label><select id="seqKey"></select>
+        </div>
+        <div class="field" style="flex:0 0 116px">
+          <label for="seqScale">Scale</label><select id="seqScale"></select>
+        </div>
+      </div>
+    </div>
+    <div class="seqwrap" id="seqWrap"></div>
+    <div class="seqlegend">
+      <span><i style="background:var(--vc-accent)"></i>step</span>
+      <span><i style="background:var(--cap-yellow)"></i>accent — click again</span>
+      <span>shift-click ties · drag a step to pitch it</span>
+    </div>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head"><span class="silk">Bank</span></div>
+    <div class="knobrow">
+      <div class="hfader" id="qF"><span class="hlab">Q</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="respF"><span class="hlab">Response</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="sibF"><span class="hlab">Unvoiced</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="compF"><span class="hlab">Squeeze</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="modF"><span class="hlab">Input</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="carrF"><span class="hlab">Carrier</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="mixF"><span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+      <div class="hfader" id="relF"><span class="hlab">Release</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
+    </div>
+    <p class="note" id="vocNote">Press <b>Listen</b> to open the modulator. <b>Use headphones</b> — a microphone into speakers will feed back.</p>
+    <p class="note">
+      <b>Squeeze</b> is what stops the vocoder needing a hot input: a band opens in
+      proportion to its energy, so without compression the whole output level tracks how
+      loudly you speak. <b>Unvoiced</b> is a separate noise path, because a pitched carrier
+      physically cannot produce “s” or “t”.
+    </p>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head"><span class="silk"><i class="led" id="midiLed"></i>MIDI</span></div>
+    <div class="row">
+      <div class="field">
+        <label for="midiIn">Input</label>
+        <select id="midiIn"><option value="">— none —</option></select>
+      </div>
+      <div class="field" style="flex:0 0 74px">
+        <label for="midiInCh">In ch</label>
+        <select id="midiInCh"></select>
+      </div>
+    </div>
+    <p class="note" id="midiNote">—</p>
+  </div>
+
+</div>
