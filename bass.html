@@ -686,14 +686,87 @@ function claim(quantumBeats){
 let originSource = null;
 function setOriginSource(fn){ originSource = fn; }
 
+let ticks = 0;
 function pump(){
+  ticks++;
   /* A tick that throws must not take the other instruments' transports down with it. */
   running.forEach(fn => { try{ fn(); }catch(e){ console.error("clock tick failed", e); } });
 }
 
+/* ---- what drives the tick ----
+   ⚠️ setInterval STOPS IN A TAB YOU CANNOT SEE. Measured: a plain setInterval(fn, 25) in a
+   non-visible tab produced 4 ticks in 3 seconds where 120 were asked for — about 1.3 Hz,
+   against a scheduler that looks 200 ms ahead. That is not a degraded tick, it is a stopped
+   one, and every instrument on the page goes silent behind it.
+
+   Chrome exempts pages that are PLAYING AUDIO, which is why this was invisible for so long:
+   a jam in progress was never the case that broke. The case that breaks is a client sitting
+   in a session with nothing sounding, waiting to fire a row — its clock has stalled by the
+   time it does, and in a shared session that is everybody's problem rather than its own.
+
+   So the tick comes off the AUDIO THREAD instead. It is real-time, it is never throttled
+   while the context runs, and this clock was always about audio time — the interval was
+   only ever a way of asking "has 25 ms passed".
+
+   Three things this needs and would otherwise be an afternoon:
+
+   - THE NODE MUST BE CONNECTED. A worklet nobody pulls is a worklet whose process() is never
+     called, so it goes through a zero gain to the destination: audible to nothing, pulled by
+     the graph all the same.
+   - THE MODULE LOADS ASYNCHRONOUSLY. The interval keeps running until the worklet is live.
+     Double-ticking across the handover is harmless — every instrument's tick() only schedules
+     while nextTime is inside the lookahead, so a second call finds nothing to do.
+   - A SLOW INTERVAL STAYS as a backstop, because a suspended context stops the audio thread
+     too. It is far too slow to be the mechanism and is not meant to be; it is there so a
+     failure sounds like gaps rather than silence, and it heals as soon as the worklet
+     returns. */
+const TICK_SRC = "\n" + [
+  "class TickProcessor extends AudioWorkletProcessor {",
+  "  constructor(){ super(); this.n = 0; }",
+  "  process(){",
+  "    /* 128 frames a quantum, so eight of them is about 21 ms at 48 kHz - near enough the",
+  "       25 ms the interval asked for, and indifferent to whether the tab is visible. */",
+  "    if (++this.n >= 8){ this.n = 0; this.port.postMessage(0); }",
+  "    return true;",
+  "  }",
+  "}",
+  "registerProcessor('pw-tick', TickProcessor);"
+].join("\n");
+
+let tickNode = null, tickLoading = false;
+const FAST = 25, BACKSTOP = 500;
+let interval = FAST;
+
+function setInterval_(ms){
+  if (timer != null) clearInterval(timer);
+  interval = ms;
+  timer = setInterval(pump, ms);
+}
+
+function ensureTicker(){
+  if (tickNode || tickLoading) return;
+  const ctx = Patchwork.audio && Patchwork.audio.ctx;
+  if (!ctx || !ctx.audioWorklet) return;          // the interval is covering us
+  tickLoading = true;
+  /* a Blob URL, the same trick LP·1's worklet uses to keep the one-file rule */
+  const url = URL.createObjectURL(new Blob([TICK_SRC], {type: "text/javascript"}));
+  ctx.audioWorklet.addModule(url).then(() => {
+    URL.revokeObjectURL(url);
+    const n = new AudioWorkletNode(ctx, "pw-tick",
+      {numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1]});
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    n.connect(mute); mute.connect(ctx.destination);
+    n.port.onmessage = () => { if (running.size) pump(); };
+    tickNode = n;
+    if (timer != null) setInterval_(BACKSTOP);
+  }).catch(() => { tickLoading = false; });      // stay on the interval
+}
+
 function run(fn){
   running.add(fn);
-  if (timer == null) timer = setInterval(pump, 25);
+  ensureTicker();
+  if (timer == null) setInterval_(tickNode ? BACKSTOP : FAST);
 }
 
 function stop(fn){
@@ -748,7 +821,11 @@ return {claim, run, stop, setBpm, onTempo, beatSeconds, setRate, setOriginSource
         get rate(){ return rate; },
         get bpm(){ return bpm; },
         get origin(){ return origin; },
-        get running(){ return running.size; }};
+        get running(){ return running.size; },
+        /* what is actually driving the tick, and how many it has done — diagnostics, but
+           the kind you want when a session sounds like it has stalled */
+        get driver(){ return tickNode ? "worklet" : (timer != null ? "interval" : "none"); },
+        get ticks(){ return ticks; }};
 })();
 
 /* The metronome.
