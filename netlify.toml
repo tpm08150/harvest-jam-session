@@ -9,6 +9,13 @@
   to = "/patchwork-chord-synth.html"
   status = 200
 
+# The second instrument gets a clean path of its own. Same rewrite trick, and the root
+# still belongs to CS-1 so existing links and bookmarks keep working.
+[[redirects]]
+  from = "/mono"
+  to = "/patchwork-mono-synth.html"
+  status = 200
+
 # The app is a single file that changes on every deploy — never let a browser hold
 # a stale copy. (Learned the hard way against a local dev server.)
 [[headers]]
