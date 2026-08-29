@@ -102,6 +102,26 @@ Patchwork.scenes.register("pm1", {
   }
 });
 
+/* PM·1 keeps MS·1's richer sequencer, so recording writes through writeStep() — the same
+   path a hand-written step takes, locks and all. Nearest step, not the sounding one. */
+Patchwork.record.register("pm1", {
+  name: "PM·1",
+  write: (midi, vel, when) => {
+    if (!SEQ.playing) return -1;
+    const t = when == null ? (ctx ? ctx.currentTime : 0) : when;
+    const step = stepSeconds();
+    const cur = nextSounding();
+    if (cur == null) return -1;
+    const i = cur.i;
+    const st = SEQ.steps[i];
+    writeStep(st, midi);
+    st.on = 1; st.tie = 0;
+    st.accent = vel >= 100 ? 1 : 0;
+    paintSteps();
+    return i;
+  }
+});
+
 window.__pm1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
                 applyParams, noteOn, noteOff, buildVoice, renderPatch,
                 stepEvent, nextSounding, stepSeconds, swungAt, envValueAt,

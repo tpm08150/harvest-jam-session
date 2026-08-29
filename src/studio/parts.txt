@@ -37,6 +37,7 @@ bs1/panel.html
 dr1/panel.html
 lp1/panel.html
 studio/rack-close.html
+studio/live.html
 shell/script-open.html
 shell/host.js
 shell/bus.js
@@ -44,6 +45,7 @@ shell/clock.js
 shell/midi.js
 shell/scenes.js
 shell/faces.js
+shell/record.js
 voice/core.js
 seq/step-seq.js
 cs1/_open.js
@@ -92,6 +94,7 @@ lp1/ui.js
 lp1/boot.js
 lp1/_close.js
 studio/scenes.js
+studio/live.js
 studio/boot.js
 shell/boot.js
 shell/tail.html

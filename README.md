@@ -1,4 +1,4 @@
-# Patchwork
+# Harvest Jam
 
 Six instruments that run entirely in the browser, separately or together. One HTML file
 each, no dependencies —
@@ -204,6 +204,18 @@ it at a microphone instead and it behaves the same way (**use headphones**).
 The loop is a fixed number of samples, worked out from the tempo when you armed it. Audio
 cannot stretch, so the panel shows the tempo it was cut at and tells you when that no
 longer matches.
+
+## Live
+
+The studio has two views. **Studio** is the rack — every instrument's face, uniform height,
+with the launcher beside them; opening a panel gives it the whole window and Escape backs
+out. **Live** is the launcher made big, with an arm per track and a record button.
+
+Recording is Ableton's gesture: the transport is already running, you arm a track, you hit
+record, and what you play lands on the grid at the nearest step. Nothing stops, nothing is
+a take. PM·1, VC·1 and BS·1 record notes, DR·1 records lanes, LP·1 records audio. CS·1
+cannot — its pattern is a chord progression rather than a step grid, so its arm is disabled
+and says so.
 
 ## Scenes
 

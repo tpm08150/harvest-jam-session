@@ -1206,6 +1206,59 @@ Things the removal simplified rather than merely deleted, each worth keeping:
   instruments. Either a narrower face or a way to hide an instrument is the fix, and that
   is a design decision rather than a bug.
 
+## The live page
+
+A second view of the studio: the scene launcher made big, with an arm per track and one
+record button over the top. `Live` / `Studio` in the header.
+
+**Ableton's gesture, which is the one worth copying:** the transport is already running,
+you arm a track, you press record, and what you play lands on the grid. Nothing stops and
+nothing is a take. Arming is a standing choice; record is the momentary one, which is why
+turning record on tells everything already armed to begin rather than making you arm twice.
+
+`shell/record.js` owns arming and the global record state. **Each instrument owns what
+"write a note" means**, because a drum lane, a bass line and a chord progression are not
+the same thing and a shared writer would have to pretend they were:
+
+| | what a recorded note becomes |
+| --- | --- |
+| PM·1 | a step through `writeStep()`, the same path a hand-written one takes |
+| VC·1, BS·1 | a step on the shared sequencer, pitch stored as a scale degree |
+| DR·1 | a lane, chosen by GM note number |
+| LP·1 | audio — no `write()` at all; arm hands straight to its own transport |
+| CS·1 | **nothing.** Its pattern is a chord progression, not steps |
+
+CS·1's arm button is disabled and says why on hover. An arm that silently does nothing is
+worse than one that is visibly unavailable.
+
+### Quantisation is to the NEAREST step, not the sounding one
+
+A player anticipates the beat. Writing to the step that has already started pushes a whole
+take late by up to a step, which is the difference between a recording that feels played
+and one that feels dragged. `recordAt()` takes the mark containing the note's time and
+rounds across its midpoint.
+
+Verified end to end: grids cleared, both transports running, both tracks armed. **Armed
+but not recording wrote nothing** — the guard that stops an armed track you are auditioning
+from overwriting the pattern you are auditioning it against. With record on, six notes
+played 240 ms apart against a 125 ms grid landed on steps 5, 7, 9, 11, 13, 15.
+
+### Notes
+
+- The master Play presses the instruments' own Play buttons rather than reaching into
+  their transports, so arm checks, autostart and painting all happen as they would from
+  the panel instead of being reimplemented and drifting.
+- ⚠️ **`[hidden]` needed `display:none !important`.** The attribute is `display:none` from
+  the UA sheet, which any explicit `display` on a class beats — `.st-rack` is
+  `display:grid`, so hiding it did nothing at all. This is the most common way `hidden`
+  silently fails.
+- ⚠️ **The live page must live OUTSIDE `.st-rack`.** The launcher was moved inside it so it
+  packs as a grid item; putting the live page there too meant hiding the rack hid the live
+  page with it.
+- The studio's own state class is `st-on`, not `on`. `armed` and `focused` are declared
+  shared in the build's collision check because they mean one thing across the studio;
+  `on` is too generic to exempt without weakening the check.
+
 ## Working style that suited this project
 
 Measure rather than assume — most of the real bugs here were found by rendering audio

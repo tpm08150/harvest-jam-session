@@ -53,6 +53,7 @@ function onMidi(e){
   const id = GM[d[1]];
   if (!id) return;
   ensureAudio();
+  Patchwork.record.note("dr1", id, d[2]);
   fire(id, ctx.currentTime + .003, d[2] / 127);
   flashLane(id);
 }

@@ -99,6 +99,26 @@ Patchwork.scenes.register("dr1", {
   }
 });
 
+/* A drum grid records differently: the note picks the LANE, not a pitch, and the same
+   nearest-step rounding applies. GM numbers come in from a pad controller; an audition
+   click passes the lane id straight through. */
+Patchwork.record.register("dr1", {
+  name: "DR·1",
+  write: (midi, vel, when) => {
+    const id = typeof midi === "string" ? midi : GM[midi];
+    if (!id || !SEQ.playing || !marks.length) return -1;
+    const ctx = Patchwork.audio.ctx;
+    const t = when == null ? ctx.currentTime : when;
+    let m = null;
+    for (let k = marks.length - 1; k >= 0; k--) if (marks[k].t <= t){ m = marks[k]; break; }
+    if (!m) m = marks[0];
+    const i = ((t - m.t) > (m.end - m.t) / 2 ? m.i + 1 : m.i) % SEQ.len;
+    steps[id][i] = vel >= 100 ? 2 : 1;
+    paintPads();
+    return i;
+  }
+});
+
 initMidi();
 
 /* A test hook, not a feature — the same one CS·1 and MS·1 carry. */

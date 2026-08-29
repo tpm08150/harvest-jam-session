@@ -33,7 +33,9 @@ function onMidi(e){
   if (s >= 0xF0) return;                    // realtime carries no channel
   if (MIDI.inCh >= 0 && (s & 0x0F) !== MIDI.inCh) return;
   const type = s & 0xF0;
-  if (type === 0x90 && d[2] > 0){ ensureAudio(); noteOn(d[1], d[2]); }
+  if (type === 0x90 && d[2] > 0){ ensureAudio();
+    Patchwork.record.note("bs1", d[1], d[2]);
+    noteOn(d[1], d[2]); }
   else if (type === 0x80 || (type === 0x90 && d[2] === 0)) noteOff(d[1]);
   else if (type === 0xB0 && d[1] === 123) allNotesOff();
 }

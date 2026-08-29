@@ -89,7 +89,14 @@ function take(id){
   return true;
 }
 
-return {register, store, storeAll, clear, fire, take, onChange,
+/* Whether an instrument's own transport is running. The live page needs it to draw a
+   master Play that reflects what is actually going, rather than a button with an opinion. */
+function playing(id){
+  const it = insts.find(x => x.id === id);
+  return !!(it && it.isPlaying());
+}
+
+return {register, store, storeAll, clear, fire, take, onChange, playing,
         get rows(){ return rows; },
         get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
         get queued(){ return new Map(queued); },

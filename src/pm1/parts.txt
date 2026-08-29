@@ -16,6 +16,7 @@ shell/clock.js
 shell/midi.js
 shell/scenes.js
 shell/faces.js
+shell/record.js
 voice/core.js
 seq/step-seq.js
 pm1/_open.js

@@ -15,6 +15,15 @@ Patchwork.scenes.register("bs1", {
   }
 });
 
+Patchwork.record.register("bs1", {
+  name: "BS·1",
+  write: (midi, vel, when) => {
+    const i = seq.recordAt(midi, vel, when);
+    if (i >= 0) grid.paint();
+    return i;
+  }
+});
+
 initMidi();
 
 /* Offline render, mirroring the other instruments' harnesses so a bass patch can be

@@ -15,6 +15,15 @@ Patchwork.scenes.register("vc1", {
   }
 });
 
+Patchwork.record.register("vc1", {
+  name: "VC·1",
+  write: (midi, vel, when) => {
+    const i = seq.recordAt(midi, vel, when);
+    if (i >= 0) grid.paint();
+    return i;
+  }
+});
+
 initMidi();
 
 /* Offline render. A vocoder has no microphone in an offline context, so a test supplies

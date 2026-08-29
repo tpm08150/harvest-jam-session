@@ -127,8 +127,49 @@ function playingStep(){
   return -1;
 }
 
+/* ---- live recording ----
+   Write a played note onto the grid at the NEAREST step, not the one currently sounding.
+   A player anticipates the beat — landing everything on the step that has already started
+   pushes a whole take late by up to a step, which is the difference between a recording
+   that feels played and one that feels dragged.
+
+   The pitch is stored as a scale degree from the root, the same as a step written by hand,
+   so a recorded line transposes with the key like any other. */
+function recordAt(midi, vel, when){
+  const ctx = Patchwork.audio.ctx;
+  if (!ctx || !SEQ.playing || !marks.length) return -1;
+  const t = when == null ? ctx.currentTime : when;
+  let m = null;
+  for (let k = marks.length - 1; k >= 0; k--)
+    if (marks[k].t <= t){ m = marks[k]; break; }
+  if (!m) m = marks[0];
+  const half = (m.end - m.t) / 2;
+  const i = ((t - m.t) > half ? m.i + 1 : m.i) % SEQ.len;
+
+  const st = steps[i];
+  st.on = 1;
+  st.tie = 0;
+  st.accent = vel >= 100 ? 1 : 0;
+  const sc = SCALES[SEQ.scale] || SCALES.chromatic;
+  const rel = midi - SEQ.root;
+  if (SEQ.scale === "chromatic"){
+    st.oct = Math.floor(rel / 12);
+    st.pitch = rel - 12 * st.oct;
+  } else {
+    /* nearest degree in the scale, so a note off the scale still lands somewhere musical
+       rather than being dropped */
+    const oct = Math.floor(rel / 12);
+    const pc = ((rel % 12) + 12) % 12;
+    let best = 0, bestD = 99;
+    sc.forEach((d, k) => { const dd = Math.abs(d - pc); if (dd < bestD){ bestD = dd; best = k; } });
+    st.oct = oct;
+    st.pitch = best;
+  }
+  return i;
+}
+
 return {
-  SEQ, steps, stepNote, stepEvent, start, stop, tick, playingStep,
+  SEQ, steps, stepNote, stepEvent, start, stop, tick, playingStep, recordAt,
   RATES, SCALES,
   toggle(){ SEQ.playing ? stop() : start(); },
   setLen(n){ SEQ.len = V.clampf(n|0, 1, MAX); },

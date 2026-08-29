@@ -170,3 +170,72 @@ body.soloing .st-rack > .unit.solo{
   outline:none;                       /* the focus ring means nothing with one panel up */
 }
 body.soloing .st-head .st-hint::after{content:" — press Escape to go back"}
+
+/* The `hidden` attribute is display:none from the UA sheet, which any explicit display on
+   a class beats — .st-rack is display:grid, so hiding it needs saying here. This is the
+   most common way `hidden` silently does nothing. */
+[hidden]{display:none !important}
+
+/* ---- the live page ----
+   The launcher, made big, with an arm per track. Deliberately the whole window: playing is
+   not a thing you do while also reading a filter curve. */
+body.living .st-hint{display:none}
+body.living .st-seg#stFaces{display:none}
+.st-live{max-width:1100px;margin:0 auto;padding:8px 20px 40px}
+.st-live-bar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;
+}
+.st-xport,.st-rec{
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+  padding:11px 18px;border-radius:5px;cursor:pointer;
+  border:1px solid var(--edge);color:var(--silk);
+  background:linear-gradient(180deg,#454e55,#333a3f);
+  box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 2px 0 #1c2124;
+}
+.st-xport.st-on{background:linear-gradient(180deg,#5fd8b4,var(--mint));color:#06231a;border-color:#2f8f74}
+.st-rec{background:linear-gradient(180deg,#3e464c,#2b3237)}
+.st-rec.st-on{
+  background:linear-gradient(180deg,#ec6146,var(--cap-red));color:#fff2ee;border-color:#8c2a17;
+  animation:st-rec-pulse 1.1s ease-in-out infinite;
+}
+@keyframes st-rec-pulse{50%{box-shadow:0 0 0 3px rgba(224,75,47,.35)}}
+@media (prefers-reduced-motion:reduce){ .st-rec.st-on{animation:none} }
+.st-tempo{display:flex;align-items:center;background:var(--slot);border:1px solid var(--groove);
+  border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;overflow:hidden}
+.st-tempo button{background:none;border:0;color:var(--silk-dim);font-size:15px;
+  padding:9px 13px;cursor:pointer;font-family:inherit}
+.st-tempo button:hover{color:var(--silk)}
+.st-tempo span{font-family:"DM Mono",monospace;font-size:13px;color:var(--mint);
+  min-width:40px;text-align:center;font-variant-numeric:tabular-nums}
+.st-live-hint{font-family:"DM Mono",monospace;font-size:10.5px;letter-spacing:.05em;
+  color:var(--silk-dim);flex:1 1 240px}
+
+.st-live-grid{
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel-lo));
+  border:1px solid var(--edge);border-radius:8px;padding:14px 16px;
+  box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 10px 24px rgba(0,0,0,.4);
+}
+.st-live-row{
+  display:grid;grid-template-columns:26px repeat(var(--cols,5),minmax(0,1fr)) 40px;
+  gap:7px;align-items:center;
+}
+.st-live-row + .st-live-row{margin-top:7px}
+.st-live-head{margin-bottom:10px;align-items:end}
+.st-live-num{font-family:"DM Mono",monospace;font-size:10px;color:var(--silk-dim);text-align:center}
+.st-live-gap{}
+.st-track{display:flex;flex-direction:column;gap:5px;align-items:stretch}
+.st-track-name{font-family:"DM Mono",monospace;font-size:10.5px;letter-spacing:.1em;
+  color:var(--silk);text-align:center;text-transform:uppercase}
+.st-arm{
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  padding:5px 0;border-radius:3px;cursor:pointer;
+  background:var(--slot);border:1px solid var(--groove);color:var(--silk-dim);
+}
+.st-arm:hover:not(:disabled){color:var(--silk);border-color:var(--silk-dim)}
+.st-arm.st-on{background:linear-gradient(180deg,#ec6146,var(--cap-red));color:#fff2ee;
+  border-color:#8c2a17}
+.st-arm:disabled{opacity:.32;cursor:not-allowed}
+.st-live-grid .st-cell{height:34px}
+.st-live-grid .st-fire{height:34px}

@@ -55,7 +55,8 @@ function paintPads(){
 lanesEl.addEventListener("click", e => {
   const nm = e.target.closest(".lane-name");
   if (nm){
-    if (e.shiftKey){ ensureAudio(); fire(nm.dataset.v, ctx.currentTime + .005, 1); flashLane(nm.dataset.v); }
+    if (e.shiftKey){ ensureAudio(); Patchwork.record.note("dr1", nm.dataset.v, 110);
+                     fire(nm.dataset.v, ctx.currentTime + .005, 1); flashLane(nm.dataset.v); }
     else { SEQ.lane = nm.dataset.v; $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === SEQ.lane)); syncVoice(); }
     return;
   }

@@ -1168,7 +1168,14 @@ function take(id){
   return true;
 }
 
-return {register, store, storeAll, clear, fire, take, onChange,
+/* Whether an instrument's own transport is running. The live page needs it to draw a
+   master Play that reflects what is actually going, rather than a button with an opinion. */
+function playing(id){
+  const it = insts.find(x => x.id === id);
+  return !!(it && it.isPlaying());
+}
+
+return {register, store, storeAll, clear, fire, take, onChange, playing,
         get rows(){ return rows; },
         get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
         get queued(){ return new Map(queued); },
@@ -1276,6 +1283,67 @@ return {mount, set, setAll, toggle, solo, unsolo, isOn,
         onChange: fn => subs.push(fn),
         get soloed(){ return soloed; },
         get count(){ return Patchwork.roots.filter(isOn).length; }};
+})();
+
+/* Live recording.
+
+   Ableton's gesture: the transport is already running, you arm a track, you play, and
+   what you play lands in the clip on the grid. Nothing stops, nothing is a take.
+
+   The shell owns arming and the global record state; each instrument owns what "write a
+   note" means, because a drum lane, a bass line and a chord progression are not the same
+   thing and a shared writer would have to pretend they were. */
+Patchwork.record = (() => {
+"use strict";
+
+const kit = [];              // {id, name, write, arm, disarm, canRecord}
+const armed = new Set();
+let on = false;              // the global record enable
+const subs = [];
+
+function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
+function onChange(fn){ subs.push(fn); }
+
+function register(id, spec){
+  kit.push({id, name: spec.name || id,
+            write: spec.write || null,
+            arm: spec.arm || function(){},
+            disarm: spec.disarm || function(){},
+            canRecord: spec.canRecord == null ? !!spec.write : spec.canRecord});
+  notify();
+}
+
+function setArmed(id, want){
+  const it = kit.find(x => x.id === id);
+  if (!it || !it.canRecord) return;
+  if (want){ armed.add(id); it.arm(on); } else { armed.delete(id); it.disarm(); }
+  notify();
+}
+function toggleArm(id){ setArmed(id, !armed.has(id)); }
+
+function setRecording(want){
+  on = !!want;
+  /* Arming is a standing choice and record is the momentary one, so turning record on
+     tells everything already armed to begin — the alternative is arming twice. */
+  kit.forEach(it => { if (armed.has(it.id)) (on ? it.arm(true) : it.disarm()); });
+  notify();
+}
+
+/* Called by an instrument from its own note-on path. It reaches the grid only when that
+   instrument is armed AND record is on, so an armed track you are auditioning does not
+   quietly overwrite the pattern you are auditioning it against. */
+function note(id, midi, vel, when){
+  if (!on || !armed.has(id)) return -1;
+  const it = kit.find(x => x.id === id);
+  if (!it || !it.write) return -1;
+  try{ return it.write(midi, vel, when); }catch(e){ return -1; }
+}
+
+return {register, setArmed, toggleArm, setRecording, note, onChange,
+        isArmed: id => armed.has(id),
+        get recording(){ return on; },
+        get tracks(){ return kit.map(k => ({id: k.id, name: k.name, canRecord: k.canRecord})); },
+        get armedCount(){ return armed.size; }};
 })();
 
 /* The synth core every instrument shares.
@@ -1496,8 +1564,49 @@ function playingStep(){
   return -1;
 }
 
+/* ---- live recording ----
+   Write a played note onto the grid at the NEAREST step, not the one currently sounding.
+   A player anticipates the beat — landing everything on the step that has already started
+   pushes a whole take late by up to a step, which is the difference between a recording
+   that feels played and one that feels dragged.
+
+   The pitch is stored as a scale degree from the root, the same as a step written by hand,
+   so a recorded line transposes with the key like any other. */
+function recordAt(midi, vel, when){
+  const ctx = Patchwork.audio.ctx;
+  if (!ctx || !SEQ.playing || !marks.length) return -1;
+  const t = when == null ? ctx.currentTime : when;
+  let m = null;
+  for (let k = marks.length - 1; k >= 0; k--)
+    if (marks[k].t <= t){ m = marks[k]; break; }
+  if (!m) m = marks[0];
+  const half = (m.end - m.t) / 2;
+  const i = ((t - m.t) > half ? m.i + 1 : m.i) % SEQ.len;
+
+  const st = steps[i];
+  st.on = 1;
+  st.tie = 0;
+  st.accent = vel >= 100 ? 1 : 0;
+  const sc = SCALES[SEQ.scale] || SCALES.chromatic;
+  const rel = midi - SEQ.root;
+  if (SEQ.scale === "chromatic"){
+    st.oct = Math.floor(rel / 12);
+    st.pitch = rel - 12 * st.oct;
+  } else {
+    /* nearest degree in the scale, so a note off the scale still lands somewhere musical
+       rather than being dropped */
+    const oct = Math.floor(rel / 12);
+    const pc = ((rel % 12) + 12) % 12;
+    let best = 0, bestD = 99;
+    sc.forEach((d, k) => { const dd = Math.abs(d - pc); if (dd < bestD){ bestD = dd; best = k; } });
+    st.oct = oct;
+    st.pitch = best;
+  }
+  return i;
+}
+
 return {
-  SEQ, steps, stepNote, stepEvent, start, stop, tick, playingStep,
+  SEQ, steps, stepNote, stepEvent, start, stop, tick, playingStep, recordAt,
   RATES, SCALES,
   toggle(){ SEQ.playing ? stop() : start(); },
   setLen(n){ SEQ.len = V.clampf(n|0, 1, MAX); },

@@ -81,6 +81,8 @@ keysEl.addEventListener("pointerdown", e => {
   const k = e.target.closest(".k"); if (!k) return;
   ensureAudio();
   const n = +k.dataset.n;
+  /* a played note reaches the grid only while armed and recording — see shell/record.js */
+  Patchwork.record.note("bs1", n, 100);
   if (latch && held.has(n)) noteOff(n); else noteOn(n, 100);
 });
 window.addEventListener("pointerup", () => { if (!latch) allNotesOff(); });
