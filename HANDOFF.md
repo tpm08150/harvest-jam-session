@@ -22,8 +22,12 @@ dependencies.
 ## Layout
 
 ```
-patchwork-chord-synth.html   CS·1, the entire web app
-patchwork-mono-synth.html    MS·1, likewise — nothing is shared between them but the look
+patchwork-chord-synth.html   CS·1 — BUILT. Do not edit; edit src/cs1/ and rebuild
+patchwork-mono-synth.html    MS·1 — likewise, from src/ms1/
+src/
+  cs1/, ms1/                 the fragments each app is assembled from
+  */parts.txt                the order they concatenate in
+tools/build.py               joins them. `--check` fails if a built file was hand-edited
 serve.py                     dev server that disables caching (see gotchas)
 netlify.toml                 publish from root, rewrite / to the html, no-store on html
 ios/
@@ -40,9 +44,31 @@ Patchwork/                   the Xcode project (Xcode 16 synchronized groups)
 and copy across**, or they drift. The two web resources are *not* duplicated: a build phase
 copies them from the repo root into the bundle on every build.
 
+### The two HTML files are build output
+
+They stay committed, because Netlify publishes from the root with no build step and the iOS
+build phase copies them into the bundle — the one-file, no-dependency rule is about what
+*ships*, not about what you edit. At 13,000 lines across two apps, editing them by hand was
+the thing that had to go.
+
+The build is a **pure join**: every line of a shipped file lives in exactly one fragment, and
+`tools/build.py` concatenates them in the order `parts.txt` gives. No templating, no
+substitution — so `git diff` after a rebuild is the whole verification, and there is nothing
+a diff could miss.
+
+```bash
+python3 tools/build.py           # write both apps from src/
+python3 tools/build.py --check   # verify they match src/, write nothing
+```
+
+`--check` catches the one way this layout rots: a shipped file edited directly, whose change
+the next build silently reverts. Worth a pre-commit hook. It also fails on a fragment that
+exists but is absent from `parts.txt`, since that would otherwise just quietly not ship.
+
 ## Running it
 
 ```bash
+python3 tools/build.py              # after ANY edit under src/
 python3 serve.py                    # http://localhost:8123/patchwork-chord-synth.html
 PORT=9000 python3 serve.py          # ...or anywhere else
 python3 ios/build-test-harness.py   # then open _iostest.html to test MIDI without hardware

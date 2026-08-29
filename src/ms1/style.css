@@ -1,0 +1,369 @@
+/* Tokens are CS·1's, value for value — two synths with the same grey and different
+   accents read as one product line; two different greys read as two products. */
+:root{
+  --panel:#333a3f;
+  --panel-hi:#3e464c;
+  --panel-lo:#262c31;
+  --edge:#1b2024;
+  --silk:#c6cdd2;
+  --silk-dim:#828d95;
+  --paper:#e7e2d5;
+  --ink:#232b31;
+  --slot:#1d2226;
+  --mint:#63d6b0;        /* focus, running, "now" — semantic, never decorative */
+  --cap-yellow:#e8b23a;  /* MIDI learn. Identical to CS·1 or the gesture stops reading */
+  --cap-red:#e04b2f;     /* kept, but ONLY for destructive things: panic, errors */
+
+  /* CS·1 is a red instrument; MS·1 is a blue one. That, the knobs and the stripes are
+     the whole model tell — the panel itself is deliberately unchanged. */
+  --accent:#4a8fd6;
+  --accent-hi:#6ea9e6;
+  --accent-lo:#2f6fb5;
+  --accent-ink:#0b1f31;
+
+  /* section stripes, read left-to-right down the signal path */
+  --stripe-mod:#8b74d6;
+  --stripe-osc:var(--accent);
+  --stripe-flt:var(--cap-yellow);
+  --stripe-amp:#9aa5ac;
+  --stripe-voc:#d67ab1;    /* vocoder — its own identity, not a variant of the filter */
+  --stripe-bass:#d9884a;   /* bass pedals */
+
+  /* named here rather than repeated as literals the way CS·1 does */
+  --groove:#12161a;
+  --groove-hi:#20262a;
+  --groove-deep:#0b0e10;
+  --cap-hi:#5b656b;
+  --cap-lo:#394247;
+  --cap-edge:#14181b;
+  --read:#aeb8be;
+  --read-hi:#a9b3b9;
+  --read-dim:#5f696f;
+  --chrome-hi:#eef3f5;
+  --field:#dfe6ea;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{height:100%}
+body{
+  background:#1a1e21;
+  background-image:radial-gradient(120% 90% at 50% 0%,#2b3237 0%,#15181b 100%);
+  color:var(--silk);
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  min-height:100%;
+  padding:18px 14px 40px;
+  display:flex;justify-content:center;align-items:flex-start;
+  -webkit-font-smoothing:antialiased;
+}
+/* clip, not hidden: the mobile transport is sticky inside this box, and overflow:hidden
+   would establish a scroll container that pins it to the top of the panel instead. */
+.unit{
+  width:100%;max-width:760px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);
+  border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  padding:20px 18px 24px;
+  position:relative;overflow:clip;
+}
+.unit::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+}
+.unit>*{position:relative;z-index:1}
+
+/* ---------- header plate ---------- */
+.plate{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.brand{font-family:"Saira Semi Condensed";font-weight:600;font-size:26px;letter-spacing:.34em;text-transform:uppercase;color:#e4e9ec;line-height:1}
+.model{font-family:"DM Mono";font-size:10.5px;letter-spacing:.14em;color:var(--silk-dim);margin-top:6px;text-transform:uppercase}
+.screws{display:flex;gap:8px;opacity:.5}
+.screw{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#6d777d,#2c3236);box-shadow:0 1px 0 rgba(255,255,255,.12)}
+/* the four stripes in signal order — cheap, and very 1983 */
+.rule{
+  height:3px;border-radius:2px;margin:12px 0 16px;
+  background:linear-gradient(90deg,
+    var(--stripe-mod) 0 16.6%,var(--stripe-osc) 16.6% 33.3%,
+    var(--stripe-flt) 33.3% 50%,var(--stripe-amp) 50% 66.6%,
+    var(--stripe-voc) 66.6% 83.3%,var(--stripe-bass) 83.3% 100%);
+  opacity:.85;
+}
+
+/* ---------- paper card: note readout + keyboard ---------- */
+.card{
+  background:linear-gradient(180deg,#efeade,var(--paper));
+  border-radius:4px;padding:14px 14px 12px;
+  box-shadow:0 2px 0 rgba(0,0,0,.35),0 10px 22px rgba(0,0,0,.32);
+  color:var(--ink);
+}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  border-bottom:1px solid rgba(35,43,49,.22);padding-bottom:8px;margin-bottom:10px}
+.card-title{font-family:"DM Mono";font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#5d6469}
+.card-title em{font-style:normal;color:#8a6157;margin-left:9px}
+.card-meta{font-family:"DM Mono";font-size:11px;letter-spacing:.06em;color:#3b464e}
+.now{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:clamp(28px,8vw,44px);
+  line-height:1;color:var(--ink);display:flex;align-items:baseline;gap:10px;min-height:44px}
+.now small{font-family:"DM Mono";font-size:11px;font-weight:400;color:#3f6a99;letter-spacing:.04em}
+
+/* 2 octaves. Black keys are positioned against the white index they follow, so the
+   layout stays correct at any width without a wrapper per octave. */
+.keys{position:relative;height:76px;margin-top:10px;touch-action:none;user-select:none;-webkit-user-select:none}
+.kw,.kb{position:absolute;padding:0;font:inherit;cursor:pointer}
+.kw{top:0;bottom:0;width:calc(100%/14);
+  background:linear-gradient(180deg,#fbf8f0,#e2dccd);
+  border:1px solid rgba(35,43,49,.28);border-radius:0 0 3px 3px;
+  left:calc(var(--i) * (100%/14))}
+.kb{top:0;height:62%;width:calc(100%/14*.62);z-index:2;
+  background:linear-gradient(180deg,#3b4348,#20262a);
+  border:1px solid rgba(0,0,0,.6);border-radius:0 0 3px 3px;
+  left:calc((var(--w) + .69) * (100%/14))}
+/* faint tint = where the LOCAL keyboard is currently pointed */
+.kw.tint-voc{background:linear-gradient(180deg,#f6e6f0,#e0c8da)}
+.kb.tint-voc{background:linear-gradient(180deg,#4a3a45,#2a2028)}
+.kw.tint-bass{background:linear-gradient(180deg,#f7ece1,#e2d0bd)}
+.kb.tint-bass{background:linear-gradient(180deg,#463a30,#28201a)}
+/* lit = a section is actually sounding this note, coloured by WHICH one, so a glance at
+   the keyboard says where an incoming MIDI note landed */
+.kw.on{background:linear-gradient(180deg,#cfe0f2,#a9c6e4)}
+.kb.on{background:linear-gradient(180deg,var(--accent),var(--accent-lo))}
+.kw.on-voc{background:linear-gradient(180deg,#f0c9e2,var(--stripe-voc))}
+.kb.on-voc{background:linear-gradient(180deg,var(--stripe-voc),#a8558a)}
+.kw.on-bass{background:linear-gradient(180deg,#f5d3b4,var(--stripe-bass))}
+.kb.on-bass{background:linear-gradient(180deg,var(--stripe-bass),#a25c25)}
+.kb.on{background:linear-gradient(180deg,var(--accent),var(--accent-lo))}
+.klabel{position:absolute;bottom:4px;left:0;right:0;text-align:center;
+  font-family:"DM Mono";font-size:8.5px;color:#9aa0a3;pointer-events:none}
+
+.keysrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+
+/* ---------- transport & buttons ---------- */
+.transport{display:flex;gap:9px;flex-wrap:wrap;align-items:stretch;margin:16px 0 4px}
+.btn{
+  font-family:"Saira Semi Condensed";font-weight:600;font-size:13px;letter-spacing:.16em;text-transform:uppercase;
+  background:linear-gradient(180deg,#4a5359,#394247);
+  color:#e6ebee;border:1px solid var(--edge);border-radius:5px;
+  padding:11px 16px;cursor:pointer;
+  box-shadow:0 1px 0 rgba(255,255,255,.13) inset,0 2px 0 #1c2124;
+}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(255,255,255,.08) inset}
+.btn.primary{background:linear-gradient(180deg,var(--accent-hi),var(--accent));border-color:var(--accent-lo);color:var(--accent-ink)}
+.btn.play{min-width:112px}
+.btn.play.on{background:linear-gradient(180deg,#79e6c3,var(--mint));border-color:#1f7a61;color:#0d2c24}
+.btn.ghost{background:linear-gradient(180deg,#3b4348,#2f363b);color:var(--silk)}
+.btn.sm{padding:8px 12px;font-size:11px;letter-spacing:.12em}
+.btn.panic{background:linear-gradient(180deg,#ec6146,var(--cap-red));border-color:#8c2a17;color:#fff2ee}
+.btn.learn.on{background:linear-gradient(180deg,#f0c45a,var(--cap-yellow));border-color:#8a6a15;color:#2f2405}
+.btn.tog.on{background:linear-gradient(180deg,var(--accent-hi),var(--accent));border-color:var(--accent-lo);color:var(--accent-ink)}
+
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
+.field{display:flex;flex-direction:column;gap:5px;flex:1 1 118px;min-width:0}
+label,.silk{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--silk-dim);font-weight:500}
+select{
+  appearance:none;width:100%;
+  font-family:"Saira Semi Condensed";font-size:14px;letter-spacing:.04em;
+  background:var(--slot);color:var(--field);border:1px solid var(--groove);border-radius:4px;
+  padding:9px 26px 9px 10px;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--silk-dim) 50%),linear-gradient(135deg,var(--silk-dim) 50%,transparent 50%);
+  background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+  box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+input[type="text"]{
+  width:100%;font-family:"Saira Semi Condensed";font-size:14px;letter-spacing:.04em;
+  background:var(--slot);color:var(--field);border:1px solid var(--groove);border-radius:4px;
+  padding:9px 10px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+input[type="text"]::placeholder{color:#5a646a}
+.patch-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end}
+.tempo{display:flex;align-items:center;gap:0;background:var(--slot);border:1px solid var(--groove);border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset}
+.tempo button{width:32px;flex:none;background:none;border:none;color:var(--silk-dim);font-size:17px;cursor:pointer;padding:8px 0;font-family:inherit}
+.tempo button:hover{color:#fff}
+.tempo output{flex:1;text-align:center;font-family:"DM Mono";font-size:15px;color:var(--mint);letter-spacing:.04em}
+
+/* ---------- segmented ---------- */
+.seg{display:inline-flex;flex-wrap:wrap;gap:1px;background:var(--groove);border:1px solid var(--groove);border-radius:4px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.5) inset}
+.seg button{
+  font-family:"Saira Semi Condensed";font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  background:var(--slot);border:none;color:var(--silk-dim);padding:8px 11px;cursor:pointer;
+}
+.seg button.on{background:linear-gradient(180deg,#4c565c,#3b444a);color:var(--chrome-hi)}
+.seg button:hover{color:var(--chrome-hi)}
+.seg.sm button{padding:6px 8px;font-size:10px;letter-spacing:.1em}
+
+/* ---------- racks ---------- */
+.rack{
+  margin-top:13px;padding:11px 12px 10px;border-radius:6px;
+  background:rgba(0,0,0,.17);border:1px solid rgba(0,0,0,.32);
+  box-shadow:0 1px 0 rgba(255,255,255,.04);
+  border-left:3px solid var(--stripe,var(--stripe-amp));
+}
+.rack-pair{display:grid;grid-template-columns:1fr 1fr;gap:13px;align-items:start}
+.rack-pair>.rack{margin-top:13px}
+.rack-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.rack-head .silk{flex:0 0 auto}
+.r-mod{--stripe:var(--stripe-mod)}
+.r-osc{--stripe:var(--stripe-osc)}
+.r-flt{--stripe:var(--stripe-flt)}
+.r-amp{--stripe:var(--stripe-amp)}
+.r-voc{--stripe:var(--stripe-voc)}
+.r-bass{--stripe:var(--stripe-bass)}
+
+/* ---------- knobs ---------- */
+.knobs{display:grid;grid-template-columns:repeat(var(--kc,4),1fr);gap:8px 6px}
+.knob{display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:6px 2px 5px;border-radius:8px;background:rgba(0,0,0,.10);
+  cursor:ns-resize;touch-action:none;user-select:none;-webkit-user-select:none}
+.kface{position:relative;width:56px;height:56px}
+.kface svg{display:block;width:100%;height:100%;overflow:visible}
+.ktrack{fill:none;stroke:var(--groove-deep);stroke-width:4;stroke-linecap:round;stroke-dasharray:75 100}
+.karc{fill:none;stroke:var(--stripe,var(--accent));stroke-width:4;stroke-linecap:round}
+.kbody{fill:url(#kcap);stroke:var(--cap-edge);stroke-width:1}
+.kptr{stroke:var(--chrome-hi);stroke-width:2;stroke-linecap:round}
+.klab{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--silk-dim);text-align:center;line-height:1.2;min-height:22px}
+.kval{font-family:"DM Mono";font-size:10px;color:var(--read);min-height:13px;text-align:center;font-variant-numeric:tabular-nums}
+.kval.fine{color:var(--mint)}
+.knob.dragging .kbody{stroke:var(--mint)}
+.knob .bind{position:absolute;top:-2px;right:-4px;font-family:"DM Mono";font-size:8.5px;color:var(--cap-yellow)}
+.knob.arm{box-shadow:0 0 0 2px var(--cap-yellow) inset}
+
+/* horizontal fader, for the two controls that read better as a slider than a pot */
+.hfader{display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
+  padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13)}
+.hfader .hlab{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--silk-dim)}
+.hslot{position:relative;width:120px;height:20px;border-radius:4px;
+  background:linear-gradient(180deg,var(--groove-hi),var(--groove) 45%,var(--groove-hi));
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06)}
+.hslot::after{content:"";position:absolute;left:7px;right:7px;top:50%;height:3px;transform:translateY(-50%);background:var(--groove-deep);border-radius:2px}
+.hcap{position:absolute;top:-3px;height:26px;width:22px;border-radius:3px;
+  left:calc(var(--v,.5) * (120px - 22px));
+  background:linear-gradient(180deg,var(--cap-hi),var(--cap-lo));border:1px solid var(--cap-edge);
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset}
+.hcap::after{content:"";position:absolute;top:3px;bottom:3px;left:9px;width:3px;border-radius:2px;background:var(--accent)}
+.hfader .hval{font-family:"DM Mono";font-size:10px;color:var(--read);min-width:34px}
+.hfader .bind{font-family:"DM Mono";font-size:9px;color:var(--cap-yellow)}
+.hfader.dragging .hcap{box-shadow:0 0 0 1px var(--mint),0 2px 3px rgba(0,0,0,.55)}
+.hfader.arm{box-shadow:0 0 0 2px var(--cap-yellow) inset}
+
+/* ---------- arp roll ---------- */
+/* A piano-roll strip: horizontal position is order in the run, vertical is pitch. It says
+   at a glance what shape the arp is tracing, which a row of identical step blocks cannot. */
+.roll{
+  position:relative;height:70px;margin-top:10px;border-radius:5px;
+  background:linear-gradient(180deg,rgba(0,0,0,.28),rgba(0,0,0,.16));
+  border:1px solid rgba(0,0,0,.35);overflow:hidden;
+}
+.roll[hidden]{display:none}
+/* faint horizontal rules, so height reads as pitch rather than as decoration */
+.roll::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.05) 0 1px,transparent 1px 14px);
+}
+.rollnote{
+  position:absolute;height:9px;border-radius:2px;
+  background:linear-gradient(180deg,var(--accent-hi),var(--accent));
+  box-shadow:0 1px 0 rgba(0,0,0,.35);
+  transition:background .06s linear,box-shadow .06s linear;
+}
+.rollnote.now{
+  background:linear-gradient(180deg,#8ff0d3,var(--mint));
+  box-shadow:0 0 8px var(--mint);
+}
+.rollhint{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:"DM Mono";font-size:10px;color:var(--read-dim);
+}
+.rolllab{
+  position:absolute;left:6px;top:5px;font-family:"DM Mono";font-size:9px;
+  color:var(--read-dim);letter-spacing:.04em;pointer-events:none;
+}
+
+/* ---------- step sequencer ---------- */
+.seqwrap{display:flex;flex-direction:column;gap:5px;margin-top:10px}
+.seqrow{display:flex;align-items:center;gap:7px}
+.seqrow .rlab{flex:0 0 42px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--read-dim);text-align:right}
+.steps{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;flex:1 1 auto;min-width:0}
+.step{
+  height:26px;border-radius:3px;padding:0;cursor:pointer;position:relative;
+  background:var(--slot);border:1px solid var(--groove);
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  font-family:"DM Mono";font-size:9px;letter-spacing:-.02em;color:var(--read-dim);
+  transition:background .1s ease;
+}
+.step:hover{background:#2b3339}
+.step.on{background:linear-gradient(180deg,var(--accent-hi),var(--accent));border-color:var(--accent-lo);
+  color:var(--accent-ink);box-shadow:0 1px 0 rgba(255,255,255,.16) inset}
+/* downbeat of each quarter, so 16ths stay countable */
+.step.beat::before{content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);
+  width:2px;height:2px;border-radius:50%;background:rgba(255,255,255,.45)}
+.step.now{outline:2px solid var(--mint);outline-offset:1px}
+.step.acc{box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 0 0 1px var(--cap-yellow) inset}
+.step.sld::after{content:"";position:absolute;bottom:2px;left:3px;right:3px;height:2px;border-radius:1px;background:var(--stripe-mod)}
+.step.tie{background:linear-gradient(180deg,#5a6a76,#43505a);color:#cfd8de}
+/* the step being programmed */
+.step.sel{outline:2px solid var(--stripe-voc);outline-offset:1px;z-index:2}
+/* carries parameter locks — a corner flag, so it reads even on a lit step */
+.step.lock::after{content:"";position:absolute;top:2px;right:2px;
+  border-top:5px solid var(--stripe-voc);border-left:5px solid transparent}
+.step.sld.lock::after{border-top-color:var(--stripe-voc)}
+/* a knob holding a lock for the selected step */
+.knob.locked .kbody{stroke:var(--stripe-voc);stroke-width:2}
+.knob.locked .klab{color:var(--stripe-voc)}
+.seqlegend{display:flex;gap:14px;flex-wrap:wrap;font-family:"DM Mono";font-size:9px;letter-spacing:.04em;color:var(--read-dim);margin-top:8px}
+.seqlegend i{display:inline-block;width:9px;height:9px;border-radius:2px;vertical-align:-1px;margin-right:5px}
+
+/* ---------- sections ---------- */
+.sect{margin-top:20px;border-top:1px solid rgba(0,0,0,.4);box-shadow:0 -1px 0 rgba(255,255,255,.05);padding-top:16px}
+.sect-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.led{display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:#2a3238;box-shadow:0 0 0 1px var(--groove) inset;
+  margin-right:8px;vertical-align:middle;transition:background .1s,box-shadow .1s}
+.led.ready{background:#2f6b5a}
+.led.err{background:var(--cap-red)}
+.led.lit{background:var(--mint);box-shadow:0 0 7px var(--mint)}
+.note{font-family:"DM Mono";font-size:10px;letter-spacing:.04em;color:#6d777e;line-height:1.75;margin-top:14px}
+.note code{background:var(--groove-hi);border:1px solid var(--groove);border-radius:3px;padding:1px 5px;color:var(--read-hi)}
+.note.bad{color:#c98a7a}
+.stats{display:flex;gap:15px;flex-wrap:wrap;font-family:"DM Mono";font-size:10px;letter-spacing:.03em;color:var(--read-dim);margin-top:9px}
+.stats b{color:var(--read-hi);font-weight:400}
+.stats b.hot{color:var(--cap-red)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--silk-dim);margin-top:14px}
+.legend span::before{content:"";display:inline-block;width:16px;height:2px;vertical-align:middle;margin-right:7px;background:var(--stripe-mod)}
+.legend span:nth-child(2)::before{background:var(--stripe-osc)}
+.legend span:nth-child(3)::before{background:var(--stripe-flt)}
+.legend span:nth-child(4)::before{background:var(--stripe-amp)}
+.legend span:nth-child(5)::before{background:var(--stripe-voc)}
+.legend span:nth-child(6)::before{background:var(--stripe-bass)}
+
+:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+body.learning .knob,body.learning .hfader{cursor:crosshair}
+
+@media (max-width:560px){
+  .unit{padding:16px 14px 20px}
+  .brand{font-size:21px;letter-spacing:.28em}
+  .btn{flex:1 1 auto;text-align:center}
+  .rack-pair{grid-template-columns:1fr;gap:0}
+  .rack{padding:12px 10px 10px}
+  .knobs{grid-template-columns:repeat(4,1fr);gap:10px 8px}
+  .kface{width:48px;height:48px}
+  .klab{font-size:9px;letter-spacing:.1em;min-height:20px}
+  .keys{height:64px}
+  .now{font-size:clamp(26px,9vw,38px)}
+  .steps{gap:3px}
+  .seqrow .rlab{flex:0 0 34px;font-size:8.5px}
+  /* The panel is ~2200px tall on a phone, so Play has to stay reachable while you are
+     down in the sequencer. It pins to the TOP, not the bottom: a `bottom:0` sticky only
+     holds while you are scrolled ABOVE the element, and the transport sits near the top of
+     the panel, so scrolling down released it and it scrolled away entirely. Measured, not
+     eyeballed — it looks identical either way until you actually scroll. */
+  .transport{position:sticky;top:0;z-index:20;
+    margin:16px -14px 0;padding:8px 14px;gap:6px;align-items:center;
+    background:linear-gradient(180deg,var(--panel-lo),rgba(38,44,49,.88));
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--edge);box-shadow:0 6px 18px rgba(0,0,0,.45)}
+  /* pinned, it is competing with the panel for a small screen — keep it to two rows */
+  .transport .btn{padding:9px 8px;font-size:11px;letter-spacing:.08em;flex:1 1 68px}
+  .transport .btn.play{min-width:0}
+  .transport .field{flex:1 1 84px;gap:2px}
+  .transport .field label{font-size:8.5px;letter-spacing:.12em}
+  .transport .tempo button{width:24px;font-size:15px;padding:6px 0}
+  .transport .tempo output{font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}

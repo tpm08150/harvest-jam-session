@@ -1,0 +1,14 @@
+# Concatenated in this order by tools/build.py. Every line of the shipped
+# file lives in exactly one of these, so the build is a pure join.
+head.html
+style.css
+body.html
+_open.js
+theory.js
+audio.js
+ui.js
+midi.js
+audio-io.js
+patches.js
+_close.js
+tail.html

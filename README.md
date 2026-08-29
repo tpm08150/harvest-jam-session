@@ -1,8 +1,9 @@
 # Patchwork
 
-Two synthesizers that run entirely in the browser. One HTML file each, no build step, no
-dependencies — generate and play music, shape it with a small synth engine, and drive
-external hardware over MIDI.
+Two synthesizers that run entirely in the browser. One HTML file each, no dependencies —
+generate and play music, shape it with a small synth engine, and drive external hardware
+over MIDI. Each ships as a single self-contained file; they are assembled from `src/` by a
+concatenation script that needs nothing but Python.
 
 | | | |
 | --- | --- | --- |
@@ -175,6 +176,14 @@ python3 serve.py
 
 Then open <http://localhost:8123/patchwork-chord-synth.html> or
 <http://localhost:8123/patchwork-mono-synth.html>. One server serves both.
+
+The two HTML files are assembled from `src/` by `tools/build.py` — **edit the fragments, not
+the built files.** The build is a plain concatenation and needs nothing but Python, so the
+shipped app is still one file with no dependencies:
+
+```bash
+python3 tools/build.py
+```
 
 Deployed on Netlify, CS·1 is at the root and MS·1 is at `/mono`.
 

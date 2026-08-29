@@ -1,0 +1,335 @@
+:root{
+  --panel:#333a3f;
+  --panel-hi:#3e464c;
+  --panel-lo:#262c31;
+  --edge:#1b2024;
+  --silk:#c6cdd2;
+  --silk-dim:#828d95;
+  --paper:#e7e2d5;
+  --paper-dim:#d3cec1;
+  --ink:#232b31;
+  --cap-red:#e04b2f;
+  --cap-yellow:#e8b23a;
+  --mint:#63d6b0;
+  --slot:#1d2226;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+/* height:100% on body would pin it to exactly one viewport; .unit then stretches to that
+   fixed height and its overflow:hidden clips everything below the fold, unreachably. */
+html{height:100%}
+body{
+  background:#1a1e21;
+  background-image:radial-gradient(120% 90% at 50% 0%,#2b3237 0%,#15181b 100%);
+  color:var(--silk);
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  min-height:100%;
+  padding:18px 14px 40px;
+  display:flex;justify-content:center;align-items:flex-start;
+  -webkit-font-smoothing:antialiased;
+}
+.unit{
+  width:100%;max-width:760px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);
+  border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  padding:20px 18px 24px;
+  position:relative;
+  overflow:hidden;
+}
+.unit::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+}
+.unit>*{position:relative}
+
+/* ---------- header plate ---------- */
+.plate{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.brand{font-family:"Saira Semi Condensed";font-weight:600;font-size:26px;letter-spacing:.34em;text-transform:uppercase;color:#e4e9ec;line-height:1}
+.model{font-family:"DM Mono";font-size:10.5px;letter-spacing:.14em;color:var(--silk-dim);margin-top:6px;text-transform:uppercase}
+.screws{display:flex;gap:8px;opacity:.5}
+.screw{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#6d777d,#2c3236);box-shadow:0 1px 0 rgba(255,255,255,.12)}
+
+/* ---------- paper patch card ---------- */
+.card{
+  background:linear-gradient(180deg,#efeade,var(--paper));
+  border-radius:4px;
+  padding:14px 14px 12px;
+  box-shadow:0 2px 0 rgba(0,0,0,.35),0 10px 22px rgba(0,0,0,.32);
+  color:var(--ink);
+}
+.card-head{
+  display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  border-bottom:1px solid rgba(35,43,49,.22);padding-bottom:8px;margin-bottom:12px;
+}
+.card-title{font-family:"DM Mono";font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#5d6469}
+.card-meta{font-family:"DM Mono";font-size:11px;letter-spacing:.06em;color:#3b464e}
+/* 3 across to mirror the EP-133's 3x4 pad grid — JS sets this inline too, keep them agreeing */
+.chords{display:grid;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}
+/* the pad wraps the play button plus its chord picker — the picker has to live outside
+   .chord, whose overflow:hidden would clip it */
+.pad{position:relative}
+/* Always visible and chip-shaped: this is the only route to the chord editor, and a
+   faint hover-only glyph is invisible on a paper pad and unreachable on touch. */
+.pick{
+  position:absolute;top:4px;right:4px;z-index:4;
+  width:25px;height:20px;border-radius:3px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;line-height:1;
+  color:#7a5348;
+  background:rgba(35,43,49,.09);
+  border:1px solid rgba(35,43,49,.22);
+  transition:background .14s ease,border-color .14s ease,color .14s ease;
+}
+.pad:hover .pick{background:rgba(224,75,47,.18);border-color:rgba(224,75,47,.55);color:#8c2a17}
+.pick:focus-within{outline:2px solid var(--mint);outline-offset:1px}
+/* a real <select> sits invisibly over the chevron: native menu, custom trigger */
+.pick select{
+  position:absolute;inset:0;width:100%;height:100%;
+  opacity:0;cursor:pointer;appearance:none;border:none;background:none;padding:0;
+  font-family:inherit;
+}
+.pick:focus-within{outline:2px solid var(--mint);outline-offset:-2px;border-radius:3px}
+.pick button{
+  width:100%;height:100%;background:none;border:none;padding:0;cursor:pointer;
+  color:inherit;font:inherit;line-height:1;
+}
+
+/* per-pad editor: root, chord type and how many bars the pad holds */
+.pad-edit{
+  position:absolute;top:calc(100% + 6px);z-index:30;
+  min-width:184px;padding:10px;border-radius:5px;
+  background:linear-gradient(180deg,#404850,#2f363b);
+  border:1px solid var(--edge);
+  box-shadow:0 12px 28px rgba(0,0,0,.62);
+  display:flex;flex-direction:column;gap:8px;
+}
+.pad-edit[hidden]{display:none}
+.pad-edit label{
+  display:flex;flex-direction:column;gap:4px;
+  font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--silk-dim);
+}
+.pad-edit select{font-size:13px;padding:7px 24px 7px 8px}
+.chord .len{
+  position:absolute;bottom:3px;right:5px;z-index:3;
+  font-family:"DM Mono";font-size:8.5px;letter-spacing:.02em;color:#7d6a52;
+}
+.card-title em{font-style:normal;color:#8a6157;margin-left:9px}
+
+.chord{
+  width:100%;
+  position:relative;overflow:hidden;
+  background:rgba(35,43,49,.045);
+  border:1px solid rgba(35,43,49,.16);
+  border-radius:3px;
+  padding:17px 6px 10px;      /* top clears the editor chip so it can't sit on the name */
+  text-align:center;cursor:pointer;
+  font:inherit;color:inherit;
+  transition:transform .09s ease,background .18s ease;
+}
+.chord:hover{background:rgba(35,43,49,.09)}
+.chord:active{transform:translateY(1px)}
+.chord .name{
+  font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:clamp(17px,4.6vw,25px);
+  letter-spacing:-.01em;display:block;line-height:1.05;position:relative;z-index:2;
+}
+.chord .rn{
+  font-family:"DM Mono";font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:#8a6157;margin-top:6px;display:block;position:relative;z-index:2;
+}
+.chord .wipe{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(224,75,47,.16);z-index:1}
+.chord.on{background:rgba(224,75,47,.09);border-color:rgba(224,75,47,.5)}
+.chord:focus-visible,.fader:focus-visible,.seg button:focus-visible,.btn:focus-visible,select:focus-visible{
+  outline:2px solid var(--mint);outline-offset:2px;
+}
+
+/* ---------- transport ---------- */
+.transport{display:flex;gap:9px;flex-wrap:wrap;align-items:stretch;margin:16px 0 4px}
+.btn{
+  font-family:"Saira Semi Condensed";font-weight:600;font-size:13px;letter-spacing:.16em;text-transform:uppercase;
+  background:linear-gradient(180deg,#4a5359,#394247);
+  color:#e6ebee;border:1px solid var(--edge);border-radius:5px;
+  padding:11px 16px;cursor:pointer;
+  box-shadow:0 1px 0 rgba(255,255,255,.13) inset,0 2px 0 #1c2124;
+}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(255,255,255,.08) inset}
+.btn.primary{background:linear-gradient(180deg,#ec6146,var(--cap-red));border-color:#8c2a17;color:#fff2ee}
+.btn.play{min-width:112px}
+.btn.play.on{background:linear-gradient(180deg,#79e6c3,var(--mint));border-color:#1f7a61;color:#0d2c24}
+.btn.ghost{background:linear-gradient(180deg,#3b4348,#31394 0);background:linear-gradient(180deg,#3b4348,#2f363b);color:var(--silk)}
+
+/* ---------- selects & tempo ---------- */
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
+.field{display:flex;flex-direction:column;gap:5px;flex:1 1 118px;min-width:0}
+label,.silk{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--silk-dim);font-weight:500}
+select{
+  appearance:none;width:100%;
+  font-family:"Saira Semi Condensed";font-size:14px;letter-spacing:.04em;
+  background:var(--slot);color:#dfe6ea;border:1px solid #12161a;border-radius:4px;
+  padding:9px 26px 9px 10px;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--silk-dim) 50%),linear-gradient(135deg,var(--silk-dim) 50%,transparent 50%);
+  background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+  box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+input[type="text"]{
+  width:100%;font-family:"Saira Semi Condensed";font-size:14px;letter-spacing:.04em;
+  background:var(--slot);color:#dfe6ea;border:1px solid #12161a;border-radius:4px;
+  padding:9px 10px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+input[type="text"]:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+input[type="text"]::placeholder{color:#5a646a}
+.patch-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end}
+.tempo{display:flex;align-items:center;gap:0;background:var(--slot);border:1px solid #12161a;border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset}
+.tempo button{width:32px;flex:none;background:none;border:none;color:var(--silk-dim);font-size:17px;cursor:pointer;padding:8px 0;font-family:inherit}
+.tempo button:hover{color:#fff}
+.tempo output{flex:1;text-align:center;font-family:"DM Mono";font-size:15px;color:var(--mint);letter-spacing:.04em}
+
+/* ---------- fader bank ---------- */
+.bank{margin-top:22px;border-top:1px solid rgba(0,0,0,.4);box-shadow:0 -1px 0 rgba(255,255,255,.05);padding-top:18px}
+.bank-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap}
+.faders{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.fader{display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px 2px 6px;border-radius:6px;cursor:ns-resize;touch-action:none;background:rgba(0,0,0,.1)}
+.slot{
+  position:relative;width:26px;height:118px;border-radius:4px;
+  background:linear-gradient(90deg,#20262a,#12161a 45%,#20262a);
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06);
+}
+.slot::after{content:"";position:absolute;left:50%;top:7px;bottom:7px;width:3px;transform:translateX(-50%);background:#0b0e10;border-radius:2px}
+.cap{
+  position:absolute;left:-4px;width:34px;height:22px;border-radius:3px;
+  top:calc((1 - var(--v,.5)) * (118px - 22px));
+  background:linear-gradient(180deg,#5b656b,#394247);
+  border:1px solid #14181b;
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset;
+}
+.cap::after{content:"";position:absolute;left:3px;right:3px;top:9px;height:3px;border-radius:2px;background:var(--capcolor,#8b959b)}
+.g1 .cap::after{background:var(--cap-red)}
+.g2 .cap::after{background:var(--cap-yellow)}
+.fader .lab{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--silk-dim);text-align:center}
+.fader .val{font-family:"DM Mono";font-size:10px;color:#aeb8be}
+.fader.dragging .cap{box-shadow:0 0 0 1px var(--mint),0 2px 3px rgba(0,0,0,.55)}
+
+/* ---------- segmented ---------- */
+/* gap over the dark backing draws the dividers, so the control can wrap to a second
+   row without leaving a stray border at the wrap point */
+.seg{display:inline-flex;flex-wrap:wrap;gap:1px;background:#12161a;border:1px solid #12161a;border-radius:4px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.5) inset}
+.seg button{
+  font-family:"Saira Semi Condensed";font-weight:500;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  background:var(--slot);border:none;color:var(--silk-dim);padding:8px 11px;cursor:pointer;
+}
+.seg button.on{background:linear-gradient(180deg,#4c565c,#3b444a);color:#eef3f5}
+.seg button:hover{color:#eef3f5}
+
+/* ---------- per-motion options ---------- */
+.motion-opts{
+  margin-top:13px;padding:11px 12px;border-radius:6px;
+  background:rgba(0,0,0,.17);border:1px solid rgba(0,0,0,.32);
+  box-shadow:0 1px 0 rgba(255,255,255,.04);
+}
+.motion-opts[hidden]{display:none}
+.opt-row{display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.opt-row[hidden]{display:none}
+.opt-row .silk{flex:0 0 auto;min-width:42px}
+.opt-row + .opt-row:not([hidden]){margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.3)}
+.swing-hint{font-family:"DM Mono";font-size:10px;letter-spacing:.04em;color:#5f696f}
+.steps{display:grid;gap:4px;justify-content:start}
+.step{
+  width:24px;height:26px;border-radius:3px;padding:0;cursor:pointer;
+  background:var(--slot);border:1px solid #12161a;
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  transition:background .1s ease;
+}
+.step:hover{background:#2b3339}
+.step.on{
+  background:linear-gradient(180deg,#ec6146,var(--cap-red));border-color:#8c2a17;
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset;
+}
+/* downbeat of each quarter, so 16ths stay countable */
+.step.beat::after{content:"";display:block;width:2px;height:2px;margin:0 auto;border-radius:50%;background:rgba(255,255,255,.4)}
+.step.now{outline:2px solid var(--mint);outline-offset:1px}
+.step:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+.opt-row select{width:auto;min-width:76px}
+
+/* horizontal fader — same behaviour as the bank's vertical ones, laid out to sit in a row */
+.hfader{
+  display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
+  padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13);
+}
+.hfader:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+.hfader .hlab{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--silk-dim)}
+.hslot{
+  position:relative;width:130px;height:20px;border-radius:4px;
+  background:linear-gradient(180deg,#20262a,#12161a 45%,#20262a);
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06);
+}
+.hslot::after{
+  content:"";position:absolute;left:7px;right:7px;top:50%;height:3px;
+  transform:translateY(-50%);background:#0b0e10;border-radius:2px;
+}
+.hcap{
+  position:absolute;top:-3px;height:26px;width:22px;border-radius:3px;
+  left:calc(var(--v,.5) * (130px - 22px));
+  background:linear-gradient(180deg,#5b656b,#394247);border:1px solid #14181b;
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset;
+}
+.hcap::after{content:"";position:absolute;top:3px;bottom:3px;left:9px;width:3px;border-radius:2px;background:var(--cap-red)}
+.hfader.g2 .hcap::after{background:var(--cap-yellow)}   /* output control, matching the bank */
+.hfader .hval{font-family:"DM Mono";font-size:10px;color:#aeb8be;min-width:32px}
+.hfader .bind{font-family:"DM Mono";font-size:9px;color:var(--cap-yellow)}
+.hfader.dragging .hcap{box-shadow:0 0 0 1px var(--mint),0 2px 3px rgba(0,0,0,.55)}
+.hfader.arm{box-shadow:0 0 0 2px var(--cap-yellow) inset}
+
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--silk-dim);margin-top:14px}
+.legend span::before{content:"";display:inline-block;width:16px;height:2px;vertical-align:middle;margin-right:7px;background:var(--cap-red)}
+.legend span+span::before{background:var(--cap-yellow)}
+
+/* ---------- midi & audio i/o ---------- */
+.sect{margin-top:20px;border-top:1px solid rgba(0,0,0,.4);box-shadow:0 -1px 0 rgba(255,255,255,.05);padding-top:16px}
+.sect-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.led{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:#2a3238;box-shadow:0 0 0 1px #12161a inset;
+  margin-right:8px;vertical-align:middle;transition:background .1s,box-shadow .1s;
+}
+.led.ready{background:#2f6b5a}
+.led.err{background:var(--cap-red)}
+.led.lit{background:var(--mint);box-shadow:0 0 7px var(--mint)}
+.note{font-family:"DM Mono";font-size:10px;letter-spacing:.04em;color:#6d777e;line-height:1.75;margin-top:14px}
+.note code{background:#20262a;border:1px solid #12161a;border-radius:3px;padding:1px 5px;color:#a9b3b9}
+.note.bad{color:#c98a7a}
+
+.stats{display:flex;gap:15px;flex-wrap:wrap;font-family:"DM Mono";font-size:10px;letter-spacing:.03em;color:#5f696f;margin-top:9px}
+.stats b{color:#a9b3b9;font-weight:400}
+
+/* ---------- midi learn ---------- */
+.btn.sm{padding:8px 12px;font-size:11px;letter-spacing:.12em}
+.btn.learn.on{background:linear-gradient(180deg,#f0c45a,var(--cap-yellow));border-color:#8a6a15;color:#2f2405}
+.btn.panic{background:linear-gradient(180deg,#ec6146,var(--cap-red));border-color:#8c2a17;color:#fff2ee}
+body.learning .chord,body.learning .fader{cursor:crosshair}
+body.learning .fader{cursor:crosshair}
+.chord.arm{border-color:var(--cap-yellow)!important;background:rgba(232,178,58,.16)}
+.fader.arm{box-shadow:0 0 0 2px var(--cap-yellow) inset}
+.chord .bind{
+  position:absolute;top:4px;left:5px;z-index:3;
+  font-family:"DM Mono";font-size:8.5px;letter-spacing:.04em;
+  color:#7a5a10;background:rgba(232,178,58,.3);border-radius:2px;padding:1px 4px;
+}
+.fader .bind{font-family:"DM Mono";font-size:9px;color:var(--cap-yellow);min-height:11px}
+
+@media (max-width:560px){
+  /* staying 3 wide costs horizontal room, so tighten the pads to fit the longest
+     name the pools can make (B♭m(add9)) instead of dropping to 2 columns */
+  .step{width:20px;height:24px}
+  .chords{gap:6px}
+  /* narrow pads let long names reach the chip, so the name starts below it entirely */
+  .chord{padding:21px 4px 10px}
+  .chord .name{font-size:clamp(12.5px,3.4vw,20px)}
+  .pick{width:21px;height:16px;font-size:11px;top:2px;right:2px}
+  .faders{grid-template-columns:repeat(3,1fr);gap:10px}
+  .slot{height:100px}
+  .cap{top:calc((1 - var(--v,.5)) * (100px - 22px))}
+  .brand{font-size:21px;letter-spacing:.28em}
+  .btn{flex:1 1 auto;text-align:center}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}

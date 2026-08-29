@@ -1,0 +1,264 @@
+</style>
+</head>
+<body>
+<div class="unit">
+
+  <div class="plate">
+    <div>
+      <div class="brand">Patchwork</div>
+      <div class="model">CS·1 — chord synthesizer</div>
+    </div>
+    <div class="screws"><i class="screw"></i><i class="screw"></i></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Progression <em id="totalBars"></em></span>
+      <span class="card-meta" id="meta">—</span>
+    </div>
+    <div class="chords" id="chords"></div>
+  </div>
+
+  <div class="transport">
+    <button class="btn primary" id="gen">New progression</button>
+    <button class="btn play" id="play">▶ Play</button>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label for="patchSel">Patch</label>
+      <select id="patchSel"></select>
+    </div>
+    <div class="field">
+      <label for="patchName">Name</label>
+      <input type="text" id="patchName" placeholder="Untitled" autocomplete="off">
+    </div>
+    <div class="field" style="flex:0 0 118px">
+      <label for="patchTrig">Trigger note</label>
+      <!-- sized to the selects beside it: 42px tall, 14px text, 4px radius -->
+      <button class="btn ghost sm" id="patchTrig"
+              style="width:100%;height:42px;font-size:14px;border-radius:4px">— none —</button>
+    </div>
+    <div class="field" style="flex:0 0 104px">
+      <label for="patchProg">Program</label>
+      <select id="patchProg" title="Recall the selected patch when this MIDI program change arrives"></select>
+    </div>
+    <div class="field" style="flex:0 0 126px">
+      <label for="recallWhen">Recall on</label>
+      <select id="recallWhen" title="When a triggered patch actually takes effect">
+        <option value="instant">Instant</option>
+        <option value="bar">Next chord</option>
+        <option value="pattern">End of pattern</option>
+      </select>
+    </div>
+    <div class="patch-actions">
+      <button class="btn ghost sm" id="patchSave">Save</button>
+      <button class="btn ghost sm" id="patchDelete">Delete</button>
+      <button class="btn ghost sm" id="patchExport">Export</button>
+      <button class="btn ghost sm" id="patchImport">Import</button>
+      <input type="file" id="patchFile" accept="application/json,.json" hidden>
+    </div>
+  </div>
+  <div class="note" id="patchNote" style="display:none"></div>
+
+  <div class="row">
+    <div class="field">
+      <label for="key">Key</label>
+      <select id="key"></select>
+    </div>
+    <div class="field" style="flex:0 1 92px">
+      <label for="len">Chords</label>
+      <select id="len"></select>
+    </div>
+    <div class="field" style="flex:0 1 100px">
+      <label for="mode">Mode</label>
+      <select id="mode">
+        <option value="auto">Auto</option>
+        <option value="major">Major</option>
+        <option value="minor">Minor</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="mood">Mood</label>
+      <select id="mood"><option value="any">Anything</option></select>
+    </div>
+    <div class="field">
+      <label for="tempoOut">Tempo</label>
+      <div class="tempo">
+        <button id="bpmDown" aria-label="Slower">−</button>
+        <output id="tempoOut">88</output>
+        <button id="bpmUp" aria-label="Faster">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="note" id="modeNote" style="display:none"></div>
+
+  <div class="bank">
+    <div class="bank-head">
+      <span class="silk">Sound</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="seg" id="voice" role="group" aria-label="Voice">
+          <button data-v="soft" class="on">Soft</button>
+          <button data-v="reed">Reed</button>
+          <button data-v="glass">Glass</button>
+          <button data-v="bell">Bell</button>
+          <button data-v="wire">Wire</button>
+          <button data-v="organ">Organ</button>
+          <button data-v="wood">Wood</button>
+          <button data-v="vapor">Vapor</button>
+          <button data-v="neon">Neon</button>
+          <button data-v="chrome">Chrome</button>
+          <button data-v="brass">Brass</button>
+          <button data-v="halo">Halo</button>
+        </div>
+        <div class="seg" id="motion" role="group" aria-label="Motion">
+          <button data-m="hold" class="on">Hold</button>
+          <button data-m="strum">Strum</button>
+          <button data-m="arp">Arp</button>
+          <button data-m="pulse">Pulse</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="motion-opts" id="motionOpts" hidden>
+      <div class="opt-row" id="arpRow" hidden>
+        <span class="silk">Arp</span>
+        <div class="seg" id="arpDir" role="group" aria-label="Arp direction">
+          <button data-d="up">Up</button>
+          <button data-d="down">Down</button>
+          <button data-d="updown" class="on">Up/down</button>
+          <button data-d="random">Random</button>
+        </div>
+        <div class="seg" id="arpOct" role="group" aria-label="Arp octave range">
+          <button data-o="1" class="on">1 oct</button>
+          <button data-o="2">2 oct</button>
+          <button data-o="3">3 oct</button>
+        </div>
+        <select id="arpRate" aria-label="Arp notes per bar"></select>
+      </div>
+
+      <div class="opt-row" id="pulseRow" hidden>
+        <span class="silk">Pulse</span>
+        <select id="pulseSteps" aria-label="Number of steps"></select>
+        <div class="steps" id="stepGrid"></div>
+      </div>
+
+      <div class="opt-row" id="swingRow">
+        <span class="silk">Swing</span>
+        <select id="swing" aria-label="Swing amount"></select>
+        <span class="swing-hint" id="swingHint"></span>
+      </div>
+    </div>
+
+    <div class="faders" id="faders"></div>
+
+    <div class="motion-opts" id="bassOpts">
+      <div class="opt-row">
+        <span class="silk">Bass</span>
+        <div class="seg" id="bass" role="group" aria-label="Root bass note">
+          <button data-b="on" class="on">On</button>
+          <button data-b="off">Off</button>
+        </div>
+        <div class="hfader" id="bassSusFader" tabindex="0" role="slider"
+             aria-label="Bass decay" aria-valuemin="0" aria-valuemax="100">
+          <span class="hlab">Decay</span>
+          <div class="hslot"><div class="hcap"></div></div>
+          <span class="hval"></span>
+          <span class="bind"></span>
+        </div>
+        <div class="hfader g2" id="bassLvlFader" tabindex="0" role="slider"
+             aria-label="Bass level" aria-valuemin="0" aria-valuemax="100">
+          <span class="hlab">Level</span>
+          <div class="hslot"><div class="hcap"></div></div>
+          <span class="hval"></span>
+          <span class="bind"></span>
+        </div>
+      </div>
+      <div class="opt-row">
+        <span class="silk">Steps</span>
+        <select id="bassSteps" aria-label="Bass steps"></select>
+        <div class="steps" id="bassGrid"></div>
+      </div>
+    </div>
+
+    <div class="legend"><span>Shape</span><span>Space &amp; output</span></div>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head">
+      <span class="silk"><i class="led" id="midiLed"></i>MIDI</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn sm panic" id="panic" title="Send all-notes-off on every channel">Panic</button>
+        <button class="btn ghost sm learn" id="learn" aria-pressed="false">Learn</button>
+        <button class="btn ghost sm" id="clearMap">Clear map</button>
+        <div style="display:flex;gap:7px;align-items:center">
+          <span class="silk">Clock</span>
+          <div class="seg" id="clockEn" role="group" aria-label="Follow MIDI clock">
+            <button data-c="on" class="on">Follow</button>
+            <button data-c="off">Ignore</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:7px;align-items:center">
+          <span class="silk">Offset</span>
+          <div class="tempo" style="width:126px">
+            <button id="offDown" aria-label="Play earlier">−</button>
+            <output id="offOut">0 ms</output>
+            <button id="offUp" aria-label="Play later">+</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:7px;align-items:center">
+          <span class="silk">Lock</span>
+          <div class="seg" id="clockLock" role="group" aria-label="Phase-lock to MIDI clock">
+            <button data-l="off" class="on">Off</button>
+            <button data-l="on">On</button>
+          </div>
+          <output id="phaseOut" class="silk" style="min-width:112px">—</output>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="midiIn">Input</label>
+        <select id="midiIn"><option value="">— none —</option></select>
+      </div>
+      <div class="field">
+        <label for="midiOut">Output</label>
+        <select id="midiOut"><option value="">— none —</option></select>
+      </div>
+      <div class="field" style="flex:0 0 74px">
+        <label for="midiInCh">In ch</label>
+        <select id="midiInCh"></select>
+      </div>
+      <div class="field" style="flex:0 0 74px">
+        <label for="midiCh">Out ch</label>
+        <select id="midiCh"></select>
+      </div>
+    </div>
+
+    <div class="note" id="midiNote">Requesting MIDI access…</div>
+  </div>
+
+  <div class="sect">
+    <div class="sect-head">
+      <span class="silk"><i class="led" id="audioLed"></i>Audio I/O</span>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="audioOut">Output</label>
+        <select id="audioOut"><option value="">System default</option></select>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Devices</span>
+        <button class="btn ghost" id="scan" style="padding:9px 15px;font-size:11px">Scan</button>
+      </div>
+    </div>
+
+    <div class="stats" id="ioStats"></div>
+    <div class="note" id="audioNote">Hit <code>Scan</code> to list connected audio devices.</div>
+  </div>
+</div>
+
+<script>

@@ -1,0 +1,388 @@
+</style>
+</head>
+<body>
+<!-- one shared gradient for every knob cap; referenced by url(#kcap) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="kcap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5b656b"/>
+      <stop offset="1" stop-color="#394247"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="unit">
+
+  <div class="plate">
+    <div>
+      <div class="brand">Patchwork</div>
+      <div class="model">MS·1 — mono synthesizer</div>
+    </div>
+    <div class="screws"><i class="screw"></i><i class="screw"></i></div>
+  </div>
+  <div class="rule"></div>
+
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Voice <em id="patchTag">init</em></span>
+      <span class="card-meta" id="voiceMeta">—</span>
+    </div>
+    <div class="now" id="nowNote">—<small id="nowDetail"></small></div>
+    <div class="keys" id="keys" role="group" aria-label="Keyboard"></div>
+  </div>
+
+  <!-- Not a vocoder control: it decides where the ON-SCREEN and computer keyboards send
+       notes, for every section. Incoming MIDI is routed by channel and ignores this. -->
+  <div class="keysrow">
+    <span class="silk">Keyboard plays</span>
+    <div class="seg sm" id="keysTo" role="group" aria-label="What the on-screen and computer keyboards play">
+      <button data-k="syn" class="on">Synth</button>
+      <button data-k="voc">Vocoder</button>
+      <button data-k="bass">Bass</button>
+      <button data-k="both">Syn+Voc</button>
+    </div>
+    <span class="note" id="keysNote" style="margin:0"></span>
+  </div>
+
+  <div class="transport">
+    <button class="btn primary" id="init">Init patch</button>
+    <button class="btn play" id="play">▶ Play</button>
+    <button class="btn ghost tog" id="hold" aria-pressed="false">Hold</button>
+    <div class="field" style="flex:0 0 128px">
+      <label for="tempoOut">Tempo</label>
+      <div class="tempo">
+        <button id="bpmDown" aria-label="Slower">−</button>
+        <output id="tempoOut">120</output>
+        <button id="bpmUp" aria-label="Faster">+</button>
+      </div>
+    </div>
+    <div class="field" style="flex:0 0 116px">
+      <label for="octOut">Octave</label>
+      <div class="tempo">
+        <button id="octDown" aria-label="Down an octave">−</button>
+        <output id="octOut">0</output>
+        <button id="octUp" aria-label="Up an octave">+</button>
+      </div>
+    </div>
+    <button class="btn panic" id="panic" title="Send all-notes-off on every channel">Panic</button>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label for="patchSel">Patch</label>
+      <select id="patchSel"></select>
+    </div>
+    <div class="field">
+      <label for="patchName">Name</label>
+      <input type="text" id="patchName" placeholder="Untitled" autocomplete="off">
+    </div>
+    <div class="patch-actions">
+      <button class="btn ghost sm" id="patchSave">Save</button>
+      <button class="btn ghost sm" id="patchDelete">Delete</button>
+      <button class="btn ghost sm" id="patchExport">Export</button>
+      <button class="btn ghost sm" id="patchImport">Import</button>
+      <input type="file" id="patchFile" accept="application/json,.json" hidden>
+    </div>
+  </div>
+  <div class="note" id="patchNote" style="display:none"></div>
+
+  <!-- ===== SEQ / ARP ===== -->
+  <div class="rack r-osc">
+    <div class="rack-head">
+      <span class="silk">Motion</span>
+      <div class="seg sm" id="seqMode" data-seqonly role="group" aria-label="Sequencer mode">
+        <button data-p="play" class="on">Play</button>
+        <button data-p="program">Program</button>
+      </div>
+      <div class="seg sm" id="motion" role="group" aria-label="Motion">
+        <button data-m="off" class="on">Off</button>
+        <button data-m="arp">Arp</button>
+        <button data-m="seq">Seq</button>
+      </div>
+      <div class="seg sm" id="arpDir" data-arponly role="group" aria-label="Arp direction">
+        <button data-d="up" class="on">Up</button>
+        <button data-d="down">Down</button>
+        <button data-d="updown">Up/dn</button>
+        <button data-d="random">Rand</button>
+      </div>
+      <div class="seg sm" id="arpOct" data-arponly role="group" aria-label="Arp octave range">
+        <button data-o="1" class="on">1 oct</button>
+        <button data-o="2">2 oct</button>
+        <button data-o="3">3 oct</button>
+      </div>
+      <select id="seqKey" data-seqonly aria-label="Key" style="width:auto;min-width:64px"></select>
+      <select id="seqScale" data-seqonly aria-label="Scale" style="width:auto;min-width:112px"></select>
+      <select id="seqLen" data-seqonly aria-label="Pattern length" style="width:auto;min-width:82px"></select>
+      <select id="seqRate" aria-label="Step rate" style="width:auto;min-width:88px"></select>
+      <button class="btn ghost sm" id="clearLocks" data-seqonly title="Clear this step's parameter locks">Clear locks</button>
+      <div class="seg sm" id="seqLane" data-seqonly role="group" aria-label="Edit lane">
+        <button data-l="on" class="on">Gate</button>
+        <button data-l="pitch">Pitch</button>
+        <button data-l="accent">Accent</button>
+        <button data-l="slide">Slide</button>
+        <button data-l="tie">Tie</button>
+      </div>
+    </div>
+    <div class="roll" id="arpRoll" hidden></div>
+    <div class="seqwrap" id="seqWrap"></div>
+    <div class="seqlegend" data-seqonly>
+      <span><i style="background:var(--accent)"></i>step on</span>
+      <span><i style="box-shadow:0 0 0 1px var(--cap-yellow) inset;background:var(--accent)"></i>accent</span>
+      <span><i style="background:var(--stripe-mod)"></i>slide</span>
+      <span><i style="background:#5a6a76"></i>tie</span>
+      <span>hold a note and click a step to record it</span>
+      <span id="seqHint"></span>
+    </div>
+    <div class="row">
+      <div class="hfader" id="gateFader" tabindex="0" role="slider" aria-label="Gate length" aria-valuemin="0" aria-valuemax="100">
+        <span class="hlab">Gate</span><div class="hslot"><div class="hcap"></div></div><span class="hval"></span><span class="bind"></span>
+      </div>
+      <div class="hfader" id="swingFader" tabindex="0" role="slider" aria-label="Swing" aria-valuemin="0" aria-valuemax="100">
+        <span class="hlab">Swing</span><div class="hslot"><div class="hcap"></div></div><span class="hval"></span><span class="bind"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== VOCODER ===== -->
+  <div class="rack r-voc">
+    <div class="rack-head">
+      <span class="silk">Vocoder</span>
+      <div class="seg sm" id="vocOn" role="group" aria-label="Vocoder section">
+        <button data-v="0" class="on">Off</button>
+        <button data-v="1">On</button>
+      </div>
+      <div class="seg sm" id="vocBands" role="group" aria-label="Band count">
+        <button data-b="8">8 bands</button>
+        <button data-b="16" class="on">16</button>
+        <button data-b="24">24</button>
+      </div>
+      <span class="note" style="margin:0">carrier shaped by <b>Env 2 → Amp</b></span>
+      <select id="modIn" aria-label="Modulator input" style="width:auto;min-width:140px">
+        <option value="">Default input</option>
+      </select>
+      <button class="btn ghost sm" id="modStart">Listen</button>
+    </div>
+    <div class="knobs" id="kVoc" style="--kc:7"></div>
+    <div class="stats" id="vocStats"></div>
+    <div class="note" id="vocNote">Sing or speak into an input and play notes on the tinted
+      half of the keyboard — those notes carry your voice. Input names stay blank until the
+      browser has been granted the microphone once: hit <code>Listen</code>, or
+      <code>Scan</code> under Audio&nbsp;I/O, then pick your interface.
+      <b>Use headphones</b> unless your input is a separate device — a microphone into
+      speakers will feed back.</div>
+  </div>
+
+
+  <!-- ===== BASS ===== -->
+  <div class="rack r-bass">
+    <div class="rack-head">
+      <span class="silk">Bass</span>
+      <div class="seg sm" id="bassOn" role="group" aria-label="Bass section">
+        <button data-b="0" class="on">Off</button>
+        <button data-b="1">On</button>
+      </div>
+      <div class="seg sm" id="bassWave" role="group" aria-label="Bass waveform">
+        <button data-w="saw" class="on">Saw</button>
+        <button data-w="square">Square</button>
+      </div>
+      <span class="note" style="margin:0">pedal voice · dry and centred · its own MIDI channel</span>
+    </div>
+    <div class="knobs" id="kBass" style="--kc:8"></div>
+    <div class="note" id="bassNote"></div>
+  </div>
+
+  <!-- ===== KEY ASSIGN + LFO ===== -->
+  <div class="rack-pair">
+    <div class="rack r-mod">
+      <div class="rack-head">
+        <span class="silk">Key assign</span>
+        <div class="seg sm" id="voiceMode" role="group" aria-label="Voice mode">
+          <button data-m="mono" class="on">Mono</button>
+          <button data-m="uni2">Uni 2</button>
+          <button data-m="uni3">Uni 3</button>
+          <button data-m="uni5">Uni 5</button>
+          <button data-m="poly">Poly</button>
+        </div>
+        <div class="seg sm" id="glideMode" role="group" aria-label="Glide mode">
+          <button data-g="off" class="on">Glide off</button>
+          <button data-g="always">Always</button>
+          <button data-g="legato">Legato</button>
+        </div>
+        <div class="seg sm" id="prio" role="group" aria-label="Note priority">
+          <button data-p="low" class="on">Low</button>
+          <button data-p="high">High</button>
+          <button data-p="last">Last</button>
+        </div>
+      </div>
+      <div class="knobs" id="kKey" style="--kc:4"></div>
+    </div>
+
+    <div class="rack r-mod">
+      <div class="rack-head">
+        <span class="silk">LFO</span>
+        <div class="seg sm" id="lfoWave" role="group" aria-label="LFO shape">
+          <button data-w="tri" class="on">Tri</button>
+          <button data-w="sine">Sin</button>
+          <button data-w="saw">Saw</button>
+          <button data-w="sq">Sqr</button>
+          <button data-w="sh">S&amp;H</button>
+        </div>
+        <div class="seg sm" id="lfoKey" role="group" aria-label="LFO retrigger">
+          <button data-k="0" class="on">Free</button>
+          <button data-k="1">Key</button>
+        </div>
+      </div>
+      <div class="knobs" id="kLfo" style="--kc:5"></div>
+    </div>
+  </div>
+
+  <!-- ===== DCO ===== -->
+  <div class="rack r-osc">
+    <div class="rack-head">
+      <span class="silk">DCO</span>
+      <div class="seg sm" id="o1w" role="group" aria-label="Oscillator 1 wave">
+        <button data-w="saw" class="on">1 Saw</button>
+        <button data-w="pulse">Pulse</button>
+        <button data-w="tri">Tri</button>
+        <button data-w="sine">Sine</button>
+      </div>
+      <div class="seg sm" id="o2w" role="group" aria-label="Oscillator 2 wave">
+        <button data-w="off" class="on">2 Off</button>
+        <button data-w="saw">Saw</button>
+        <button data-w="pulse">Pulse</button>
+        <button data-w="tri">Tri</button>
+        <button data-w="sine">Sine</button>
+      </div>
+      <div class="seg sm" id="subw" role="group" aria-label="Sub oscillator">
+        <button data-s="sq1" class="on">Sub sq−1</button>
+        <button data-s="sq2">sq−2</button>
+        <button data-s="sin1">sin−1</button>
+        <button data-s="sin2">sin−2</button>
+      </div>
+      <div class="seg sm" id="noisew" role="group" aria-label="Noise colour">
+        <button data-n="white" class="on">White</button>
+        <button data-n="pink">Pink</button>
+      </div>
+    </div>
+    <div class="knobs" id="kOsc" style="--kc:7"></div>
+  </div>
+
+  <!-- ===== FILTER ===== -->
+  <div class="rack r-flt">
+    <div class="rack-head">
+      <span class="silk">Filter</span>
+      <span class="note" style="margin:0">24 dB/oct ladder · two biquads from the analog pole pairs</span>
+    </div>
+    <div class="knobs" id="kFlt" style="--kc:7"></div>
+  </div>
+
+  <!-- ===== ENVELOPES ===== -->
+  <div class="rack-pair">
+    <div class="rack r-amp">
+      <div class="rack-head"><span class="silk">Env 1 → filter</span><span class="note" style="margin:0">ADSR · cutoff</span></div>
+      <div class="knobs" id="kEnvF" style="--kc:4"></div>
+    </div>
+    <div class="rack r-amp">
+      <div class="rack-head"><span class="silk">Env 2 → amp</span><span class="note" style="margin:0">ADSR · volume, both sections</span></div>
+      <div class="knobs" id="kEnvA" style="--kc:4"></div>
+    </div>
+  </div>
+
+  <!-- ===== OUT & FX ===== -->
+  <div class="rack r-amp">
+    <div class="rack-head">
+      <span class="silk">Out &amp; FX</span>
+      <div class="seg sm" id="chorus" role="group" aria-label="Chorus mode">
+        <button data-c="off" class="on">Chorus off</button>
+        <button data-c="i">I</button>
+        <button data-c="ii">II</button>
+        <button data-c="i+ii">I+II</button>
+        <button data-c="ens">Ens</button>
+      </div>
+      <div class="seg sm" id="ddiv" role="group" aria-label="Delay division">
+        <button data-d="off" class="on">Delay off</button>
+        <button data-d="free">Free</button>
+        <button data-d="1/8">1/8</button>
+        <button data-d="1/8d">1/8·</button>
+        <button data-d="1/8t">1/8T</button>
+        <button data-d="1/4">1/4</button>
+        <button data-d="1/2">1/2</button>
+      </div>
+    </div>
+    <div class="knobs" id="kOut" style="--kc:6"></div>
+    <div class="legend"><span>Key &amp; LFO</span><span>DCO</span><span>Filter</span><span>Env &amp; out</span><span>Vocoder</span><span>Bass</span></div>
+  </div>
+
+  <!-- ===== MIDI ===== -->
+  <div class="sect">
+    <div class="sect-head">
+      <span class="silk"><i class="led" id="midiLed"></i>MIDI</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn ghost sm learn" id="learn" aria-pressed="false">Learn</button>
+        <button class="btn ghost sm" id="clearMap">Clear map</button>
+        <div style="display:flex;gap:7px;align-items:center">
+          <span class="silk">Note out</span>
+          <div class="seg sm" id="noteOut" role="group" aria-label="Mirror notes to MIDI out">
+            <button data-o="off" class="on">Off</button>
+            <button data-o="on">On</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="midiIn">Input</label>
+        <select id="midiIn"><option value="">— none —</option></select>
+      </div>
+      <div class="field">
+        <label for="midiOut">Output</label>
+        <select id="midiOut"><option value="">— none —</option></select>
+      </div>
+      <div class="field" style="flex:0 0 84px">
+        <label for="midiCh">Out ch</label>
+        <select id="midiCh"></select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:0 0 112px">
+        <label for="synCh">Synth ch</label>
+        <select id="synCh"></select>
+      </div>
+      <div class="field" style="flex:0 0 112px">
+        <label for="vocCh">Vocoder ch</label>
+        <select id="vocCh"></select>
+      </div>
+      <div class="field" style="flex:0 0 112px">
+        <label for="bassCh">Bass ch</label>
+        <select id="bassCh" title="The bass answers only this channel"></select>
+      </div>
+      <div class="field" style="flex:0 0 112px">
+        <label for="ccCh">Control ch</label>
+        <select id="ccCh" title="Channel for CC, mod wheel, sustain and program change"></select>
+      </div>
+      <div class="note" id="chNote" style="margin-top:0;align-self:center;flex:1 1 220px"></div>
+    </div>
+    <div class="note" id="midiNote">Requesting MIDI access…</div>
+  </div>
+
+  <!-- ===== AUDIO I/O ===== -->
+  <div class="sect">
+    <div class="sect-head">
+      <span class="silk"><i class="led" id="audioLed"></i>Audio I/O</span>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="audioOut">Output</label>
+        <select id="audioOut"><option value="">System default</option></select>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Devices</span>
+        <button class="btn ghost" id="scan" style="padding:9px 15px;font-size:11px">Scan</button>
+      </div>
+    </div>
+    <div class="stats" id="ioStats"></div>
+    <div class="note" id="audioNote">Hit <code>Scan</code> to list connected audio devices.</div>
+  </div>
+</div>
+
+<script>
