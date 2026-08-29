@@ -14,6 +14,8 @@ const LP = {
   input: "__bus",           // device id, or __bus for the studio's own output
   mode: "idle",             // idle | armed | rec | play | dub
   pos: 0, len: 0, peak: 0,
+  slot: 0, filled: [],      // one take per scene row — see the live page
+
   bpmAtRecord: null         // the tempo the loop was cut at — see the note in the panel
 };
 
@@ -76,7 +78,10 @@ function allocate(){
 }
 
 function onWorklet(m){
+  if (m.filled) LP.filled = m.filled;
+  if (m.slot != null) LP.slot = m.slot;
   if (m.ev === "pos"){ LP.pos = m.pos; LP.len = m.len; LP.peak = m.peak; return; }
+  if (m.ev === "slots"){ paintState(); return; }
   if (m.ev === "started" || m.ev === "looped"){ setMode(m.mode); }
 }
 
@@ -137,19 +142,26 @@ function closeInput(){
    Arming schedules the mode change for an exact sample rather than applying it now, so a
    take starts on the bar line however early or late the button was pressed. That is the
    same seam the scene launcher fires on, and it comes from the same place. */
-async function arm(mode){
+/* `slot` is the scene row. Recording into a row and firing a row are the same gesture the
+   rest of the studio uses, so the looper joins the launcher rather than sitting beside it
+   with a transport of its own. */
+async function arm(mode, slot){
   const n = await ensureNode();
   if (!n) return;
+  if (slot != null) LP.slot = slot | 0;
   if (!stream && (mode === "rec" || mode === "dub")){
     const ok = await openInput(LP.input);
     if (!ok) return;
   }
-  if (mode === "rec"){
+  if (mode === "rec" && !LP.bpmAtRecord){
+    /* the length is fixed by the first take; later rows record at the same length, or the
+       rows would be different lengths and the launcher could not fire them together */
     allocate();
     LP.bpmAtRecord = Patchwork.clock.bpm;
   }
   const at = Patchwork.clock.claim(LP.bars * 4);
-  n.port.postMessage({op: "at", mode: mode, frame: Math.round(at * ctx.sampleRate)});
+  n.port.postMessage({op: "at", mode: mode, slot: LP.slot,
+                      frame: Math.round(at * ctx.sampleRate)});
   setMode("armed");
   paintState();
 }
@@ -158,11 +170,25 @@ function stopLoop(){
   node.port.postMessage({op: "now", mode: "idle"});
   setMode("idle");
 }
-function play(){
+function play(slot){
   if (!node) return;
+  if (slot != null) selectSlot(slot);
   node.port.postMessage({op: "now", mode: "play", reset: true});
   setMode("play");
 }
+/* Fire a row: play that row's take, or fall silent if the row has none. Silence is the
+   honest answer — a row with no loop should not keep the previous row's playing under it. */
+function fireSlot(i){
+  if (!node) return;
+  selectSlot(i);
+  if (LP.filled.indexOf(i | 0) >= 0) play();
+  else stopLoop();
+}
+function selectSlot(i){
+  LP.slot = i | 0;
+  if (node) node.port.postMessage({op: "slot", i: LP.slot});
+}
+function hasSlot(i){ return LP.filled.indexOf(i | 0) >= 0; }
 function clearLoop(){
   if (!node) return;
   node.port.postMessage({op: "clear"});

@@ -16,7 +16,6 @@
 
 .rule{height:1px;background:linear-gradient(90deg,transparent,var(--bs-accent),transparent);
   opacity:.55;margin:12px 0 16px}
-.screws{display:flex;gap:9px;align-items:center}
 .screw{width:9px;height:9px;border-radius:50%;
   background:radial-gradient(circle at 34% 30%,#68727a,#2b3237 68%,#171b1e);
   box-shadow:0 1px 0 rgba(255,255,255,.10),0 0 0 1px rgba(0,0,0,.5) inset}

@@ -1,4 +1,4 @@
-# Harvest Jam
+# Harvest Jam Session
 
 Six instruments that run entirely in the browser, separately or together. One HTML file
 each, no dependencies —
@@ -211,11 +211,14 @@ The studio has two views. **Studio** is the rack — every instrument's face, un
 with the launcher beside them; opening a panel gives it the whole window and Escape backs
 out. **Live** is the launcher made big, with an arm per track and a record button.
 
-Recording is Ableton's gesture: the transport is already running, you arm a track, you hit
-record, and what you play lands on the grid at the nearest step. Nothing stops, nothing is
-a take. PM·1, VC·1 and BS·1 record notes, DR·1 records lanes, LP·1 records audio. CS·1
-cannot — its pattern is a chord progression rather than a step grid, so its arm is disabled
-and says so.
+Recording is Ableton's gesture, and there is no global record button. **Arm a track, then
+hit ● on a row.** Every armed track has whatever is in its sequencer copied into that row;
+every unarmed track just plays that row back. The row buttons turn from ▶ to ● the moment
+anything is armed.
+
+LP·1 keeps a **separate audio take per row**, so a row can carry a loop as well as patterns.
+CS·1 cannot be armed — its pattern is a chord progression rather than a step grid, and its
+arm says so.
 
 ## Scenes
 

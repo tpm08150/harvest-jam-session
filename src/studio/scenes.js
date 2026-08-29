@@ -39,8 +39,6 @@ function build(){
     const fire = document.createElement("button");
     fire.className = "st-fire";
     fire.dataset.row = ri;
-    fire.textContent = "▶";
-    fire.title = "Fire the whole scene (shift-click to capture every instrument into it)";
     fire.setAttribute("aria-label", "Fire scene " + row.name);
     el.appendChild(fire);
     grid.appendChild(el);
@@ -54,6 +52,17 @@ function paint(){
     const ri = +b.dataset.row, id = b.dataset.inst;
     b.classList.toggle("full", Patchwork.scenes.has(ri, id));
     b.classList.toggle("armed", q.get(id) === ri);
+  });
+  /* The row buttons follow the same rule as the live page: with something armed they are
+     record, otherwise they are fire. Arming is done on the live page, but a track stays
+     armed across views, so the studio has to show the same truth. */
+  const arming = Patchwork.record && Patchwork.record.armedCount > 0;
+  grid.querySelectorAll(".st-fire").forEach(b => {
+    b.classList.toggle("st-rec-row", !!arming);
+    b.textContent = arming ? "●" : "▶";
+    b.title = arming
+      ? "Record the armed tracks into this scene, and play the rest of the row"
+      : "Fire this scene (shift-click to capture every instrument into it)";
   });
 }
 
@@ -70,11 +79,13 @@ grid.addEventListener("click", e => {
   const fire = e.target.closest(".st-fire");
   if (!fire) return;
   const ri = +fire.dataset.row;
-  if (e.shiftKey) Patchwork.scenes.storeAll(ri);
+  if (Patchwork.record && Patchwork.record.armedCount) Patchwork.record.captureRow(ri);
+  else if (e.shiftKey) Patchwork.scenes.storeAll(ri);
   else Patchwork.scenes.fire(ri);
 });
 
 Patchwork.scenes.onChange(paint);
+if (window.Patchwork.record) Patchwork.record.onChange(paint);
 build();
 })();
 

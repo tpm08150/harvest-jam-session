@@ -18,10 +18,7 @@
 :scope>*{position:relative;z-index:1}
 
 /* ---------- header plate ---------- */
-.plate{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .brand{font-family:"Saira Semi Condensed";font-weight:600;font-size:26px;letter-spacing:.34em;text-transform:uppercase;color:#e4e9ec;line-height:1}
-.model{font-family:"DM Mono";font-size:10.5px;letter-spacing:.14em;color:var(--silk-dim);margin-top:6px;text-transform:uppercase}
-.screws{display:flex;gap:8px;opacity:.5}
 .screw{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#6d777d,#2c3236);box-shadow:0 1px 0 rgba(255,255,255,.12)}
 /* the four stripes in signal order — cheap, and very 1983 */
 .rule{

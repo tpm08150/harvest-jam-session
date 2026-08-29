@@ -21,7 +21,8 @@
 
 .brand{font-family:"Saira Semi Condensed";font-weight:600;font-size:26px;letter-spacing:.34em;text-transform:uppercase;color:#e4e9ec;line-height:1}
 .model{font-family:"DM Mono";font-size:10.5px;letter-spacing:.14em;color:var(--silk-dim);margin-top:6px;text-transform:uppercase}
-.screws{display:flex;gap:8px;opacity:.5}
+.screws{display:flex;gap:8px;opacity:.5;flex:0 0 auto;align-items:center;
+  align-self:center;margin-top:2px}
 .screw{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#6d777d,#2c3236);box-shadow:0 1px 0 rgba(255,255,255,.12)}
 .card-title{font-family:"DM Mono";font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#5d6469}
 .card-meta{font-family:"DM Mono";font-size:11px;letter-spacing:.06em;color:#3b464e}
@@ -82,8 +83,31 @@ input[type="text"]::placeholder{color:#5a646a}
 /* ...and data-deep trims INSIDE a block the face keeps, so a face can carry the useful
    half of a row — the patch selector without its MIDI-trigger plumbing — rather than
    having to take all of it or none. */
-.face-toggle{margin-left:auto}
+.face-toggle{margin-left:auto;align-self:flex-start}
 /* The plate is a flex row ending in the screws; the toggle sits before them. */
 :scope.face .plate,:scope .plate{align-items:center}
 :scope.face [data-deep]{display:none}
+
+/* ---------- the plate ----------
+   Only CS·1 and PM·1 ever defined this, so on every other panel the header had no layout
+   at all and the injected Panel button fell to its own line. One definition here, and the
+   button sits in the same place on all of them.
+
+   The brand is gone from the plate — it is the page's name, not each module's, and six
+   copies of it down a rack is six times less useful than one at the top. What is left is
+   the model, which is what actually tells the panels apart. */
+.plate{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:14px;flex-wrap:nowrap;margin-bottom:14px;
+}
+/* flex-start, not center: PM·1's model wraps to two lines on a narrow panel and centring
+   pushed its button 19px lower than everyone else's. The button belongs at the top right
+   of the plate on every panel, which is where CS·1 had it. */
+.plate > .model{flex:1 1 auto;min-width:0}
+.model{
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:19px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--silk);margin-top:0;line-height:1;
+}
+.face-toggle{margin-left:auto;align-self:flex-start}
 }

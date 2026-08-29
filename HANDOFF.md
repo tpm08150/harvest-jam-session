@@ -1208,56 +1208,75 @@ Things the removal simplified rather than merely deleted, each worth keeping:
 
 ## The live page
 
-A second view of the studio: the scene launcher made big, with an arm per track and one
-record button over the top. `Live` / `Studio` in the header.
+The scene launcher made big, with an arm per track. `Live` / `Studio` in the header.
 
-**Ableton's gesture, which is the one worth copying:** the transport is already running,
-you arm a track, you press record, and what you play lands on the grid. Nothing stops and
-nothing is a take. Arming is a standing choice; record is the momentary one, which is why
-turning record on tells everything already armed to begin rather than making you arm twice.
+### The row button IS the record
 
-`shell/record.js` owns arming and the global record state. **Each instrument owns what
-"write a note" means**, because a drum lane, a bass line and a chord progression are not
-the same thing and a shared writer would have to pretend they were:
+There is no global record switch. **Arm a track, then hit ● on a row**: every armed track
+has whatever is currently in its sequencer copied into that row, and every unarmed track
+fires that row and plays back what is already there. One gesture, one destination.
 
-| | what a recorded note becomes |
+That is why the global button went. "Record" with no destination is a mode you can be in by
+accident; the row is the destination, so the row is the button. It turns from ▶ to ● and
+from grey to red the moment anything is armed — on the live page and the small launcher
+both, because a track stays armed across views and the two must show the same truth.
+
+The copy is instant, from the live pattern. Nothing is quantised after the fact because
+nothing needs to be: an armed track writes what you play onto its grid as you play it, at
+the nearest step.
+
+| | what an armed track contributes to a row |
 | --- | --- |
-| PM·1 | a step through `writeStep()`, the same path a hand-written one takes |
-| VC·1, BS·1 | a step on the shared sequencer, pitch stored as a scale degree |
-| DR·1 | a lane, chosen by GM note number |
-| LP·1 | audio — no `write()` at all; arm hands straight to its own transport |
-| CS·1 | **nothing.** Its pattern is a chord progression, not steps |
+| PM·1, VC·1, BS·1, DR·1 | a copy of the pattern in its sequencer right now |
+| LP·1 | a real audio take, into that row's slot |
+| CS·1 | nothing — its pattern is a progression, and its arm is disabled with a reason |
 
-CS·1's arm button is disabled and says why on hover. An arm that silently does nothing is
-worse than one that is visibly unavailable.
+### LP·1 has a slot per row
 
-### Quantisation is to the NEAREST step, not the sounding one
+Eight takes, one per scene row, **allocated lazily** — eight slots of eight bars reserved up
+front is fifty megabytes for takes nobody has recorded. Firing a row plays that row's take,
+or falls silent if it has none; silence is the honest answer, because a row with no loop
+should not leave the previous row's playing underneath it.
 
-A player anticipates the beat. Writing to the step that has already started pushes a whole
-take late by up to a step, which is the difference between a recording that feels played
-and one that feels dragged. `recordAt()` takes the mark containing the note's time and
-rounds across its midpoint.
+The loop LENGTH is fixed by the first take and shared by every slot. Rows of different
+lengths could not be fired together, which is the whole point of a row.
 
-Verified end to end: grids cleared, both transports running, both tracks armed. **Armed
-but not recording wrote nothing** — the guard that stops an armed track you are auditioning
-from overwriting the pattern you are auditioning it against. With record on, six notes
-played 240 ms apart against a 125 ms grid landed on steps 5, 7, 9, 11, 13, 15.
+⚠️ **The worklet is a template literal.** A backtick anywhere inside it — including in a
+comment — ends the string and takes the rest of the app with it. That happened once, while
+adding a comment about the slot field. There is a note in the file now.
+
+⚠️ **Two bugs the slots exposed**, both worth knowing:
+
+- `process()` bailed out early when the active slot held no buffer, which skipped the
+  pending-transition check below it — so a slot's *first* take could never start. Only the
+  length gates the block now; an empty slot is silence per sample.
+- The scheduled transition carries the slot with it. Selecting the slot in a separate
+  message would put the first samples of a take into the previous row, because the two
+  messages land on different frames.
 
 ### Notes
 
 - The master Play presses the instruments' own Play buttons rather than reaching into
-  their transports, so arm checks, autostart and painting all happen as they would from
-  the panel instead of being reimplemented and drifting.
-- ⚠️ **`[hidden]` needed `display:none !important`.** The attribute is `display:none` from
-  the UA sheet, which any explicit `display` on a class beats — `.st-rack` is
-  `display:grid`, so hiding it did nothing at all. This is the most common way `hidden`
-  silently fails.
-- ⚠️ **The live page must live OUTSIDE `.st-rack`.** The launcher was moved inside it so it
-  packs as a grid item; putting the live page there too meant hiding the rack hid the live
-  page with it.
-- The studio's own state class is `st-on`, not `on`. `armed` and `focused` are declared
-  shared in the build's collision check because they mean one thing across the studio;
-  `on` is too generic to exempt without weakening the check.
+  their transports, so arm checks, autostart and painting happen as they would from a panel.
+- ⚠️ `[hidden]` needed `display:none !important` — the attribute is `display:none` from the
+  UA sheet, which any explicit `display` on a class beats, and `.st-rack` is `display:grid`.
+- ⚠️ The live page must live OUTSIDE `.st-rack`, or hiding the rack hides it too.
+- The studio's own state class is `st-on`. `armed` and `focused` are declared shared in the
+  build's collision check; `on` is too generic to exempt without weakening it.
+
+## The plate
+
+One definition, in `shell/chrome.css`. Only CS·1 and PM·1 ever had one, so on every other
+panel the header had no layout at all and the injected Panel button fell to its own line —
+which is what "the Panel button is not consistent" looked like.
+
+`align-items:flex-start` and `align-self:flex-start` on the button, because PM·1's model
+wraps to two lines on a narrow panel and centring pushed its button 19 px below everyone
+else's. All six now measure identically: 40 px from the plate's right edge, 0 from its top.
+
+**The brand is not on the panels.** It is the page's name — six copies of it down a rack is
+six times less useful than one at the top. What is left on the plate is the model, which is
+what actually tells the panels apart.
 
 ## Working style that suited this project
 

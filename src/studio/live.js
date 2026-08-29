@@ -60,18 +60,17 @@ function build(){
     el.appendChild(Object.assign(document.createElement("span"),
       {className: "st-live-num", textContent: row.name}));
     cols.forEach(c => {
-      if (!inScene.has(c.id)){
-        el.appendChild(Object.assign(document.createElement("span"), {className: "st-live-gap"}));
-        return;
-      }
       const b = document.createElement("button");
       b.className = "st-cell"; b.dataset.row = ri; b.dataset.inst = c.id;
+      /* a track with slots keeps a real audio take per row rather than a pattern */
+      const t = Patchwork.record.track(c.id);
+      if (t && t.slots) b.dataset.slots = "1";
+      else if (!inScene.has(c.id)) b.disabled = true;
       b.setAttribute("aria-label", c.name + " scene " + row.name);
       el.appendChild(b);
     });
     const fire = document.createElement("button");
-    fire.className = "st-fire"; fire.dataset.row = ri; fire.textContent = "▶";
-    fire.title = "Fire the whole scene (shift-click to capture)";
+    fire.className = "st-fire"; fire.dataset.row = ri;
     el.appendChild(fire);
     grid.appendChild(el);
   });
@@ -82,7 +81,9 @@ function paint(){
   const q = Patchwork.scenes.queued;
   grid.querySelectorAll(".st-cell").forEach(b => {
     const ri = +b.dataset.row, id = b.dataset.inst;
-    b.classList.toggle("full", Patchwork.scenes.has(ri, id));
+    const t = Patchwork.record.track(id);
+    const has = (t && t.slots && t.hasSlot) ? t.hasSlot(ri) : Patchwork.scenes.has(ri, id);
+    b.classList.toggle("full", has);
     b.classList.toggle("armed", q.get(id) === ri);
   });
   grid.querySelectorAll(".st-arm").forEach(b => {
@@ -90,15 +91,19 @@ function paint(){
     b.classList.toggle("st-on", on);
     b.setAttribute("aria-pressed", on ? "true" : "false");
   });
-  const rec = Patchwork.record.recording;
-  const rb = document.querySelector("#liveRec");
-  rb.classList.toggle("st-on", rec);
-  rb.setAttribute("aria-pressed", rec ? "true" : "false");
-  document.querySelector("#liveHint").textContent = rec
-    ? (Patchwork.record.armedCount
-        ? "Recording — play, and it lands on the nearest step."
-        : "Recording, but nothing is armed. Arm a track to capture it.")
-    : "Arm a track, hit Record, and play — it lands on the grid in time.";
+  /* With something armed, the row buttons ARE the record: they take what is on the armed
+     tracks now and put it in that row. Nothing armed and they are plain scene fires. */
+  const arming = Patchwork.record.armedCount > 0;
+  grid.querySelectorAll(".st-fire").forEach(b => {
+    b.classList.toggle("st-rec-row", arming);
+    b.textContent = arming ? "●" : "▶";
+    b.title = arming
+      ? "Record the armed tracks into this scene, and play the rest of the row"
+      : "Fire this scene (shift-click to capture)";
+  });
+  document.querySelector("#liveHint").textContent = arming
+    ? "Armed. Play, then hit ● on a row to put it there — unarmed tracks just play that row."
+    : "Arm a track to record into a scene row.";
   const anyPlaying = Patchwork.scenes.instruments.some(i => Patchwork.scenes.playing(i.id));
   const pb = document.querySelector("#livePlay");
   pb.textContent = anyPlaying ? "■ Stop all" : "▶ Play all";
@@ -110,8 +115,14 @@ grid.addEventListener("click", e => {
   const arm = e.target.closest(".st-arm");
   if (arm && !arm.disabled){ Patchwork.record.toggleArm(arm.dataset.arm); return; }
   const cell = e.target.closest(".st-cell");
-  if (cell){
+  if (cell && !cell.disabled){
     const ri = +cell.dataset.row, id = cell.dataset.inst;
+    const t = Patchwork.record.track(id);
+    if (t && t.slots){
+      if (e.shiftKey && t.recordSlot) t.recordSlot(ri);
+      else if (t.playSlot) t.playSlot(ri);
+      return;
+    }
     if (e.shiftKey) Patchwork.scenes.store(ri, id);
     else if (Patchwork.scenes.has(ri, id)) Patchwork.scenes.fire(ri, id);
     return;
@@ -119,7 +130,9 @@ grid.addEventListener("click", e => {
   const fire = e.target.closest(".st-fire");
   if (!fire) return;
   const ri = +fire.dataset.row;
-  if (e.shiftKey) Patchwork.scenes.storeAll(ri); else Patchwork.scenes.fire(ri);
+  if (Patchwork.record.armedCount) Patchwork.record.captureRow(ri);
+  else if (e.shiftKey) Patchwork.scenes.storeAll(ri);
+  else Patchwork.scenes.fire(ri);
 });
 
 /* Master transport. Presses the instruments' own Play buttons rather than reaching into
@@ -136,9 +149,6 @@ document.querySelector("#livePlay").addEventListener("click", () => {
     if (Patchwork.scenes.playing(id) === anyPlaying) btn.click();
   });
   setTimeout(paint, 60);
-});
-document.querySelector("#liveRec").addEventListener("click", () => {
-  Patchwork.record.setRecording(!Patchwork.record.recording);
 });
 document.querySelector("#liveUp").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm + 1));
 document.querySelector("#liveDown").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm - 1));

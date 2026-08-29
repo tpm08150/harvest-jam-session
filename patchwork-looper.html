@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Harvest Jam LP·1 — audio looper</title>
+<title>Harvest Jam Session — LP·1 — audio looper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Saira+Semi+Condensed:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -97,7 +97,8 @@ body{
 
 .brand{font-family:"Saira Semi Condensed";font-weight:600;font-size:26px;letter-spacing:.34em;text-transform:uppercase;color:#e4e9ec;line-height:1}
 .model{font-family:"DM Mono";font-size:10.5px;letter-spacing:.14em;color:var(--silk-dim);margin-top:6px;text-transform:uppercase}
-.screws{display:flex;gap:8px;opacity:.5}
+.screws{display:flex;gap:8px;opacity:.5;flex:0 0 auto;align-items:center;
+  align-self:center;margin-top:2px}
 .screw{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#6d777d,#2c3236);box-shadow:0 1px 0 rgba(255,255,255,.12)}
 .card-title{font-family:"DM Mono";font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#5d6469}
 .card-meta{font-family:"DM Mono";font-size:11px;letter-spacing:.06em;color:#3b464e}
@@ -158,10 +159,33 @@ input[type="text"]::placeholder{color:#5a646a}
 /* ...and data-deep trims INSIDE a block the face keeps, so a face can carry the useful
    half of a row — the patch selector without its MIDI-trigger plumbing — rather than
    having to take all of it or none. */
-.face-toggle{margin-left:auto}
+.face-toggle{margin-left:auto;align-self:flex-start}
 /* The plate is a flex row ending in the screws; the toggle sits before them. */
 :scope.face .plate,:scope .plate{align-items:center}
 :scope.face [data-deep]{display:none}
+
+/* ---------- the plate ----------
+   Only CS·1 and PM·1 ever defined this, so on every other panel the header had no layout
+   at all and the injected Panel button fell to its own line. One definition here, and the
+   button sits in the same place on all of them.
+
+   The brand is gone from the plate — it is the page's name, not each module's, and six
+   copies of it down a rack is six times less useful than one at the top. What is left is
+   the model, which is what actually tells the panels apart. */
+.plate{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:14px;flex-wrap:nowrap;margin-bottom:14px;
+}
+/* flex-start, not center: PM·1's model wraps to two lines on a narrow panel and centring
+   pushed its button 19px lower than everyone else's. The button belongs at the top right
+   of the plate on every panel, which is where CS·1 had it. */
+.plate > .model{flex:1 1 auto;min-width:0}
+.model{
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:19px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--silk);margin-top:0;line-height:1;
+}
+.face-toggle{margin-left:auto;align-self:flex-start}
 }
 /* Everything below is scoped to this instrument's panel. @scope rather than nesting
    because it adds no specificity, so the relative weight of every rule inside is exactly
@@ -187,7 +211,6 @@ input[type="text"]::placeholder{color:#5a646a}
 
 .rule{height:1px;background:linear-gradient(90deg,transparent,var(--lp-accent),transparent);
   opacity:.55;margin:12px 0 16px}
-.screws{display:flex;gap:9px;align-items:center}
 .screw{width:9px;height:9px;border-radius:50%;
   background:radial-gradient(circle at 34% 30%,#68727a,#2b3237 68%,#171b1e);
   box-shadow:0 1px 0 rgba(255,255,255,.10),0 0 0 1px rgba(0,0,0,.5) inset}
@@ -258,10 +281,7 @@ input[type="text"]::placeholder{color:#5a646a}
 <div class="unit lp1" data-instrument="lp1">
 
   <div data-face class="plate">
-    <div>
-      <div class="brand">Harvest Jam</div>
-      <div class="model">LP·1 — audio looper</div>
-    </div>
+    <div class="model">LP·1 — audio looper</div>
     <div class="screws"><i class="screw"></i><i class="screw"></i></div>
   </div>
   <div data-face class="rule"></div>
@@ -886,7 +906,6 @@ Patchwork.record = (() => {
 
 const kit = [];              // {id, name, write, arm, disarm, canRecord}
 const armed = new Set();
-let on = false;              // the global record enable
 const subs = [];
 
 function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
@@ -897,39 +916,67 @@ function register(id, spec){
             write: spec.write || null,
             arm: spec.arm || function(){},
             disarm: spec.disarm || function(){},
+            slots: !!spec.slots,
+            recordSlot: spec.recordSlot || null,
+            playSlot: spec.playSlot || null,
+            hasSlot: spec.hasSlot || null,
             canRecord: spec.canRecord == null ? !!spec.write : spec.canRecord});
   notify();
 }
+function track(id){ return kit.find(x => x.id === id) || null; }
 
 function setArmed(id, want){
   const it = kit.find(x => x.id === id);
   if (!it || !it.canRecord) return;
-  if (want){ armed.add(id); it.arm(on); } else { armed.delete(id); it.disarm(); }
+  if (want){ armed.add(id); it.arm(true); } else { armed.delete(id); it.disarm(); }
   notify();
 }
 function toggleArm(id){ setArmed(id, !armed.has(id)); }
 
-function setRecording(want){
-  on = !!want;
-  /* Arming is a standing choice and record is the momentary one, so turning record on
-     tells everything already armed to begin — the alternative is arming twice. */
-  kit.forEach(it => { if (armed.has(it.id)) (on ? it.arm(true) : it.disarm()); });
+/* ---- record into a scene row ----
+   One gesture. Every ARMED track has whatever is currently in its sequencer copied into
+   that row; every unarmed track FIRES that row and plays back what is already there.
+
+   That is why there is no global record button: "record" without a destination is a mode
+   you can be in by accident, and the row is the destination. A track with slots — the
+   looper — takes a real audio take instead of a copy, because there is nothing on its
+   grid to copy.
+
+   The copy is instant and from the live pattern, so what lands in the row is exactly what
+   you were just hearing. Nothing is quantised after the fact because nothing needs to be:
+   the notes were written to the grid as they were played. */
+function captureRow(row){
+  kit.forEach(it => {
+    if (!armed.has(it.id)) return;
+    if (it.slots && it.recordSlot) it.recordSlot(row);
+    else Patchwork.scenes.store(row, it.id);
+  });
+  /* everything not armed simply plays that row */
+  Patchwork.scenes.instruments.forEach(i => {
+    if (!armed.has(i.id)) Patchwork.scenes.fire(row, i.id);
+  });
+  kit.forEach(it => {
+    if (armed.has(it.id) || !it.slots || !it.playSlot) return;
+    it.playSlot(row);
+  });
   notify();
 }
 
 /* Called by an instrument from its own note-on path. It reaches the grid only when that
    instrument is armed AND record is on, so an armed track you are auditioning does not
    quietly overwrite the pattern you are auditioning it against. */
+/* Live note capture stays gated on the track being armed. There is no global record
+   switch any more, so an armed track writes what you play as you play it, and the row
+   button is what commits the result to a scene. */
 function note(id, midi, vel, when){
-  if (!on || !armed.has(id)) return -1;
+  if (!armed.has(id)) return -1;
   const it = kit.find(x => x.id === id);
   if (!it || !it.write) return -1;
   try{ return it.write(midi, vel, when); }catch(e){ return -1; }
 }
 
-return {register, setArmed, toggleArm, setRecording, note, onChange,
+return {register, setArmed, toggleArm, captureRow, note, onChange, track,
         isArmed: id => armed.has(id),
-        get recording(){ return on; },
         get tracks(){ return kit.map(k => ({id: k.id, name: k.name, canRecord: k.canRecord})); },
         get armedCount(){ return armed.size; }};
 })();
@@ -1327,7 +1374,12 @@ const LOOP_WORKLET = `
 class LoopProcessor extends AudioWorkletProcessor {
   constructor(){
     super();
-    this.buf = null;      // [Float32Array per channel]
+    /* One buffer per scene row. Allocated lazily — eight slots of eight bars would be
+       fifty megabytes reserved for takes nobody has recorded yet, so a slot exists only
+       once something has been played into it. */
+    this.slots = [];
+    this.slot = 0;
+    this.buf = null;      // [Float32Array per channel] — the active slot
     this.undo = null;     // one level, taken before each overdub
     this.len = 0;
     this.pos = 0;
@@ -1340,37 +1392,67 @@ class LoopProcessor extends AudioWorkletProcessor {
 
   msg(m){
     if (m.op === "alloc"){
+      /* Changing the length invalidates every take, because a loop IS its sample count. */
       this.len = m.frames|0;
-      this.buf = [new Float32Array(this.len), new Float32Array(this.len)];
+      this.slots = [];
+      this.buf = null;
       this.undo = null;
       this.pos = 0; this.mode = "idle"; this.next = null;
+      this.port.postMessage({ev:"slots", filled:[]});
+    }
+    else if (m.op === "slot"){
+      this.slot = m.i|0;
+      this.buf = this.slots[this.slot] || null;
+      this.pos = 0;
+      if (!this.buf && this.mode !== "idle"){ this.mode = "idle"; }
+      this.port.postMessage({ev:"slots", filled:this.filled(), slot:this.slot});
     }
     else if (m.op === "at"){
       /* A mode change scheduled for an exact sample, so record starts on the bar line
-         rather than whenever a message happened to arrive. */
-      this.next = {mode: m.mode, frame: m.frame};
+         rather than whenever a message happened to arrive. The slot rides along with it,
+         because a take belongs to a particular scene row and the switch has to happen on
+         the same frame — selecting the slot separately would put the first samples of a
+         take into the previous row.
+
+         NOTE: this whole processor is a template literal. A backtick anywhere in here,
+         including in a comment, ends the string and takes the rest of the app with it. */
+      this.next = {mode: m.mode, frame: m.frame, slot: m.slot == null ? null : (m.slot | 0)};
     }
     else if (m.op === "now"){ this.mode = m.mode; if (m.reset) this.pos = 0; }
     else if (m.op === "clear"){
-      if (this.buf){ this.buf[0].fill(0); this.buf[1].fill(0); }
+      /* clears the ACTIVE slot only — a clear that wiped the bank would be unrecoverable */
+      this.slots[this.slot] = null;
+      this.buf = null;
       this.undo = null; this.mode = "idle"; this.pos = 0; this.next = null;
+      this.port.postMessage({ev:"slots", filled:this.filled(), slot:this.slot});
     }
     else if (m.op === "undo"){
-      if (this.undo){ this.buf = this.undo; this.undo = null; }
+      if (this.undo){ this.buf = this.undo; this.slots[this.slot] = this.buf; this.undo = null; }
     }
   }
 
   /* Copy before an overdub, so one level of undo is always available. A looper without
      undo punishes the take you were happy with. */
   snapshot(){
-    this.undo = [this.buf[0].slice(), this.buf[1].slice()];
+    if (this.buf) this.undo = [this.buf[0].slice(), this.buf[1].slice()];
+  }
+
+  /* which slots hold a take — the live grid draws its column from this */
+  filled(){
+    const out = [];
+    for (let i = 0; i < 8; i++) if (this.slots[i]) out.push(i);
+    return out;
   }
 
   process(inputs, outputs){
     const out = outputs[0];
     const inp = inputs[0];
     const n = out[0].length;
-    if (!this.buf || !this.len){
+    /* Only the LENGTH gates the whole block. A null buf means the active slot holds no
+       take yet, which is the normal state right before a first record — bailing out on it
+       skipped the pending-transition check below, so a slot's first take could never
+       start. Silence for that slot is handled per sample instead. */
+    if (!this.len){
       for (let c = 0; c < out.length; c++) out[c].fill(0);
       return true;
     }
@@ -1380,13 +1462,25 @@ class LoopProcessor extends AudioWorkletProcessor {
     for (let i = 0; i < n; i++){
       /* the scheduled change lands on its exact frame, inside the block */
       if (this.next && currentFrame + i >= this.next.frame){
+        if (this.next.slot != null) this.slot = this.next.slot;
+        /* a take into an empty slot allocates it at the moment it starts, not before */
+        if (this.next.mode === "rec" && !this.slots[this.slot]){
+          this.slots[this.slot] = [new Float32Array(this.len), new Float32Array(this.len)];
+        }
+        this.buf = this.slots[this.slot] || null;
         if (this.next.mode === "dub") this.snapshot();
-        this.mode = this.next.mode;
+        this.mode = this.buf ? this.next.mode : "idle";
         this.pos = 0;
         this.next = null;
-        this.port.postMessage({ev:"started", mode:this.mode});
+        this.port.postMessage({ev:"started", mode:this.mode, slot:this.slot,
+                               filled:this.filled()});
       }
 
+      if (!this.buf){
+        out[0][i] = 0;
+        if (out[1]) out[1][i] = 0;
+        continue;
+      }
       const rec = this.mode === "rec", dub = this.mode === "dub";
       const old0 = this.buf[0][this.pos], old1 = this.buf[1][this.pos];
 
@@ -1418,7 +1512,8 @@ class LoopProcessor extends AudioWorkletProcessor {
 
     /* position and peak, a few times a second — enough for a playhead and a meter */
     if ((this.tick = (this.tick + 1) % 8) === 0){
-      this.port.postMessage({ev:"pos", pos:this.pos, len:this.len, mode:this.mode, peak:this.peak});
+      this.port.postMessage({ev:"pos", pos:this.pos, len:this.len, mode:this.mode,
+                             peak:this.peak, slot:this.slot, filled:this.filled()});
       this.peak = 0;
     }
     return true;
@@ -1442,6 +1537,8 @@ const LP = {
   input: "__bus",           // device id, or __bus for the studio's own output
   mode: "idle",             // idle | armed | rec | play | dub
   pos: 0, len: 0, peak: 0,
+  slot: 0, filled: [],      // one take per scene row — see the live page
+
   bpmAtRecord: null         // the tempo the loop was cut at — see the note in the panel
 };
 
@@ -1504,7 +1601,10 @@ function allocate(){
 }
 
 function onWorklet(m){
+  if (m.filled) LP.filled = m.filled;
+  if (m.slot != null) LP.slot = m.slot;
   if (m.ev === "pos"){ LP.pos = m.pos; LP.len = m.len; LP.peak = m.peak; return; }
+  if (m.ev === "slots"){ paintState(); return; }
   if (m.ev === "started" || m.ev === "looped"){ setMode(m.mode); }
 }
 
@@ -1565,19 +1665,26 @@ function closeInput(){
    Arming schedules the mode change for an exact sample rather than applying it now, so a
    take starts on the bar line however early or late the button was pressed. That is the
    same seam the scene launcher fires on, and it comes from the same place. */
-async function arm(mode){
+/* `slot` is the scene row. Recording into a row and firing a row are the same gesture the
+   rest of the studio uses, so the looper joins the launcher rather than sitting beside it
+   with a transport of its own. */
+async function arm(mode, slot){
   const n = await ensureNode();
   if (!n) return;
+  if (slot != null) LP.slot = slot | 0;
   if (!stream && (mode === "rec" || mode === "dub")){
     const ok = await openInput(LP.input);
     if (!ok) return;
   }
-  if (mode === "rec"){
+  if (mode === "rec" && !LP.bpmAtRecord){
+    /* the length is fixed by the first take; later rows record at the same length, or the
+       rows would be different lengths and the launcher could not fire them together */
     allocate();
     LP.bpmAtRecord = Patchwork.clock.bpm;
   }
   const at = Patchwork.clock.claim(LP.bars * 4);
-  n.port.postMessage({op: "at", mode: mode, frame: Math.round(at * ctx.sampleRate)});
+  n.port.postMessage({op: "at", mode: mode, slot: LP.slot,
+                      frame: Math.round(at * ctx.sampleRate)});
   setMode("armed");
   paintState();
 }
@@ -1586,11 +1693,25 @@ function stopLoop(){
   node.port.postMessage({op: "now", mode: "idle"});
   setMode("idle");
 }
-function play(){
+function play(slot){
   if (!node) return;
+  if (slot != null) selectSlot(slot);
   node.port.postMessage({op: "now", mode: "play", reset: true});
   setMode("play");
 }
+/* Fire a row: play that row's take, or fall silent if the row has none. Silence is the
+   honest answer — a row with no loop should not keep the previous row's playing under it. */
+function fireSlot(i){
+  if (!node) return;
+  selectSlot(i);
+  if (LP.filled.indexOf(i | 0) >= 0) play();
+  else stopLoop();
+}
+function selectSlot(i){
+  LP.slot = i | 0;
+  if (node) node.port.postMessage({op: "slot", i: LP.slot});
+}
+function hasSlot(i){ return LP.filled.indexOf(i | 0) >= 0; }
 function clearLoop(){
   if (!node) return;
   node.port.postMessage({op: "clear"});
@@ -1746,14 +1867,20 @@ paintState();
 
 /* LP·1 records audio, not notes, so it has no write() — arming and record hand straight
    to its own transport, which already lands the take on the bar line. */
+/* LP·1 records audio, not notes, so it has no write(). It has SLOTS instead — one take per
+   scene row — and the live page drives them directly. */
 Patchwork.record.register("lp1", {
   name: "LP·1",
   canRecord: true,
-  arm: recording => { if (recording && LP.mode === "idle") arm("rec"); },
+  slots: true,
+  recordSlot: n => arm("rec", n),
+  playSlot: n => fireSlot(n),
+  hasSlot: n => hasSlot(n),
   disarm: () => { if (LP.mode === "rec" || LP.mode === "armed") stopLoop(); }
 });
 
-window.__lp1 = {LP, arm, play, stopLoop, clearLoop, undo, openInput, closeInput,
+window.__lp1 = {LP, arm, play, fireSlot, selectSlot, hasSlot, stopLoop, clearLoop, undo,
+                openInput, closeInput,
                 ensureNode, allocate, loopFrames,
                 get ctx(){ return ctx; }, get node(){ return node; }};
 });

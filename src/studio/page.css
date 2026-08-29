@@ -113,6 +113,20 @@ body{
   font-size:10px;line-height:1;
 }
 .st-fire:hover{color:var(--mint);border-color:var(--silk-dim)}
+/* A row button that will RECORD reads red, not green. The gesture is destructive to the
+   row it lands in, and the two must not be one glance apart. */
+.st-fire.st-rec-row{
+  color:#ffd9d0;border-color:#8c2a17;
+  background:linear-gradient(180deg,#a83c26,#7d2b19);
+}
+.st-fire.st-rec-row:hover{color:#fff;border-color:var(--cap-red)}
+
+/* a cell that cannot hold anything — the looper has no pattern to store in the small
+   launcher, so its column is only on the live page */
+.st-cell:disabled{opacity:.25;cursor:default}
+.st-cell:disabled::after{background:rgba(255,255,255,.06)}
+/* a slot cell holds audio rather than a pattern, and says so */
+.st-cell[data-slots].full::after{background:var(--cap-yellow);box-shadow:0 0 7px rgba(232,178,58,.5)}
 
 /* The header's own segmented control. It cannot borrow the panels' .seg — that lives
    inside @scope (.unit) and does not reach out here — so it is styled to match rather
@@ -194,7 +208,6 @@ body.living .st-seg#stFaces{display:none}
   box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 2px 0 #1c2124;
 }
 .st-xport.st-on{background:linear-gradient(180deg,#5fd8b4,var(--mint));color:#06231a;border-color:#2f8f74}
-.st-rec{background:linear-gradient(180deg,#3e464c,#2b3237)}
 .st-rec.st-on{
   background:linear-gradient(180deg,#ec6146,var(--cap-red));color:#fff2ee;border-color:#8c2a17;
   animation:st-rec-pulse 1.1s ease-in-out infinite;
