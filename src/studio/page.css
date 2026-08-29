@@ -17,7 +17,15 @@ body{
 .st-rack{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(350px,1fr));
-  gap:16px;align-items:start;
+  gap:16px;
+  /* stretch, not start: every panel in a row takes the row's height, so the faces line up
+     as a rack rather than as a ragged shelf. The min-height below stops a row of short
+     faces collapsing to the shortest one, and the empty panel under a face is deliberate
+     room to grow into. */
+  align-items:stretch;
+  /* every ROW the same height too, not just every panel within a row — otherwise a second
+     row of shorter faces sits at its own height and the rack reads as two racks */
+  grid-auto-rows:1fr;
   padding:16px 14px 0;
   max-width:2560px;margin:0 auto;
 }
@@ -25,6 +33,10 @@ body{
    :has() rather than a class the shell has to remember to keep in sync. */
 .st-rack:has(> .unit:not(.face)){grid-template-columns:repeat(auto-fit,minmax(620px,1fr))}
 .st-rack > .unit{max-width:none;width:100%}
+/* Sized off VC·1, which is the tallest face and fills the window at a laptop height.
+   Clamped so it never dwarfs a short window (the Arcade's 620px floor) or grows silly on
+   a tall one. */
+.st-rack > .unit.face{min-height:clamp(520px,calc(100vh - 210px),860px)}
 
 /* Which instrument the computer keyboard is talking to. The shell only marks this when
    there is more than one panel, so a standalone build never shows a ring it cannot
@@ -141,3 +153,20 @@ body{
   .st-cell::after{width:5px;height:5px}
   .st-rack{padding-top:0}
 }
+
+/* ---- solo ----
+   Opening a panel gives it the whole window. Everything else is hidden rather than
+   scrolled past, because a 3000px panel next to a scene launcher you cannot reach is
+   worse than either on its own. */
+body.soloing .st-scenes,
+body.soloing .st-rack > .unit:not(.solo){display:none}
+body.soloing .st-head .st-seg{display:none}
+body.soloing .st-rack{
+  display:block;
+  max-width:900px;padding-top:8px;
+}
+body.soloing .st-rack > .unit.solo{
+  max-width:none;min-height:0;
+  outline:none;                       /* the focus ring means nothing with one panel up */
+}
+body.soloing .st-head .st-hint::after{content:" — press Escape to go back"}
