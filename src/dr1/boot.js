@@ -85,6 +85,7 @@ async function measure(runs){
 Patchwork.scenes.register("dr1", {
   name: "DR·1",
   isPlaying: () => SEQ.playing,
+  start: () => { ensureAudio(); if (!SEQ.playing) startPlay(); },
   capture: () => ({steps: JSON.parse(JSON.stringify(steps)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing, accentAmt: SEQ.accentAmt}),
   apply: pat => {

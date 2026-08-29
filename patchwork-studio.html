@@ -2892,7 +2892,8 @@ function onChange(fn){ subs.push(fn); }
 
 function register(id, spec){
   insts.push({id, name: spec.name || id, capture: spec.capture, apply: spec.apply,
-              isPlaying: spec.isPlaying || (() => false)});
+              isPlaying: spec.isPlaying || (() => false),
+              start: spec.start || function(){}});
   notify();
 }
 
@@ -2917,6 +2918,13 @@ function clear(row, id){
 /* Arm a pattern. An instrument that is not running has no seam coming, so it takes the
    change immediately — otherwise firing a scene with the transport stopped does nothing
    visible and looks broken. */
+/* Firing a row also STARTS anything it lands on that was stopped. A launcher whose cells
+   load a pattern but leave the transport where it was is a launcher that appears to do
+   nothing — which is exactly how this read before: the cell lit and nothing sounded.
+
+   A track with nothing in this row is left alone rather than stopped. Ableton stops it,
+   but in a jam where you build one row up a track at a time, "go to row 2" silently
+   killing the drums you did not re-record there is the more expensive surprise. */
 function fire(row, id){
   if (!rows[row]) return;
   const targets = id ? insts.filter(x => x.id === id) : insts;
@@ -2927,10 +2935,20 @@ function fire(row, id){
       pending.set(it.id, pat);
       queued.set(it.id, row);
     } else {
+      /* stopped: take it now and start, so the row is audible from the press */
       it.apply(JSON.parse(JSON.stringify(pat)));
       queued.delete(it.id);
+      it.start();
     }
   });
+  notify();
+}
+
+/* Start an instrument's transport without touching its pattern — what a just-recorded
+   track needs, since the pattern it should play is already the one it has. */
+function start(id){
+  const it = insts.find(x => x.id === id);
+  if (it && !it.isPlaying()) it.start();
   notify();
 }
 
@@ -2953,7 +2971,7 @@ function playing(id){
   return !!(it && it.isPlaying());
 }
 
-return {register, store, storeAll, clear, fire, take, onChange, playing,
+return {register, store, storeAll, clear, fire, take, onChange, playing, start,
         get rows(){ return rows; },
         get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
         get queued(){ return new Map(queued); },
@@ -3104,24 +3122,29 @@ function setArmed(id, want){
 function toggleArm(id){ setArmed(id, !armed.has(id)); }
 
 /* ---- record into a scene row ----
-   One gesture. Every ARMED track has whatever is currently in its sequencer copied into
-   that row; every unarmed track FIRES that row and plays back what is already there.
+   One gesture, and it has to be audible from the press. Hitting ● on a row:
 
-   That is why there is no global record button: "record" without a destination is a mode
-   you can be in by accident, and the row is the destination. A track with slots — the
-   looper — takes a real audio take instead of a copy, because there is nothing on its
-   grid to copy.
+     - every ARMED track starts if it was stopped, and has whatever is in its sequencer
+       copied into that row
+     - every UNARMED track fires that row and plays back what is already there, starting
+       if it was stopped
+     - a track with slots — the looper — takes a real audio take instead of a copy
 
-   The copy is instant and from the live pattern, so what lands in the row is exactly what
-   you were just hearing. Nothing is quantised after the fact because nothing needs to be:
-   the notes were written to the grid as they were played. */
+   The starting is the part that was missing and the part that makes it feel like a
+   recorder: before, the cell filled and nothing sounded, so the gesture looked like it
+   had failed. An armed track also has to be RUNNING for live note capture to reach the
+   grid at all, since a step index is meaningless with no transport — so starting it is
+   what lets you arm a second track and play into the same row a moment later.
+
+   Order matters: armed tracks start FIRST, so their pattern is running before the copy is
+   taken and the row gets what you are actually hearing. */
 function captureRow(row){
   kit.forEach(it => {
     if (!armed.has(it.id)) return;
-    if (it.slots && it.recordSlot) it.recordSlot(row);
-    else Patchwork.scenes.store(row, it.id);
+    if (it.slots && it.recordSlot){ it.recordSlot(row); return; }
+    Patchwork.scenes.start(it.id);
+    Patchwork.scenes.store(row, it.id);
   });
-  /* everything not armed simply plays that row */
   Patchwork.scenes.instruments.forEach(i => {
     if (!armed.has(i.id)) Patchwork.scenes.fire(row, i.id);
   });
@@ -3132,9 +3155,6 @@ function captureRow(row){
   notify();
 }
 
-/* Called by an instrument from its own note-on path. It reaches the grid only when that
-   instrument is armed AND record is on, so an armed track you are auditioning does not
-   quietly overwrite the pattern you are auditioning it against. */
 /* Live note capture stays gated on the track being armed. There is no global record
    switch any more, so an armed track writes what you play as you play it, and the row
    button is what commits the result to a scene. */
@@ -6147,6 +6167,7 @@ initMidi();
 Patchwork.scenes.register("cs1", {
   name: "CS\u00b71",
   isPlaying: () => state.playing,
+  start: () => { ensureAudio(); if (!state.playing) startPlay(); },
   capture: () => ({
     prog: state.prog ? {mood: state.prog.mood, minor: !!state.prog.minor,
                         chords: state.prog.chords.map(c => ({r: c.r, q: c.q, bars: c.bars || 1}))} : null,
@@ -9446,6 +9467,7 @@ function applyParamsQuiet(src){
 Patchwork.scenes.register("pm1", {
   name: "PM·1",
   isPlaying: () => SEQ.playing,
+  start: () => { ensureAudio(); if (!SEQ.playing) startPlay(); },
   capture: () => ({steps: JSON.parse(JSON.stringify(SEQ.steps)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing,
                    motion: SEQ.motion, dir: SEQ.dir, octaves: SEQ.octaves,
@@ -10034,6 +10056,7 @@ function initMidi(){
 Patchwork.scenes.register("vc1", {
   name: "VC·1",
   isPlaying: () => seq.SEQ.playing,
+  start: () => { ensureAudio(); seq.start(); },
   capture: () => seq.capture(),
   apply: pat => {
     seq.apply(pat);
@@ -10542,6 +10565,7 @@ function initMidi(){
 Patchwork.scenes.register("bs1", {
   name: "BS·1",
   isPlaying: () => seq.SEQ.playing,
+  start: () => { ensureAudio(); seq.start(); },
   capture: () => seq.capture(),
   apply: pat => {
     seq.apply(pat);
@@ -11404,6 +11428,7 @@ async function measure(runs){
 Patchwork.scenes.register("dr1", {
   name: "DR·1",
   isPlaying: () => SEQ.playing,
+  start: () => { ensureAudio(); if (!SEQ.playing) startPlay(); },
   capture: () => ({steps: JSON.parse(JSON.stringify(steps)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing, accentAmt: SEQ.accentAmt}),
   apply: pat => {

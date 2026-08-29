@@ -86,6 +86,7 @@ function applyParamsQuiet(src){
 Patchwork.scenes.register("pm1", {
   name: "PM·1",
   isPlaying: () => SEQ.playing,
+  start: () => { ensureAudio(); if (!SEQ.playing) startPlay(); },
   capture: () => ({steps: JSON.parse(JSON.stringify(SEQ.steps)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing,
                    motion: SEQ.motion, dir: SEQ.dir, octaves: SEQ.octaves,

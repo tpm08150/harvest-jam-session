@@ -325,6 +325,7 @@ initMidi();
 Patchwork.scenes.register("cs1", {
   name: "CS\u00b71",
   isPlaying: () => state.playing,
+  start: () => { ensureAudio(); if (!state.playing) startPlay(); },
   capture: () => ({
     prog: state.prog ? {mood: state.prog.mood, minor: !!state.prog.minor,
                         chords: state.prog.chords.map(c => ({r: c.r, q: c.q, bars: c.bars || 1}))} : null,

@@ -35,7 +35,8 @@ function onChange(fn){ subs.push(fn); }
 
 function register(id, spec){
   insts.push({id, name: spec.name || id, capture: spec.capture, apply: spec.apply,
-              isPlaying: spec.isPlaying || (() => false)});
+              isPlaying: spec.isPlaying || (() => false),
+              start: spec.start || function(){}});
   notify();
 }
 
@@ -60,6 +61,13 @@ function clear(row, id){
 /* Arm a pattern. An instrument that is not running has no seam coming, so it takes the
    change immediately — otherwise firing a scene with the transport stopped does nothing
    visible and looks broken. */
+/* Firing a row also STARTS anything it lands on that was stopped. A launcher whose cells
+   load a pattern but leave the transport where it was is a launcher that appears to do
+   nothing — which is exactly how this read before: the cell lit and nothing sounded.
+
+   A track with nothing in this row is left alone rather than stopped. Ableton stops it,
+   but in a jam where you build one row up a track at a time, "go to row 2" silently
+   killing the drums you did not re-record there is the more expensive surprise. */
 function fire(row, id){
   if (!rows[row]) return;
   const targets = id ? insts.filter(x => x.id === id) : insts;
@@ -70,10 +78,20 @@ function fire(row, id){
       pending.set(it.id, pat);
       queued.set(it.id, row);
     } else {
+      /* stopped: take it now and start, so the row is audible from the press */
       it.apply(JSON.parse(JSON.stringify(pat)));
       queued.delete(it.id);
+      it.start();
     }
   });
+  notify();
+}
+
+/* Start an instrument's transport without touching its pattern — what a just-recorded
+   track needs, since the pattern it should play is already the one it has. */
+function start(id){
+  const it = insts.find(x => x.id === id);
+  if (it && !it.isPlaying()) it.start();
   notify();
 }
 
@@ -96,7 +114,7 @@ function playing(id){
   return !!(it && it.isPlaying());
 }
 
-return {register, store, storeAll, clear, fire, take, onChange, playing,
+return {register, store, storeAll, clear, fire, take, onChange, playing, start,
         get rows(){ return rows; },
         get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
         get queued(){ return new Map(queued); },

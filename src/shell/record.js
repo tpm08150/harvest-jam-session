@@ -40,24 +40,29 @@ function setArmed(id, want){
 function toggleArm(id){ setArmed(id, !armed.has(id)); }
 
 /* ---- record into a scene row ----
-   One gesture. Every ARMED track has whatever is currently in its sequencer copied into
-   that row; every unarmed track FIRES that row and plays back what is already there.
+   One gesture, and it has to be audible from the press. Hitting ● on a row:
 
-   That is why there is no global record button: "record" without a destination is a mode
-   you can be in by accident, and the row is the destination. A track with slots — the
-   looper — takes a real audio take instead of a copy, because there is nothing on its
-   grid to copy.
+     - every ARMED track starts if it was stopped, and has whatever is in its sequencer
+       copied into that row
+     - every UNARMED track fires that row and plays back what is already there, starting
+       if it was stopped
+     - a track with slots — the looper — takes a real audio take instead of a copy
 
-   The copy is instant and from the live pattern, so what lands in the row is exactly what
-   you were just hearing. Nothing is quantised after the fact because nothing needs to be:
-   the notes were written to the grid as they were played. */
+   The starting is the part that was missing and the part that makes it feel like a
+   recorder: before, the cell filled and nothing sounded, so the gesture looked like it
+   had failed. An armed track also has to be RUNNING for live note capture to reach the
+   grid at all, since a step index is meaningless with no transport — so starting it is
+   what lets you arm a second track and play into the same row a moment later.
+
+   Order matters: armed tracks start FIRST, so their pattern is running before the copy is
+   taken and the row gets what you are actually hearing. */
 function captureRow(row){
   kit.forEach(it => {
     if (!armed.has(it.id)) return;
-    if (it.slots && it.recordSlot) it.recordSlot(row);
-    else Patchwork.scenes.store(row, it.id);
+    if (it.slots && it.recordSlot){ it.recordSlot(row); return; }
+    Patchwork.scenes.start(it.id);
+    Patchwork.scenes.store(row, it.id);
   });
-  /* everything not armed simply plays that row */
   Patchwork.scenes.instruments.forEach(i => {
     if (!armed.has(i.id)) Patchwork.scenes.fire(row, i.id);
   });
@@ -68,9 +73,6 @@ function captureRow(row){
   notify();
 }
 
-/* Called by an instrument from its own note-on path. It reaches the grid only when that
-   instrument is armed AND record is on, so an armed track you are auditioning does not
-   quietly overwrite the pattern you are auditioning it against. */
 /* Live note capture stays gated on the track being armed. There is no global record
    switch any more, so an armed track writes what you play as you play it, and the row
    button is what commits the result to a scene. */

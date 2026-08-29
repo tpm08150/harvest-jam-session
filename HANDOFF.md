@@ -1210,6 +1210,28 @@ Things the removal simplified rather than merely deleted, each worth keeping:
 
 The scene launcher made big, with an arm per track. `Live` / `Studio` in the header.
 
+### Firing a row starts what it lands on
+
+⚠️ **This was missing and it made the whole gesture look broken.** A launcher whose cells
+load a pattern but leave the transport where it was appears to do nothing: the cell lit,
+and nothing sounded. `fire()` now starts any instrument it lands on that was stopped, and
+`captureRow()` starts an armed track BEFORE taking its copy.
+
+The order matters twice over. An armed track has to be *running* for live note capture to
+reach the grid at all — a step index is meaningless with no transport — so starting it is
+also what lets you arm a second track and play into the same row a moment later, which is
+the workflow this is for:
+
+```
+arm DR·1  →  ● row 1     drums start, and land in row 1
+arm BS·1  →  ● row 1     bass starts and joins the row; drums keep going
+```
+
+**A track with nothing in the fired row is left alone, not stopped.** Ableton stops it.
+This does not, because in a jam where you build one row up a track at a time, "go to row 2"
+silently killing the drums you had not re-recorded there is the more expensive surprise. If
+that turns out to be wrong, it is one branch in `fire()`.
+
 ### The row button IS the record
 
 There is no global record switch. **Arm a track, then hit ● on a row**: every armed track
