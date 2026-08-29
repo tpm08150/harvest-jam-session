@@ -20,6 +20,7 @@ Two message kinds are the relay's own:
 
     {"kind":"join","room":"..."}   put this connection in a room
     {"kind":"ping","t0":<num>}     answered directly with {"kind":"pong","t0":...,"ts":...}
+    {"kind":"rooms"}               answered with the rooms that currently have anyone in them
 
 Everything else is forwarded verbatim to every OTHER connection in the same room.
 
@@ -189,6 +190,14 @@ class Client(threading.Thread):
             # Answered on this connection only, and stamped as late as possible so the
             # client's round-trip estimate contains as little of our own delay as it can.
             self.send_json({"kind": "pong", "t0": msg.get("t0"), "ts": now_ms()})
+            return
+        if kind == "rooms":
+            # So you can pick a jam instead of having to be told its name. Asked before
+            # joining anything, which is why it is answered on any connection.
+            with lock:
+                listing = sorted(({"name": r, "peers": len(cs)} for r, cs in rooms.items()),
+                                 key=lambda r: r["name"])
+            self.send_json({"kind": "rooms", "rooms": listing})
             return
         if kind == "join":
             self.leave()

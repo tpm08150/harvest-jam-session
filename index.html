@@ -1398,6 +1398,28 @@ body{
 }
 .st-jam-who b{color:var(--mint);font-weight:400}
 .st-jam-who em{font-style:normal;color:var(--cap-yellow)}
+/* the list of jams, anchored under the button that opened it */
+.st-jam{position:relative}
+.st-jam-list{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:40;min-width:230px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel-lo));
+  border:1px solid var(--edge);border-radius:6px;padding:6px;
+  box-shadow:0 12px 28px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;gap:3px;
+}
+.st-jam-list[hidden]{display:none}
+.st-jam-row{
+  display:flex;justify-content:space-between;align-items:center;gap:14px;
+  background:var(--slot);border:1px solid var(--groove);border-radius:4px;
+  padding:8px 10px;cursor:pointer;text-align:left;
+  font-family:"DM Mono",ui-monospace,monospace;font-size:11px;color:var(--silk);
+}
+.st-jam-row:hover{border-color:var(--mint);color:var(--mint)}
+.st-jam-row span{color:var(--silk-dim);font-size:10px}
+.st-jam-empty{
+  padding:9px 10px;font-family:"DM Mono",ui-monospace,monospace;
+  font-size:10.5px;color:var(--silk-dim);line-height:1.6;
+}
 .st-head .st-hint{
   font-family:"DM Mono",ui-monospace,monospace;
   font-size:10.5px;letter-spacing:.06em;color:var(--silk-dim);
@@ -1642,7 +1664,10 @@ body.living .st-seg#stFaces{display:none}
        shell/session.js for why that is state and not audio. -->
   <div class="st-jam" id="stJam">
     <button class="st-xport st-jam-btn" id="stJamBtn">Start a jam</button>
+    <button class="st-xport st-jam-btn" id="stJamJoin">Join&hellip;</button>
     <span class="st-jam-who" id="stJamWho"></span>
+    <!-- What is actually running, so a jam can be picked rather than named from memory. -->
+    <div class="st-jam-list" id="stJamList" hidden></div>
   </div>
   <div class="st-seg" id="stFaces" role="group" aria-label="How much of each instrument to show">
     <button data-f="face" class="st-sel">Faces</button>
@@ -4160,6 +4185,63 @@ function onMessage(m){
   notify();
 }
 
+/* ---- who is jamming ----
+   So a jam can be PICKED rather than named from memory. Typing the same string on two
+   machines is the single most likely way to end up in two empty rooms wondering why the
+   other person cannot see you.
+
+   Both transports can answer it, differently. The relay knows its rooms and is asked. A
+   BroadcastChannel has no server, so the sessions answer for themselves on a shared lobby
+   channel — a question goes out, whoever is in a jam says which one, and the replies are
+   collected for a moment. */
+const LOBBY = "patchwork-jam-lobby";
+let lobby = null;
+function openLobby(){
+  if (lobby || typeof BroadcastChannel === "undefined") return;
+  lobby = new BroadcastChannel(LOBBY);
+  lobby.onmessage = e => {
+    /* answer for the jam this tab is in, if any */
+    if (e.data && e.data.q && tx && !tx.ping && room)
+      lobby.postMessage({room, peer: me.id});
+  };
+}
+openLobby();
+
+function browse(cb){
+  const relay = new URLSearchParams(location.search).get("relay");
+  if (relay){
+    /* a throwaway connection: ask, answer, close. Asking on the live one would mean being
+       joined before you had chosen. */
+    let ws;
+    try{ ws = new WebSocket(relay); }catch(e){ cb(null, "cannot reach " + relay); return; }
+    const done = err => { try{ ws.close(); }catch(e){} };
+    const timer = setTimeout(() => { done(); cb(null, "no answer from " + relay); }, 4000);
+    ws.addEventListener("open", () => ws.send(JSON.stringify({kind: "rooms"})));
+    ws.addEventListener("error", () => { clearTimeout(timer); done(); cb(null, "cannot reach " + relay); });
+    ws.addEventListener("message", e => {
+      let m; try{ m = JSON.parse(e.data); }catch(err){ return; }
+      if (m.kind !== "rooms") return;
+      clearTimeout(timer); done();
+      cb(m.rooms || []);
+    });
+    return;
+  }
+  if (!lobby){ cb([]); return; }
+  const seen = new Map();
+  const listen = e => {
+    if (!e.data || !e.data.room) return;
+    const r = seen.get(e.data.room) || {name: e.data.room, peers: 0};
+    r.peers++;
+    seen.set(e.data.room, r);
+  };
+  lobby.addEventListener("message", listen);
+  lobby.postMessage({q: 1});
+  setTimeout(() => {
+    lobby.removeEventListener("message", listen);
+    cb([...seen.values()].sort((a, b) => a.name < b.name ? -1 : 1));
+  }, 350);
+}
+
 /* ---- joining and leaving ---- */
 function join(name, who){
   leave();
@@ -4216,7 +4298,7 @@ function ownerName(inst){
 Patchwork.scenes.onChange(pushScenes);
 Patchwork.clock.onTempo("session", pushTransport, null);
 
-return {join, leave, claim, release, ownerName, onChange: fn => subs.push(fn),
+return {join, leave, browse, claim, release, ownerName, onChange: fn => subs.push(fn),
         fired: row => send("fire", {row}),
         get active(){ return !!tx; },
         get room(){ return room; },
@@ -14137,19 +14219,74 @@ Patchwork.launch.mountMeasure(document.querySelector("#stBars"));
 const btn = document.querySelector("#stJamBtn"), who = document.querySelector("#stJamWho");
 if (!btn || !window.Patchwork || !Patchwork.session) return;
 
+const joinBtn = document.querySelector("#stJamJoin");
+const list = document.querySelector("#stJamList");
+
+function askName(){
+  /* asked once and remembered, because being asked your own name every time you join is
+     the kind of friction that stops people trying the feature twice */
+  let n = "";
+  try{ n = localStorage.getItem("patchwork-jam-name") || ""; }catch(e){}
+  n = window.prompt("What should they call you?", n) || "";
+  try{ localStorage.setItem("patchwork-jam-name", n); }catch(e){}
+  return n;
+}
+
 btn.addEventListener("click", () => {
+  list.hidden = true;
   if (Patchwork.session.active){ Patchwork.session.leave(); return; }
-  const room = window.prompt("Jam name — anyone who joins the same one plays with you", "jam");
+  const room = window.prompt("Name your jam — anyone who joins it plays with you", "jam");
   if (room == null) return;
-  const name = window.prompt("What should they call you?", "") || "";
-  if (!Patchwork.session.join(room, name))
+  if (!Patchwork.session.join(room, askName()))
     who.textContent = "this browser cannot open a session";
+});
+
+/* ⚠️ Typing the same string on two machines is the single most likely way to end up in two
+   empty rooms wondering why the other person cannot see you. Picking from a list removes
+   that, and the list itself is the diagnostic: if it comes back empty over a relay, the
+   two machines are not talking to the same one. */
+joinBtn.addEventListener("click", () => {
+  if (Patchwork.session.active){ list.hidden = true; return; }
+  list.textContent = "";
+  list.appendChild(Object.assign(document.createElement("div"),
+    {className: "st-jam-empty", textContent: "looking…"}));
+  list.hidden = false;
+  Patchwork.session.browse((rooms, err) => {
+    list.textContent = "";
+    if (err || !rooms){
+      list.appendChild(Object.assign(document.createElement("div"),
+        {className: "st-jam-empty", textContent: err || "could not look"}));
+      return;
+    }
+    if (!rooms.length){
+      list.appendChild(Object.assign(document.createElement("div"), {className: "st-jam-empty",
+        textContent: "No jams running. Start one — whoever joins it next will see it here."}));
+      return;
+    }
+    rooms.forEach(r => {
+      const b = document.createElement("button");
+      b.className = "st-jam-row";
+      b.appendChild(Object.assign(document.createElement("b"), {textContent: r.name}));
+      b.appendChild(Object.assign(document.createElement("span"),
+        {textContent: r.peers + (r.peers === 1 ? " player" : " players")}));
+      b.addEventListener("click", () => {
+        list.hidden = true;
+        Patchwork.session.join(r.name, askName());
+      });
+      list.appendChild(b);
+    });
+  });
+});
+
+document.addEventListener("click", e => {
+  if (!list.hidden && !e.target.closest("#stJam")) list.hidden = true;
 });
 
 function paint(){
   const on = Patchwork.session.active;
   btn.textContent = on ? "Leave jam" : "Start a jam";
   btn.classList.toggle("st-on", on);
+  joinBtn.hidden = on;
   if (!on){ who.textContent = ""; return; }
   const peers = Patchwork.session.peers, S = Patchwork.session;
   /* WHERE the jam is, not just that there is one. A two-laptop test that is quietly two

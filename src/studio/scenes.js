@@ -337,19 +337,74 @@ Patchwork.launch.mountMeasure(document.querySelector("#stBars"));
 const btn = document.querySelector("#stJamBtn"), who = document.querySelector("#stJamWho");
 if (!btn || !window.Patchwork || !Patchwork.session) return;
 
+const joinBtn = document.querySelector("#stJamJoin");
+const list = document.querySelector("#stJamList");
+
+function askName(){
+  /* asked once and remembered, because being asked your own name every time you join is
+     the kind of friction that stops people trying the feature twice */
+  let n = "";
+  try{ n = localStorage.getItem("patchwork-jam-name") || ""; }catch(e){}
+  n = window.prompt("What should they call you?", n) || "";
+  try{ localStorage.setItem("patchwork-jam-name", n); }catch(e){}
+  return n;
+}
+
 btn.addEventListener("click", () => {
+  list.hidden = true;
   if (Patchwork.session.active){ Patchwork.session.leave(); return; }
-  const room = window.prompt("Jam name — anyone who joins the same one plays with you", "jam");
+  const room = window.prompt("Name your jam — anyone who joins it plays with you", "jam");
   if (room == null) return;
-  const name = window.prompt("What should they call you?", "") || "";
-  if (!Patchwork.session.join(room, name))
+  if (!Patchwork.session.join(room, askName()))
     who.textContent = "this browser cannot open a session";
+});
+
+/* ⚠️ Typing the same string on two machines is the single most likely way to end up in two
+   empty rooms wondering why the other person cannot see you. Picking from a list removes
+   that, and the list itself is the diagnostic: if it comes back empty over a relay, the
+   two machines are not talking to the same one. */
+joinBtn.addEventListener("click", () => {
+  if (Patchwork.session.active){ list.hidden = true; return; }
+  list.textContent = "";
+  list.appendChild(Object.assign(document.createElement("div"),
+    {className: "st-jam-empty", textContent: "looking…"}));
+  list.hidden = false;
+  Patchwork.session.browse((rooms, err) => {
+    list.textContent = "";
+    if (err || !rooms){
+      list.appendChild(Object.assign(document.createElement("div"),
+        {className: "st-jam-empty", textContent: err || "could not look"}));
+      return;
+    }
+    if (!rooms.length){
+      list.appendChild(Object.assign(document.createElement("div"), {className: "st-jam-empty",
+        textContent: "No jams running. Start one — whoever joins it next will see it here."}));
+      return;
+    }
+    rooms.forEach(r => {
+      const b = document.createElement("button");
+      b.className = "st-jam-row";
+      b.appendChild(Object.assign(document.createElement("b"), {textContent: r.name}));
+      b.appendChild(Object.assign(document.createElement("span"),
+        {textContent: r.peers + (r.peers === 1 ? " player" : " players")}));
+      b.addEventListener("click", () => {
+        list.hidden = true;
+        Patchwork.session.join(r.name, askName());
+      });
+      list.appendChild(b);
+    });
+  });
+});
+
+document.addEventListener("click", e => {
+  if (!list.hidden && !e.target.closest("#stJam")) list.hidden = true;
 });
 
 function paint(){
   const on = Patchwork.session.active;
   btn.textContent = on ? "Leave jam" : "Start a jam";
   btn.classList.toggle("st-on", on);
+  joinBtn.hidden = on;
   if (!on){ who.textContent = ""; return; }
   const peers = Patchwork.session.peers, S = Patchwork.session;
   /* WHERE the jam is, not just that there is one. A two-laptop test that is quietly two

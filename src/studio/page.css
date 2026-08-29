@@ -72,6 +72,28 @@ body{
 }
 .st-jam-who b{color:var(--mint);font-weight:400}
 .st-jam-who em{font-style:normal;color:var(--cap-yellow)}
+/* the list of jams, anchored under the button that opened it */
+.st-jam{position:relative}
+.st-jam-list{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:40;min-width:230px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel-lo));
+  border:1px solid var(--edge);border-radius:6px;padding:6px;
+  box-shadow:0 12px 28px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;gap:3px;
+}
+.st-jam-list[hidden]{display:none}
+.st-jam-row{
+  display:flex;justify-content:space-between;align-items:center;gap:14px;
+  background:var(--slot);border:1px solid var(--groove);border-radius:4px;
+  padding:8px 10px;cursor:pointer;text-align:left;
+  font-family:"DM Mono",ui-monospace,monospace;font-size:11px;color:var(--silk);
+}
+.st-jam-row:hover{border-color:var(--mint);color:var(--mint)}
+.st-jam-row span{color:var(--silk-dim);font-size:10px}
+.st-jam-empty{
+  padding:9px 10px;font-family:"DM Mono",ui-monospace,monospace;
+  font-size:10.5px;color:var(--silk-dim);line-height:1.6;
+}
 .st-head .st-hint{
   font-family:"DM Mono",ui-monospace,monospace;
   font-size:10.5px;letter-spacing:.06em;color:var(--silk-dim);

@@ -265,6 +265,63 @@ function onMessage(m){
   notify();
 }
 
+/* ---- who is jamming ----
+   So a jam can be PICKED rather than named from memory. Typing the same string on two
+   machines is the single most likely way to end up in two empty rooms wondering why the
+   other person cannot see you.
+
+   Both transports can answer it, differently. The relay knows its rooms and is asked. A
+   BroadcastChannel has no server, so the sessions answer for themselves on a shared lobby
+   channel — a question goes out, whoever is in a jam says which one, and the replies are
+   collected for a moment. */
+const LOBBY = "patchwork-jam-lobby";
+let lobby = null;
+function openLobby(){
+  if (lobby || typeof BroadcastChannel === "undefined") return;
+  lobby = new BroadcastChannel(LOBBY);
+  lobby.onmessage = e => {
+    /* answer for the jam this tab is in, if any */
+    if (e.data && e.data.q && tx && !tx.ping && room)
+      lobby.postMessage({room, peer: me.id});
+  };
+}
+openLobby();
+
+function browse(cb){
+  const relay = new URLSearchParams(location.search).get("relay");
+  if (relay){
+    /* a throwaway connection: ask, answer, close. Asking on the live one would mean being
+       joined before you had chosen. */
+    let ws;
+    try{ ws = new WebSocket(relay); }catch(e){ cb(null, "cannot reach " + relay); return; }
+    const done = err => { try{ ws.close(); }catch(e){} };
+    const timer = setTimeout(() => { done(); cb(null, "no answer from " + relay); }, 4000);
+    ws.addEventListener("open", () => ws.send(JSON.stringify({kind: "rooms"})));
+    ws.addEventListener("error", () => { clearTimeout(timer); done(); cb(null, "cannot reach " + relay); });
+    ws.addEventListener("message", e => {
+      let m; try{ m = JSON.parse(e.data); }catch(err){ return; }
+      if (m.kind !== "rooms") return;
+      clearTimeout(timer); done();
+      cb(m.rooms || []);
+    });
+    return;
+  }
+  if (!lobby){ cb([]); return; }
+  const seen = new Map();
+  const listen = e => {
+    if (!e.data || !e.data.room) return;
+    const r = seen.get(e.data.room) || {name: e.data.room, peers: 0};
+    r.peers++;
+    seen.set(e.data.room, r);
+  };
+  lobby.addEventListener("message", listen);
+  lobby.postMessage({q: 1});
+  setTimeout(() => {
+    lobby.removeEventListener("message", listen);
+    cb([...seen.values()].sort((a, b) => a.name < b.name ? -1 : 1));
+  }, 350);
+}
+
 /* ---- joining and leaving ---- */
 function join(name, who){
   leave();
@@ -321,7 +378,7 @@ function ownerName(inst){
 Patchwork.scenes.onChange(pushScenes);
 Patchwork.clock.onTempo("session", pushTransport, null);
 
-return {join, leave, claim, release, ownerName, onChange: fn => subs.push(fn),
+return {join, leave, browse, claim, release, ownerName, onChange: fn => subs.push(fn),
         fired: row => send("fire", {row}),
         get active(){ return !!tx; },
         get room(){ return room; },

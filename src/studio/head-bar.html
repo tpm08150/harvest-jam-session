@@ -10,7 +10,10 @@
        shell/session.js for why that is state and not audio. -->
   <div class="st-jam" id="stJam">
     <button class="st-xport st-jam-btn" id="stJamBtn">Start a jam</button>
+    <button class="st-xport st-jam-btn" id="stJamJoin">Join&hellip;</button>
     <span class="st-jam-who" id="stJamWho"></span>
+    <!-- What is actually running, so a jam can be picked rather than named from memory. -->
+    <div class="st-jam-list" id="stJamList" hidden></div>
   </div>
   <div class="st-seg" id="stFaces" role="group" aria-label="How much of each instrument to show">
     <button data-f="face" class="st-sel">Faces</button>
