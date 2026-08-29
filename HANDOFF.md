@@ -1227,10 +1227,19 @@ arm DR·1  →  ● row 1     drums start, and land in row 1
 arm BS·1  →  ● row 1     bass starts and joins the row; drums keep going
 ```
 
-**A track with nothing in the fired row is left alone, not stopped.** Ableton stops it.
-This does not, because in a jam where you build one row up a track at a time, "go to row 2"
-silently killing the drums you had not re-recorded there is the more expensive surprise. If
-that turns out to be wrong, it is one branch in `fire()`.
+**A track with nothing in the fired row STOPS.** A row is a complete picture of what should
+be playing, so an instrument with no clip in it falls silent — otherwise firing row 2 leaves
+row 1's bass running underneath and what you hear is neither row. This was originally the
+other way round, on the theory that silently killing a track was the worse surprise; playing
+it proved the opposite, and it is Ableton's behaviour for the same reason.
+
+The stop is **queued to that instrument's loop point**, exactly like a pattern swap — a null
+in `pending` is the pending stop, and `take()` reads it at the seam. Nothing cuts mid-bar.
+
+⚠️ `take()` can therefore stop the very instrument whose tick is calling it, and the
+scheduling loop has to notice: every tick checks `playing` immediately after `take()` and
+returns, or it carries on filling the lookahead for a transport that is no longer running
+and leaves a bar of notes sounding after the stop.
 
 ### The row button IS the record
 

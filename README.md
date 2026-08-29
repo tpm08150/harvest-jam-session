@@ -216,6 +216,9 @@ hit ● on a row.** Every armed track has whatever is in its sequencer copied in
 every unarmed track just plays that row back. The row buttons turn from ▶ to ● the moment
 anything is armed.
 
+A row is a complete picture: an instrument with nothing in the row you fire **stops** at its
+next loop point, rather than carrying the previous row's part underneath.
+
 LP·1 keeps a **separate audio take per row**, so a row can carry a loop as well as patterns.
 Every track can be armed. PM·1, VC·1, BS·1 and DR·1 also take notes you play onto the grid
 as you play them; CS·1 and LP·1 do not — a row press captures CS·1's progression and records

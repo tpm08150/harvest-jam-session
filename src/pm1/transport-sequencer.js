@@ -223,6 +223,10 @@ function tick(){
     /* a queued scene lands on the loop point, ahead of this step being scheduled — see
        shell/scenes.js for why this cannot be done on wall time */
     if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("pm1");
+    /* take() can STOP this instrument, when the row it fired has nothing for it.
+       The loop would otherwise carry on scheduling into a transport that is no
+       longer running and leave a bar of notes behind after the stop. */
+    if (!SEQ.playing) return;
     const ai = scheduleStep(stepIndex, at);
     marks.push({i:stepIndex % SEQ.len, ai:ai, t:at, end:at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a

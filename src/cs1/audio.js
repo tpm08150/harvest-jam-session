@@ -512,6 +512,10 @@ function tick(){
     /* and a queued scene, at the loop point rather than every chord — same reasoning,
        generalised across the instruments in shell/scenes.js */
     if (nextIndex === 0) Patchwork.scenes.take("cs1");
+    /* take() can STOP this instrument, when the row it fired has nothing for it.
+       The loop would otherwise carry on scheduling into a transport that is no
+       longer running and leave a bar of notes behind after the stop. */
+    if (!state.playing) return;
     const at = Math.max(ctx.currentTime + .005, nextTime + off);
     const bars = chordBars(nextIndex);
     const dur = barSeconds() * bars;

@@ -65,6 +65,10 @@ function tick(){
        scheduled — so the pattern that plays from this boundary is the new one. Doing it
        on wall time instead would land it 200 ms late, behind the lookahead. */
     if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("dr1");
+    /* take() can STOP this instrument, when the row it fired has nothing for it.
+       The loop would otherwise carry on scheduling into a transport that is no
+       longer running and leave a bar of notes behind after the stop. */
+    if (!SEQ.playing) return;
     const i = scheduleStep(stepIndex, at);
     marks.push({i, t: at, end: at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a

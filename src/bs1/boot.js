@@ -5,6 +5,7 @@ Patchwork.scenes.register("bs1", {
   name: "BS·1",
   isPlaying: () => seq.SEQ.playing,
   start: () => { ensureAudio(); seq.start(); },
+  stop: () => seq.stop(),
   capture: () => seq.capture(),
   apply: pat => {
     seq.apply(pat);

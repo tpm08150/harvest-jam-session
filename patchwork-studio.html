@@ -2893,7 +2893,8 @@ function onChange(fn){ subs.push(fn); }
 function register(id, spec){
   insts.push({id, name: spec.name || id, capture: spec.capture, apply: spec.apply,
               isPlaying: spec.isPlaying || (() => false),
-              start: spec.start || function(){}});
+              start: spec.start || function(){},
+              stop: spec.stop || function(){}});
   notify();
 }
 
@@ -2918,19 +2919,32 @@ function clear(row, id){
 /* Arm a pattern. An instrument that is not running has no seam coming, so it takes the
    change immediately — otherwise firing a scene with the transport stopped does nothing
    visible and looks broken. */
-/* Firing a row also STARTS anything it lands on that was stopped. A launcher whose cells
-   load a pattern but leave the transport where it was is a launcher that appears to do
-   nothing — which is exactly how this read before: the cell lit and nothing sounded.
+/* Firing a row STARTS anything it lands on that was stopped, and STOPS anything the row
+   has nothing for.
 
-   A track with nothing in this row is left alone rather than stopped. Ableton stops it,
-   but in a jam where you build one row up a track at a time, "go to row 2" silently
-   killing the drums you did not re-record there is the more expensive surprise. */
+   The empty cell is the part that matters. A row is a complete picture of what should be
+   playing, so an instrument with no clip in it falls silent — otherwise firing row 2
+   leaves row 1's bass running underneath, and what you hear is neither row. Ableton does
+   the same, and for the same reason.
+
+   Both the start and the stop land on the instrument's loop point, not on the click, so a
+   row change never cuts a bar in half. */
 function fire(row, id){
   if (!rows[row]) return;
   const targets = id ? insts.filter(x => x.id === id) : insts;
   targets.forEach(it => {
     const pat = rows[row].cells[it.id];
-    if (!pat) return;
+    if (!pat){
+      if (it.isPlaying()){
+        /* null is the pending STOP — take() reads it at the seam */
+        pending.set(it.id, null);
+        queued.set(it.id, row);
+      } else {
+        pending.delete(it.id);
+        queued.delete(it.id);
+      }
+      return;
+    }
     if (it.isPlaying()){
       pending.set(it.id, pat);
       queued.set(it.id, row);
@@ -2959,7 +2973,10 @@ function take(id){
   const pat = pending.get(id);
   pending.delete(id);
   queued.delete(id);
-  if (it) it.apply(JSON.parse(JSON.stringify(pat)));
+  if (!it){ notify(); return true; }
+  /* a queued null means the row had nothing for this instrument: stop, at the seam */
+  if (pat === null) it.stop();
+  else it.apply(JSON.parse(JSON.stringify(pat)));
   notify();
   return true;
 }
@@ -3354,6 +3371,10 @@ function tick(){
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
     if (stepIndex % SEQ.len === 0 && spec.id) Patchwork.scenes.take(spec.id);
+    /* take() can STOP this instrument, when the row it fired has nothing for it.
+       The loop would otherwise carry on scheduling into a transport that is no
+       longer running and leave a bar of notes behind after the stop. */
+    if (!SEQ.playing) return;
     const st = steps[stepIndex % SEQ.len];
     if (!st.tie){
       const ev = stepEvent(stepIndex, at);
@@ -4353,6 +4374,10 @@ function tick(){
     /* and a queued scene, at the loop point rather than every chord — same reasoning,
        generalised across the instruments in shell/scenes.js */
     if (nextIndex === 0) Patchwork.scenes.take("cs1");
+    /* take() can STOP this instrument, when the row it fired has nothing for it.
+       The loop would otherwise carry on scheduling into a transport that is no
+       longer running and leave a bar of notes behind after the stop. */
+    if (!state.playing) return;
     const at = Math.max(ctx.currentTime + .005, nextTime + off);
     const bars = chordBars(nextIndex);
     const dur = barSeconds() * bars;
@@ -6181,6 +6206,7 @@ Patchwork.scenes.register("cs1", {
   name: "CS\u00b71",
   isPlaying: () => state.playing,
   start: () => { ensureAudio(); if (!state.playing) startPlay(); },
+  stop: () => { if (state.playing) stopPlay(); },
   capture: () => ({
     prog: state.prog ? {mood: state.prog.mood, minor: !!state.prog.minor,
                         chords: state.prog.chords.map(c => ({r: c.r, q: c.q, bars: c.bars || 1}))} : null,
@@ -7749,6 +7775,10 @@ function tick(){
     /* a queued scene lands on the loop point, ahead of this step being scheduled — see
        shell/scenes.js for why this cannot be done on wall time */
     if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("pm1");
+    /* take() can STOP this instrument, when the row it fired has nothing for it.
+       The loop would otherwise carry on scheduling into a transport that is no
+       longer running and leave a bar of notes behind after the stop. */
+    if (!SEQ.playing) return;
     const ai = scheduleStep(stepIndex, at);
     marks.push({i:stepIndex % SEQ.len, ai:ai, t:at, end:at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
@@ -9487,6 +9517,7 @@ Patchwork.scenes.register("pm1", {
   name: "PM·1",
   isPlaying: () => SEQ.playing,
   start: () => { ensureAudio(); if (!SEQ.playing) startPlay(); },
+  stop: () => { if (SEQ.playing) stopPlay(); },
   capture: () => ({steps: JSON.parse(JSON.stringify(SEQ.steps)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing,
                    motion: SEQ.motion, dir: SEQ.dir, octaves: SEQ.octaves,
@@ -10076,6 +10107,7 @@ Patchwork.scenes.register("vc1", {
   name: "VC·1",
   isPlaying: () => seq.SEQ.playing,
   start: () => { ensureAudio(); seq.start(); },
+  stop: () => seq.stop(),
   capture: () => seq.capture(),
   apply: pat => {
     seq.apply(pat);
@@ -10585,6 +10617,7 @@ Patchwork.scenes.register("bs1", {
   name: "BS·1",
   isPlaying: () => seq.SEQ.playing,
   start: () => { ensureAudio(); seq.start(); },
+  stop: () => seq.stop(),
   capture: () => seq.capture(),
   apply: pat => {
     seq.apply(pat);
@@ -10993,6 +11026,10 @@ function tick(){
        scheduled — so the pattern that plays from this boundary is the new one. Doing it
        on wall time instead would land it 200 ms late, behind the lookahead. */
     if (stepIndex % SEQ.len === 0) Patchwork.scenes.take("dr1");
+    /* take() can STOP this instrument, when the row it fired has nothing for it.
+       The loop would otherwise carry on scheduling into a transport that is no
+       longer running and leave a bar of notes behind after the stop. */
+    if (!SEQ.playing) return;
     const i = scheduleStep(stepIndex, at);
     marks.push({i, t: at, end: at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
@@ -11448,6 +11485,7 @@ Patchwork.scenes.register("dr1", {
   name: "DR·1",
   isPlaying: () => SEQ.playing,
   start: () => { ensureAudio(); if (!SEQ.playing) startPlay(); },
+  stop: () => { if (SEQ.playing) stopPlay(); },
   capture: () => ({steps: JSON.parse(JSON.stringify(steps)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing, accentAmt: SEQ.accentAmt}),
   apply: pat => {

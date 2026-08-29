@@ -79,6 +79,10 @@ function tick(){
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
     if (stepIndex % SEQ.len === 0 && spec.id) Patchwork.scenes.take(spec.id);
+    /* take() can STOP this instrument, when the row it fired has nothing for it.
+       The loop would otherwise carry on scheduling into a transport that is no
+       longer running and leave a bar of notes behind after the stop. */
+    if (!SEQ.playing) return;
     const st = steps[stepIndex % SEQ.len];
     if (!st.tie){
       const ev = stepEvent(stepIndex, at);
