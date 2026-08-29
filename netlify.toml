@@ -1,52 +1,57 @@
-# Static site — no build step, the whole app is one HTML file.
+# Static site — no build step. Each page is one self-contained HTML file, assembled from
+# src/ by tools/build.py before it is committed.
 [build]
   publish = "."
 
-# Serve the app at the root without renaming it. status = 200 rewrites rather than
-# redirecting, so the URL stays clean.
-[[redirects]]
-  from = "/"
-  to = "/patchwork-chord-synth.html"
-  status = 200
+# The root is the studio, and it needs no rewrite: the studio IS index.html. That is the
+# whole reason the build writes it under that name rather than keeping a rewrite whose only
+# job was to hide a filename.
 
-# Each instrument gets a clean path of its own. Same rewrite trick, and the root still
-# belongs to CS-1 so existing links and bookmarks keep working.
+# Each instrument keeps a clean path of its own, for linking to one directly.
 #
 # /mono was MS-1, which split into PM-1, VC-1 and BS-1. It points at the poly synth, which
-# is what MS-1 mostly was, rather than 404ing a link someone may have saved.
+# is what MS-1 mostly was, rather than 404ing a link someone may have saved. /chords was
+# the root for as long as this repo was a chord synthesiser, and keeps working for the same
+# reason.
 [[redirects]]
   from = "/mono"
-  to = "/patchwork-poly-synth.html"
+  to = "/poly-synth.html"
   status = 200
+
+[[redirects]]
+  from = "/chords"
+  to = "/chord-synth.html"
+  status = 200
+
 
 [[redirects]]
   from = "/poly"
-  to = "/patchwork-poly-synth.html"
+  to = "/poly-synth.html"
   status = 200
 
 [[redirects]]
   from = "/vocoder"
-  to = "/patchwork-vocoder.html"
+  to = "/vocoder.html"
   status = 200
 
 [[redirects]]
   from = "/bass"
-  to = "/patchwork-bass.html"
+  to = "/bass.html"
   status = 200
 
 [[redirects]]
   from = "/drums"
-  to = "/patchwork-drums.html"
+  to = "/drums.html"
   status = 200
 
 [[redirects]]
   from = "/looper"
-  to = "/patchwork-looper.html"
+  to = "/looper.html"
   status = 200
 
 [[redirects]]
   from = "/studio"
-  to = "/patchwork-studio.html"
+  to = "/index.html"
   status = 200
 
 # The app is a single file that changes on every deploy — never let a browser hold

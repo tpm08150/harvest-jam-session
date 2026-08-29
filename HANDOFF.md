@@ -12,19 +12,19 @@ Context for picking this up cold. Everything below is verified unless it says ot
 Two independent instruments in one repo, each **one HTML file**, no build step, no
 dependencies.
 
-- **CS·1** — `patchwork-chord-synth.html`, ~3100 lines. A chord synthesizer that generates
+- **CS·1** — `chord-synth.html`, ~3100 lines. A chord synthesizer that generates
   progressions, plays them through a small Web Audio engine, and drives hardware over MIDI.
   An iOS wrapper hosts this file unmodified and supplies the one API iOS lacks.
-- **MS·1** — `patchwork-mono-synth.html`, ~3000 lines. A mono synth for leads and basses,
+- **MS·1** — retired. Split into PM·1, VC·1 and BS·1; see the split section below. It was
   added later. Deliberately standalone: its own transport, no clock follow, no dependency
   on CS·1. See the MS·1 section near the end.
 
 ## Layout
 
 ```
-patchwork-chord-synth.html   CS·1 — BUILT. Do not edit; edit src/cs1/ and rebuild
-patchwork-mono-synth.html    MS·1 — likewise, from src/ms1/
-patchwork-studio.html        both instruments on one page, from src/studio/
+chord-synth.html   CS·1 — BUILT. Do not edit; edit src/cs1/ and rebuild
+index.html                   the studio — all six instruments on one page
+index.html        both instruments on one page, from src/studio/
 src/
   shell/                     what only one of can exist on a page
     host.js                  panel roots and keyboard arbitration
@@ -109,7 +109,7 @@ second configuration that can rot untested.
 
 ```bash
 python3 tools/build.py              # after ANY edit under src/
-python3 serve.py                    # http://localhost:8123/patchwork-chord-synth.html
+python3 serve.py                    # http://localhost:8123/chord-synth.html
 PORT=9000 python3 serve.py          # ...or anywhere else
 python3 ios/build-test-harness.py   # then open _iostest.html to test MIDI without hardware
 python3 tools/build-phase-harness.py  # _phasetest.html — synthetic clock + drift measurement
@@ -1134,9 +1134,9 @@ patch object, a keyboard and a four-way MIDI channel map. It is now three:
 
 | | | |
 | --- | --- | --- |
-| **PM·1** | `patchwork-poly-synth.html` | the main voice — MS·1 minus the other two |
-| **VC·1** | `patchwork-vocoder.html` | the bank, with a simple carrier of its own |
-| **BS·1** | `patchwork-bass.html` | the pedal voice |
+| **PM·1** | `poly-synth.html` | the main voice — MS·1 minus the other two |
+| **VC·1** | `vocoder.html` | the bank, with a simple carrier of its own |
+| **BS·1** | `bass.html` | the pedal voice |
 
 Each has its own 64-step sequencer and its own MIDI input channel, which is most of what
 the split was for. MS·1's own notes said plainly that "the sequencer and arpeggiator drive

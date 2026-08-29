@@ -22,7 +22,7 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PAGE = ROOT / "patchwork-chord-synth.html"
+PAGE = ROOT / "chord-synth.html"
 SHIM = ROOT / "ios" / "midi-bridge.js"
 OUT = ROOT / "_iostest.html"
 
@@ -57,7 +57,7 @@ HARNESS = """<script>
 
 def main():
     if not PAGE.exists() or not SHIM.exists():
-        sys.exit("expected patchwork-chord-synth.html and ios/midi-bridge.js")
+        sys.exit("expected chord-synth.html and ios/midi-bridge.js")
     page = PAGE.read_text()
     if MARKER not in page:
         sys.exit("could not find the app's script tag — has the file structure changed?")

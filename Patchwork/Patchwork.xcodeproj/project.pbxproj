@@ -272,17 +272,17 @@
 			files = (
 			);
 			inputPaths = (
-				"$(SRCROOT)/../patchwork-chord-synth.html",
+				"$(SRCROOT)/../chord-synth.html",
 				"$(SRCROOT)/../ios/midi-bridge.js",
 			);
 			name = "Sync web app from repo root";
 			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/patchwork-chord-synth.html",
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/chord-synth.html",
 				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/midi-bridge.js",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ -f \"$SRCROOT/../patchwork-chord-synth.html\" ]; then\n  cp \"$SRCROOT/../patchwork-chord-synth.html\" \"$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/\"\nfi\nif [ -f \"$SRCROOT/../ios/midi-bridge.js\" ]; then\n  cp \"$SRCROOT/../ios/midi-bridge.js\" \"$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/\"\nfi\n";
+			shellScript = "if [ -f \"$SRCROOT/../chord-synth.html\" ]; then\n  cp \"$SRCROOT/../chord-synth.html\" \"$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/\"\nfi\nif [ -f \"$SRCROOT/../ios/midi-bridge.js\" ]; then\n  cp \"$SRCROOT/../ios/midi-bridge.js\" \"$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

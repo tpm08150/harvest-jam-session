@@ -42,7 +42,7 @@ Needs **full Xcode** from the App Store. Command Line Tools alone cannot build a
    In *Info.plist*, remove the `UIApplicationSceneManifest` entry and the
    "Main storyboard file base name" entry — `AppDelegate` creates the window itself.
 3. Drag in the three files from `Sources/`.
-4. Drag in `midi-bridge.js` **and** `patchwork-chord-synth.html` from the repo root, with
+4. Drag in `midi-bridge.js` **and** `chord-synth.html` from the repo root, with
    *Copy items if needed* ticked and *Add to target* checked. Confirm both appear under
    *Build Phases → Copy Bundle Resources* — if they are missing the app will launch to a
    blank screen.

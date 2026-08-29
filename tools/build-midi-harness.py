@@ -20,7 +20,7 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-APP = ROOT / "patchwork-studio.html"
+APP = ROOT / "index.html"
 OUT = ROOT / "_miditest.html"
 
 HARNESS = r"""

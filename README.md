@@ -8,13 +8,13 @@ concatenation script that needs nothing but Python.
 
 | | | |
 | --- | --- | --- |
-| **CS·1** | `patchwork-chord-synth.html` | chord synthesizer — progressions, pads, harmony |
-| **PM·1** | `patchwork-poly-synth.html` | poly/mono synth — the main voice |
-| **VC·1** | `patchwork-vocoder.html` | vocoder, with its own carrier and sequencer |
-| **BS·1** | `patchwork-bass.html` | bass pedals, with a 303-style sequencer |
-| **DR·1** | `patchwork-drums.html` | drum machine — eight synthesised voices, sixteen steps |
-| **LP·1** | `patchwork-looper.html` | audio looper — record, loop and overdub in time |
-| **Studio** | `patchwork-studio.html` | all three on one page, sharing a clock and an audio bus |
+| **CS·1** | `chord-synth.html` | chord synthesizer — progressions, pads, harmony |
+| **PM·1** | `poly-synth.html` | poly/mono synth — the main voice |
+| **VC·1** | `vocoder.html` | vocoder, with its own carrier and sequencer |
+| **BS·1** | `bass.html` | bass pedals, with a 303-style sequencer |
+| **DR·1** | `drums.html` | drum machine — eight synthesised voices, sixteen steps |
+| **LP·1** | `looper.html` | audio looper — record, loop and overdub in time |
+| **Studio** | `index.html` | all three on one page, sharing a clock and an audio bus |
 
 Each is a complete program on its own — CS·1 plays the changes, PM·1 plays the line over
 them, BS·1 holds the bottom, VC·1 sings, DR·1 keeps time and LP·1 catches it all — and each can drive hardware by itself. The **studio** build hosts
@@ -258,8 +258,9 @@ HTTPS. There is a tiny no-cache dev server included:
 python3 serve.py
 ```
 
-Then open any of `patchwork-chord-synth.html`, `patchwork-mono-synth.html`,
-`patchwork-drums.html` or `patchwork-studio.html` on that port. One server serves them all.
+Then open `index.html` for the studio, or any single instrument — `chord-synth.html`,
+`poly-synth.html`, `vocoder.html`, `bass.html`, `drums.html`, `looper.html`. One server
+serves them all.
 
 The two HTML files are assembled from `src/` by `tools/build.py` — **edit the fragments, not
 the built files.** The build is a plain concatenation and needs nothing but Python, so the

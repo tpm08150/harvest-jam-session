@@ -23,13 +23,13 @@ import re, sys, pathlib
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SRC = REPO / "src"
 
-APPS = {"cs1": "patchwork-chord-synth.html",
-        "dr1": "patchwork-drums.html",
-        "lp1": "patchwork-looper.html",
-        "bs1": "patchwork-bass.html",
-        "vc1": "patchwork-vocoder.html",
-        "pm1": "patchwork-poly-synth.html",
-        "studio": "patchwork-studio.html"}
+APPS = {"cs1": "chord-synth.html",
+        "dr1": "drums.html",
+        "lp1": "looper.html",
+        "bs1": "bass.html",
+        "vc1": "vocoder.html",
+        "pm1": "poly-synth.html",
+        "studio": "index.html"}
 
 
 def manifest(app):

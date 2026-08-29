@@ -93,7 +93,7 @@ src/
   style/                base.css, controls.css, per-instrument sheets
   shell/                clock.js, bus.js, router.js, keys.js, scenes.js
   instruments/          cs1.js, ms1.js, dr1.js
-tools/build.py          → patchwork-studio.html
+tools/build.py          → index.html
 ```
 
 The two existing apps keep building from the same sources for as long as that is useful, so

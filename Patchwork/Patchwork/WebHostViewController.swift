@@ -69,7 +69,7 @@ final class WebHostViewController: UIViewController, WKScriptMessageHandler, WKN
             name: AVAudioSession.interruptionNotification, object: nil)
 
         guard let page = Bundle.main.url(forResource: "patchwork-chord-synth", withExtension: "html") else {
-            assertionFailure("patchwork-chord-synth.html is missing from the bundle")
+            assertionFailure("chord-synth.html is missing from the bundle")
             return
         }
         webView.loadFileURL(page, allowingReadAccessTo: page.deletingLastPathComponent())

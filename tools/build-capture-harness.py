@@ -35,7 +35,7 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-APP = ROOT / "patchwork-chord-synth.html"
+APP = ROOT / "chord-synth.html"
 OUT = ROOT / "_capture.html"
 
 ANCHOR = "  comp.connect(master); master.connect(ctx.destination);"
