@@ -1,6 +1,6 @@
 <div class="unit cs1" data-instrument="cs1">
 
-  <div class="plate">
+  <div data-face class="plate">
     <div>
       <div class="brand">Patchwork</div>
       <div class="model">CS·1 — chord synthesizer</div>
@@ -8,7 +8,7 @@
     <div class="screws"><i class="screw"></i><i class="screw"></i></div>
   </div>
 
-  <div class="card">
+  <div data-face class="card">
     <div class="card-head">
       <span class="card-title">Progression <em id="totalBars"></em></span>
       <span class="card-meta" id="meta">—</span>
@@ -16,7 +16,7 @@
     <div class="chords" id="chords"></div>
   </div>
 
-  <div class="transport">
+  <div data-face class="transport">
     <button class="btn primary" id="gen">New progression</button>
     <button class="btn play" id="play">▶ Play</button>
   </div>
@@ -58,7 +58,7 @@
   </div>
   <div class="note" id="patchNote" style="display:none"></div>
 
-  <div class="row">
+  <div data-face class="row">
     <div class="field">
       <label for="key">Key</label>
       <select id="key"></select>

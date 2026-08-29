@@ -10,16 +10,16 @@
 
 <div class="unit ms1" data-instrument="ms1">
 
-  <div class="plate">
+  <div data-face class="plate">
     <div>
       <div class="brand">Patchwork</div>
       <div class="model">MS·1 — mono synthesizer</div>
     </div>
     <div class="screws"><i class="screw"></i><i class="screw"></i></div>
   </div>
-  <div class="rule"></div>
+  <div data-face class="rule"></div>
 
-  <div class="card">
+  <div data-face class="card">
     <div class="card-head">
       <span class="card-title">Voice <em id="patchTag">init</em></span>
       <span class="card-meta" id="voiceMeta">—</span>
@@ -30,7 +30,7 @@
 
   <!-- Not a vocoder control: it decides where the ON-SCREEN and computer keyboards send
        notes, for every section. Incoming MIDI is routed by channel and ignores this. -->
-  <div class="keysrow">
+  <div data-face class="keysrow">
     <span class="silk">Keyboard plays</span>
     <div class="seg sm" id="keysTo" role="group" aria-label="What the on-screen and computer keyboards play">
       <button data-k="syn" class="on">Synth</button>
@@ -41,7 +41,7 @@
     <span class="note" id="keysNote" style="margin:0"></span>
   </div>
 
-  <div class="transport">
+  <div data-face class="transport">
     <button class="btn primary" id="init">Init patch</button>
     <button class="btn play" id="play">▶ Play</button>
     <button class="btn ghost tog" id="hold" aria-pressed="false">Hold</button>
@@ -64,7 +64,7 @@
     <button class="btn panic" id="panic" title="Send all-notes-off on every channel">Panic</button>
   </div>
 
-  <div class="row">
+  <div data-face class="row">
     <div class="field">
       <label for="patchSel">Patch</label>
       <select id="patchSel"></select>

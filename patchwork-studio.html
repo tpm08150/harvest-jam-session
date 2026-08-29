@@ -150,7 +150,15 @@ input[type="text"]::placeholder{color:#5a646a}
 /* ---------- midi learn ---------- */
 .btn.sm{padding:8px 12px;font-size:11px;letter-spacing:.12em}
 .btn.learn.on{background:linear-gradient(180deg,#f0c45a,var(--cap-yellow));border-color:#8a6a15;color:#2f2405}
-.btn.panic{background:linear-gradient(180deg,#ec6146,var(--cap-red));border-color:#8c2a17;color:#fff2ee}}
+.btn.panic{background:linear-gradient(180deg,#ec6146,var(--cap-red));border-color:#8c2a17;color:#fff2ee}
+/* ---------- live faces ----------
+   A face hides the blocks an instrument does not mark as worth having while playing.
+   Everything hidden is still in the DOM and still bound — see shell/faces.js. */
+:scope.face > :not([data-face]){display:none}
+.face-toggle{margin-left:auto}
+/* The plate is a flex row ending in the screws; the toggle sits before them. */
+:scope.face .plate,:scope .plate{align-items:center}
+}
 /* Everything below is scoped to this instrument's panel. @scope rather than
    nesting because it adds no specificity, so the relative weight of every rule
    inside is exactly what it was when this was a whole page to itself. */
@@ -991,6 +999,46 @@ body{
   font-size:10px;line-height:1;
 }
 .st-fire:hover{color:var(--mint);border-color:var(--silk-dim)}
+
+/* The header's own segmented control. It cannot borrow the panels' .seg — that lives
+   inside @scope (.unit) and does not reach out here — so it is styled to match rather
+   than sharing a class, which the build's collision check enforces. */
+.st-seg{
+  margin-left:auto;display:flex;
+  background:var(--groove);border:1px solid var(--edge);border-radius:4px;
+  box-shadow:0 1px 2px rgba(0,0,0,.5) inset;overflow:hidden;
+}
+.st-seg button{
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  padding:7px 12px;border:0;background:none;color:var(--silk-dim);cursor:pointer;
+}
+.st-seg button:hover{color:var(--silk)}
+.st-seg button.st-sel{
+  background:linear-gradient(180deg,#454e55,#333a3f);color:var(--paper);
+  box-shadow:0 1px 0 rgba(255,255,255,.12) inset;
+}
+.st-seg button:focus-visible{outline:2px solid var(--mint);outline-offset:-2px}
+
+/* ---- short viewports ----
+   The Arcade embeds at a floor of 721x620, and at that height the launcher was eating
+   half the window before you reached an instrument. Everything here trades vertical
+   space for density rather than hiding a control: the eight scenes stay reachable, the
+   cells just stop being generous. Keyed on HEIGHT, because the problem is height —
+   a wide short window has exactly the same problem as a narrow one. */
+@media (max-height:760px){
+  body{padding-bottom:24px}
+  .st-head{padding:12px 20px 2px}
+  .st-scenes{padding:2px 20px 10px}
+  .st-scenes-head{margin-bottom:6px}
+  .st-scenes-head .st-hint{display:none}     /* the gesture is discoverable by trying it */
+  .st-grid{padding:7px 9px}
+  .st-row{grid-template-columns:20px repeat(var(--cols,3),72px) 28px;gap:4px}
+  .st-row + .st-row{margin-top:4px}
+  .st-cell,.st-fire{height:18px}
+  .st-cell::after{width:5px;height:5px}
+  .st-rack{padding-top:0}
+}
 </style>
 </head>
 <body>
@@ -998,6 +1046,10 @@ body{
 <div class="st-head">
   <span class="st-brand">Patchwork</span>
   <span class="st-hint">studio — click a panel to give it the keyboard</span>
+  <div class="st-seg" id="stFaces" role="group" aria-label="How much of each instrument to show">
+    <button data-f="face" class="st-sel">Faces</button>
+    <button data-f="panel">Full panels</button>
+  </div>
 </div>
 
 <div class="st-scenes">
@@ -1011,7 +1063,7 @@ body{
 <div class="st-rack">
 <div class="unit cs1" data-instrument="cs1">
 
-  <div class="plate">
+  <div data-face class="plate">
     <div>
       <div class="brand">Patchwork</div>
       <div class="model">CS·1 — chord synthesizer</div>
@@ -1019,7 +1071,7 @@ body{
     <div class="screws"><i class="screw"></i><i class="screw"></i></div>
   </div>
 
-  <div class="card">
+  <div data-face class="card">
     <div class="card-head">
       <span class="card-title">Progression <em id="totalBars"></em></span>
       <span class="card-meta" id="meta">—</span>
@@ -1027,7 +1079,7 @@ body{
     <div class="chords" id="chords"></div>
   </div>
 
-  <div class="transport">
+  <div data-face class="transport">
     <button class="btn primary" id="gen">New progression</button>
     <button class="btn play" id="play">▶ Play</button>
   </div>
@@ -1069,7 +1121,7 @@ body{
   </div>
   <div class="note" id="patchNote" style="display:none"></div>
 
-  <div class="row">
+  <div data-face class="row">
     <div class="field">
       <label for="key">Key</label>
       <select id="key"></select>
@@ -1281,16 +1333,16 @@ body{
 
 <div class="unit ms1" data-instrument="ms1">
 
-  <div class="plate">
+  <div data-face class="plate">
     <div>
       <div class="brand">Patchwork</div>
       <div class="model">MS·1 — mono synthesizer</div>
     </div>
     <div class="screws"><i class="screw"></i><i class="screw"></i></div>
   </div>
-  <div class="rule"></div>
+  <div data-face class="rule"></div>
 
-  <div class="card">
+  <div data-face class="card">
     <div class="card-head">
       <span class="card-title">Voice <em id="patchTag">init</em></span>
       <span class="card-meta" id="voiceMeta">—</span>
@@ -1301,7 +1353,7 @@ body{
 
   <!-- Not a vocoder control: it decides where the ON-SCREEN and computer keyboards send
        notes, for every section. Incoming MIDI is routed by channel and ignores this. -->
-  <div class="keysrow">
+  <div data-face class="keysrow">
     <span class="silk">Keyboard plays</span>
     <div class="seg sm" id="keysTo" role="group" aria-label="What the on-screen and computer keyboards play">
       <button data-k="syn" class="on">Synth</button>
@@ -1312,7 +1364,7 @@ body{
     <span class="note" id="keysNote" style="margin:0"></span>
   </div>
 
-  <div class="transport">
+  <div data-face class="transport">
     <button class="btn primary" id="init">Init patch</button>
     <button class="btn play" id="play">▶ Play</button>
     <button class="btn ghost tog" id="hold" aria-pressed="false">Hold</button>
@@ -1335,7 +1387,7 @@ body{
     <button class="btn panic" id="panic" title="Send all-notes-off on every channel">Panic</button>
   </div>
 
-  <div class="row">
+  <div data-face class="row">
     <div class="field">
       <label for="patchSel">Patch</label>
       <select id="patchSel"></select>
@@ -1656,16 +1708,16 @@ body{
 
 <div class="unit dr1" data-instrument="dr1">
 
-  <div class="plate">
+  <div data-face class="plate">
     <div>
       <div class="brand">Patchwork</div>
       <div class="model">DR·1 — drum machine</div>
     </div>
     <div class="screws"><i class="screw"></i><i class="screw"></i></div>
   </div>
-  <div class="rule"></div>
+  <div data-face class="rule"></div>
 
-  <div class="transport">
+  <div data-face class="transport">
     <button class="btn primary" id="play">▶ Play</button>
     <button class="btn ghost" id="clearPat">Clear</button>
     <button class="btn ghost" id="defaultPat">Reset pattern</button>
@@ -1677,7 +1729,7 @@ body{
     <button class="btn panic" id="panic">Panic</button>
   </div>
 
-  <div class="sect">
+  <div data-face class="sect">
     <div class="sect-head">
       <span class="silk">Pattern</span>
       <div class="patrow">
@@ -2191,6 +2243,66 @@ return {register, store, storeAll, clear, fire, take, onChange,
         get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
         get queued(){ return new Map(queued); },
         has(row, id){ return !!(rows[row] && rows[row].cells[id]); }};
+})();
+
+/* Live faces.
+
+   Each instrument shows a small performance face by default in the studio, with its full
+   panel one click away. NOTHING IS REMOVED — MS·1 keeps all fifty knobs; the face is a
+   filter over the panel that already exists, not a second UI that can drift from it.
+
+   That choice is the whole design. A curated performance panel written separately would
+   be a third copy of every control's wiring, and the first one to go stale. Instead each
+   panel marks the blocks worth having while playing with `data-face`, and face mode hides
+   the rest. A control that is hidden is still bound, still MIDI-learnable, and still there
+   the moment you open the panel back up.
+
+   Standalone builds default to the full panel: a single instrument on a page of its own
+   should be its whole self. The studio defaults to faces, because three full panels is the
+   wall this exists to avoid. */
+Patchwork.faces = (() => {
+"use strict";
+
+const subs = [];
+function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
+
+function isOn(root){ return root.classList.contains("face"); }
+
+function set(root, on){
+  if (!root) return;
+  root.classList.toggle("face", !!on);
+  const btn = root.querySelector(".face-toggle");
+  if (btn){
+    btn.textContent = on ? "Panel" : "Face";
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.title = on ? "Show every control on this instrument"
+                   : "Show just the controls you play with";
+  }
+  notify();
+}
+function toggle(root){ set(root, !isOn(root)); }
+function setAll(on){ Patchwork.roots.forEach(r => set(r, on)); }
+
+/* The button is injected rather than written into three panel.html files. One
+   implementation, and an instrument added later gets it without being told to. */
+function mount(){
+  Patchwork.roots.forEach(root => {
+    if (root.querySelector(".face-toggle")) return;
+    const plate = root.querySelector(".plate");
+    if (!plate) return;
+    const b = document.createElement("button");
+    b.className = "btn ghost sm face-toggle";
+    b.type = "button";
+    b.addEventListener("click", () => toggle(root));
+    /* before the screws, so it reads as part of the panel rather than floating */
+    const screws = plate.querySelector(".screws");
+    if (screws) plate.insertBefore(b, screws); else plate.appendChild(b);
+    set(root, false);
+  });
+}
+
+return {mount, set, setAll, toggle, isOn, onChange: fn => subs.push(fn),
+        get count(){ return Patchwork.roots.filter(isOn).length; }};
 })();
 /* CS·1 is built into whatever panel the page gives it, rather than into the document.
    Standalone that panel is the only thing on the page; in the studio build it is one of
@@ -9731,9 +9843,47 @@ Patchwork.scenes.onChange(paint);
 build();
 })();
 
+/* ---- faces / full panels, for every instrument at once ----
+   The per-panel toggle is the shell's; this is the one that moves all of them, because
+   the common gesture is "show me everything" rather than "show me everything about MS·1". */
+(() => {
+"use strict";
+const seg = document.querySelector("#stFaces");
+if (!seg || !window.Patchwork || !Patchwork.faces) return;
+seg.addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  Patchwork.faces.setAll(b.dataset.f === "face");
+});
+/* Follows the per-panel toggles too, so the pair never disagree — with a mix showing, the
+   segment reads as whichever state most panels are in. */
+Patchwork.faces.onChange(() => {
+  const faces = Patchwork.faces.count, total = Patchwork.roots.length;
+  const on = faces * 2 >= total;
+  seg.querySelectorAll("button").forEach(b =>
+    b.classList.toggle("st-sel", (b.dataset.f === "face") === on));
+});
+})();
+
 /* Both instruments are built by now. Nothing else to do yet — the clock, the audio bus
    and the MIDI router are Phase 3, and until then each panel still runs its own. */
 Patchwork.focus(Patchwork.roots[0]);
+
+/* Runs last, once every instrument on the page has registered.
+
+   Anything that has to see the whole set of instruments belongs here rather than in one
+   of them — an instrument cannot know how many others share its page, and should not
+   have to. */
+(() => {
+"use strict";
+Patchwork.faces.mount();
+
+/* The default derives from the page rather than from a per-build flag: a lone instrument
+   is its whole self, and a page with several opens on faces, because three full panels is
+   the wall the faces exist to avoid. A build added later gets the right default without
+   anyone remembering to set it. */
+if (Patchwork.roots.length > 1) Patchwork.faces.setAll(true);
+})();
 </script>
 </body>
 </html>

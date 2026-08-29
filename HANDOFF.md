@@ -1011,6 +1011,59 @@ mid-take.
 - **CS·1's loop point is its whole progression**, so an armed scene can wait several bars —
   four chords at 120 bpm is eight seconds. That is correct, not a hang.
 
+## Live faces
+
+Each instrument shows a small performance face, with its full panel one click away.
+**Nothing is removed** — MS·1 keeps all fifty knobs, and a hidden control is still in the
+DOM, still bound, still MIDI-learnable.
+
+That is the whole design decision. A curated performance panel written separately would be
+a second copy of every control's wiring and the first thing to go stale. Instead each
+panel marks the blocks worth having while playing with **`data-face`**, and face mode hides
+the rest:
+
+```css
+:scope.face > :not([data-face]){display:none}
+```
+
+| | what stays on the face |
+| --- | --- |
+| CS·1 | the progression card, the transport, key/mood/tempo |
+| MS·1 | the keyboard, what it plays, the transport, the patch selector |
+| DR·1 | the transport and the grid — the grid *is* the performance surface |
+
+| | full panel | face |
+| --- | --- | --- |
+| CS·1 | 1610 px | **465 px** |
+| MS·1 | 3140 px | **593 px** |
+| DR·1 | 849 px | **570 px** |
+| studio page | 4177 px | **1646 px** |
+
+### Details worth not undoing
+
+- **The default derives from the page, not from a build flag.** `shell/boot.js` turns
+  faces on when there is more than one instrument. A lone instrument is its whole self; a
+  page with three opens on faces, because three full panels is the wall this exists to
+  avoid. An instrument added later gets the right default without anyone remembering.
+- **The toggle button is injected by the shell**, not written into three `panel.html`
+  files, for the same reason.
+- **The studio's header segment cannot borrow the panels' `.seg`** — that lives inside
+  `@scope (.unit)` and does not reach outside a panel. It is styled to match instead. The
+  build's collision check catches this if you forget, which is how it was caught.
+
+### The 721 px floor
+
+The Arcade embeds at a minimum of 721×620. At that size the scene launcher was taking half
+the window before you reached an instrument, so `@media (max-height:760px)` tightens it —
+**keyed on height, because the problem is height**; a wide short window has it just as
+badly. All eight scenes stay reachable, the cells just stop being generous.
+
+| at 721×620 | |
+| --- | --- |
+| chrome above the first instrument | 299 px |
+| instrument visible without scrolling | 321 px |
+| horizontal scroll | none |
+
 ## Working style that suited this project
 
 Measure rather than assume — most of the real bugs here were found by rendering audio

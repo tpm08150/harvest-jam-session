@@ -201,6 +201,17 @@ effect at that instrument's next loop point, so switching mid-bar stays in time 
 lurching. A scene changes what an instrument **plays**, never the sound it plays with; the
 patch you dialled survives the switch.
 
+## Faces
+
+Every instrument has a **face** — the handful of controls you touch while playing — with
+its full panel one click away. Nothing is hidden permanently and nothing is removed: MS·1
+keeps all fifty knobs, and a control you cannot see is still bound and still responds to
+MIDI.
+
+A single instrument opens as its whole self. The studio opens on faces, because three full
+panels is a wall rather than an instrument. The switch in the header moves all three at
+once; the button on a panel moves just that one.
+
 ## Running it
 
 Web MIDI requires a secure context, so `file://` will not work — it needs `localhost` or

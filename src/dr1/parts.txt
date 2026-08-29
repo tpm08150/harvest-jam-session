@@ -14,6 +14,7 @@ shell/bus.js
 shell/clock.js
 shell/midi.js
 shell/scenes.js
+shell/faces.js
 dr1/_open.js
 dr1/voices.js
 dr1/seq.js
@@ -21,4 +22,5 @@ dr1/ui.js
 dr1/midi.js
 dr1/boot.js
 dr1/_close.js
+shell/boot.js
 shell/tail.html

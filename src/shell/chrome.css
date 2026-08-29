@@ -74,4 +74,12 @@ input[type="text"]::placeholder{color:#5a646a}
 /* ---------- midi learn ---------- */
 .btn.sm{padding:8px 12px;font-size:11px;letter-spacing:.12em}
 .btn.learn.on{background:linear-gradient(180deg,#f0c45a,var(--cap-yellow));border-color:#8a6a15;color:#2f2405}
-.btn.panic{background:linear-gradient(180deg,#ec6146,var(--cap-red));border-color:#8c2a17;color:#fff2ee}}
+.btn.panic{background:linear-gradient(180deg,#ec6146,var(--cap-red));border-color:#8c2a17;color:#fff2ee}
+/* ---------- live faces ----------
+   A face hides the blocks an instrument does not mark as worth having while playing.
+   Everything hidden is still in the DOM and still bound — see shell/faces.js. */
+:scope.face > :not([data-face]){display:none}
+.face-toggle{margin-left:auto}
+/* The plate is a flex row ending in the screws; the toggle sits before them. */
+:scope.face .plate,:scope .plate{align-items:center}
+}

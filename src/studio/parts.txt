@@ -31,6 +31,7 @@ shell/bus.js
 shell/clock.js
 shell/midi.js
 shell/scenes.js
+shell/faces.js
 cs1/_open.js
 cs1/theory.js
 cs1/audio.js
@@ -60,4 +61,5 @@ dr1/boot.js
 dr1/_close.js
 studio/scenes.js
 studio/boot.js
+shell/boot.js
 shell/tail.html
