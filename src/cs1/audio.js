@@ -454,10 +454,14 @@ function startPlay(){
   /* Just enough that the first chord isn't scheduled into the past — the tick runs every
      25ms. This used to be 80ms, which was the dominant term in the clock offset people
      had to dial out, and pure delay on the Play button besides. */
-  nextTime = ctx.currentTime + .03;
+  /* The shell places this on the running grid if another instrument is already going,
+     and defines the grid from here if not — so a standalone build starts exactly where
+     it always did, and two instruments started seconds apart are still in phase. */
+  nextTime = Patchwork.clock.claim(4);
   marks = [];
   tick();
-  timer = setInterval(tick, 25);
+  Patchwork.clock.run(tick);
+  timer = tick;
   playBtn.classList.add("on");
   playBtn.textContent = "■ Stop";
   requestAnimationFrame(paint);
@@ -487,7 +491,7 @@ function tick(){
 }
 function stopPlay(){
   state.playing = false;
-  clearInterval(timer); timer = null;
+  Patchwork.clock.stop(tick); timer = null;
   /* release held pads first — midiPanic's all-notes-off would cut them on the external
      synth anyway, and leaving their loops running would desync internal from external */
   allPadsOff();

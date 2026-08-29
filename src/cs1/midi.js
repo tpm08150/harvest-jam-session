@@ -395,6 +395,7 @@ const PHASE = {
 function phaseReset(){
   SYNC.pulse = 0; SYNC.err = 0; SYNC.have = false; SYNC.trim = 0;
   SYNC.hist.length = 0;
+  Patchwork.clock.setRate(1);
 }
 /* One pulse arrived at wall time `now`: where is the transport against it? */
 function phaseSample(now){
@@ -440,6 +441,9 @@ function phaseAdjust(dur){
   if (Math.abs(want) <= cap)
     SYNC.trim = Math.max(-PHASE.maxTrim,
                 Math.min(PHASE.maxTrim, SYNC.trim + PHASE.ki * SYNC.err / dur));
+  /* publish the rate part so every instrument on the page runs at the corrected rate,
+     not just this one — see shell/clock.js for why the nudge stays here */
+  Patchwork.clock.setRate(1 + SYNC.trim);
   return dur * (1 + SYNC.trim) + nudge;
 }
 /* Drift is the slope, not the offset: a constant error is what Offset exists for. Fitted

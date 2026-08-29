@@ -221,7 +221,10 @@ function tick(){
     marks.push({i:stepIndex % SEQ.len, ai:ai, t:at, end:at + step});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
        pair, so the pattern's total length is unchanged however hard it shuffles */
-    nextTime += (stepIndex % 2 === 0) ? 2*SEQ.swing*step : (2 - 2*SEQ.swing)*step;
+    /* the shared rate trim: MS·1 has no clock follow of its own, so this is how it
+       follows external clock at all — it runs at whatever rate the lock has settled on */
+    const r = Patchwork.clock.rate;
+    nextTime += r * ((stepIndex % 2 === 0) ? 2*SEQ.swing*step : (2 - 2*SEQ.swing)*step);
     stepIndex++;
   }
   while (marks.length > 24) marks.shift();
@@ -235,9 +238,11 @@ function startPlay(){
   }
   SEQ.playing = true;
   stepIndex = 0; arpIdx = 0; marks = [];
-  nextTime = ctx.currentTime + .03;
+  /* see CS·1's startPlay — the shell lands this on the running grid when there is one */
+  nextTime = Patchwork.clock.claim(4);
   tick();
-  timer = setInterval(tick, 25);
+  Patchwork.clock.run(tick);
+  timer = tick;
   playBtn.classList.add("on");
   playBtn.textContent = "■ Stop";
   requestAnimationFrame(paint);
@@ -245,7 +250,7 @@ function startPlay(){
 function stopPlay(){
   SEQ.playing = false;
   SEQ.autoStart = false;
-  clearInterval(timer); timer = null;
+  Patchwork.clock.stop(tick); timer = null;
   const t = ctx ? ctx.currentTime : 0;
   if (curVoice){ curVoice.release(t); curVoice = null; }
   active.forEach(v => { try{ v.release(t); }catch(e){} });

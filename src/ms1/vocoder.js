@@ -750,12 +750,15 @@ $("#hold").addEventListener("click", () => {
   $("#hold").setAttribute("aria-pressed", latch ? "true" : "false");
   if (!latch) allNotesOff();
 });
-function setBpm(v){
+function setBpm(v, fromShell){
   SEQ.bpmExact = clampf(v, 40, 240);
   SEQ.bpm = Math.round(SEQ.bpmExact);
   tempoOut.textContent = SEQ.bpm;
   applyDelay();                       // a synced delay follows the tempo
+  /* one tempo for the page — see CS·1's setBpm for why fromShell exists */
+  if (!fromShell) Patchwork.clock.setBpm(SEQ.bpmExact, "ms1");
 }
+Patchwork.clock.onTempo("ms1", v => setBpm(v, true), SEQ.bpmExact);
 $("#bpmDown").addEventListener("click", () => setBpm(SEQ.bpmExact - 1));
 $("#bpmUp").addEventListener("click", () => setBpm(SEQ.bpmExact + 1));
 function setOctave(v){

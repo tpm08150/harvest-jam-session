@@ -355,10 +355,13 @@ function newProgression(){
 $("#gen").addEventListener("click", () => { newProgression(); if (!state.playing) startPlay(); });
 playBtn.addEventListener("click", () => state.playing ? stopPlay() : startPlay());
 
-function setBpm(v, exact){
+function setBpm(v, exact, fromShell){
   /* keep the unrounded value for the transport; round only for the readout */
   const clamped = Math.min(180, Math.max(50, v));
   state.bpmExact = exact ? clamped : Math.round(clamped);
+  /* Tempo is the page's, not this panel's. Skipped when the shell is the one telling us,
+     or the two instruments would bounce a change back and forth. */
+  if (!fromShell) Patchwork.clock.setBpm(state.bpmExact, "cs1");
   const shown = Math.round(clamped);
   if (shown !== state.bpm){
     state.bpm = shown;
@@ -367,6 +370,7 @@ function setBpm(v, exact){
     updateSwingHint();
   }
 }
+Patchwork.clock.onTempo("cs1", v => setBpm(v, true, true), state.bpmExact);
 $("#bpmUp").addEventListener("click", () => setBpm(state.bpm + 2));
 $("#bpmDown").addEventListener("click", () => setBpm(state.bpm - 2));
 keySel.addEventListener("change", () => {
