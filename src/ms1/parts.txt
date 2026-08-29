@@ -10,6 +10,7 @@ shell/page-open.html
 ms1/panel.html
 shell/script-open.html
 shell/host.js
+shell/bus.js
 ms1/_open.js
 ms1/patch.js
 ms1/audio.js

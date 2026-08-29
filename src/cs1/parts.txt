@@ -10,6 +10,7 @@ shell/page-open.html
 cs1/panel.html
 shell/script-open.html
 shell/host.js
+shell/bus.js
 cs1/_open.js
 cs1/theory.js
 cs1/audio.js

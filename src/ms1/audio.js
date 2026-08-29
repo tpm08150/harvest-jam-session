@@ -125,7 +125,8 @@ function initAudio(useCtx){
   /* useCtx lets the offline harness build THIS graph rather than a copy of it. CS·1's
      handoff is blunt about why that matters: a detector validated against nothing gave
      confident wrong answers, and a rig that reimplements the engine measures the rig. */
-  ctx = useCtx || new (window.AudioContext || window.webkitAudioContext)();
+  ctx = useCtx || Patchwork.audio.context();
+  const out = useCtx ? ctx.destination : Patchwork.audio.strip("ms1");
 
   master = ctx.createGain(); master.gain.value = 1;
   comp = ctx.createDynamicsCompressor();
@@ -180,7 +181,7 @@ function initAudio(useCtx){
 
   fxBus.connect(comp);
   comp.connect(master);
-  master.connect(ctx.destination);
+  master.connect(out);
 
   /* peak meter — cheap, and the only way to know a patch is hot without guessing */
   analyser = ctx.createAnalyser();
@@ -274,10 +275,7 @@ function initAudio(useCtx){
    or an app switch — so anything other than "running" needs a resume, not just "suspended". */
 function ensureAudio(){
   initAudio();
-  if (ctx.state !== "running"){
-    const p = ctx.resume();
-    if (p && p.catch) p.catch(() => {});
-  }
+  Patchwork.audio.resume();
   if (typeof ioStats === "function"){ ioStats(); setTimeout(ioStats, 400); }
   return ctx.state;
 }

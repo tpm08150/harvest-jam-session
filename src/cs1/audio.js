@@ -143,9 +143,13 @@ function makeIR(seconds, decay){
   return buf;
 }
 
-function initAudio(){
+/* useCtx is for offline rendering, which needs THIS graph rather than a copy of it —
+   the same argument MS·1's initAudio already carried. Online, the context and the
+   output both come from the shell, so every instrument shares one time base. */
+function initAudio(useCtx){
   if (ctx) return;
-  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  ctx = useCtx || Patchwork.audio.context();
+  const out = useCtx ? ctx.destination : Patchwork.audio.strip("cs1");
   comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -16; comp.ratio.value = 3; comp.attack.value = .006; comp.release.value = .25;
   master = ctx.createGain(); master.gain.value = P.level;
@@ -155,7 +159,7 @@ function initAudio(){
      just bought more gain reduction — the fader's top half did nothing — and it pumped the
      tails in time with the chords. */
   dry.connect(comp); wet.connect(verb); verb.connect(master);
-  comp.connect(master); master.connect(ctx.destination);
+  comp.connect(master); master.connect(out);
   /* one shared cutoff signal every live note reads from, so Tone moves under sounding notes */
   cutSrc = ctx.createConstantSource();
   cutSrc.offset.value = toneHz();
@@ -176,10 +180,7 @@ function initAudio(){
    or an app switch — so anything other than "running" needs a resume, not just "suspended". */
 function ensureAudio(){
   initAudio();
-  if (ctx.state !== "running"){
-    const p = ctx.resume();
-    if (p && p.catch) p.catch(() => {});
-  }
+  Patchwork.audio.resume();
   /* Every other ioStats() call sits on a device-picker path, and those are disabled on
      iOS — so without this the stats line never appears on the one platform where it's
      the only way to read latency. Repeat once the context is actually running, since

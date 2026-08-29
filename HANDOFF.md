@@ -245,6 +245,36 @@ asserted on without hardware.
   there — anything rAF-driven can't be verified by DOM polling alone, only by screenshot.
 - **Intermittent clicks are not this app's fault.** Cost the better part of a day. See below.
 
+## The level harness is stochastic — one run proves nothing
+
+`__ms1.renderPatch()` is not deterministic, and the spread is **larger than the
+differences people try to measure with it.** Four sweeps of all 20 factory patches, same
+build, same page load, nothing changed between them:
+
+| run | worst deviation from target |
+| --- | --- |
+| 1 | 1.29 dB |
+| 2 | 0.81 dB |
+| 3 | 0.41 dB |
+| 4 | 0.45 dB |
+
+**18 of the 20 patches move between runs**, `moss` by 1.12 dB on its own.
+
+The cause is `Math.random()` in the audio graph: the noise buffers, the reverb IR and the
+S&H table are filled at init and regenerated per page load, and `audio.js` starts each
+noise source at **a random offset into its buffer per note**. Any patch touching noise,
+S&H or reverb renders differently every time.
+
+So the README's **±0.4 dB** is one draw from this distribution, not a bound. The trims are
+still right — the mean is on target — but a single sweep cannot confirm or refute a change,
+and reading one as if it could is how a change gets blamed for the harness. Average several
+runs, or measure only the two patches that do not move.
+
+⚠️ This bit during Phase 3: a shared-audio-bus change appeared to shift levels by 0.8 dB.
+It had not. The change did not even touch the offline path — `renderPatch` always passes a
+context, so the render still goes straight to `ctx.destination` — and the difference was
+entirely the harness. **Verify by code path before believing a number from this rig.**
+
 ## The click investigation, so nobody repeats it
 
 Symptom: a click or crunch every 5–10 seconds while playing, sometimes clean for minutes.
