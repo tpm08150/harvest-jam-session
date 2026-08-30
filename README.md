@@ -1,4 +1,4 @@
-# Harvest Jam Session
+# Jam Session
 
 Six instruments that run entirely in the browser, separately or together. One HTML file
 each, no dependencies —

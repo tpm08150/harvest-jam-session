@@ -50,6 +50,11 @@
   status = 200
 
 [[redirects]]
+  from = "/transitions"
+  to = "/transitions.html"
+  status = 200
+
+[[redirects]]
   from = "/studio"
   to = "/index.html"
   status = 200

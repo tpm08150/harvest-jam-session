@@ -150,7 +150,17 @@ function noteOn(midi, vel, when, forceSec){
     /* In program mode a played note WRITES to the selected step rather than starting
        anything. You still hear it, because you are choosing a pitch by ear. */
     const st = SEQ.steps[SEQ.sel];
-    if (st){ writeStep(st, m); paintSteps(); }
+    if (st){
+      /* ⚠️ THE WHOLE HELD CHORD, not just the note that arrived. This is the gesture the
+         panel documents — click a step, then play it — and it ran once per note-on, each
+         one overwriting the last, so a triad left the third note and nothing else. Reading
+         the held set instead means holding a chord writes a chord and playing one note
+         writes one note, with no mode to arm and nothing new to learn. */
+      const ns = heldNotes.map(h => h.midi).sort((a, b) => a - b);
+      if (ns.length) writeStep(st, ns[0], ns.slice(1).map(x => x - ns[0]));
+      else writeStep(st, m);
+      paintSteps();
+    }
   } else if (SEQ.motion !== "off" && !SEQ.playing && heldNotes.length === 1){
     SEQ.autoStart = true;
     startPlay();

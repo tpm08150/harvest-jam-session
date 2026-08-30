@@ -190,7 +190,7 @@ export default {
     if (/websocket/i.test(request.headers.get("Upgrade") || ""))
       return env.RELAY.get(env.RELAY.idFromName("relay")).fetch(request);
     return new Response(
-      "Harvest Jam relay.\n\n" +
+      "Jam Session relay.\n\n" +
       "This is a WebSocket relay for shared jam sessions, not a page. It carries patterns,\n" +
       "patches, notes and the session clock between browsers running the studio.\n\n" +
       "Open the studio instead: https://harvest-jam.netlify.app\n",

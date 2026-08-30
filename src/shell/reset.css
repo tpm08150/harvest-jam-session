@@ -12,3 +12,12 @@ body{
   display:flex;justify-content:center;align-items:flex-start;
   -webkit-font-smoothing:antialiased;
 }
+
+/* ⚠️ `hidden` has to beat a layout rule, everywhere — not just in the studio.
+
+   The UA sheet says [hidden]{display:none}, which any `display:flex` on the same element
+   loses to on specificity, so el.hidden = true did nothing to a flex row. The studio sheet
+   carried this line and the six standalone builds did not, which is why PM·1's arp
+   controls stayed on screen in poly-synth.html while behaving correctly in index.html —
+   the same code, two answers, and only one of the pages ever tested. */
+[hidden]{display:none !important}

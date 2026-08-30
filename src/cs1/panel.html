@@ -88,7 +88,11 @@
 
   <div class="note" id="modeNote" style="display:none"></div>
 
-  <div class="bank">
+  <!-- The face gets the whole Sound bank. Voice, motion and the shape faders are what you
+       reach for WHILE playing — the face exists to carry exactly those, and leaving them a
+       panel-open away made the face a patch browser with a keyboard under it. There was
+       room: the face filled 425px of an 1154px plate and the rest was empty. -->
+  <div data-face class="bank">
     <div class="bank-head">
       <span class="silk">Sound</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -169,7 +173,9 @@
           <span class="bind"></span>
         </div>
       </div>
-      <div class="opt-row">
+      <!-- data-deep: which steps the bass plays is a thing you set up, not a thing you
+           perform. The on/off and its level stay. -->
+      <div data-deep class="opt-row">
         <span class="silk">Steps</span>
         <select id="bassSteps" aria-label="Bass steps"></select>
         <div class="steps" id="bassGrid"></div>
@@ -212,7 +218,7 @@
       </div>
     </div>
 
-    <div class="row">
+    <div class="row" data-hosted>
       <div class="field">
         <label for="midiIn">Input</label>
         <select id="midiIn"><option value="">— none —</option></select>
@@ -231,6 +237,7 @@
       </div>
     </div>
 
+    <p class="note" data-page>The rack's MIDI input and channels are set together on the <b>Scenes</b> panel.</p>
     <div class="note" id="midiNote">Requesting MIDI access…</div>
   </div>
 

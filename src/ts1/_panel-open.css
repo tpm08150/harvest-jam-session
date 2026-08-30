@@ -1,0 +1,3 @@
+/* Everything below is scoped to this instrument's panel. @scope rather than nesting
+   because it adds no specificity. */
+@scope (.unit.ts1) {

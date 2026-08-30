@@ -1,13 +1,13 @@
-# BS·1 standalone.
-bs1/head.html
+# TS·1 standalone. The same fragments the studio build uses.
+ts1/head.html
 shell/tokens.css
 shell/reset.css
 shell/chrome.css
-bs1/_panel-open.css
-bs1/panel.css
-bs1/_panel-close.css
+ts1/_panel-open.css
+ts1/panel.css
+ts1/_panel-close.css
 shell/page-open.html
-bs1/panel.html
+ts1/panel.html
 shell/script-open.html
 shell/host.js
 shell/bus.js
@@ -26,11 +26,10 @@ shell/talk.js
 shell/session.js
 voice/core.js
 seq/step-seq.js
-bs1/_open.js
-bs1/engine.js
-bs1/ui.js
-bs1/midi.js
-bs1/boot.js
-bs1/_close.js
+ts1/_open.js
+ts1/engine.js
+ts1/ui.js
+ts1/boot.js
+ts1/_close.js
 shell/boot.js
 shell/tail.html

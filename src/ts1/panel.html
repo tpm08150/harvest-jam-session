@@ -1,0 +1,117 @@
+<div class="unit ts1" data-instrument="ts1">
+  <div data-face class="plate">
+    <div class="model">TS·1 — transition synth</div>
+    <div class="screws"><i class="screw"></i><i class="screw"></i></div>
+  </div>
+
+  <!-- What it is about to do, and when. A transition is armed long before it is heard, so
+       the panel's main job between the press and the landing is to say that it is coming. -->
+  <div data-face class="card">
+    <div class="card-title">Next transition</div>
+    <div class="ts-read">
+      <span class="ts-shape" id="tsShape">Rise</span>
+      <span class="ts-len" id="tsLen">2 bars</span>
+    </div>
+    <!-- no id: the countdown bar is found by class. It carried id="tsFill" and so did the
+         drum-fill selector below, and since this one comes first every $("#tsFill") in the
+         panel resolved to THIS element — an <i> with no buttons in it — so the fill could
+         never be chosen. -->
+    <div class="ts-meter"><i class="ts-fill"></i></div>
+    <div class="card-meta" id="tsWhen">Idle — arm it and it lands on the next boundary</div>
+  </div>
+
+  <div data-face class="transport">
+    <button class="btn primary" id="arm">Arm</button>
+    <button class="btn ghost" id="fire" title="Land on the very next boundary, whatever it costs the run-up">Now</button>
+    <button class="btn panic" id="panic">Panic</button>
+  </div>
+
+  <div data-face class="sect">
+    <div class="sect-head"><span class="silk">Transition</span></div>
+    <div class="patrow">
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Length</span>
+        <div class="seg sm" id="tsBars" role="group" aria-label="Run-up length in bars">
+          <button data-b="1">1</button>
+          <button data-b="2" class="on">2</button>
+          <button data-b="4">4</button>
+          <button data-b="8">8</button>
+        </div>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Shape</span>
+        <div class="seg sm" id="tsShapeSeg" role="group" aria-label="Direction">
+          <button data-s="rise" class="on">Rise</button>
+          <button data-s="fall">Fall</button>
+        </div>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Character</span>
+        <div class="seg sm" id="tsChar" role="group" aria-label="What it is made of">
+          <button data-c="air" class="on">Air</button>
+          <button data-c="siren">Siren</button>
+          <button data-c="roll">Roll</button>
+        </div>
+      </div>
+      <!-- A fill and a riser are the same gesture: both are a run-up that lands on the
+           boundary. So the fill is chosen here and armed by the same button, rather than
+           being a second thing to remember to fire. The SOUNDS are DR·1's — see
+           shell/kit.js for why this does not grow its own drums. -->
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Drum fill</span>
+        <div class="seg sm" id="tsFill" role="group" aria-label="Drum fill over the run-up">
+          <button data-f="off" class="on">Off</button>
+          <button data-f="roll">Roll</button>
+          <button data-f="toms">Toms</button>
+          <button data-f="build">Build</button>
+        </div>
+      </div>
+      <!-- Ten of each family. A select rather than more buttons: forty segments across a
+           performance panel is not a choice you can make quickly, which is the only kind
+           this instrument is for. -->
+      <div class="field" style="flex:0 0 130px">
+        <label for="tsVariant">Which</label>
+        <select id="tsVariant"></select>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Carry</span>
+        <div class="seg sm" id="tsCarry" role="group" aria-label="How far the sweep spills past the landing">
+          <button data-k="0" class="on">Cut</button>
+          <button data-k="0.5">½</button>
+          <button data-k="1">1</button>
+          <button data-k="2">2</button>
+        </div>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Impact</span>
+        <div class="seg sm" id="tsImpact" role="group" aria-label="Hit on the landing">
+          <button data-i="on" class="on">On</button>
+          <button data-i="off">Off</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="knobrow">
+      <div class="hfader" id="depthF">
+        <span class="hlab">Depth</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+      <div class="hfader" id="spaceF">
+        <span class="hlab">Space</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+      <div class="hfader" id="fxF">
+        <span class="hlab">FX</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+      <div class="hfader" id="fillLvlF">
+        <span class="hlab">Fill</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+    </div>
+
+    <p data-face class="note">Arming waits for the next boundary <b>far enough away</b> to give the
+      run-up its full length — a 4-bar riser armed half a bar early lands on the boundary after,
+      not on a half-bar sweep. <b>Now</b> overrides that and takes the very next one.
+      <b>Shape</b> steers the fill as well as the sweep, so a Rise runs the toms upward.
+      <b>Carry</b> lets the sweep hang over into the next part instead of cutting on the
+      downbeat &mdash; and the reverb goes with it, so <b>Cut</b> gates the tail off on the
+      boundary the way an 80s room does.</p>
+  </div>
+</div>

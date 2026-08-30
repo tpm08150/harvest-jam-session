@@ -72,12 +72,11 @@
 
   <!-- ===== SEQ / ARP ===== -->
   <div data-face class="rack r-osc">
+    <!-- The head says what KIND of motion this is; everything below it is the sequencer,
+         laid out exactly as BS·1 and VC·1 lay theirs out. Off/Arp/Seq stays up here because
+         it is the one thing those two do not have. -->
     <div class="rack-head">
       <span class="silk">Motion</span>
-      <div class="seg sm" id="seqMode" data-seqonly role="group" aria-label="Sequencer mode">
-        <button data-p="play" class="on">Play</button>
-        <button data-p="program">Program</button>
-      </div>
       <div class="seg sm" id="motion" role="group" aria-label="Motion">
         <button data-m="off" class="on">Off</button>
         <button data-m="arp">Arp</button>
@@ -94,28 +93,48 @@
         <button data-o="2">2 oct</button>
         <button data-o="3">3 oct</button>
       </div>
-      <select id="seqKey" data-seqonly aria-label="Key" style="width:auto;min-width:64px"></select>
-      <select id="seqScale" data-seqonly aria-label="Scale" style="width:auto;min-width:112px"></select>
-      <select id="seqLen" data-seqonly aria-label="Pattern length" style="width:auto;min-width:82px"></select>
-      <select id="seqRate" aria-label="Step rate" style="width:auto;min-width:88px"></select>
-      <button class="btn ghost sm" id="clearLocks" data-seqonly title="Clear this step's parameter locks">Clear locks</button>
-      <div class="seg sm" id="seqLane" data-seqonly role="group" aria-label="Edit lane">
+    </div>
+    <!-- ⚠️ data-seqonly sits on the FIELDS, not on the row. Rate belongs to the arp as well
+         as the sequencer, so a row that hid as a whole would take the arp's only speed
+         control away with it. -->
+    <div class="patrow">
+      <div class="field" data-seqonly style="flex:0 0 84px">
+        <label for="seqLen">Steps</label><select id="seqLen"></select>
+      </div>
+      <div class="field" style="flex:0 0 92px">
+        <label for="seqRate">Rate</label><select id="seqRate"></select>
+      </div>
+      <div class="field" data-seqonly style="flex:0 0 96px">
+        <label for="seqKey">Key</label><select id="seqKey"></select>
+      </div>
+      <div class="field" data-seqonly style="flex:0 0 116px">
+        <label for="seqScale">Scale</label><select id="seqScale"></select>
+      </div>
+    </div>
+    <div class="patrow seqedit" data-seqonly>
+      <div class="seg sm" id="seqMode" role="group" aria-label="Sequencer mode">
+        <button data-p="play" class="on">Play</button>
+        <button data-p="program">Program</button>
+      </div>
+      <div class="seg sm" id="seqLane" role="group" aria-label="Edit lane">
         <button data-l="on" class="on">Gate</button>
         <button data-l="pitch">Pitch</button>
         <button data-l="accent">Accent</button>
         <button data-l="slide">Slide</button>
         <button data-l="tie">Tie</button>
       </div>
+      <button class="btn ghost sm" id="grooveBtn"
+              title="Fill this sequence from CS·1's progression">Groove</button>
+      <button class="btn ghost sm" id="clearLocks">Clear locks</button>
     </div>
     <div class="roll" id="arpRoll" hidden></div>
     <div class="seqwrap" id="seqWrap"></div>
     <div class="seqlegend" data-seqonly>
-      <span><i style="background:var(--accent)"></i>step on</span>
-      <span><i style="box-shadow:0 0 0 1px var(--cap-yellow) inset;background:var(--accent)"></i>accent</span>
-      <span><i style="background:var(--stripe-mod)"></i>slide</span>
-      <span><i style="background:#5a6a76"></i>tie</span>
-      <span>hold a note and click a step to record it</span>
-      <span id="seqHint"></span>
+      <span id="seqHint">hold a note and click a step to record it</span>
+      <span><i style="box-shadow:0 0 0 1px var(--cap-yellow) inset"></i>parameter lock</span>
+      <span><i style="background:var(--accent)"></i>step</span>
+      <span><i style="background:var(--cap-yellow)"></i>accent &mdash; click again</span>
+      <span>shift-click ties &middot; alt-click slides &middot; drag a step to pitch it</span>
     </div>
     <div class="row">
       <div class="hfader" id="gateFader" tabindex="0" role="slider" aria-label="Gate length" aria-valuemin="0" aria-valuemax="100">
@@ -270,7 +289,7 @@
         </div>
       </div>
     </div>
-    <div class="row">
+    <div class="row" data-hosted>
       <div class="field">
         <label for="midiIn">Input</label>
         <select id="midiIn"><option value="">— none —</option></select>
@@ -285,7 +304,7 @@
       </div>
     </div>
     <div class="row">
-      <div class="field" style="flex:0 0 112px">
+      <div class="field" data-hosted style="flex:0 0 112px">
         <label for="synCh">In ch</label>
         <select id="synCh"></select>
       </div>
@@ -295,6 +314,7 @@
       </div>
       <div class="note" id="chNote" style="margin-top:0;align-self:center;flex:1 1 220px"></div>
     </div>
+    <p class="note" data-page>The rack's MIDI input and channels are set together on the <b>Scenes</b> panel.</p>
     <div class="note" id="midiNote">Requesting MIDI access…</div>
   </div>
 

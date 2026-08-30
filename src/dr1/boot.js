@@ -87,10 +87,17 @@ Patchwork.scenes.register("dr1", {
   isPlaying: () => SEQ.playing,
   start: () => { ensureAudio(); if (!SEQ.playing) startPlay(); },
   stop: () => { if (SEQ.playing) stopPlay(); },
+  /* locks ride with the pattern, because they ARE part of it — a tom line that walks down
+     is not the same pattern without the tuning that makes it walk */
   capture: () => ({steps: JSON.parse(JSON.stringify(steps)),
+                   locks: JSON.parse(JSON.stringify(locks)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing, accentAmt: SEQ.accentAmt}),
   apply: pat => {
     ORDER.forEach(k => { if (pat.steps && pat.steps[k]) steps[k] = pat.steps[k].slice(); });
+    /* replaced wholesale, not merged: a scene that carries no lock for a step means that
+       step has none, and merging would leave the last row's locks haunting this one */
+    Object.keys(locks).forEach(k => delete locks[k]);
+    if (pat.locks) Object.keys(pat.locks).forEach(k => { locks[k] = JSON.parse(JSON.stringify(pat.locks[k])); });
     if (pat.len) SEQ.len = pat.len;
     if (pat.rate) SEQ.rate = pat.rate;
     if (pat.swing != null) SEQ.swing = pat.swing;
@@ -124,6 +131,31 @@ Patchwork.record.register("dr1", {
 initMidi();
 
 /* A test hook, not a feature — the same one CS·1 and MS·1 carry. */
+/* ---- the kit, for whoever wants to hit it ----
+   TS·1 plays fills and has no drums of its own; this is how it borrows these. Scheduling,
+   not notes: a fill is a set of hits at exact audio times, which is what lets it land on
+   the seam. See shell/kit.js. */
+Patchwork.kit.provide({
+  name: "DR·1",
+  voices: ORDER.slice(),
+  tuneOf: id => (P[id] ? P[id].tune : null),
+  /* ⚠️ Swapped around the call and restored in a finally — fire() reads P[id] when it is
+     called, exactly as withLocks() relies on. A throw here would otherwise leave a tom
+     permanently retuned by a fill that never finished. */
+  hit: (id, when, vel, opts) => {
+    ensureAudio();
+    if (!opts || (!opts.tune && !opts.decay)) return fire(id, when, vel);
+    const p = P[id], tune = p.tune, decay = p.decay;
+    if (opts.tune)  p.tune  = tune  * opts.tune;
+    if (opts.decay) p.decay = decay * opts.decay;
+    try { return fire(id, when, vel); }
+    finally { p.tune = tune; p.decay = decay; }
+  }
+});
+
 window.__dr1 = {P, SEQ, steps, ORDER, VOICES, TRIM, BALANCE, TARGET_BD,
                 fire, renderHit, measure, ensureAudio, MIDI, onMidi,
+                /* the locks and the swap that applies them, so a step's overrides can be
+                   asked about rather than listened for */
+                locks, lockAt, withLocks, lockCount,
                 get ctx(){ return ctx; }};

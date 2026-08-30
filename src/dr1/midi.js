@@ -120,7 +120,16 @@ function initMidi(){
     say("Web MIDI needs a secure context — serve over <code>localhost</code>.", true);
     return;
   }
-  Patchwork.midi.route("dr1", onMidi, pt => { fillPorts(); followInput(pt); bindOutput(); describe(); });
+  /* What this instrument answers on, so the studio can show the whole rig's channels in
+     one place. The setters keep this panel's own selects in step: the two views are the
+     same setting and must never disagree about it. */
+  Patchwork.midi.route("dr1", onMidi, pt => { fillPorts(); followInput(pt); bindOutput(); describe(); }, {
+    name: "DR\u00b71", panic: midiPanic,
+    inCh:  {get: () => MIDI.inCh,
+            set: c => { MIDI.inCh = c; midiInChSel.value = String(c); describe(); }},
+    outCh: {get: () => MIDI.ch,
+            set: c => { MIDI.ch = c; midiChSel.value = String(c); }}
+  });
   Patchwork.midi.open().then(a => {
     MIDI.access = a;
     fillPorts();

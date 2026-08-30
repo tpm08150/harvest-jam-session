@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Harvest Jam Session</title>
+<title>Jam Session</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Saira+Semi+Condensed:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -74,6 +74,15 @@ body{
   display:flex;justify-content:center;align-items:flex-start;
   -webkit-font-smoothing:antialiased;
 }
+
+/* ⚠️ `hidden` has to beat a layout rule, everywhere — not just in the studio.
+
+   The UA sheet says [hidden]{display:none}, which any `display:flex` on the same element
+   loses to on specificity, so el.hidden = true did nothing to a flex row. The studio sheet
+   carried this line and the six standalone builds did not, which is why PM·1's arp
+   controls stayed on screen in poly-synth.html while behaving correctly in index.html —
+   the same code, two answers, and only one of the pages ever tested. */
+[hidden]{display:none !important}
 /* Panel chrome a new instrument can build on.
 
    CS·1 and MS·1 were written as separate whole pages and independently grew the same
@@ -116,6 +125,34 @@ body{
 .btn:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(255,255,255,.08) inset}
 .btn.play{min-width:112px}
 .btn.play.on{background:linear-gradient(180deg,#79e6c3,var(--mint));border-color:#1f7a61;color:#0d2c24}
+
+/* ---------- selects and text fields ----------
+   ⚠️ These were in CS·1's and PM·1's sheets and NOWHERE ELSE, so DR·1, BS·1, VC·1 and LP·1
+   rendered the browser's own white boxes in the middle of a dark panel — measured, not
+   guessed: five of the eight panels came back `appearance:auto`, white on black text. It
+   was easy to miss because macOS paints a native select dark enough to pass at a glance,
+   and impossible to miss on anything that does not.
+
+   Here rather than copied a fifth time, and safe to put here for the reason this file gives
+   at the top: chrome.css loads FIRST, so CS·1's and PM·1's own copies still win every
+   equal-specificity conflict and neither of them can change. What this adds is a floor for
+   the panels that had nothing. */
+select{
+  appearance:none;width:100%;
+  font-family:"Saira Semi Condensed";font-size:14px;letter-spacing:.04em;
+  background:var(--slot);color:var(--field);border:1px solid var(--groove);border-radius:4px;
+  padding:9px 26px 9px 10px;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--silk-dim) 50%),linear-gradient(135deg,var(--silk-dim) 50%,transparent 50%);
+  background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+  box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+select:disabled{opacity:.4;cursor:default}
+input[type="text"]{
+  width:100%;font-family:"Saira Semi Condensed";font-size:14px;letter-spacing:.04em;
+  background:var(--slot);color:var(--field);border:1px solid var(--groove);border-radius:4px;
+  padding:9px 10px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
 
 /* ---------- selects & tempo ---------- */
 .row{display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
@@ -198,6 +235,12 @@ input[type="text"]::placeholder{color:#5a646a}
    full panels as they are on the faces, and a standalone build keeps its own because
    nothing else is there to hold it. */
 :scope.hosted [data-hosted]{display:none}
+/* ...and `data-page` is its mirror: a line that only makes sense once the page HAS taken
+   the control over, so a panel whose fields just vanished can say where they went. Opening
+   a full panel to set a channel and finding the field gone is a worse bug than the six
+   duplicate controls this mechanism exists to remove. */
+:scope [data-page]{display:none}
+:scope.hosted [data-page]{display:block}
 
 /* ---------- the plate ----------
    Only CS·1 and PM·1 ever defined this, so on every other panel the header had no layout
@@ -338,6 +381,15 @@ input[type="text"]::placeholder{color:#5a646a}
   .pads{grid-template-columns:repeat(8,1fr)}
   .lane-name{flex:0 0 38px}
 }
+
+/* ---- parameter locks ----
+   A locked step is ringed rather than recoloured: the pad already uses colour for off / on
+   / accent / playing-now, and a fifth colour on the same square would be one more thing to
+   decode at a glance. The selected step, in program mode, is the one you are writing to. */
+.pad.lock{box-shadow:0 0 0 1px var(--cap-yellow) inset}
+.pad.sel{outline:1px solid var(--mint);outline-offset:1px}
+.hfader.locked .hlab{color:var(--cap-yellow)}
+#lockHint{font-size:10px;letter-spacing:.08em}
 }
 /* Everything below is scoped to this instrument's panel. @scope rather than nesting
    because it adds no specificity. */
@@ -859,6 +911,11 @@ input[type="text"]::placeholder{color:#5a646a}
 
 .row{display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
 .field{display:flex;flex-direction:column;gap:5px;flex:1 1 118px;min-width:0}
+/* The sequencer's two rows, the same shape BS·1 and VC·1 use. PM·1 had every one of these
+   controls in the rack head, which is why its sequencer read as a different instrument's
+   from three feet away — same controls, same order, no grouping. */
+.patrow{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.seqedit{margin-top:10px;gap:8px;align-items:center}
 label,.silk{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--silk-dim);font-weight:500}
 select{
   appearance:none;width:100%;
@@ -1070,6 +1127,11 @@ input[type="text"]::placeholder{color:#5a646a}
   .transport .tempo output{font-size:13px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* A step holding more than one note. Marked rather than spelled out — the button is 34px
+   wide and the root is what you read when scanning; the full voicing is in its title. */
+.step.chord{box-shadow:0 0 0 1px var(--silk-dim) inset}
+.step.chord.on{box-shadow:0 0 0 1px rgba(255,255,255,.5) inset}
 }
 /* Scoped to this instrument's panel; @scope adds no specificity. */
 @scope (.unit.vc1) {
@@ -1188,6 +1250,78 @@ input[type="text"]::placeholder{color:#5a646a}
   background:linear-gradient(90deg,var(--vc-accent),var(--cap-yellow) 84%,var(--cap-red));
   transition:width .08s linear}
 @media (prefers-reduced-motion:reduce){ .meter i{transition:none} }
+}
+/* Everything below is scoped to this instrument's panel. @scope rather than nesting
+   because it adds no specificity. */
+@scope (.unit.ts1) {
+:scope{
+  width:100%;max-width:760px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);
+  border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  padding:20px 18px 24px;
+  position:relative;
+  overflow:hidden;
+}
+:scope::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+}
+:scope > *{position:relative}
+
+/* ---- the readout ----
+   The card is the instrument's face. Between arming and landing there is nothing to hear,
+   so this is what says something is coming — and the meter is the only moving part on the
+   panel, which is what makes it read as a countdown rather than as decoration. */
+.ts-read{display:flex;align-items:baseline;gap:12px;margin:8px 0 10px;flex-wrap:wrap}
+.ts-shape{
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;font-weight:600;
+  font-size:24px;letter-spacing:.1em;text-transform:uppercase;color:var(--silk);
+}
+.ts-len{font-family:"DM Mono",ui-monospace,monospace;font-size:12px;color:var(--silk-dim);
+  letter-spacing:.12em;text-transform:uppercase}
+.ts-meter{
+  height:8px;border-radius:4px;overflow:hidden;
+  background:linear-gradient(180deg,var(--groove-hi),var(--groove) 45%,var(--groove-hi));
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset;
+}
+.ts-fill{display:block;height:100%;width:0;border-radius:4px;background:var(--cap-yellow);
+  box-shadow:0 0 10px rgba(232,178,58,.5)}
+/* Armed is a state worth seeing from across the room — this is the instrument you press
+   and then look away from. */
+:scope.ts-armed .ts-shape{color:var(--cap-yellow)}
+.btn.on{background:linear-gradient(180deg,#8a6a2a,#6a5020);border-color:var(--cap-yellow)}
+.ts-nokit{opacity:.45}
+.knobrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.knobrow .hfader{flex:1 1 190px}
+.patrow{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+
+/* ---- faders ----
+   The same control every other panel draws, from the shell's tokens. It is not in
+   chrome.css for the reason that file gives at length: lifting a rule that four sheets
+   already declare flips whichever equal-specificity conflict used to resolve the other
+   way, so each panel keeps its own copy and the tokens keep them identical. */
+.hfader{display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
+  padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13)}
+.hslot{position:relative;flex:1 1 auto;min-width:60px;height:20px;border-radius:4px;
+  background:linear-gradient(180deg,var(--groove-hi),var(--groove) 45%,var(--groove-hi));
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06)}
+.hslot::after{content:"";position:absolute;left:7px;right:7px;top:50%;height:3px;
+  transform:translateY(-50%);background:var(--groove-deep);border-radius:2px}
+.hcap{position:absolute;top:-3px;height:26px;width:20px;border-radius:3px;
+  transform:translateX(-50%);
+  background:linear-gradient(180deg,var(--cap-hi),var(--cap-lo));border:1px solid var(--cap-edge);
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset}
+.hcap::after{content:"";position:absolute;top:3px;bottom:3px;left:50%;width:3px;
+  margin-left:-1.5px;border-radius:2px;background:var(--cap-yellow)}
+.hfader.dragging .hcap{border-color:var(--mint)}
+.hfader .hlab{white-space:nowrap;font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--silk-dim)}
+.hfader .hval{font-family:"DM Mono",ui-monospace,monospace;font-size:10px;color:#aeb8be;
+  min-width:44px;text-align:right}
+
+/* select and text fields come from shell/chrome.css — see the note there */
 }
 /* Everything below is scoped to this instrument's panel. @scope rather than nesting
    because it adds no specificity, so the relative weight of every rule inside is exactly
@@ -1434,7 +1568,28 @@ body{
 }
 
 /* ---- scene launcher ---- */
-.st-scenes{padding:0}
+/* ---- the launcher is a panel too ----
+   It is already an item in the same grid as the instruments, sized and stretched with
+   them, and it was the one thing in the rack with no box around it — which read as a
+   caption floating beside the rack rather than as part of it.
+
+   The recipe is each instrument's :scope rule, written out rather than shared, for the
+   reason page.css already gives about the studio's own chrome: those rules live inside
+   @scope (.unit) and do not reach a section that is not a unit. Every value is a token,
+   so the two cannot drift apart quietly. */
+.st-scenes{
+  padding:20px 18px 24px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);
+  border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  position:relative;overflow:hidden;
+}
+/* the fine horizontal grain every panel carries */
+.st-scenes::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+}
 .st-scenes-head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:9px}
 /* A bare "− 120 +" beside the word Scenes reads as a count of something. The panels label
    their controls; the page's own controls have to as well. */
@@ -1456,14 +1611,19 @@ body{
 .st-bars.st-idle .st-bar{opacity:.45}
 .st-lab{font-family:"Saira Semi Condensed",system-ui,sans-serif;
   font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--silk-dim)}
-.st-scenes-head .st-brand{align-self:flex-end;line-height:2.1}
-.st-grid{
-  display:block;max-width:380px;
-  background:linear-gradient(180deg,var(--panel-hi),var(--panel-lo));
-  border:1px solid var(--edge);border-radius:8px;
-  padding:10px 12px;
-  box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 10px 24px rgba(0,0,0,.4);
+/* The launcher's title, in the face every instrument's plate uses — same family, weight,
+   size and tracking as .model in chrome.css. It was inheriting the body font and reading as
+   a caption next to six panels that were shouting their names. */
+.st-scenes-head .st-brand{
+  align-self:flex-end;
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:19px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--silk);line-height:1;padding-bottom:10px;
 }
+/* ⚠️ No box of its own any more. It had one because the section around it did not, and
+   now that .st-scenes carries the panel, keeping both would put a panel inside a panel —
+   the one arrangement that looks less uniform than having no box at all. */
+.st-grid{display:block}
 .st-row{
   display:grid;
   grid-template-columns:26px repeat(var(--cols,3),minmax(0,1fr)) 34px;
@@ -1476,6 +1636,83 @@ body{
 }
 .st-inst{font-size:10px;color:var(--silk)}
 .st-row-head{margin-bottom:3px}
+
+/* ---- the mix row ----
+   Vertical, because a column here is about 43px wide and a horizontal slider in that is a
+   switch with extra steps — and because every mixer anyone has touched is vertical. Ruled
+   off from the scene rows: it belongs to the same columns but it is not another scene, and
+   a row of faders reading as row seven would be a lie.
+
+   BUILT FROM THE SAME PARTS AS AN INSTRUMENT'S FADER, turned ninety degrees. The slot is a
+   recessed groove with a dark channel down the middle and the cap is a lit grey block with
+   an accent stripe across it — the shell's own --groove-* and --cap-* tokens, which exist
+   because DR·1, BS·1 and CS·1 all draw this same control. A native <input type=range> was
+   worth keeping over a hand-built div: it arrives with keyboard control, a focus ring and a
+   real value, and every one of those would have had to be rebuilt to gain nothing.
+
+   ⚠️ `appearance:none` AND `writing-mode`, never `appearance:slider-vertical`. The legacy
+   spelling does make the control vertical, and it also makes the browser draw its own
+   thumb and ignore ::-webkit-slider-thumb entirely — so the faders came out vertical with
+   stock blue pucks on them and the styling looked like it had simply not loaded. The
+   modern pair is what allows a custom cap at all. */
+.st-row-mix{
+  margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--groove);
+  align-items:end;
+}
+.st-fadercell{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.st-fader{
+  -webkit-appearance:none;appearance:none;
+  writing-mode:vertical-rl;direction:rtl;
+  width:26px;height:96px;margin:0;padding:0;
+  background:transparent;cursor:ns-resize;touch-action:none;
+}
+.st-fader::-webkit-slider-runnable-track{
+  width:20px;height:100%;border-radius:4px;
+  background:
+    linear-gradient(90deg,transparent calc(50% - 1.5px),var(--groove-deep) calc(50% - 1.5px),
+                    var(--groove-deep) calc(50% + 1.5px),transparent calc(50% + 1.5px)),
+    linear-gradient(90deg,var(--groove-hi),var(--groove) 45%,var(--groove-hi));
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06);
+}
+.st-fader::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:26px;height:20px;border-radius:3px;
+  border:1px solid var(--cap-edge);
+  background:
+    linear-gradient(var(--mint),var(--mint)) center/calc(100% - 8px) 3px no-repeat,
+    linear-gradient(180deg,var(--cap-hi),var(--cap-lo));
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset;
+}
+.st-fader:hover::-webkit-slider-thumb{border-color:var(--silk-dim)}
+.st-fader:active::-webkit-slider-thumb{border-color:var(--mint)}
+.st-fader:focus-visible{outline:none}
+.st-fader:focus-visible::-webkit-slider-thumb{border-color:var(--mint);
+  box-shadow:0 0 0 1px var(--mint),0 2px 3px rgba(0,0,0,.55)}
+/* ---- mute and solo ----
+   Two letters under each fader. Colour does the telling: red for held silent, yellow for
+   held audible — the two conventions every mixer already uses, so nobody has to learn them.
+   A soloed track dims every OTHER cell, which is what makes the direction of a solo
+   obvious at a glance rather than something you work out from what you can hear. */
+.st-mskeys{display:flex;gap:3px;width:100%}
+.st-msk{
+  flex:1 1 0;min-width:0;height:15px;padding:0;border-radius:3px;cursor:pointer;
+  font-family:"DM Mono",ui-monospace,monospace;font-size:8.5px;letter-spacing:.06em;
+  background:var(--slot);color:var(--silk-dim);border:1px solid var(--groove);
+}
+.st-msk:hover{color:var(--silk);border-color:var(--silk-dim)}
+.st-msk-m.st-on{background:var(--cap-red);border-color:var(--cap-red);color:#fff}
+.st-msk-s.st-on{background:var(--cap-yellow);border-color:var(--cap-yellow);color:#241c07}
+.st-msk:focus-visible{outline:1px solid var(--mint);outline-offset:1px}
+/* silenced by anything — its own mute, or somebody else's solo */
+.st-fadercell.st-silenced .st-fader{opacity:.35}
+.st-fadercell.st-silenced .st-faderval{opacity:.4}
+
+/* the readout an instrument's fader carries, in the same face and at column width */
+.st-faderval{font-family:"DM Mono",ui-monospace,monospace;font-size:9px;
+  color:#aeb8be;line-height:1;letter-spacing:.04em}
+/* the label sits with the caps rather than on the floor with their bases */
+.st-mixlab{align-self:center;cursor:help}
 
 .st-cell{
   height:26px;border-radius:4px;cursor:pointer;
@@ -1552,13 +1789,14 @@ body{
 @media (max-height:760px){
   body{padding-bottom:24px}
   .st-head{padding:12px 20px 2px}
-  .st-scenes{padding:2px 20px 10px}
+  .st-scenes{padding:14px 14px 16px}
   .st-scenes-head{margin-bottom:6px}
   .st-scenes-head .st-hint{display:none}     /* the gesture is discoverable by trying it */
   .st-grid{padding:7px 9px}
   .st-row{grid-template-columns:20px repeat(var(--cols,3),minmax(0,1fr)) 28px;gap:4px}
   .st-row + .st-row{margin-top:4px}
   .st-cell,.st-fire{height:18px}
+  .st-fader{height:74px}
   .st-cell::after{width:5px;height:5px}
   .st-rack{padding-top:0}
 }
@@ -1657,12 +1895,69 @@ body.living .st-seg#stFaces{display:none}
 
 .st-quant{align-self:center}
 .st-quant button{padding:8px 12px}
+
+/* ---- the rack's MIDI ----
+   Ruled off under the launcher the way the mix row is ruled off under the scenes: same
+   panel, different question. A table rather than six pairs of labelled fields, because the
+   thing you actually want to read is the COLUMN — which channel is each instrument on —
+   and six separate two-field rows is the layout that hides exactly that. */
+.st-midi{margin-top:12px;padding-top:11px;border-top:1px solid var(--groove)}
+.st-midi-top{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:9px}
+.st-midi-port{display:flex;flex-direction:column;gap:4px;flex:1 1 150px;min-width:0}
+.st-midi-port select{width:100%}
+.st-follow{
+  display:flex;align-items:center;gap:7px;cursor:pointer;
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;font-size:11px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--silk-dim);
+  padding:7px 9px;border:1px solid var(--groove);border-radius:5px;
+  background:rgba(0,0,0,.13);
+}
+.st-follow:hover{color:var(--silk);border-color:var(--silk-dim)}
+.st-follow input{accent-color:var(--mint);cursor:pointer;margin:0}
+.st-follow:has(input:checked){color:var(--mint);border-color:var(--mint)}
+
+.st-midi-rows{display:flex;flex-direction:column;gap:4px}
+.st-midi-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
+.st-midi-name{
+  font-family:"DM Mono",ui-monospace,monospace;font-size:10px;letter-spacing:.1em;
+  color:var(--silk);
+}
+.st-midi-cell{display:flex;align-items:center;gap:5px}
+.st-midi-none{width:0}
+.st-midi-lab{
+  font-family:"DM Mono",ui-monospace,monospace;font-size:9px;letter-spacing:.08em;
+  color:var(--silk-dim);text-transform:uppercase;
+}
+/* ⚠️ The launcher is not a .unit, and every field rule in chrome.css lives inside
+   @scope (.unit) — so none of them reach here and these came out as the browser's own white
+   boxes. Same values, from the same tokens. */
+.st-scenes select{
+  appearance:none;width:100%;
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;font-size:13px;letter-spacing:.04em;
+  background:var(--slot);color:var(--field);border:1px solid var(--groove);border-radius:4px;
+  padding:7px 24px 7px 9px;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--silk-dim) 50%),linear-gradient(135deg,var(--silk-dim) 50%,transparent 50%);
+  background-position:calc(100% - 13px) 50%,calc(100% - 8px) 50%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+  box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+.st-scenes select:disabled{opacity:.4;cursor:default}
+.st-midi-ch{padding:4px 6px;font-size:11px;min-width:62px}
+/* ⚠️ Dimmed, not disabled, while follow mode is on. The IN channels genuinely stop
+   mattering — everything goes to the focused panel — but a control you cannot reach is a
+   control you cannot set up ready for switching the mode back off. */
+.st-midi-ignored .st-midi-cell:first-of-type{opacity:.4}
+.st-midi-note{
+  margin-top:8px;font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:11px;line-height:1.5;color:var(--silk-dim);
+}
+.st-midi-note b{color:var(--silk)}
 </style>
 </head>
 <body>
 
 <div class="st-head">
-  <span class="st-brand">Harvest Jam Session</span>
+  <span class="st-brand">Jam Session</span>
   <div class="st-seg" id="stView" role="group" aria-label="View">
     <button data-v="studio" class="st-sel">Studio</button>
     <button data-v="live">Live</button>
@@ -1690,14 +1985,6 @@ body.living .st-seg#stFaces{display:none}
     <span class="st-brand">Scenes</span>
     <!-- The page's tempo, not an instrument's. Every panel had its own and they all moved
          together, so five of the six were noise — see shell/boot.js. -->
-    <div class="st-master">
-      <span class="st-lab" id="stBpmLab">Tempo</span>
-      <div class="st-tempo" role="group" aria-labelledby="stBpmLab">
-        <button id="stDown" aria-label="Slower">&minus;</button>
-        <span id="stBpm">120</span>
-        <button id="stUp" aria-label="Faster">+</button>
-      </div>
-    </div>
     <div class="st-master">
       <span class="st-lab" id="stQuantLab">Lands on</span>
       <div class="st-seg st-quant" id="stQuant" role="group" aria-labelledby="stQuantLab">
@@ -1734,9 +2021,38 @@ body.living .st-seg#stFaces{display:none}
                aria-label="Metronome level">
       </div>
     </div>
+    <div class="st-master">
+      <span class="st-lab" id="stBpmLab">Tempo</span>
+      <div class="st-tempo" role="group" aria-labelledby="stBpmLab">
+        <button id="stDown" aria-label="Slower">&minus;</button>
+        <span id="stBpm">120</span>
+        <button id="stUp" aria-label="Faster">+</button>
+      </div>
+    </div>
     <span class="st-hint">click a cell to add or edit &middot; shift-click to delete &middot; click &#9654; to fire the row &middot; nothing lands until the next loop point</span>
   </div>
   <div class="st-grid" id="stGrid"></div>
+
+  <!-- One MIDI setup for the rack. Every instrument already filtered by channel on its own
+       way in and every panel grew its own selects to set that — six copies of one question,
+       and the answer lived inside whichever panel you had to open to find it. The port was
+       always the page's; now the channels are too. -->
+  <div class="st-midi" id="stMidi">
+    <div class="st-midi-top">
+      <span class="st-lab">MIDI</span>
+      <div class="st-midi-port">
+        <label class="st-lab" for="stMidiIn">Input</label>
+        <select id="stMidiIn"><option value="">&mdash; none &mdash;</option></select>
+      </div>
+      <label class="st-follow" for="stMidiFollow"
+             title="Incoming notes play whichever panel has the keyboard, whatever channel they arrive on">
+        <input type="checkbox" id="stMidiFollow">
+        <span>Plays the selected panel</span>
+      </label>
+    </div>
+    <div class="st-midi-rows" id="stMidiRows"></div>
+    <p class="st-midi-note" id="stMidiNote"></p>
+  </div>
 </div>
 
 <div class="unit dr1" data-instrument="dr1">
@@ -1758,6 +2074,27 @@ body.living .st-seg#stFaces{display:none}
     </div>
     <button class="btn panic" id="panic">Panic</button>
   </div>
+
+  <!-- The patch row every instrument with saved sounds has. The behaviour is
+       shell/patches.js; what a sound IS stays with the instrument. -->
+  <div data-face class="row patchrow">
+    <div class="field">
+      <label for="patchSel">Patch</label>
+      <select id="patchSel"></select>
+    </div>
+    <div class="field">
+      <label for="patchName">Name</label>
+      <input type="text" id="patchName" placeholder="Untitled" autocomplete="off">
+    </div>
+    <div class="patch-actions">
+      <button class="btn ghost sm" id="patchSave">Save</button>
+      <button class="btn ghost sm" id="patchDelete">Delete</button>
+      <button data-deep class="btn ghost sm" id="patchExport">Export</button>
+      <button data-deep class="btn ghost sm" id="patchImport">Import</button>
+      <input type="file" id="patchFile" accept="application/json,.json" hidden>
+    </div>
+  </div>
+  <p class="note" id="patchNote" style="display:none"></p>
 
   <div data-face class="sect">
     <div class="sect-head">
@@ -1800,11 +2137,23 @@ body.living .st-seg#stFaces{display:none}
 
     <!-- One row per voice. The grid is the instrument; the knobs are for shaping what it
          plays, which is why the grid comes first and is the widest thing on the panel. -->
+    <!-- The same two-mode grammar the other three sequencers use: Play edits the pattern,
+         Program picks a step to hang parameter locks on. -->
+    <div class="patrow seqedit">
+      <div class="seg sm" id="seqMode" role="group" aria-label="Sequencer mode">
+        <button data-p="play" class="on">Play</button>
+        <button data-p="program">Program</button>
+      </div>
+      <button class="btn ghost sm" id="clearLocks"></button>
+      <span class="silk" id="lockHint"></span>
+    </div>
+
     <div class="lanes" id="lanes"></div>
 
     <div class="seqlegend">
       <span><i style="background:var(--dr-accent)"></i>step</span>
       <span><i style="background:var(--cap-yellow)"></i>accent — click a lit step again</span>
+      <span><i style="box-shadow:0 0 0 1px var(--cap-yellow) inset"></i>parameter lock</span>
       <span><i style="background:var(--mint)"></i>playing now</span>
     </div>
   </div>
@@ -1828,7 +2177,8 @@ body.living .st-seg#stFaces{display:none}
         <span class="hlab">Level</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
       </div>
     </div>
-    <p class="note">Click a lane's name to hear that voice and edit it here. Shift-click plays it without selecting — and records the hit when DR·1 is armed.</p>
+    <p class="note">Click a lane's name to hear that voice and edit it here. Shift-click plays it without selecting — and records the hit when DR·1 is armed.
+      In <b>Program</b> mode these four faders write a <b>parameter lock</b> onto the selected step: a tom that walks down, a hat that opens on the offbeat. Double-click a fader to take its lock off.</p>
   </div>
 
   <div class="sect">
@@ -1842,7 +2192,7 @@ body.living .st-seg#stFaces{display:none}
         </div>
       </div>
     </div>
-    <div class="row">
+    <div class="row" data-hosted>
       <div class="field">
         <label for="midiIn">Input</label>
         <select id="midiIn"><option value="">— none —</option></select>
@@ -1860,6 +2210,7 @@ body.living .st-seg#stFaces{display:none}
         <select id="midiCh"></select>
       </div>
     </div>
+    <p class="note" data-page>The rack's MIDI input and channels are set together on the <b>Scenes</b> panel.</p>
     <p class="note" id="midiNote">—</p>
   </div>
 
@@ -1893,26 +2244,49 @@ body.living .st-seg#stFaces{display:none}
     <button class="btn panic" id="panic">Panic</button>
   </div>
 
+  <!-- The patch row every instrument with saved sounds has. The behaviour is
+       shell/patches.js; what a sound IS stays with the instrument. -->
+  <div data-face class="row patchrow">
+    <div class="field">
+      <label for="patchSel">Patch</label>
+      <select id="patchSel"></select>
+    </div>
+    <div class="field">
+      <label for="patchName">Name</label>
+      <input type="text" id="patchName" placeholder="Untitled" autocomplete="off">
+    </div>
+    <div class="patch-actions">
+      <button class="btn ghost sm" id="patchSave">Save</button>
+      <button class="btn ghost sm" id="patchDelete">Delete</button>
+      <button data-deep class="btn ghost sm" id="patchExport">Export</button>
+      <button data-deep class="btn ghost sm" id="patchImport">Import</button>
+      <input type="file" id="patchFile" accept="application/json,.json" hidden>
+    </div>
+  </div>
+  <p class="note" id="patchNote" style="display:none"></p>
+
   <div data-face class="sect">
     <div class="sect-head">
       <span class="silk">Sequence</span>
-      <div class="patrow">
-        <div class="field" style="flex:0 0 84px">
-          <label for="seqLen">Steps</label>
-          <select id="seqLen"></select>
-        </div>
-        <div class="field" style="flex:0 0 92px">
-          <label for="seqRate">Rate</label>
-          <select id="seqRate"></select>
-        </div>
-        <div class="field" style="flex:0 0 96px">
-          <label for="seqKey">Key</label>
-          <select id="seqKey"></select>
-        </div>
-        <div class="field" style="flex:0 0 116px">
-          <label for="seqScale">Scale</label>
-          <select id="seqScale"></select>
-        </div>
+    </div>
+    <!-- A row of its own rather than four selects wedged into the header, so all three
+         sequencers read head → settings → edit → grid → legend from three feet away. -->
+    <div class="patrow">
+      <div class="field" style="flex:0 0 84px">
+        <label for="seqLen">Steps</label>
+        <select id="seqLen"></select>
+      </div>
+      <div class="field" style="flex:0 0 92px">
+        <label for="seqRate">Rate</label>
+        <select id="seqRate"></select>
+      </div>
+      <div class="field" style="flex:0 0 96px">
+        <label for="seqKey">Key</label>
+        <select id="seqKey"></select>
+      </div>
+      <div class="field" style="flex:0 0 116px">
+        <label for="seqScale">Scale</label>
+        <select id="seqScale"></select>
       </div>
     </div>
     <!-- The same editing controls PM·1 has, so one grid answers one set of rules across
@@ -1929,6 +2303,8 @@ body.living .st-seg#stFaces{display:none}
         <button data-l="slide">Slide</button>
         <button data-l="tie">Tie</button>
       </div>
+      <button class="btn ghost sm" id="grooveBtn"
+              title="Fill this sequence from CS·1's progression">Groove</button>
       <button class="btn ghost sm" id="clearLocks" title="Clear this step's locks — shift-click clears every step">Clear locks</button>
     </div>
     <div class="seqwrap" id="seqWrap"></div>
@@ -1976,7 +2352,7 @@ body.living .st-seg#stFaces{display:none}
     <div class="sect-head">
       <span class="silk"><i class="led" id="midiLed"></i>MIDI</span>
     </div>
-    <div class="row">
+    <div class="row" data-hosted>
       <div class="field">
         <label for="midiIn">Input</label>
         <select id="midiIn"><option value="">— none —</option></select>
@@ -1986,6 +2362,7 @@ body.living .st-seg#stFaces{display:none}
         <select id="midiInCh"></select>
       </div>
     </div>
+    <p class="note" data-page>The rack's MIDI input and channels are set together on the <b>Scenes</b> panel.</p>
     <p class="note" id="midiNote">—</p>
   </div>
 
@@ -2080,7 +2457,11 @@ body.living .st-seg#stFaces{display:none}
 
   <div class="note" id="modeNote" style="display:none"></div>
 
-  <div class="bank">
+  <!-- The face gets the whole Sound bank. Voice, motion and the shape faders are what you
+       reach for WHILE playing — the face exists to carry exactly those, and leaving them a
+       panel-open away made the face a patch browser with a keyboard under it. There was
+       room: the face filled 425px of an 1154px plate and the rest was empty. -->
+  <div data-face class="bank">
     <div class="bank-head">
       <span class="silk">Sound</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -2161,7 +2542,9 @@ body.living .st-seg#stFaces{display:none}
           <span class="bind"></span>
         </div>
       </div>
-      <div class="opt-row">
+      <!-- data-deep: which steps the bass plays is a thing you set up, not a thing you
+           perform. The on/off and its level stay. -->
+      <div data-deep class="opt-row">
         <span class="silk">Steps</span>
         <select id="bassSteps" aria-label="Bass steps"></select>
         <div class="steps" id="bassGrid"></div>
@@ -2204,7 +2587,7 @@ body.living .st-seg#stFaces{display:none}
       </div>
     </div>
 
-    <div class="row">
+    <div class="row" data-hosted>
       <div class="field">
         <label for="midiIn">Input</label>
         <select id="midiIn"><option value="">— none —</option></select>
@@ -2223,6 +2606,7 @@ body.living .st-seg#stFaces{display:none}
       </div>
     </div>
 
+    <p class="note" data-page>The rack's MIDI input and channels are set together on the <b>Scenes</b> panel.</p>
     <div class="note" id="midiNote">Requesting MIDI access…</div>
   </div>
 
@@ -2321,12 +2705,11 @@ body.living .st-seg#stFaces{display:none}
 
   <!-- ===== SEQ / ARP ===== -->
   <div data-face class="rack r-osc">
+    <!-- The head says what KIND of motion this is; everything below it is the sequencer,
+         laid out exactly as BS·1 and VC·1 lay theirs out. Off/Arp/Seq stays up here because
+         it is the one thing those two do not have. -->
     <div class="rack-head">
       <span class="silk">Motion</span>
-      <div class="seg sm" id="seqMode" data-seqonly role="group" aria-label="Sequencer mode">
-        <button data-p="play" class="on">Play</button>
-        <button data-p="program">Program</button>
-      </div>
       <div class="seg sm" id="motion" role="group" aria-label="Motion">
         <button data-m="off" class="on">Off</button>
         <button data-m="arp">Arp</button>
@@ -2343,28 +2726,48 @@ body.living .st-seg#stFaces{display:none}
         <button data-o="2">2 oct</button>
         <button data-o="3">3 oct</button>
       </div>
-      <select id="seqKey" data-seqonly aria-label="Key" style="width:auto;min-width:64px"></select>
-      <select id="seqScale" data-seqonly aria-label="Scale" style="width:auto;min-width:112px"></select>
-      <select id="seqLen" data-seqonly aria-label="Pattern length" style="width:auto;min-width:82px"></select>
-      <select id="seqRate" aria-label="Step rate" style="width:auto;min-width:88px"></select>
-      <button class="btn ghost sm" id="clearLocks" data-seqonly title="Clear this step's parameter locks">Clear locks</button>
-      <div class="seg sm" id="seqLane" data-seqonly role="group" aria-label="Edit lane">
+    </div>
+    <!-- ⚠️ data-seqonly sits on the FIELDS, not on the row. Rate belongs to the arp as well
+         as the sequencer, so a row that hid as a whole would take the arp's only speed
+         control away with it. -->
+    <div class="patrow">
+      <div class="field" data-seqonly style="flex:0 0 84px">
+        <label for="seqLen">Steps</label><select id="seqLen"></select>
+      </div>
+      <div class="field" style="flex:0 0 92px">
+        <label for="seqRate">Rate</label><select id="seqRate"></select>
+      </div>
+      <div class="field" data-seqonly style="flex:0 0 96px">
+        <label for="seqKey">Key</label><select id="seqKey"></select>
+      </div>
+      <div class="field" data-seqonly style="flex:0 0 116px">
+        <label for="seqScale">Scale</label><select id="seqScale"></select>
+      </div>
+    </div>
+    <div class="patrow seqedit" data-seqonly>
+      <div class="seg sm" id="seqMode" role="group" aria-label="Sequencer mode">
+        <button data-p="play" class="on">Play</button>
+        <button data-p="program">Program</button>
+      </div>
+      <div class="seg sm" id="seqLane" role="group" aria-label="Edit lane">
         <button data-l="on" class="on">Gate</button>
         <button data-l="pitch">Pitch</button>
         <button data-l="accent">Accent</button>
         <button data-l="slide">Slide</button>
         <button data-l="tie">Tie</button>
       </div>
+      <button class="btn ghost sm" id="grooveBtn"
+              title="Fill this sequence from CS·1's progression">Groove</button>
+      <button class="btn ghost sm" id="clearLocks">Clear locks</button>
     </div>
     <div class="roll" id="arpRoll" hidden></div>
     <div class="seqwrap" id="seqWrap"></div>
     <div class="seqlegend" data-seqonly>
-      <span><i style="background:var(--accent)"></i>step on</span>
-      <span><i style="box-shadow:0 0 0 1px var(--cap-yellow) inset;background:var(--accent)"></i>accent</span>
-      <span><i style="background:var(--stripe-mod)"></i>slide</span>
-      <span><i style="background:#5a6a76"></i>tie</span>
-      <span>hold a note and click a step to record it</span>
-      <span id="seqHint"></span>
+      <span id="seqHint">hold a note and click a step to record it</span>
+      <span><i style="box-shadow:0 0 0 1px var(--cap-yellow) inset"></i>parameter lock</span>
+      <span><i style="background:var(--accent)"></i>step</span>
+      <span><i style="background:var(--cap-yellow)"></i>accent &mdash; click again</span>
+      <span>shift-click ties &middot; alt-click slides &middot; drag a step to pitch it</span>
     </div>
     <div class="row">
       <div class="hfader" id="gateFader" tabindex="0" role="slider" aria-label="Gate length" aria-valuemin="0" aria-valuemax="100">
@@ -2519,7 +2922,7 @@ body.living .st-seg#stFaces{display:none}
         </div>
       </div>
     </div>
-    <div class="row">
+    <div class="row" data-hosted>
       <div class="field">
         <label for="midiIn">Input</label>
         <select id="midiIn"><option value="">— none —</option></select>
@@ -2534,7 +2937,7 @@ body.living .st-seg#stFaces{display:none}
       </div>
     </div>
     <div class="row">
-      <div class="field" style="flex:0 0 112px">
+      <div class="field" data-hosted style="flex:0 0 112px">
         <label for="synCh">In ch</label>
         <select id="synCh"></select>
       </div>
@@ -2544,6 +2947,7 @@ body.living .st-seg#stFaces{display:none}
       </div>
       <div class="note" id="chNote" style="margin-top:0;align-self:center;flex:1 1 220px"></div>
     </div>
+    <p class="note" data-page>The rack's MIDI input and channels are set together on the <b>Scenes</b> panel.</p>
     <div class="note" id="midiNote">Requesting MIDI access…</div>
   </div>
 
@@ -2624,22 +3028,45 @@ body.living .st-seg#stFaces{display:none}
     </div>
   </div>
 
+  <!-- The patch row every instrument with saved sounds has. The behaviour is
+       shell/patches.js; what a sound IS stays with the instrument. -->
+  <div data-face class="row patchrow">
+    <div class="field">
+      <label for="patchSel">Patch</label>
+      <select id="patchSel"></select>
+    </div>
+    <div class="field">
+      <label for="patchName">Name</label>
+      <input type="text" id="patchName" placeholder="Untitled" autocomplete="off">
+    </div>
+    <div class="patch-actions">
+      <button class="btn ghost sm" id="patchSave">Save</button>
+      <button class="btn ghost sm" id="patchDelete">Delete</button>
+      <button data-deep class="btn ghost sm" id="patchExport">Export</button>
+      <button data-deep class="btn ghost sm" id="patchImport">Import</button>
+      <input type="file" id="patchFile" accept="application/json,.json" hidden>
+    </div>
+  </div>
+  <p class="note" id="patchNote" style="display:none"></p>
+
   <div data-face class="sect">
     <div class="sect-head">
       <span class="silk">Sequence</span>
-      <div class="patrow">
-        <div class="field" style="flex:0 0 84px">
-          <label for="seqLen">Steps</label><select id="seqLen"></select>
-        </div>
-        <div class="field" style="flex:0 0 92px">
-          <label for="seqRate">Rate</label><select id="seqRate"></select>
-        </div>
-        <div class="field" style="flex:0 0 96px">
-          <label for="seqKey">Key</label><select id="seqKey"></select>
-        </div>
-        <div class="field" style="flex:0 0 116px">
-          <label for="seqScale">Scale</label><select id="seqScale"></select>
-        </div>
+    </div>
+    <!-- A row of its own rather than four selects wedged into the header, so all three
+         sequencers read head → settings → edit → grid → legend from three feet away. -->
+    <div class="patrow">
+      <div class="field" style="flex:0 0 84px">
+        <label for="seqLen">Steps</label><select id="seqLen"></select>
+      </div>
+      <div class="field" style="flex:0 0 92px">
+        <label for="seqRate">Rate</label><select id="seqRate"></select>
+      </div>
+      <div class="field" style="flex:0 0 96px">
+        <label for="seqKey">Key</label><select id="seqKey"></select>
+      </div>
+      <div class="field" style="flex:0 0 116px">
+        <label for="seqScale">Scale</label><select id="seqScale"></select>
       </div>
     </div>
     <!-- The same editing controls PM·1 has, so one grid answers one set of rules across
@@ -2656,6 +3083,8 @@ body.living .st-seg#stFaces{display:none}
         <button data-l="slide">Slide</button>
         <button data-l="tie">Tie</button>
       </div>
+      <button class="btn ghost sm" id="grooveBtn"
+              title="Fill this sequence from CS·1's progression">Groove</button>
       <button class="btn ghost sm" id="clearLocks" title="Clear this step's locks — shift-click clears every step">Clear locks</button>
     </div>
     <div class="seqwrap" id="seqWrap"></div>
@@ -2664,11 +3093,14 @@ body.living .st-seg#stFaces{display:none}
       <span><i style="box-shadow:0 0 0 1px var(--cap-yellow) inset"></i>parameter lock</span>
       <span><i style="background:var(--vc-accent)"></i>step</span>
       <span><i style="background:var(--cap-yellow)"></i>accent — click again</span>
-      <span>shift-click ties · drag a step to pitch it</span>
+      <span>shift-click ties &middot; alt-click slides &middot; drag a step to pitch it</span>
     </div>
   </div>
 
-  <div class="sect">
+  <!-- Squeeze, Unvoiced and Q are what make a vocoder intelligible, and they were behind
+       the Panel button — so the face offered a modulator picker and no way to make the
+       thing speak. These are the controls, not the setup. -->
+  <div data-face class="sect">
     <div class="sect-head"><span class="silk">Bank</span></div>
     <div class="knobrow">
       <div class="hfader" id="qF"><span class="hlab">Q</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
@@ -2681,7 +3113,10 @@ body.living .st-seg#stFaces{display:none}
       <div class="hfader" id="relF"><span class="hlab">Release</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
     </div>
     <p class="note" id="vocNote">Press <b>Listen</b> to open the modulator. <b>Use headphones</b> — a microphone into speakers will feed back.</p>
-    <p class="note">
+    <!-- data-deep: the explanation earns its place on the panel and would be four lines of
+         prose in the middle of a performance face. #vocNote above it stays — that one is
+         live status, not documentation. -->
+    <p data-deep class="note">
       <b>Squeeze</b> is what stops the vocoder needing a hot input: a band opens in
       proportion to its energy, so without compression the whole output level tracks how
       loudly you speak. <b>Unvoiced</b> is a separate noise path, because a pitched carrier
@@ -2691,7 +3126,7 @@ body.living .st-seg#stFaces{display:none}
 
   <div class="sect">
     <div class="sect-head"><span class="silk"><i class="led" id="midiLed"></i>MIDI</span></div>
-    <div class="row">
+    <div class="row" data-hosted>
       <div class="field">
         <label for="midiIn">Input</label>
         <select id="midiIn"><option value="">— none —</option></select>
@@ -2701,6 +3136,7 @@ body.living .st-seg#stFaces{display:none}
         <select id="midiInCh"></select>
       </div>
     </div>
+    <p class="note" data-page>The rack's MIDI input and channels are set together on the <b>Scenes</b> panel.</p>
     <p class="note" id="midiNote">—</p>
   </div>
 
@@ -2806,6 +3242,123 @@ body.living .st-seg#stFaces{display:none}
     </p>
   </div>
 
+</div>
+<div class="unit ts1" data-instrument="ts1">
+  <div data-face class="plate">
+    <div class="model">TS·1 — transition synth</div>
+    <div class="screws"><i class="screw"></i><i class="screw"></i></div>
+  </div>
+
+  <!-- What it is about to do, and when. A transition is armed long before it is heard, so
+       the panel's main job between the press and the landing is to say that it is coming. -->
+  <div data-face class="card">
+    <div class="card-title">Next transition</div>
+    <div class="ts-read">
+      <span class="ts-shape" id="tsShape">Rise</span>
+      <span class="ts-len" id="tsLen">2 bars</span>
+    </div>
+    <!-- no id: the countdown bar is found by class. It carried id="tsFill" and so did the
+         drum-fill selector below, and since this one comes first every $("#tsFill") in the
+         panel resolved to THIS element — an <i> with no buttons in it — so the fill could
+         never be chosen. -->
+    <div class="ts-meter"><i class="ts-fill"></i></div>
+    <div class="card-meta" id="tsWhen">Idle — arm it and it lands on the next boundary</div>
+  </div>
+
+  <div data-face class="transport">
+    <button class="btn primary" id="arm">Arm</button>
+    <button class="btn ghost" id="fire" title="Land on the very next boundary, whatever it costs the run-up">Now</button>
+    <button class="btn panic" id="panic">Panic</button>
+  </div>
+
+  <div data-face class="sect">
+    <div class="sect-head"><span class="silk">Transition</span></div>
+    <div class="patrow">
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Length</span>
+        <div class="seg sm" id="tsBars" role="group" aria-label="Run-up length in bars">
+          <button data-b="1">1</button>
+          <button data-b="2" class="on">2</button>
+          <button data-b="4">4</button>
+          <button data-b="8">8</button>
+        </div>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Shape</span>
+        <div class="seg sm" id="tsShapeSeg" role="group" aria-label="Direction">
+          <button data-s="rise" class="on">Rise</button>
+          <button data-s="fall">Fall</button>
+        </div>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Character</span>
+        <div class="seg sm" id="tsChar" role="group" aria-label="What it is made of">
+          <button data-c="air" class="on">Air</button>
+          <button data-c="siren">Siren</button>
+          <button data-c="roll">Roll</button>
+        </div>
+      </div>
+      <!-- A fill and a riser are the same gesture: both are a run-up that lands on the
+           boundary. So the fill is chosen here and armed by the same button, rather than
+           being a second thing to remember to fire. The SOUNDS are DR·1's — see
+           shell/kit.js for why this does not grow its own drums. -->
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Drum fill</span>
+        <div class="seg sm" id="tsFill" role="group" aria-label="Drum fill over the run-up">
+          <button data-f="off" class="on">Off</button>
+          <button data-f="roll">Roll</button>
+          <button data-f="toms">Toms</button>
+          <button data-f="build">Build</button>
+        </div>
+      </div>
+      <!-- Ten of each family. A select rather than more buttons: forty segments across a
+           performance panel is not a choice you can make quickly, which is the only kind
+           this instrument is for. -->
+      <div class="field" style="flex:0 0 130px">
+        <label for="tsVariant">Which</label>
+        <select id="tsVariant"></select>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Carry</span>
+        <div class="seg sm" id="tsCarry" role="group" aria-label="How far the sweep spills past the landing">
+          <button data-k="0" class="on">Cut</button>
+          <button data-k="0.5">½</button>
+          <button data-k="1">1</button>
+          <button data-k="2">2</button>
+        </div>
+      </div>
+      <div class="field" style="flex:0 0 auto">
+        <span class="silk">Impact</span>
+        <div class="seg sm" id="tsImpact" role="group" aria-label="Hit on the landing">
+          <button data-i="on" class="on">On</button>
+          <button data-i="off">Off</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="knobrow">
+      <div class="hfader" id="depthF">
+        <span class="hlab">Depth</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+      <div class="hfader" id="spaceF">
+        <span class="hlab">Space</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+      <div class="hfader" id="fxF">
+        <span class="hlab">FX</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+      <div class="hfader" id="fillLvlF">
+        <span class="hlab">Fill</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span>
+      </div>
+    </div>
+
+    <p data-face class="note">Arming waits for the next boundary <b>far enough away</b> to give the
+      run-up its full length — a 4-bar riser armed half a bar early lands on the boundary after,
+      not on a half-bar sweep. <b>Now</b> overrides that and takes the very next one.
+      <b>Shape</b> steers the fill as well as the sweep, so a Rise runs the toms upward.
+      <b>Carry</b> lets the sweep hang over into the next part instead of cutting on the
+      downbeat &mdash; and the reverb goes with it, so <b>Cut</b> gates the tail off on the
+      boundary the way an 80s room does.</p>
+  </div>
 </div>
 </div>
 
@@ -2927,7 +3480,11 @@ Patchwork.audio = (() => {
 "use strict";
 
 let ctx = null, master = null;
-const strips = new Map();
+const strips = new Map();   // id -> {in, out}
+const levels = new Map();   // id -> fader gain, remembered even before the strip exists
+const mutes = new Set();    // ids held silent
+const solos = new Set();    // ids held audible — while any exist, everything else is not
+const applied = new Map();  // id -> the gain last written to the node, to ramp from
 
 function context(){
   if (!ctx){
@@ -2940,18 +3497,122 @@ function context(){
 }
 
 /* Where an instrument sends its output instead of ctx.destination. One per instrument,
-   so a mixer — or a solo button — has something to hold on to later. */
+   so a mixer — or a solo button — has something to hold on to later. Later is now.
+
+   TWO NODES, not one. `in` is where the instrument plays and where every tap listens;
+   `out` carries the fader on its way to master. What that buys is the answer to a question
+   a one-node strip cannot even ask:
+
+   ⚠️ TAPS ARE PRE-FADER. Your mix changes what YOU hear and nothing else — not what the
+   looper prints, not what the vocoder is modulated by. Post-fader is the other defensible
+   answer and it is the one to avoid here, because a take gets PUSHED: pull the drums down
+   for yourself, record the studio output, and you would hand the room a loop with quiet
+   drums in it and no way to know why. Worse with per-instrument sources, where your own
+   mix would silently rewrite a take of somebody ELSE's instrument. A monitor balance is
+   not supposed to leave your headphones. */
 function strip(id){
   context();
   if (!strips.has(id)){
-    const g = ctx.createGain();
-    g.gain.value = 1;
-    g.connect(master);
-    strips.set(id, g);
+    const into = ctx.createGain(), out = ctx.createGain();
+    into.gain.value = 1;
+    out.gain.value = gainFor(id);
+    applied.set(id, out.gain.value);
+    into.connect(out);
+    out.connect(master);
+    strips.set(id, {in: into, out});
     taps.forEach(wireTap);          // an instrument built after a tap still reaches it
   }
-  return strips.get(id);
+  return strips.get(id).in;
 }
+
+/* ---- the mix ----
+   One gain per instrument, and NOTHING here is shared with a jam. That is the whole point
+   of it rather than an omission: everybody renders the same patterns through their own
+   speakers, in their own room, and the balance that works in one is not the balance that
+   works in another. Patterns and patches are shared because they are the MUSIC; a mix is
+   how you happen to be listening to it.
+
+   ⚠️ Which is also why it must never be registered with session.registerPatch(). That
+   would poll it, notice it differed from the last thing sent, and push your balance to
+   everyone — the failure being that it works perfectly alone and only goes wrong with
+   somebody else in the room.
+
+   Levels are kept here as well as on the node, so the mixer can be set before the
+   instrument has ever made a sound. A strip is not built until its instrument first plays,
+   and a fader that silently did nothing until then would be the kind of bug you blame on
+   the audio rather than on the order things happened in. */
+/* ⚠️ ANSWERED FROM THE MAP, NEVER FROM THE NODE. `gain.value` looks like the obvious
+   source of truth and is not one: it reports the value from the last render quantum in
+   which that node was PROCESSED, and Chrome does not process a branch with nothing
+   flowing through it. So a strip whose instrument is not currently sounding reports
+   whatever its gain happened to be when it last made a noise, no matter what has been set
+   since — the automation underneath is perfectly correct and the readback is a ghost.
+
+   It cost a real diagnosis: one fader read 0.5 while its audio measurably ran at 0.2, and
+   only that instrument, because only that one had gone quiet. What made it convincing was
+   that every other fader was right — the ones still playing. The mixer's model is this
+   map; the AudioParam is what the map does to the sound. */
+function level(id){
+  return levels.has(id) ? levels.get(id) : 1;
+}
+
+/* ---- mute and solo ----
+   Standard mixer rules, and worth writing down because "obvious" here is only obvious once
+   you have used a mixer: a mute silences that one strip; a solo silences everything that is
+   NOT soloed, and several can be soloed at once. Mute wins over solo, so soloing a track you
+   have muted leaves it silent rather than quietly un-muting it behind your back.
+
+   ⚠️ They live on the SAME node as the fader, which puts them post-tap like it — your mute
+   changes what you hear and not what the looper prints or what the vocoder is modulated by.
+   A mute that silenced a take being recorded would be the worst kind of surprise: you would
+   not find out until you played the loop back. */
+function gainFor(id){
+  if (mutes.has(id)) return 0;
+  if (solos.size && !solos.has(id)) return 0;
+  return levels.has(id) ? levels.get(id) : 1;
+}
+/* Ramped, not assigned: a gain that jumps clicks, and a fader drag is a jump per frame.
+   Cancel first, and ramp from the value we KNOW we last wrote rather than from gain.value —
+   which reports the last RENDERED value and is a ghost on a strip that has gone quiet. Plus
+   setTargetAtTime approaches forever and never clears, so a dragged fader would pile an
+   event per frame onto a timeline nothing ever empties. */
+function applyGain(id){
+  const s = strips.get(id);
+  const g = gainFor(id);
+  if (!s || !ctx){ applied.set(id, g); return g; }
+  const from = applied.has(id) ? applied.get(id) : 1;
+  const t = ctx.currentTime, p = s.out.gain;
+  p.cancelScheduledValues(t);
+  p.setValueAtTime(from, t);
+  p.linearRampToValueAtTime(g, t + .02);
+  applied.set(id, g);
+  return g;
+}
+function setLevel(id, v){
+  const g = Math.max(0, Math.min(1, +v || 0));
+  levels.set(id, g);
+  applyGain(id);
+  return g;
+}
+function setMute(id, on){
+  if (on) mutes.add(id); else mutes.delete(id);
+  applyGain(id);
+  return mutes.has(id);
+}
+/* ⚠️ Every strip, not just this one. Soloing a track changes what you hear from all the
+   others, and that is the entire point of the control — repainting only the one you clicked
+   is the bug that makes solo look like it does nothing. */
+function setSolo(id, on){
+  if (on) solos.add(id); else solos.delete(id);
+  const ids = new Set([...strips.keys(), ...levels.keys(), ...mutes, ...solos]);
+  ids.forEach(applyGain);
+  return solos.has(id);
+}
+function muted(id){ return mutes.has(id); }
+function soloed(id){ return solos.has(id); }
+/* what a strip is actually doing, once the fader, the mute and everyone else's solo have
+   had their say — the number the meter would show, as opposed to where the fader is */
+function audible(id){ return gainFor(id); }
 
 /* A sum of every instrument's strip EXCEPT one — what the looper records when you point
    it at the studio rather than a microphone.
@@ -2961,23 +3622,68 @@ function strip(id){
    until it clips. Taps are kept and re-wired when a new strip appears, because an
    instrument can be built after the tap was made. */
 const taps = [];
-/* `exclude` is one id or several. The looper needs two — its own strip and the metronome's
-   — because a click on the bus would be printed into every take. */
+/* `exclude` is one id or several. The looper needs three — its own strip, the metronome's
+   and the talkback's — because a click or a voice on the bus would be printed into every
+   take from then on. */
 function tap(exclude){
+  return makeTap({exclude: [].concat(exclude || [])});
+}
+
+/* The other direction: a sum of ONLY the named strips.
+
+   Same machinery, opposite question. "Everything except me" is what you want when you are
+   capturing the band; "just this one" is what you want when you are capturing a part — the
+   drums to loop under a bass line, say — and the difference between them is a whole
+   feature rather than a knob, because a take with the whole studio printed into it can
+   never be separated again afterwards.
+
+   ⚠️ Point this at a strip, never AT the strip itself. Handing out `strips.get(id)` would
+   be one node fewer and would work perfectly until the caller released it: disconnect()
+   with no argument drops every outgoing connection, so releasing that input would also cut
+   the instrument off from master and silence it with nothing to say why. */
+function tapOnly(include){
+  return makeTap({only: [].concat(include || [])});
+}
+
+function makeTap(spec){
   context();
   const g = ctx.createGain();
   g.gain.value = 1;
-  const t = {node: g, exclude: [].concat(exclude || []), wired: new Set()};
+  const t = Object.assign({node: g, wired: new Set()}, spec);
   taps.push(t);
   wireTap(t);
   return g;
 }
 function wireTap(t){
-  strips.forEach((strip, id) => {
-    if (t.exclude.indexOf(id) >= 0 || t.wired.has(id)) return;
-    strip.connect(t.node);
+  strips.forEach((s, id) => {
+    if (t.wired.has(id)) return;
+    if (t.only ? t.only.indexOf(id) < 0 : t.exclude.indexOf(id) >= 0) return;
+    s.in.connect(t.node);            // .in, not .out — see the pre-fader warning above
     t.wired.add(id);
   });
+}
+
+/* ⚠️ A TAP HAS TO BE RELEASED, not merely disconnected downstream.
+
+   Every strip holds a connection INTO the tap, and `taps` holds the tap so that an
+   instrument built later still reaches it. Dropping only the tap's own output leaves both:
+   the node is inaudible, so nothing sounds wrong, and it quietly stays wired to every
+   strip on the page forever — plus each new strip joins it. One abandoned tap per input
+   change was survivable when the only source was the whole studio and you chose it once.
+   Choosing between six instruments makes changing source a normal gesture, so the graph
+   has to come apart as cleanly as it went together.
+
+   Safe to call on anything: a node that is not a tap is simply not one, and says so. */
+function untap(node){
+  const i = taps.findIndex(t => t.node === node);
+  if (i < 0) return false;
+  const t = taps.splice(i, 1)[0];
+  t.wired.forEach(id => {
+    const s = strips.get(id);
+    if (s) try{ s.in.disconnect(t.node); }catch(e){}
+  });
+  try{ t.node.disconnect(); }catch(e){}
+  return true;
 }
 
 /* iOS parks the context in "suspended" until a gesture and in "interrupted" after a
@@ -2992,10 +3698,13 @@ function resume(){
   return ctx.state;
 }
 
-return {context, strip, resume, tap,
+return {context, strip, resume, tap, tapOnly, untap, level, setLevel,
+        setMute, setSolo, muted, soloed, audible,
+        get anySolo(){ return solos.size > 0; },
         get ctx(){ return ctx; },
         get master(){ return master; },
-        get strips(){ return new Map(strips); }};
+        /* the input nodes, which is what a strip has always meant to a caller */
+        get strips(){ return new Map([...strips].map(([id, s]) => [id, s.in])); }};
 })();
 
 /* One clock for the page.
@@ -3043,7 +3752,24 @@ function claim(quantumBeats){
     origin = shared;
   }
   const q = Math.max(1e-6, quantumBeats * beatSeconds());
-  return origin + Math.ceil((soon - origin) / q) * q;
+  /* ⚠️ A HAIR PAST A BOUNDARY IS STILL THAT BOUNDARY.
+
+     Without this window, one row press could start two instruments a bar apart. The first
+     to start finds nothing running, sets origin to now and returns it; the second calls in
+     a few milliseconds later — the cost of the first one's own start — sees itself just
+     past the line that was only defined for it, and Math.ceil rounds a hair up to a whole
+     quantum. Measured at 5.3 ms between the two claims and exactly one bar between the
+     sounds, which is the shape of the bug: silent, tempo-correct, and only when more than
+     one instrument starts at once.
+
+     It also covers the human case it looks like it covers — pressing a row a few ms after
+     the downbeat means you were aiming at that downbeat, not the next one.
+
+     A time slightly in the past is safe: every caller schedules against it through a 200 ms
+     lookahead, so it lands a few ms early rather than a bar late. Clamped against q so a
+     small quantum can never be swallowed whole. */
+  const window = Math.min(.05, q * .25);
+  return origin + Math.ceil((soon - origin - window) / q) * q;
 }
 
 /* Where a shared grid comes from — see shell/session.js. Returns null when playing alone,
@@ -3295,7 +4021,9 @@ Patchwork.midi = (() => {
 "use strict";
 
 let accessPromise = null, access = null, port = null;
-const subs = [];                 // {id, onMidi, onPort}
+const subs = [];                 // {id, onMidi, onPort, spec}
+const watchers = [];             // UI that wants to know when any of this changed
+function notify(){ watchers.forEach(fn => { try{ fn(); }catch(e){} }); }
 
 /* One requestMIDIAccess for the page — two calls mean two permission paths and two
    onstatechange owners racing to rebuild the same port lists. */
@@ -3318,16 +4046,87 @@ function open(){
 
 function ports(kind){ return access ? Array.from(access[kind].values()) : []; }
 
-function fanout(e){
+function deliver(s, e){
   /* A handler that throws must not stop the message reaching the other instruments. */
-  subs.forEach(s => { try{ s.onMidi(e); }catch(err){ console.error("midi handler failed", err); } });
+  try{ s.onMidi(e); }catch(err){ console.error("midi handler failed", err); }
+}
+
+/* ---- play whatever panel you are looking at ----
+   Channels are the right model when a controller has several parts on it and you have set
+   the rig up once. They are the wrong model for one keyboard and six instruments, where
+   the question is always "play THIS one" and the answer was a trip into a panel to change
+   a number. Follow mode makes clicking a panel the whole gesture — the same click that
+   already hands it the computer keyboard.
+
+   ⚠️ THE CHANNEL IS REWRITTEN, not bypassed. Every instrument filters by channel on its
+   own way in and that filter is not moving — the router has never had opinions about
+   channels and should not grow them. So a message aimed at the focused instrument is
+   re-stamped with the channel that instrument is listening on, and its own filter passes
+   it for its own reasons. An instrument on Omni needs no rewrite and gets none. */
+let follow = false;
+
+/* ⚠️ A NOTE-OFF GOES WHERE ITS NOTE-ON WENT, focus or no focus. Hold a note, click another
+   panel, let go: without this the note-off lands on the newly focused instrument and the
+   first one sustains that note until a panic. host.js has exactly this problem with the
+   computer keyboard and exactly this answer — a keyup is routed to whichever panel took
+   its keydown. Held notes are the thing a focus change is most likely to interrupt, so
+   this is the common case rather than the corner. */
+const heldBy = new Map();        // "channel:note" -> the id that took the note-on
+
+function focusedId(){
+  const r = Patchwork.focused;
+  return r && r.dataset ? r.dataset.instrument : null;
+}
+function retarget(s, d){
+  const want = s.spec && s.spec.inCh ? s.spec.inCh.get() : -1;
+  if (want == null || want < 0) return {data: d};    // Omni: nothing to re-stamp
+  const out = Uint8Array.from(d);
+  out[0] = (d[0] & 0xF0) | (want & 0x0F);
+  return {data: out};
+}
+
+function fanout(e){
+  const d = e.data;
+  if (!follow || !d || !d.length){ subs.forEach(s => deliver(s, e)); return; }
+  const st = d[0];
+  /* Realtime carries no channel and belongs to everyone — CS·1 follows the clock, and a
+     transport that only reached the panel you happened to be looking at would be a bug
+     nobody would think to describe as a MIDI routing problem. */
+  if (st >= 0xF0){ subs.forEach(s => deliver(s, e)); return; }
+  const type = st & 0xF0, ch = st & 0x0F;
+  /* All-notes-off and all-sound-off reach everything. A panic that only works on the panel
+     you are looking at is not a panic. */
+  if (type === 0xB0 && (d[1] === 120 || d[1] === 123)){
+    subs.forEach(s => deliver(s, e)); return;
+  }
+
+  const key = ch + ":" + d[1];
+  let id = null;
+  if (type === 0x80 || (type === 0x90 && d[2] === 0)){
+    id = heldBy.get(key) || null;
+    heldBy.delete(key);
+  }
+  if (!id) id = focusedId();
+  const s = subs.find(x => x.id === id);
+  if (!s) return;                                   // focus is on something that takes no MIDI
+  if (type === 0x90 && d[2] > 0) heldBy.set(key, s.id);
+  deliver(s, retarget(s, d));
 }
 
 /* Register an instrument. onMidi gets every message — filter by channel yourself.
    onPort is called when the page's input changes, including when the OTHER panel
    changed it, so a selector and an LED can follow. */
-function route(id, onMidi, onPort){
-  subs.push({id, onMidi, onPort: onPort || function(){}});
+/* `spec` is how an instrument says which channels it answers on, so ONE place can show
+   them all and set them. It is an adapter rather than a field because every instrument
+   keeps this somewhere different and calls it something different — bs1 and vc1 have
+   MIDI.inCh, dr1 has inCh and ch, cs1 has both under other names again, and pm1's input
+   channel is called synCh for reasons that date to MS·1. Asking each to expose a getter
+   and a setter costs one object and means the shell never has to know any of that.
+
+     {name, inCh:{get,set}, outCh:{get,set}}   — every part optional */
+function route(id, onMidi, onPort, spec){
+  subs.push({id, onMidi, onPort: onPort || function(){}, spec: spec || null});
+  notify();
 }
 
 function select(portId){
@@ -3335,10 +4134,27 @@ function select(portId){
   port = portId ? (ports("inputs").find(p => p.id === portId) || null) : null;
   if (port) port.onmidimessage = fanout;
   subs.forEach(s => { try{ s.onPort(port); }catch(e){} });
+  notify();
   return port;
 }
 
-return {open, ports, route, select,
+/* Everything registered, in the order it registered, for a page that wants to show the
+   whole rig's channels in one place. */
+function list(){
+  return subs.filter(s => s.spec).map(s => ({id: s.id, name: (s.spec.name || s.id), spec: s.spec}));
+}
+function setFollow(on){
+  follow = !!on;
+  /* ⚠️ Notes held across the switch would never be released by the rule that is now in
+     force, so let go of everything first. Silence is recoverable; a stuck note is not. */
+  heldBy.clear();
+  subs.forEach(s => { try{ if (s.spec && s.spec.panic) s.spec.panic(); }catch(e){} });
+  notify();
+}
+
+return {open, ports, route, select, list, setFollow,
+        onChange: fn => watchers.push(fn),
+        get follow(){ return follow; },
         get access(){ return access; },
         get port(){ return port; }};
 })();
@@ -3662,6 +4478,275 @@ return {register, store, storeAll, clear, fire, take, onChange, playing, start,
            just moved one says so — the same signal record.changed() is. */
         changed: notify,
         has(row, id){ return !!(rows[row] && rows[row].cells[id]); }};
+})();
+/* The chords on the page, for whoever wants to play along.
+
+   CS·1 generates a progression and then plays it alone. Everything else in the rack — the
+   bass, the poly synth, the vocoder — starts from an empty grid you fill by hand, in a key
+   nothing tells you. That is a lot of typing to arrive at the notes already on screen.
+
+   So one instrument PROVIDES chords and any number of instruments READ them. Deliberately
+   not "CS·1 drives the rack": nothing here plays anything or changes anybody's pattern.
+   A reader asks what the chords are, when it is asked to, and writes its own notes — which
+   is why the button lives on the instrument being filled rather than on CS·1.
+
+   ⚠️ POLLED, NOT PUSHED, and for the reason session.js already gives about patches: the
+   progression is set in three different places today — generated, loaded from a patch,
+   applied from a scene — and the fourth one added later is the one nobody remembers to
+   hook. One snapshot compared against the last catches every way it can change, including
+   the ways added after this was written.
+
+   The provider hands back RESOLVED notes, not chord symbols. Voicing a chord is CS·1's
+   theory and belongs in CS·1; a reader that had to know what "♭VII" meant would be a
+   second implementation of the part of this app most worth having only once. */
+Patchwork.chords = (() => {
+"use strict";
+
+let read = null;                 // the provider's snapshot function
+let cur = null;                  // the last progression seen
+let sig = null;                  // its signature, for spotting a change
+const subs = [];
+
+function notify(){ subs.forEach(fn => { try{ fn(cur); }catch(e){} }); }
+
+/* One provider. A page with two instruments claiming to own the chords has a question
+   nobody has asked yet, and answering it now would be inventing the problem. */
+function provide(fn){ read = fn; poll(); }
+
+function poll(){
+  if (!read) return;
+  let next = null;
+  try{ next = read(); }catch(e){ next = null; }
+  const s = next ? JSON.stringify(next) : null;
+  if (s === sig) return;
+  sig = s; cur = next;
+  notify();
+}
+setInterval(poll, 500);
+
+/* ---- which chord a step belongs to ----
+   The progression is divided evenly across the pattern, whatever the rate or length: four
+   chords over sixteen steps is four steps each, and the same four over a 12-step pattern
+   is three each. Bars would be the musical answer and are the wrong one here — a reader's
+   pattern length has nothing to do with how long CS·1 holds a chord, and a mapping that
+   ran off the end of the grid would drop the last chords silently. Even division means the
+   whole progression is always in the pattern, which is what the button is for. */
+function at(i, len){
+  if (!cur || !cur.chords || !cur.chords.length || !len) return null;
+  const n = cur.chords.length;
+  const k = Math.min(n - 1, Math.floor((i % len) * n / len));
+  return cur.chords[k];
+}
+/* True on the first step of each chord — where a reader puts the thing that lands. */
+function starts(i, len){
+  if (!cur || !cur.chords || !cur.chords.length || !len) return false;
+  const n = cur.chords.length;
+  return Math.floor((i % len) * n / len) !== Math.floor((((i % len) - 1 + len) % len) * n / len)
+      || (i % len) === 0;
+}
+
+return {provide, at, starts, poll,
+        onChange: fn => { subs.push(fn); if (cur) { try{ fn(cur); }catch(e){} } },
+        get current(){ return cur; },
+        get ready(){ return !!(cur && cur.chords && cur.chords.length); }};
+})();
+/* The drum kit on the page, for whoever wants to hit it.
+
+   TS·1 plays fills. It has no drums, and giving it some would put a second kit on the page
+   that sounds nothing like the first — you would tune DR·1 and the fills would stay where
+   they were, which is the kind of wrong that is hard to even describe once you are hearing
+   it. So the same arrangement chords use: one instrument PROVIDES a kit, and anyone else
+   asks it to hit something at a given time.
+
+   Deliberately a scheduling API and not a note API. A fill is written as "these hits, at
+   these audio times", which is what makes it land on the seam sample-accurately; anything
+   routed through a note-now call would arrive whenever the timer happened to fire. */
+Patchwork.kit = (() => {
+"use strict";
+
+let provider = null;
+const subs = [];
+function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
+
+/* `spec` is {name, voices:[ids], hit(id, when, vel, opts)} — `when` in the audio clock's
+   time, `vel` 0..1. The provider keeps every opinion about what a kick sounds like.
+
+   `opts` is {tune, decay} as RATIOS of however that voice is currently set, and it is what
+   lets a caller play a descending tom run on a kit with two toms in it. Ratios rather than
+   values on purpose: a fill asking for "a fifth below this tom" still works after you have
+   retuned the tom, where a fill asking for 92 Hz would quietly stop matching the kit. */
+function provide(spec){ provider = spec || null; notify(); }
+
+function hit(id, when, vel, opts){
+  if (!provider || !provider.hit) return false;
+  try{ provider.hit(id, when, vel == null ? 1 : vel, opts || null); return true; }
+  catch(e){ return false; }
+}
+function has(id){ return !!(provider && provider.voices && provider.voices.indexOf(id) >= 0); }
+
+/* What a voice is currently tuned to, in Hz, or null if the provider will not say.
+
+   A caller wanting a run of pitches needs this: ratios alone are not comparable ACROSS two
+   voices, so a fill computing "×0.8 on the high tom then ×1.1 on the low" has no idea
+   whether that second hit is above or below the first. With the base pitches it can aim at
+   real frequencies and work the ratios back out — and it keeps following the kit when you
+   retune it, which is why this is asked for rather than assumed. */
+function tuneOf(id){
+  if (!provider || !provider.tuneOf) return null;
+  try{ const v = provider.tuneOf(id); return (typeof v === "number" && v > 0) ? v : null; }
+  catch(e){ return null; }
+}
+
+return {provide, hit, has, tuneOf,
+        onChange: fn => { subs.push(fn); },
+        get ready(){ return !!(provider && provider.hit); },
+        get name(){ return provider ? provider.name : null; },
+        get voices(){ return provider && provider.voices ? provider.voices.slice() : []; }};
+})();
+/* Saved sounds, for any instrument that wants them.
+
+   CS·1 and PM·1 each grew their own patch browser, and the two are the same list, the same
+   name box, the same four buttons and the same localStorage dance written twice. DR·1, BS·1
+   and VC·1 need one too, and a third and fourth copy is the point at which duplication
+   stops being a shortcut — so this is the implementation those three share.
+
+   ⚠️ IT DOES NOT DEFINE WHAT A SOUND IS. Every instrument already answers that for a jam,
+   through session.registerPatch(), and the answer must not be given twice: a patch that
+   saved a slightly different set of parameters from the one a jam shares would be a bug
+   nobody could see until two people compared what they were hearing. So an instrument hands
+   the SAME object to both, and the two cannot drift.
+
+     const SOUND = {capture: () => ..., apply: p => ...};
+     Patchwork.session.registerPatch("bs1", SOUND);
+     Patchwork.patches.mount(root, "bs1", SOUND);
+
+   CS·1 keeps its own. Its patches carry a progression, a MIDI program number and a trigger
+   note, and folding all of that in here to save a list box would make this the thing it is
+   replacing. */
+Patchwork.patches = (() => {
+"use strict";
+
+function mount(root, id, spec){
+  if (!root || !spec || !spec.capture || !spec.apply) return null;
+  const $ = s => root.querySelector(s);
+  const sel = $("#patchSel"), nameEl = $("#patchName"), note = $("#patchNote"),
+        file = $("#patchFile");
+  if (!sel || !nameEl) return null;                 // this panel has no patch row
+
+  const KEY = "patchwork-" + id + "-patches";
+  const APP = "patchwork-" + id;
+
+  function say(msg, bad){
+    if (!note) return;
+    note.style.display = msg ? "" : "none";
+    note.innerHTML = msg || "";
+    note.classList.toggle("bad", !!bad);
+  }
+  function load(){
+    try{ return JSON.parse(localStorage.getItem(KEY)) || {}; }catch(e){ return {}; }
+  }
+  function store(o){
+    try{ localStorage.setItem(KEY, JSON.stringify(o)); return true; }
+    catch(e){ say("Couldn't save — browser storage is full or blocked.", true); return false; }
+  }
+  function refresh(selected){
+    const s = load(), names = Object.keys(s).sort((a, b) => a.localeCompare(b));
+    sel.textContent = "";
+    sel.appendChild(Object.assign(document.createElement("option"),
+      {value: "", textContent: names.length ? "— select —" : "— none saved —"}));
+    names.forEach(n => sel.appendChild(Object.assign(document.createElement("option"),
+      {value: n, textContent: n})));
+    sel.value = selected && s[selected] ? selected : "";
+    return names;
+  }
+
+  sel.addEventListener("change", () => {
+    const name = sel.value;
+    if (!name) return;
+    const p = load()[name];
+    if (!p){ say("That patch is gone.", true); refresh(); return; }
+    try{ spec.apply(p.sound); }catch(e){ say("Couldn't load that patch.", true); return; }
+    nameEl.value = name;
+    say("Loaded <b>" + name + "</b>.");
+  });
+
+  /* Save takes the NAME BOX, not the selection: typing a new name over a loaded patch and
+     pressing Save is how you make a variant, and it is what everybody tries first. */
+  const saveBtn = $("#patchSave");
+  if (saveBtn) saveBtn.addEventListener("click", () => {
+    const name = (nameEl.value || "").trim() || (sel.value || "").trim();
+    if (!name){ say("Give it a name first.", true); nameEl.focus(); return; }
+    const s = load();
+    const existed = !!s[name];
+    s[name] = {app: APP, v: 1, name, sound: spec.capture()};
+    if (!store(s)) return;
+    refresh(name);
+    nameEl.value = name;
+    say((existed ? "Replaced <b>" : "Saved <b>") + name + "</b>.");
+  });
+
+  const delBtn = $("#patchDelete");
+  if (delBtn) delBtn.addEventListener("click", () => {
+    const name = sel.value;
+    if (!name){ say("Pick a saved patch to delete.", true); return; }
+    const s = load();
+    delete s[name];
+    if (!store(s)) return;
+    refresh();
+    say("Deleted <b>" + name + "</b>.");
+  });
+
+  const expBtn = $("#patchExport");
+  if (expBtn) expBtn.addEventListener("click", () => {
+    const name = (nameEl.value || sel.value || id + "-patch").trim();
+    const data = {app: APP, v: 1, name, sound: spec.capture()};
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name.replace(/[^\w\-. ]+/g, "_") + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    /* revoked late: revoking immediately races the download in some browsers */
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    say("Exported <b>" + a.download + "</b>.");
+  });
+
+  const impBtn = $("#patchImport");
+  if (impBtn && file){
+    impBtn.addEventListener("click", () => file.click());
+    file.addEventListener("change", () => {
+      const f = file.files && file.files[0];
+      file.value = "";                    // so re-picking the same file fires again
+      if (!f) return;
+      const rd = new FileReader();
+      rd.onerror = () => say("Couldn't read that file.", true);
+      rd.onload = () => {
+        let data;
+        try{ data = JSON.parse(rd.result); }
+        catch(e){ say("That file isn't valid JSON.", true); return; }
+        /* ⚠️ Checked, because a PM·1 patch loaded into BS·1 would apply a handful of keys
+           that happened to match and silently leave the rest — a sound that is neither
+           patch and no message saying so. */
+        if (!data || data.app !== APP){
+          say("That is a patch for <b>" + ((data && data.app) || "something else")
+            + "</b>, not " + APP + ".", true);
+          return;
+        }
+        try{ spec.apply(data.sound); }
+        catch(err){ say("Couldn't apply that patch.", true); return; }
+        if (data.name) nameEl.value = data.name;
+        say("Imported <b>" + (data.name || f.name)
+          + "</b>. Press Save to keep it in this browser.");
+      };
+      rd.readAsText(f);
+    });
+  }
+
+  refresh();
+  return {refresh};
+}
+
+return {mount};
 })();
 
 /* Live faces.
@@ -5643,6 +6728,60 @@ el.addEventListener("pointerdown", e => {
 render();
 return {render, paint};
 };
+
+/* ---- the Clear locks button ----
+   ⚠️ IT ONLY EVER CLEARED THE SELECTED STEP, and said "Clear locks", which reads as all of
+   them. Lock three steps, press it, and two locks stay lit — the button looks broken when
+   it is doing exactly what it was built to do. Worse, with a step selected that holds no
+   locks it did nothing at all, which is indistinguishable from a dead control.
+
+   So the button names its own scope and refuses to be a no-op: it reads "Clear step"
+   normally and "Clear all (3)" while Shift is held, and it is disabled precisely when
+   pressing it would change nothing. The count is the part that matters — it is what tells
+   you locks exist somewhere else, which is the thing you could not see before.
+
+   Three instruments grew the same button and BS·1, VC·1 and PM·1 had three copies of the
+   same mistake between them, so this is the one implementation. PM·1 keeps its own
+   sequencer rather than this module's, which is why the state arrives through an adapter
+   instead of a `seq`. */
+Patchwork.mountClearLocks = function(btn, o){
+"use strict";
+if (!btn || !o) return {paint(){}};
+const held = st => !!(st && st.locks && Object.keys(st.locks).length);
+const count = () => o.steps().filter(held).length;
+const here = () => held(o.steps()[o.sel()]);
+let shift = false;
+
+function paint(){
+  const n = count(), mine = here();
+  btn.textContent = shift ? (n > 1 ? "Clear all (" + n + ")" : "Clear all") : "Clear step";
+  btn.disabled = shift ? n === 0 : !mine;
+  btn.title = n === 0
+    ? "No parameter locks to clear."
+    : shift
+      ? "Clear the locks on every step."
+      : mine
+        ? "Clear this step's locks. Hold Shift to clear all " + n + "."
+        : "This step has no locks. Hold Shift to clear all " + n + ".";
+}
+
+btn.addEventListener("click", e => {
+  /* read the modifier from the event, not from `shift` — a keyboard Enter on a focused
+     button carries its own shiftKey and never fired the keydown we track */
+  o.clear(!!e.shiftKey);
+  if (o.repaint) o.repaint();
+  paint();
+});
+/* Tracked on the window because the label has to change while the pointer is nowhere near
+   the button — that is the whole point of it. */
+addEventListener("keydown", e => { if (e.key === "Shift" && !shift){ shift = true; paint(); } });
+addEventListener("keyup", e => { if (e.key === "Shift" && shift){ shift = false; paint(); } });
+/* a window that loses focus with Shift down never sends the keyup */
+addEventListener("blur", () => { if (shift){ shift = false; paint(); } });
+
+paint();
+return {paint};
+};
 /* DR·1 is built into whatever panel the page gives it, exactly as CS·1 and MS·1 are.
    Standalone that panel is the only thing on the page; in the studio build it is one of
    three. The code below cannot tell the difference, which is the point. */
@@ -5943,7 +7082,9 @@ function fire(id, t, vel){
 const SEQ = {
   len: 16, rate: "1/16", swing: .5, playing: false,
   accentAmt: .35,          // how much louder an accented step is
-  lane: "bd"               // which lane the grid is showing for editing
+  lane: "bd",              // which lane the voice faders are editing
+  mode: "play",            // play | program — see the locks below
+  sel: 0                   // the step a lock is written to, in program mode
 };
 
 /* steps[voice][i] = 0 off, 1 on, 2 on+accent. A flat integer per step rather than an
@@ -5951,6 +7092,65 @@ const SEQ = {
 const steps = {};
 const MAX_STEPS = 64;
 ORDER.forEach(k => { steps[k] = new Array(MAX_STEPS).fill(0); });
+
+/* ---- parameter locks ----
+   A hit can carry its own tune, tone, decay or level, in force only while that step is
+   being scheduled. It is what turns eight voices into a kit that can move: a tom line that
+   walks down in pitch, a hat that opens on the offbeat, a kick that drops a fifth on the
+   last step of the bar — none of which are reachable when a lane has exactly one sound.
+
+   ⚠️ KEPT BESIDE `steps`, NOT INSIDE IT. The comment on `steps` is right and still holds:
+   it is a flat integer per step because there are hundreds of them and only three states.
+   Locks are rare — a handful of steps in a pattern ever carry one — so a sparse map costs
+   nothing for the steps that have none and leaves the hot path reading plain integers.
+
+     locks[voiceId][stepIndex] = {tune?, tone?, decay?, level?} */
+const locks = {};
+const LOCKABLE = ["tune", "tone", "decay", "level"];
+
+function lockAt(id, i){
+  const L = locks[id];
+  return (L && L[i]) || null;
+}
+function lockCount(id){
+  const L = locks[id];
+  return L ? Object.keys(L).length : 0;
+}
+/* In program mode, moving a voice fader IS the lock gesture — no separate arm step. The
+   same rule BS·1, VC·1 and PM·1 use, so one habit works across the whole rack. */
+function lock(param){
+  if (SEQ.mode !== "program" || LOCKABLE.indexOf(param) < 0) return false;
+  const id = SEQ.lane, i = SEQ.sel;
+  const L = locks[id] || (locks[id] = {});
+  (L[i] || (L[i] = {}))[param] = P[id][param];
+  return true;
+}
+function unlock(param){
+  const L = locks[SEQ.lane], st = L && L[SEQ.sel];
+  if (!st || !Object.prototype.hasOwnProperty.call(st, param)) return false;
+  delete st[param];
+  if (!Object.keys(st).length) delete L[SEQ.sel];
+  return true;
+}
+function isLocked(param, i){
+  const st = lockAt(SEQ.lane, i == null ? SEQ.sel : i);
+  return !!(st && Object.prototype.hasOwnProperty.call(st, param));
+}
+function clearLocks(all){
+  if (all) delete locks[SEQ.lane];
+  else if (locks[SEQ.lane]) delete locks[SEQ.lane][SEQ.sel];
+}
+/* ⚠️ Restored in a finally. A throw mid-step would otherwise leave the voice stuck on one
+   step's settings for good, which reads as the kit breaking rather than the sequencer.
+   Lifted from PM·1's withLocks(), including this note — fire() reads P[id] when it is
+   called, so swapping the values around the call is all it takes. */
+function withLocks(id, i, fn){
+  const L = lockAt(id, i);
+  if (!L) return fn();
+  const p = P[id], saved = {};
+  for (const k in L){ saved[k] = p[k]; p[k] = L[k]; }
+  try { return fn(); } finally { for (const k in saved) p[k] = saved[k]; }
+}
 
 const RATES = {"1/8": 2, "1/8t": 3, "1/16": 4, "1/16t": 6, "1/32": 8};
 
@@ -5987,7 +7187,7 @@ function scheduleStep(idx, t){
   ORDER.forEach(id => {
     const ev = stepEvent(id, i, t);
     if (!ev) return;
-    fire(ev.id, ev.t, ev.vel);
+    withLocks(id, i, () => fire(ev.id, ev.t, ev.vel));
     sendHit(ev);
   });
   return i;
@@ -6045,6 +7245,12 @@ function stopPlay(){
 
 const playBtn = $("#play"), tempoOut = $("#tempoOut"), lanesEl = $("#lanes");
 const clampf = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/* Which element owns each lockable parameter, so a lock can be shown on the control that
+   wrote it — the yellow label BS·1 and PM·1 both use. */
+const faderReg = {};
+/* assigned further down; declared here so an early paint cannot hit a temporal dead zone */
+let clearLocksBtn = null;
 
 /* ---- the lane grid ---- */
 function buildLanes(){
@@ -6125,11 +7331,19 @@ lanesEl.addEventListener("click", e => {
   const pad = e.target.closest(".pad");
   if (!pad) return;
   const id = pad.dataset.v, i = +pad.dataset.i;
-  steps[id][i] = (steps[id][i] + 1) % 3;
-  SEQ.lane = id;
+  /* Program mode: the click chooses which hit the faders will write a lock onto, and
+     leaves the pattern alone. Play mode keeps the three-state cycle that IS this
+     instrument's grammar — off, on, accent — untouched. */
+  if (SEQ.mode === "program"){
+    SEQ.lane = id; SEQ.sel = i;
+  } else {
+    steps[id][i] = (steps[id][i] + 1) % 3;
+    SEQ.lane = id;
+  }
   $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === id));
   syncVoice();
   paintPads();
+  paintLocks();
 });
 
 function flashLane(id){
@@ -6166,9 +7380,14 @@ const faderCtl = {};
    selected — a kick tuned to a hat's 40 Hz fundamental is inaudible, and a hat at a
    kick's 48 Hz is a buzz. One fader serving eight voices needs the range to move with
    the selection rather than being remapped after the fact. */
-function makeFader(sel, get, set, fmt, min, max){
+/* `param` is the key in P[lane] this fader owns. It is what a parameter lock is keyed on,
+   and the reason a fader has to say which one it is rather than just how to set it — the
+   same argument BS·1's fader() makes. Faders with no param (swing, accent) are the
+   pattern's, not a voice's, and cannot be locked. */
+function makeFader(sel, get, set, fmt, min, max, param){
   const el = $(sel), slot = el.querySelector(".hslot"), cap = el.querySelector(".hcap"),
         val = el.querySelector(".hval");
+  if (param) faderReg[param] = el;
   const lo = () => (typeof min === "function" ? min() : min);
   const hi = () => (typeof max === "function" ? max() : max);
   function paintF(){
@@ -6184,6 +7403,9 @@ function makeFader(sel, get, set, fmt, min, max){
       const a = lo(), b = hi();
       set(a + x * (b - a));
       paintF();
+      /* In program mode moving a control IS the lock gesture — no separate arm step, the
+         same as the other three sequencers. */
+      if (param && lock(param)) paintLocks();
     };
     move(e);
     el.classList.add("dragging");
@@ -6211,6 +7433,7 @@ const cur = () => P[SEQ.lane];
 
 function syncVoice(){
   const v = VOICES[SEQ.lane];
+  if (typeof paintLocks === "function") paintLocks();
   $("#voiceTag").textContent = v.name;
   $("#voiceMeta").textContent = v.full;
   ["#tuneF", "#toneF", "#decayF", "#levelF"].forEach(k => faderCtl[k] && faderCtl[k]());
@@ -6218,17 +7441,65 @@ function syncVoice(){
 
 makeFader("#tuneF",  () => cur().tune,  v => { cur().tune = v; },
           v => (v < 100 ? v.toFixed(1) : Math.round(v)) + " Hz",
-          () => TUNE_RANGE[SEQ.lane][0], () => TUNE_RANGE[SEQ.lane][1]);
+          () => TUNE_RANGE[SEQ.lane][0], () => TUNE_RANGE[SEQ.lane][1], "tune");
 makeFader("#toneF",  () => cur().tone,  v => { cur().tone = v; },
-          v => Math.round(v * 100) + "%", 0, 1);
+          v => Math.round(v * 100) + "%", 0, 1, "tone");
 makeFader("#decayF", () => cur().decay, v => { cur().decay = v; },
-          v => (v * 1000).toFixed(0) + " ms", .02, 1.2);
+          v => (v * 1000).toFixed(0) + " ms", .02, 1.2, "decay");
 makeFader("#levelF", () => cur().level, v => { cur().level = v; },
-          v => Math.round(v * 100) + "%", 0, 1);
+          v => Math.round(v * 100) + "%", 0, 1, "level");
 makeFader("#swingF",  () => SEQ.swing,     v => { SEQ.swing = v; },
           v => Math.round(v * 100) + "%", .5, .75);
 makeFader("#accentF", () => SEQ.accentAmt, v => { SEQ.accentAmt = v; },
           v => Math.round(v * 100) + "%", 0, .8);
+
+/* ---- program mode and parameter locks ---- */
+const seqModeEl = $("#seqMode"), lockHintEl = $("#lockHint");
+seqModeEl.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  SEQ.mode = b.dataset.p;
+  $$("#seqMode button").forEach(x => x.classList.toggle("on", x.dataset.p === SEQ.mode));
+  paintPads();
+  paintLocks();
+});
+/* Double-click unlocks BEFORE it would reset anything: otherwise there is no way to take a
+   lock off a control without also losing the voice setting underneath it. PM·1's rule. */
+["tune", "tone", "decay", "level"].forEach(param => {
+  const el = faderReg[param];
+  if (el) el.addEventListener("dblclick", () => {
+    if (SEQ.mode === "program" && unlock(param)) paintLocks();
+  });
+});
+
+function paintLocks(){
+  const program = SEQ.mode === "program";
+  ["tune", "tone", "decay", "level"].forEach(param => {
+    const el = faderReg[param];
+    if (el) el.classList.toggle("locked", program && isLocked(param));
+  });
+  $$(".pad").forEach(b => {
+    const id = b.dataset.v, i = +b.dataset.i;
+    b.classList.toggle("lock", !!lockAt(id, i));
+    b.classList.toggle("sel", program && id === SEQ.lane && i === SEQ.sel);
+  });
+  if (lockHintEl){
+    const n = lockCount(SEQ.lane);
+    lockHintEl.textContent = !program
+      ? (n ? n + " locked step" + (n === 1 ? "" : "s") + " on " + SEQ.lane.toUpperCase() : "")
+      : "step " + (SEQ.sel + 1) + " of " + SEQ.lane.toUpperCase()
+        + " — move a voice fader to lock it";
+  }
+  if (clearLocksBtn) clearLocksBtn.paint();
+}
+
+/* One implementation of this button across the rack — see seq/step-seq.js. DR·1 keeps its
+   locks per LANE, so the button is about the lane whose voice the faders are editing. */
+clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
+  steps: () => Array.from({length: SEQ.len}, (_, i) => ({locks: lockAt(SEQ.lane, i)})),
+  sel: () => SEQ.sel,
+  clear: all => clearLocks(all),
+  repaint: () => { paintPads(); paintLocks(); }
+});
 
 /* ---- transport and pattern controls ---- */
 playBtn.addEventListener("click", () => SEQ.playing ? stopPlay() : startPlay());
@@ -6278,7 +7549,11 @@ syncVoice();
 /* ---- the kit, for a shared jam ----
    Eight voices of four numbers. Not the pattern — that is the scene's — and not the trims,
    which are measured constants rather than anything you dial. */
-Patchwork.session.registerPatch("dr1", {
+/* ⚠️ ONE definition of this instrument's sound, handed to both the jam and the
+   patch store. Written twice they would drift, and the symptom would be a saved
+   patch that recalls slightly less than a jam shares — invisible until two people
+   compare what they are hearing. */
+const SOUND = {
   capture: () => {
     const out = {};
     ORDER.forEach(id => {
@@ -6297,7 +7572,10 @@ Patchwork.session.registerPatch("dr1", {
     });
     syncVoice();
   }
-});
+};
+Patchwork.session.registerPatch("dr1", SOUND);
+Patchwork.patches.mount(root, "dr1", SOUND);
+
 
 /* ---- somebody else's hits ----
    A lane id rather than a note number, because that is what DR·1's keyboard sends. A drum
@@ -6428,7 +7706,16 @@ function initMidi(){
     say("Web MIDI needs a secure context — serve over <code>localhost</code>.", true);
     return;
   }
-  Patchwork.midi.route("dr1", onMidi, pt => { fillPorts(); followInput(pt); bindOutput(); describe(); });
+  /* What this instrument answers on, so the studio can show the whole rig's channels in
+     one place. The setters keep this panel's own selects in step: the two views are the
+     same setting and must never disagree about it. */
+  Patchwork.midi.route("dr1", onMidi, pt => { fillPorts(); followInput(pt); bindOutput(); describe(); }, {
+    name: "DR\u00b71", panic: midiPanic,
+    inCh:  {get: () => MIDI.inCh,
+            set: c => { MIDI.inCh = c; midiInChSel.value = String(c); describe(); }},
+    outCh: {get: () => MIDI.ch,
+            set: c => { MIDI.ch = c; midiChSel.value = String(c); }}
+  });
   Patchwork.midi.open().then(a => {
     MIDI.access = a;
     fillPorts();
@@ -6529,10 +7816,17 @@ Patchwork.scenes.register("dr1", {
   isPlaying: () => SEQ.playing,
   start: () => { ensureAudio(); if (!SEQ.playing) startPlay(); },
   stop: () => { if (SEQ.playing) stopPlay(); },
+  /* locks ride with the pattern, because they ARE part of it — a tom line that walks down
+     is not the same pattern without the tuning that makes it walk */
   capture: () => ({steps: JSON.parse(JSON.stringify(steps)),
+                   locks: JSON.parse(JSON.stringify(locks)),
                    len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing, accentAmt: SEQ.accentAmt}),
   apply: pat => {
     ORDER.forEach(k => { if (pat.steps && pat.steps[k]) steps[k] = pat.steps[k].slice(); });
+    /* replaced wholesale, not merged: a scene that carries no lock for a step means that
+       step has none, and merging would leave the last row's locks haunting this one */
+    Object.keys(locks).forEach(k => delete locks[k]);
+    if (pat.locks) Object.keys(pat.locks).forEach(k => { locks[k] = JSON.parse(JSON.stringify(pat.locks[k])); });
     if (pat.len) SEQ.len = pat.len;
     if (pat.rate) SEQ.rate = pat.rate;
     if (pat.swing != null) SEQ.swing = pat.swing;
@@ -6566,8 +7860,33 @@ Patchwork.record.register("dr1", {
 initMidi();
 
 /* A test hook, not a feature — the same one CS·1 and MS·1 carry. */
+/* ---- the kit, for whoever wants to hit it ----
+   TS·1 plays fills and has no drums of its own; this is how it borrows these. Scheduling,
+   not notes: a fill is a set of hits at exact audio times, which is what lets it land on
+   the seam. See shell/kit.js. */
+Patchwork.kit.provide({
+  name: "DR·1",
+  voices: ORDER.slice(),
+  tuneOf: id => (P[id] ? P[id].tune : null),
+  /* ⚠️ Swapped around the call and restored in a finally — fire() reads P[id] when it is
+     called, exactly as withLocks() relies on. A throw here would otherwise leave a tom
+     permanently retuned by a fill that never finished. */
+  hit: (id, when, vel, opts) => {
+    ensureAudio();
+    if (!opts || (!opts.tune && !opts.decay)) return fire(id, when, vel);
+    const p = P[id], tune = p.tune, decay = p.decay;
+    if (opts.tune)  p.tune  = tune  * opts.tune;
+    if (opts.decay) p.decay = decay * opts.decay;
+    try { return fire(id, when, vel); }
+    finally { p.tune = tune; p.decay = decay; }
+  }
+});
+
 window.__dr1 = {P, SEQ, steps, ORDER, VOICES, TRIM, BALANCE, TARGET_BD,
                 fire, renderHit, measure, ensureAudio, MIDI, onMidi,
+                /* the locks and the swap that applies them, so a step's overrides can be
+                   asked about rather than listened for */
+                locks, lockAt, withLocks, lockCount,
                 get ctx(){ return ctx; }};
 });
 /* BS·1 — the bass, as its own instrument. Was a section inside MS·1; see the handoff for
@@ -7057,6 +8376,9 @@ function paintLocked(){
     const f = faderReg[id];
     if (f && f.el) f.el.classList.toggle("locked", seq.SEQ.mode === "program" && seq.isLocked(id));
   });
+  /* here rather than in paintSeqEdit: this is what the grid calls when the selection moves,
+     and both the button's label and whether it is disabled depend on the selected step */
+  if (clearLocksBtn) clearLocksBtn.paint();
 }
 function paintSeqEdit(){
   const program = seq.SEQ.mode === "program";
@@ -7078,9 +8400,14 @@ $("#seqLane").addEventListener("click", e => {
   seq.SEQ.lane = b.dataset.l;
   paintSeqEdit();
 });
-$("#clearLocks").addEventListener("click", e => {
-  seq.clearLocks(e.shiftKey);
-  paintSeqEdit();
+/* declared before it is assigned: a paint can run while this file is still being
+   evaluated, and a `const` in its temporal dead zone throws on any access at all */
+let clearLocksBtn = null;
+clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
+  steps: () => seq.steps,
+  sel: () => seq.SEQ.sel,
+  clear: all => seq.clearLocks(all),
+  repaint: () => paintSeqEdit()
 });
 paintSeqEdit();
 
@@ -7105,13 +8432,20 @@ function refreshAllControls(){
   setOct(P.oct);
   applyLive();
 }
-Patchwork.session.registerPatch("bs1", {
+/* ⚠️ ONE definition of this instrument's sound, handed to both the jam and the
+   patch store. Written twice they would drift, and the symptom would be a saved
+   patch that recalls slightly less than a jam shares — invisible until two people
+   compare what they are hearing. */
+const SOUND = {
   capture: () => Object.assign({}, P),
   apply: src => {
     Object.keys(DEFAULT).forEach(k => { if (src && src[k] !== undefined) P[k] = src[k]; });
     refreshAllControls();
   }
-});
+};
+Patchwork.session.registerPatch("bs1", SOUND);
+Patchwork.patches.mount(root, "bs1", SOUND);
+
 
 /* ---- somebody else's notes ----
    The same noteOn/noteOff a person here uses. Nothing is special about a remote note once
@@ -7120,6 +8454,50 @@ Patchwork.session.registerVoice("bs1", {
   on: (n, v) => { ensureAudio(); noteOn(n, v); paintNow(); },
   off: n => { noteOff(n); paintNow(); }
 });
+
+/* ---- groove from the chords on the page ----
+   A bass line is the one part whose notes are almost entirely decided by the progression,
+   which is what makes filling it by hand feel like transcription. Roots on the beat, an
+   octave lead-in on the last step before the chord changes — the most ordinary bass line
+   there is, and deliberately so: this is a starting point to play against and edit, not a
+   composition. Everything it writes is a normal step you can move afterwards.
+
+   ⚠️ It writes the whole pattern, including the rests. A generator that only turned steps
+   ON would leave whatever was there before showing through, and the result would be
+   neither the old line nor the new one. */
+(() => {
+"use strict";
+const btn = $("#grooveBtn");
+if (!btn || !window.Patchwork || !Patchwork.chords) return;
+
+function paintGroove(){
+  const ok = Patchwork.chords.ready;
+  btn.disabled = !ok;
+  btn.title = ok
+    ? "Fill this sequence from CS·1's progression — roots on the beat, octave into each change"
+    : "No chords on this page yet. CS·1 makes a progression; this plays along with it.";
+}
+btn.addEventListener("click", () => {
+  const C = Patchwork.chords;
+  if (!C.ready) return;
+  const len = seq.SEQ.len, per = Math.max(1, Math.round(len / C.current.chords.length));
+  for (let i = 0; i < len; i++){
+    const st = seq.steps[i];
+    const ch = C.at(i, len);
+    st.on = 0; st.tie = 0; st.slide = 0; st.accent = 0;
+    if (!ch) continue;
+    const first = C.starts(i, len);
+    const last  = C.starts((i + 1) % len, len);      // the step before the next chord
+    if (first){ seq.setStepNote(i, ch.bass, 110); }
+    else if (last && per > 2){ seq.setStepNote(i, ch.bass + 12, 80); st.slide = 1; }
+    else if (per > 3 && (i % Math.max(2, Math.round(per / 2))) === 0) seq.setStepNote(i, ch.bass, 80);
+  }
+  paintSeqEdit();
+  grid.render();
+});
+Patchwork.chords.onChange(paintGroove);
+paintGroove();
+})();
 
 /* ============ midi ============ */
 /* Its own input channel, which is what splitting MS·1 buys: the bass used to share one
@@ -7187,7 +8565,14 @@ function initMidi(){
   if (!window.isSecureContext){
     say("Web MIDI needs a secure context — serve over <code>localhost</code>.", true); return;
   }
-  Patchwork.midi.route("bs1", onMidi, pt => { fillPorts(); followInput(pt); describe(); });
+  /* What this instrument answers on, so the studio can show the whole rig's channels in
+     one place. The setters keep this panel's own selects in step: the two views are the
+     same setting and must never disagree about it. */
+  Patchwork.midi.route("bs1", onMidi, pt => { fillPorts(); followInput(pt); describe(); }, {
+    name: "BS\u00b71", panic: midiPanic,
+    inCh: {get: () => MIDI.inCh,
+           set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
+  });
   Patchwork.midi.open().then(a => {
     MIDI.access = a; fillPorts();
     const ins = ports("inputs");
@@ -9430,8 +10815,18 @@ function initMidi(){
       + "rather than opening it with <code>file://</code>.", true);
     return;
   }
+  /* What this instrument answers on, so the studio can show the whole rig's channels in
+     one place. The setters keep this panel's own selects in step: the two views are the
+     same setting and must never disagree about it. */
   Patchwork.midi.route("cs1", onMidi, pt => {
     fillPorts(); followInput(pt); bindOutput(); describe();
+  }, {
+    name: "CS\u00b71", panic: midiPanic,
+    inCh:  {get: () => MIDI.inCh,
+            set: c => { MIDI.inCh = c; midiInChSel.value = String(c);
+                        allPadsOff(); saveMap(); describe(); }},
+    outCh: {get: () => MIDI.ch,
+            set: c => { midiPanic(); MIDI.ch = c; midiChSel.value = String(c); }}
   });
   Patchwork.midi.open().then(a => {
     MIDI.access = a;
@@ -9930,6 +11325,27 @@ Patchwork.record.register("cs1", {name: "CS\u00b71"});
 /* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input
    path can be driven and asserted on without hardware, which is how the channel filter
    above was verified. */
+/* ---- what the rest of the rack can play along to ----
+   Resolved notes, not chord symbols: voicing is this instrument's theory and stays here.
+   Read on a poll rather than pushed, because state.prog is set from three places already —
+   see shell/chords.js. */
+Patchwork.chords.provide(() => {
+  const p = state.prog;
+  if (!p || !p.chords || !p.chords.length) return null;
+  let prev = null;
+  return {
+    key: state.keyPc, minor: !!p.minor, mood: p.mood,
+    chords: p.chords.map(ch => {
+      const v = voiceChord(ch, state.keyPc, prev);
+      prev = v.center;
+      return {name: chordName(ch, state.keyPc, !!p.minor),
+              roman: romanName(ch),
+              bass: bassNote(ch, state.keyPc),
+              notes: v.notes.slice()};
+    })
+  };
+});
+
 window.__cs1 = {MIDI, onMidi, state, P, renderChord, VOICES,
                 get held(){ return held; }, get litPads(){ return litPads; },
                 get ctx(){ return ctx; }, get active(){ return active; }, ensureAudio};
@@ -11148,7 +12564,17 @@ function noteOn(midi, vel, when, forceSec){
     /* In program mode a played note WRITES to the selected step rather than starting
        anything. You still hear it, because you are choosing a pitch by ear. */
     const st = SEQ.steps[SEQ.sel];
-    if (st){ writeStep(st, m); paintSteps(); }
+    if (st){
+      /* ⚠️ THE WHOLE HELD CHORD, not just the note that arrived. This is the gesture the
+         panel documents — click a step, then play it — and it ran once per note-on, each
+         one overwriting the last, so a triad left the third note and nothing else. Reading
+         the held set instead means holding a chord writes a chord and playing one note
+         writes one note, with no mode to arm and nothing new to learn. */
+      const ns = heldNotes.map(h => h.midi).sort((a, b) => a - b);
+      if (ns.length) writeStep(st, ns[0], ns.slice(1).map(x => x - ns[0]));
+      else writeStep(st, m);
+      paintSteps();
+    }
   } else if (SEQ.motion !== "off" && !SEQ.playing && heldNotes.length === 1){
     SEQ.autoStart = true;
     startPlay();
@@ -11266,12 +12692,25 @@ const S = (on,p,o,g,a,sl,ti) => ({on, pitch:p, oct:o, gate:g, accent:a, slide:sl
 /* Turn a played note into a step. The distance from the root is split across `oct` and
    `pitch` rather than crammed into pitch alone — pitch is only +-24, so forcing oct to 0
    silently truncated anything more than two octaves up (G4 over a C2 root recorded as C4). */
-function writeStep(st, midi){
+/* ⚠️ `extra` is the REST OF A CHORD, in semitones above the step's own note — and it is
+   semitones rather than scale degrees on purpose. A step's root is stored as a degree so
+   that changing key re-reads the pattern instead of destroying it; the notes stacked on top
+   of it are a VOICING, and a voicing that re-spelled itself when you changed key would give
+   you a different chord than the one you played. So the root moves with the key and the
+   shape on top of it does not.
+
+   Absent rather than empty when there is no chord: every step written before this existed
+   has no `add` at all, and the whole path below has to read those as the single notes they
+   are. */
+function writeStep(st, midi, extra){
   const rel = clampf(Math.round(midi - SEQ.root), -48, 48);
   const oct = clampf(Math.trunc(rel/12), -2, 2);
   st.oct = oct;
   st.pitch = rel - 12*oct;
   st.on = 1; st.tie = 0;
+  const ivs = (extra || []).map(n => Math.round(n)).filter(n => n > 0 && n <= 48);
+  if (ivs.length) st.add = [...new Set(ivs)].sort((a, b) => a - b).slice(0, 5);
+  else delete st.add;
 }
 /* A C-minor acid line, so accent, tie and slide are all audible on the first Play without
    the player having to build a pattern to hear what the buttons do. */
@@ -11352,6 +12791,15 @@ function stepNote(st, atRest){
   const shift = atRest ? 0 : seqShift(keyPc, sc);
   return clampf(fromDegree(toDegree(base, keyPc, sc) + shift, keyPc, sc), 0, 127);
 }
+/* The step's note, and anything stacked on it. One note stays one note — see writeStep. */
+function stepNotes(st, atRest){
+  const root = stepNote(st, atRest);
+  if (!st.add || !st.add.length) return [root];
+  const out = [root];
+  st.add.forEach(iv => { const n = clampf(root + iv, 0, 127); if (out.indexOf(n) < 0) out.push(n); });
+  return out;
+}
+
 const beatSeconds = () => 60 / (SEQ.bpmExact || SEQ.bpm);
 const stepSeconds = () => beatSeconds() / (RATES[SEQ.rate] || 4);
 /* Swing as the share of each step PAIR given to the first note: .5 straight, .667 triplet,
@@ -11371,6 +12819,9 @@ function stepEvent(i, t){
   const dur = Math.max(.02, gap * span * (st.slide ? 1 : clampf(st.gate, .05, 1)));
   return {
     n: stepNote(st),
+    /* `n` stays the root and stays first, so every existing consumer — slide, glide, the
+       roll, MIDI out's note choice — keeps reading exactly what it read before. */
+    ns: stepNotes(st),
     t: at,
     d: dur,
     vel: clampf(Math.round(SEQ.vel * (st.accent ? 1 + SEQ.accentAmt*.45 : 1)), 1, 127),
@@ -11428,12 +12879,42 @@ function seqFire(ev, slideIn, holdOn){
   } else {
     curVoice.retrigger(ev.t, ev.n, ev.vel, 0);
   }
+  /* ⚠️ THE ROOT KEEPS THE MONO PATH, exactly as it was. Slide, glide and retrigger all
+     hang off `curVoice` and all of them are about ONE line moving — a chord that joined
+     that machinery would have to answer what it means to slide a triad into a dyad, which
+     is a question this sequencer should not be asked. The notes stacked on top are plain
+     voices: struck with the root, released with it, and never slid. */
+  fireExtras(ev, holdOn);
   if (!holdOn){
     const v = curVoice;
     v.release(ev.t + ev.d);
     curVoice = null;          // the next event builds a fresh voice, as it should
   }
-  if (MIDI.noteOut) sendNote(ev.n, ev.t, ev.d, ev.vel);
+  if (MIDI.noteOut) (ev.ns || [ev.n]).forEach(n => sendNote(n, ev.t, ev.d, ev.vel));
+}
+
+/* The chord above the root. Held separately from curVoice because they are not part of the
+   line — releasing them on every fire is what stops a held chord smearing into the next
+   step when the pattern is not legato. */
+let seqExtras = [];
+function releaseExtras(t){
+  seqExtras.forEach(v => { try{ v.release(t); }catch(e){} });
+  seqExtras = [];
+}
+function fireExtras(ev, holdOn){
+  releaseExtras(ev.t);
+  const ns = ev.ns;
+  if (!ns || ns.length < 2) return;
+  for (let k = 1; k < ns.length; k++){
+    let v = null;
+    try{ v = buildVoice(ns[k], ev.vel, ev.t); }catch(e){ continue; }
+    if (!v) continue;
+    seqExtras.push(v);
+    if (!holdOn) v.release(ev.t + ev.d);
+  }
+  /* held voices stay in seqExtras so the next fire, the transport stopping and a panic can
+     all still find them */
+  if (!holdOn) seqExtras = [];
 }
 
 function scheduleStep(i, t){
@@ -11510,6 +12991,7 @@ function stopPlay(){
   Patchwork.clock.stop(tick); timer = null;
   const t = ctx ? ctx.currentTime : 0;
   if (curVoice){ curVoice.release(t); curVoice = null; }
+  releaseExtras(t);
   active.forEach(v => { try{ v.release(t); }catch(e){} });
   midiPanic();
   playBtn.classList.remove("on");
@@ -11993,12 +13475,17 @@ segPaint.voiceMode = seg("#voiceMode","m",
     else { P.mode = "uni"; P.uni = parseInt(v.slice(3),10); }
     paintMeta();
   });
-segPaint.motion = seg("#motion","m", () => SEQ.motion, v => {
+/* Named, because two things change the motion now: the segment and the Groove button. seg()
+   hands back a PAINTER and not a setter, so anything else wanting to move this had to
+   either duplicate these four lines or — as the first attempt at Groove did — call the
+   painter with an argument it ignores and silently change nothing. */
+function setMotion(v){
   SEQ.motion = v;
   renderRoll();
   if (SEQ.playing && v === "off") stopPlay();
   paintMeta();
-});
+}
+segPaint.motion = seg("#motion","m", () => SEQ.motion, setMotion);
 segPaint.seqMode = seg("#seqMode","p", () => SEQ.mode, v => {
   SEQ.mode = v;
   paintSteps(); paintLocks(); paintMeta();
@@ -12006,10 +13493,17 @@ segPaint.seqMode = seg("#seqMode","p", () => SEQ.mode, v => {
     ? "click a step, then play a note to write it — every knob you move locks to that step"
     : (LANE_HINT[SEQ.lane] || "");
 });
-$("#clearLocks").addEventListener("click", e => {
-  if (e.shiftKey){ SEQ.steps.forEach(st => { delete st.locks; }); }
-  else { const st = SEQ.steps[SEQ.sel]; if (st) delete st.locks; }
-  paintSteps(); paintLocks();
+/* declared before it is assigned: a paint can run while this file is still being
+   evaluated, and a `const` in its temporal dead zone throws on any access at all */
+let clearLocksBtn = null;
+clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
+  steps: () => SEQ.steps,
+  sel: () => SEQ.sel,
+  clear: all => {
+    if (all) SEQ.steps.forEach(st => { delete st.locks; });
+    else { const st = SEQ.steps[SEQ.sel]; if (st) delete st.locks; }
+  },
+  repaint: () => { paintSteps(); paintLocks(); }
 });
 segPaint.arpDir = seg("#arpDir","d", () => SEQ.dir, v => { SEQ.dir = v; renderRoll(); });
 segPaint.arpOct = seg("#arpOct","o", () => String(SEQ.octaves), v => { SEQ.octaves = +v; renderRoll(); });
@@ -12178,12 +13672,22 @@ function paintSteps(){
     b.classList.toggle("sel", SEQ.mode === "program" && +b.dataset.i === SEQ.sel);
     b.classList.toggle("lock", !!(st.locks && Object.keys(st.locks).length));
     /* the note it will play, quantised to the current key — a tie has no note of its own */
-    b.textContent = (!st.on || st.tie) ? "" : noteLabel(stepNote(st, true));
+    /* The root, and how many notes are stacked on it. Printing the whole chord does not
+       fit a step button at any pattern length worth using, and the root is the part you
+       read when you are scanning the line. */
+    const stack = (st.add && st.add.length) ? st.add.length + 1 : 1;
+    b.classList.toggle("chord", !!st.on && !st.tie && stack > 1);
+    b.textContent = (!st.on || st.tie) ? ""
+      : noteLabel(stepNote(st, true)) + (stack > 1 ? "\u00b7" + stack : "");
+    b.title = (!st.on || st.tie) ? "" : (stack > 1
+      ? stepNotes(st, true).map(noteLabel).join(" ")
+      : noteLabel(stepNote(st, true)));
   });
 }
 /* Highlight the knobs that are locked on the selected step, so a p-lock is something you
    can see rather than remember. */
 function paintLocks(){
+  if (clearLocksBtn) clearLocksBtn.paint();
   const st = SEQ.mode === "program" ? SEQ.steps[SEQ.sel] : null;
   const L = (st && st.locks) || {};
   Object.keys(ctlReg).forEach(id => {
@@ -12263,7 +13767,12 @@ seqWrap.addEventListener("pointerdown", e => {
     return;
   }
   if (heldNotes.length){
-    writeStep(st, heldNotes[heldNotes.length - 1].midi);
+    /* ⚠️ The WHOLE held chord, lowest note as the root. It used to take
+       heldNotes[heldNotes.length - 1] — the last key pressed — so holding a triad and
+       clicking a step recorded one note of it, and which one depended on the order your
+       fingers landed. Sorting means the same chord records the same way every time. */
+    const ns = heldNotes.map(h => h.midi).sort((a, b) => a - b);
+    writeStep(st, ns[0], ns.slice(1).map(m => m - ns[0]));
     paintSteps();
     return;
   }
@@ -12475,6 +13984,48 @@ Patchwork.keys.mount(root, {
   octave: d => setOctave(octave + d)
 });
 
+/* ---- groove from the chords on the page ----
+   PM·1 is the one that can play the progression as CHORDS rather than a line, now that a
+   step holds more than one note — so this writes CS·1's actual voicing onto the first step
+   of each chord and leaves the rest as rests. Stabs, not a pad: the notes are all there and
+   the gate, the envelope and a tie or two are what turn it into whatever you want.
+
+   ⚠️ It writes the whole pattern, rests included, or the line that was there before would
+   show through the gaps in the new one. */
+(() => {
+"use strict";
+const btn = $("#grooveBtn");
+if (!btn || !window.Patchwork || !Patchwork.chords) return;
+
+function paintGroove(){
+  const ok = Patchwork.chords.ready;
+  btn.disabled = !ok;
+  btn.title = ok
+    ? "Fill this sequence from CS·1's progression — the whole chord on each change"
+    : "No chords on this page yet. CS·1 makes a progression; this plays along with it.";
+}
+btn.addEventListener("click", () => {
+  const C = Patchwork.chords;
+  if (!C.ready) return;
+  const len = SEQ.len;
+  for (let i = 0; i < len; i++){
+    const st = SEQ.steps[i];
+    st.on = 0; st.tie = 0; st.slide = 0; st.accent = 0;
+    delete st.add;
+    const ch = C.at(i, len);
+    if (!ch || !C.starts(i, len)) continue;
+    const ns = (ch.notes && ch.notes.length ? ch.notes.slice() : [ch.bass]).sort((a, b) => a - b);
+    writeStep(st, ns[0], ns.slice(1).map(n => n - ns[0]));
+    st.accent = 1;
+  }
+  /* Seq is the motion this pattern is for — landing on a filled grid while the arp plays
+     something else would look like the button had done nothing. */
+  if (SEQ.motion !== "seq"){ setMotion("seq"); segPaint.motion(); }
+  paintSteps(); paintLocks(); paintMeta();
+});
+Patchwork.chords.onChange(paintGroove);
+paintGroove();
+})();
 /* ============ patches ============ */
 /* Deliberately still the MS·1 key. PM·1 is what MS·1 became once the vocoder and bass
    moved out, and renaming this would silently orphan every patch anyone had saved. */
@@ -13007,8 +14558,20 @@ function initMidi(){
       + "rather than opening it with <code>file://</code>.", true);
     return;
   }
+  /* What this instrument answers on, so the studio can show the whole rig's channels in
+     one place. The setters keep this panel's own selects in step: the two views are the
+     same setting and must never disagree about it. */
+  /* ⚠️ PM·1's input channel is called synCh, not inCh — MS·1 had three sections sharing one
+     instrument and each needed its own. The adapter is why the shell never has to know. */
   Patchwork.midi.route("pm1", onMidi, pt => {
     fillPorts(); followInput(pt); bindOutput(); describe();
+  }, {
+    name: "PM\u00b71", panic: midiPanic,
+    inCh:  {get: () => MIDI.synCh,
+            set: c => { MIDI.synCh = c; synChSel.value = String(c);
+                        allNotesOff(); paintRoute(); saveMap(); describe(); }},
+    outCh: {get: () => MIDI.ch,
+            set: c => { midiPanic(); MIDI.ch = c; midiChSel.value = String(c); }}
   });
   Patchwork.midi.open().then(a => {
     MIDI.access = a;
@@ -13305,6 +14868,9 @@ window.__pm1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
                 onMidi, routeFor, MIDI,
                 get held(){ return heldNotes; },
                 get poly(){ return polyVoices; }, MAX_POLY, chordName,
+                /* how you ask whether a step played a chord or a single note without
+                   having to listen to it — `active` is already below */
+                stepNotes,
                 get outNotes(){ return outNotes; },
                 applyParam, get ctlReg(){ return ctlReg; }, get master(){ return master; }, get bend(){ return {syn:bendSrc && bendSrc.offset.value}; },
                 get buses(){ return {pitchMod}; },
@@ -13832,6 +15398,9 @@ function paintLocked(){
     const f = faderReg[id];
     if (f && f.el) f.el.classList.toggle("locked", seq.SEQ.mode === "program" && seq.isLocked(id));
   });
+  /* here rather than in paintSeqEdit: this is what the grid calls when the selection moves,
+     and both the button's label and whether it is disabled depend on the selected step */
+  if (clearLocksBtn) clearLocksBtn.paint();
 }
 function paintSeqEdit(){
   const program = seq.SEQ.mode === "program";
@@ -13853,9 +15422,14 @@ $("#seqLane").addEventListener("click", e => {
   seq.SEQ.lane = b.dataset.l;
   paintSeqEdit();
 });
-$("#clearLocks").addEventListener("click", e => {
-  seq.clearLocks(e.shiftKey);
-  paintSeqEdit();
+/* declared before it is assigned: a paint can run while this file is still being
+   evaluated, and a `const` in its temporal dead zone throws on any access at all */
+let clearLocksBtn = null;
+clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
+  steps: () => seq.steps,
+  sel: () => seq.SEQ.sel,
+  clear: all => seq.clearLocks(all),
+  repaint: () => paintSeqEdit()
 });
 paintSeqEdit();
 
@@ -13874,7 +15448,11 @@ function refreshAllControls(){
   $$("#wave button").forEach(x => x.classList.toggle("on", x.dataset.w === P.wave));
   applyVocoder();
 }
-Patchwork.session.registerPatch("vc1", {
+/* ⚠️ ONE definition of this instrument's sound, handed to both the jam and the
+   patch store. Written twice they would drift, and the symptom would be a saved
+   patch that recalls slightly less than a jam shares — invisible until two people
+   compare what they are hearing. */
+const SOUND = {
   capture: () => {
     const out = Object.assign({}, P);
     /* the modulator input is a DEVICE on this machine and names nothing on another */
@@ -13888,13 +15466,60 @@ Patchwork.session.registerPatch("vc1", {
     });
     refreshAllControls();
   }
-});
+};
+Patchwork.session.registerPatch("vc1", SOUND);
+Patchwork.patches.mount(root, "vc1", SOUND);
+
 
 /* ---- somebody else's notes ---- see BS·1's. */
 Patchwork.session.registerVoice("vc1", {
   on: (n, v) => { ensureAudio(); noteOn(n, v); paintNow(); },
   off: n => { noteOff(n); paintNow(); }
 });
+
+/* ---- groove from the chords on the page ----
+   A vocoder wants long vowels, not a line: one note per chord, held through it with ties,
+   so the carrier sustains and whatever is speaking into the modulator does the moving. The
+   top note of CS·1's voicing rather than the root — it is the one that reads as a melody
+   when a voice is put through it.
+
+   ⚠️ It writes the whole pattern, rests included, or the previous line would show through
+   the gaps in the new one. */
+(() => {
+"use strict";
+const btn = $("#grooveBtn");
+if (!btn || !window.Patchwork || !Patchwork.chords) return;
+
+function paintGroove(){
+  const ok = Patchwork.chords.ready;
+  btn.disabled = !ok;
+  btn.title = ok
+    ? "Fill this sequence from CS·1's progression — one held note per chord"
+    : "No chords on this page yet. CS·1 makes a progression; this plays along with it.";
+}
+btn.addEventListener("click", () => {
+  const C = Patchwork.chords;
+  if (!C.ready) return;
+  const len = seq.SEQ.len;
+  for (let i = 0; i < len; i++){
+    const st = seq.steps[i];
+    const ch = C.at(i, len);
+    st.on = 0; st.tie = 0; st.slide = 0; st.accent = 0;
+    if (!ch) continue;
+    if (C.starts(i, len)){
+      const top = ch.notes && ch.notes.length ? ch.notes[ch.notes.length - 1] : ch.bass + 12;
+      seq.setStepNote(i, top, 100);
+    } else {
+      /* a tie extends the note before it rather than sounding — see stepEvent */
+      st.tie = 1;
+    }
+  }
+  paintSeqEdit();
+  grid.render();
+});
+Patchwork.chords.onChange(paintGroove);
+paintGroove();
+})();
 
 /* ============ midi ============ */
 /* Its own input channel, which is what splitting MS·1 buys: the bass used to share one
@@ -13962,7 +15587,14 @@ function initMidi(){
   if (!window.isSecureContext){
     say("Web MIDI needs a secure context — serve over <code>localhost</code>.", true); return;
   }
-  Patchwork.midi.route("vc1", onMidi, pt => { fillPorts(); followInput(pt); describe(); });
+  /* What this instrument answers on, so the studio can show the whole rig's channels in
+     one place. The setters keep this panel's own selects in step: the two views are the
+     same setting and must never disagree about it. */
+  Patchwork.midi.route("vc1", onMidi, pt => { fillPorts(); followInput(pt); describe(); }, {
+    name: "VC\u00b71", panic: midiPanic,
+    inCh: {get: () => MIDI.inCh,
+           set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
+  });
   Patchwork.midi.open().then(a => {
     MIDI.access = a; fillPorts();
     const ins = ports("inputs");
@@ -14288,8 +15920,13 @@ registerProcessor("pw-looper", LoopProcessor);
 let ctx = null, out = null, node = null, monitor = null, inGain = null,
     stream = null, src = null, ready = false;
 
-/* The sentinel for "the studio's own output" in the input list. */
+/* The sentinel for "the studio's own output" in the input list, and the prefix for one
+   instrument on its own — "__inst:dr1". Both are sources INSIDE the page rather than
+   devices, which is the distinction closeInput() cares about: there are no tracks to stop
+   and there is a tap to release. */
 const BUS = "__bus";
+const INST = "__inst:";
+const instOf = id => String(id || "").indexOf(INST) === 0 ? String(id).slice(INST.length) : null;
 
 const LP = {
   bars: 2,                  // loop length, in bars of the shell's grid
@@ -14451,16 +16088,25 @@ async function openInput(deviceId){
      useful of the two — capture the band, then overdub over it — and it needs no
      permission, no headphones and no feedback risk, because the tap excludes this
      instrument's own strip. */
-  if (deviceId === BUS){
+  const one = instOf(deviceId);
+  if (deviceId === BUS || one){
     closeInput();
-    /* the metronome's strip is excluded too — a click on the bus prints into every take */
-    /* the metronome's strip and the talkback's are excluded too — a click or a voice on
-       the bus would be printed into every take from then on */
-    src = Patchwork.audio.tap(["lp1", Patchwork.click.STRIP, Patchwork.talk.STRIP]);
+    /* ⚠️ ONE INSTRUMENT NEEDS NO EXCLUSIONS, and that is not an oversight. The bus tap has
+       to name three strips to leave out — this looper's, the metronome's and the
+       talkback's — because it takes everything and those three would be printed into every
+       take. Naming one strip is the exclusion: nothing else is in it. The only id that
+       could bite is "lp1", and the list never offers it. */
+    src = one
+      ? Patchwork.audio.tapOnly(one)
+      : Patchwork.audio.tap(["lp1", Patchwork.click.STRIP, Patchwork.talk.STRIP]);
     src.connect(inGain);
-    stream = BUS;                   // "an input is open", without a MediaStream
-    say("Recording the <b>studio output</b> — everything the other instruments play, but "
-      + "not this looper, so an overdub cannot record itself.");
+    /* "an input is open", without a MediaStream — true of both sources inside the page */
+    stream = BUS;
+    say(one
+      ? "Recording <b>" + inputLabel(deviceId) + "</b> on its own — that instrument only, so "
+        + "the rest of the studio stays out of the take and can be looped separately."
+      : "Recording the <b>studio output</b> — everything the other instruments play, but "
+        + "not this looper, so an overdub cannot record itself.");
     return true;
   }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
@@ -14488,7 +16134,14 @@ async function openInput(deviceId){
   }
 }
 function closeInput(){
-  if (src){ try{ src.disconnect(); }catch(e){} src = null; }
+  /* Release before disconnect: a tap is wired FROM every strip it listens to, and dropping
+     only its output would leave it attached to the graph for the life of the page. Harmless
+     on a microphone source, which is not a tap. */
+  if (src){
+    try{ Patchwork.audio.untap(src); }catch(e){}
+    try{ src.disconnect(); }catch(e){}
+    src = null;
+  }
   if (stream && stream !== BUS){
     stream.getTracks().forEach(t => { try{ t.stop(); }catch(e){} });
   }
@@ -14856,28 +16509,79 @@ const inSel = $("#inSel");
 inSel.addEventListener("change", () => { LP.input = inSel.value; if (stream) openInput(LP.input); });
 
 let devices = [];
+
+/* The instruments this page actually has, as the input list should name them.
+
+   ⚠️ LP·1 is filtered out, and it is the one entry that would break the feature rather
+   than merely be useless: pointing the looper at its own strip is the feedback path the
+   bus tap already names an exclusion to avoid, and it would build until it clips.
+
+   Taken from what has REGISTERED rather than from a list written here, so an instrument
+   added to a build appears without this file being told about it. */
+function pageInstruments(){
+  const S = window.Patchwork && Patchwork.scenes;
+  if (!S || !S.instruments) return [];
+  return S.instruments.filter(i => i.id !== "lp1" && i.name);
+}
+function instName(id){
+  const it = pageInstruments().find(i => i.id === id);
+  return it ? it.name : id;
+}
 function inputLabel(id){
-  if (id === "__bus") return "the studio output";
+  if (id === BUS) return "the studio output";
+  const one = instOf(id);
+  if (one) return instName(one);
   const d = devices.find(x => x.deviceId === id);
   return d && d.label ? d.label : (id ? "the selected input" : "the default input");
 }
+
+const option = (value, text) => Object.assign(document.createElement("option"),
+  {value, textContent: text});
+
+function buildInputs(){
+  /* ⚠️ Restored from LP.input, not from inSel.value. The old line only put back DEVICE
+     ids, so a rebuild — a headset appearing, say — silently dropped the selection back to
+     the first option. That was invisible while "the first option" and "the only internal
+     source" were the same thing, and stops being invisible the moment there are six. */
+  const keep = LP.input;
+  inSel.textContent = "";
+
+  const here = document.createElement("optgroup");
+  here.label = "From this page";
+  here.appendChild(option(BUS, "Studio output"));
+  pageInstruments().forEach(i => here.appendChild(option(INST + i.id, i.name + " only")));
+  inSel.appendChild(here);
+
+  /* Offered only when the browser has any, rather than listed and then apologised for on
+     the one path that cannot work. */
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+    const mics = document.createElement("optgroup");
+    mics.label = "Microphone";
+    mics.appendChild(option("", "Default microphone"));
+    devices.forEach((d, i) => mics.appendChild(
+      option(d.deviceId, d.label || ("Input " + (i + 1)))));
+    inSel.appendChild(mics);
+  }
+
+  if ([].some.call(inSel.options, o => o.value === keep)) inSel.value = keep;
+}
+
 async function listInputs(){
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-  try{
-    const devs = await navigator.mediaDevices.enumerateDevices();
-    devices = devs.filter(d => d.kind === "audioinput");
-    const keep = inSel.value;
-    inSel.textContent = "";
-    inSel.appendChild(Object.assign(document.createElement("option"),
-      {value:"__bus", textContent:"Studio output"}));
-    inSel.appendChild(Object.assign(document.createElement("option"),
-      {value:"", textContent:"Default microphone"}));
-    devices.forEach((d, i) => inSel.appendChild(Object.assign(document.createElement("option"),
-      {value:d.deviceId, textContent:d.label || ("Input " + (i + 1))})));
-    if (keep && devices.some(d => d.deviceId === keep)) inSel.value = keep;
-  }catch(e){}
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices){
+    try{
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      devices = devs.filter(d => d.kind === "audioinput");
+    }catch(e){}
+  }
+  buildInputs();
 }
 listInputs();
+/* ⚠️ Again once the page has finished assembling. The instrument options come from what
+   has registered, and this file happens to be built after every other instrument today —
+   but that is parts.txt's business, not this file's, and an instrument listed below LP·1
+   would otherwise be missing from the menu with nothing to explain why. A timeout of 0
+   runs after every synchronous script on the page, whatever the order turns out to be. */
+setTimeout(listInputs, 0);
 if (navigator.mediaDevices) navigator.mediaDevices.addEventListener("devicechange", listInputs);
 
 /* The loop's level and the click's are the same control twice, so it is written once. */
@@ -14958,6 +16662,696 @@ window.__lp1 = {LP, arm, play, fireSlot, selectSlot, hasSlot, clearSlot, stopLoo
                 ensureNode, allocate, loopFrames,
                 get ctx(){ return ctx; }, get node(){ return node; }};
 });
+/* TS·1 — the transition synth.
+
+   Every other instrument in this rack answers "what is playing?". This one answers "what
+   happens NEXT?" — the sweep, the riser and the drop that carry one part into another. It
+   is built around a landing rather than around notes, which is why it has no keyboard and
+   no pattern: a riser is defined by the moment it stops, and everything else about it is
+   consequence.
+
+   ⚠️ IT LANDS ON THE SEAM, like everything else here. You arm it; it works out the next
+   boundary of the length you chose, starts itself the right distance BEFORE that boundary,
+   and resolves exactly on it. That is the whole instrument, and it is the reason this can
+   be armed by a scene row, a MIDI note or another player in a jam without any of them
+   having to know how long a riser takes. */
+Patchwork.instrument("ts1", root => {
+"use strict";
+
+const $  = s => root.querySelector(s);
+const $$ = s => root.querySelectorAll(s);
+
+/* ============ engine ============ */
+const V = Patchwork.voice;
+const clampf = V.clampf;
+
+let ctx = null, out = null, noise = null, verb = null, verbGate = null;
+
+/* What a transition IS, in six numbers. Everything on the panel is one of these, and there
+   is deliberately nothing else: a transition synth with an oscillator page would be a
+   synthesiser you had to program before it could do its one job. */
+const TS = {
+  bars: 2,               // how long the run-up takes — 1, 2, 4 or 8
+  shape: "rise",         // rise | fall
+  character: "air",      // air | siren | roll
+  depth: .75,            // how far it travels
+  impact: true,          // a hit ON the landing
+  fill: "off",           // roll | toms | build | off — which family of fill
+  fillVariant: 0,        // which of that family's ten
+  /* ⚠️ How far the sweep spills PAST the landing, in bars. Zero is the original behaviour
+     and still the default, because a riser that decays through the boundary smears the
+     downbeat it exists to announce. Carry is the deliberate opposite of that: sometimes you
+     want the wash to hang over the first bar of the new part, and the point is that it is a
+     choice rather than the only option. */
+  carry: 0,
+  /* ⚠️ TWO levels, not one. The sweep is synthesised here and the fill is played on
+     somebody else's kit, so they arrive at wildly different levels depending on how DR·1
+     happens to be set — one fader for both meant every change to the drums put the balance
+     out, and the only way to fix it was to stop using one of them. */
+  fxLevel: .8,           // the sweep and its impact
+  fillLevel: .8,         // the drums
+  space: .45,            // reverb, and how hard it is gated — see buildVerb()
+  /* set while one is scheduled or sounding, and read by the panel, the scene launcher and
+     the session — the one piece of state anyone outside asks about */
+  armed: false,
+  landAt: 0,             // ctx time this transition resolves on
+  startAt: 0
+};
+
+function initAudio(useCtx){
+  if (ctx) return;
+  ctx = useCtx || Patchwork.audio.context();
+  out = useCtx ? ctx.destination : Patchwork.audio.strip("ts1");
+  noise = V.noiseBuffer(ctx, 2);
+  buildVerb();
+}
+
+/* ---- the space ----
+   ⚠️ GATED, and that is the whole reason it is built this way rather than as a send you set
+   and forget. The sound this instrument is for is a huge reverb that STOPS — 80s gated
+   toms, a riser whose tail is chopped off exactly on the downbeat. So the wet path has its
+   own gate AFTER the convolver, scheduled with the same landing envelope the dry sweep
+   gets: Cut chops the tail on the boundary, and Carry lets it wash over into the next part.
+   Gating the SEND instead would not work — the reverb goes on ringing from whatever already
+   went into it, which is the opposite of gated.
+
+   One convolver for the instrument, not one per transition: an impulse response is a couple
+   of hundred thousand samples to generate and transitions never overlap, so a shared node
+   the next transition re-schedules is both cheaper and simpler than a new graph each time. */
+function buildVerb(){
+  const secs = 2.4, rate = ctx.sampleRate, n = Math.floor(secs * rate);
+  const ir = ctx.createBuffer(2, n, rate);
+  for (let c = 0; c < 2; c++){
+    const d = ir.getChannelData(c);
+    for (let i = 0; i < n; i++){
+      const f = i / n;
+      /* exponential decay with a short build at the front — a plate rather than a room,
+         which is what these sounds sit in */
+      const env = Math.pow(1 - f, 2.6) * Math.min(1, f * 220);
+      d[i] = (Math.random() * 2 - 1) * env;
+    }
+  }
+  verb = ctx.createConvolver();
+  verb.buffer = ir;
+  verbGate = ctx.createGain();
+  verbGate.gain.value = 0;
+  verb.connect(verbGate);
+  verbGate.connect(out);
+}
+function ensureAudio(){
+  initAudio();
+  Patchwork.audio.resume();
+  return ctx.state;
+}
+
+/* ---- the landing ----
+   ⚠️ It takes the next boundary that is FAR ENOUGH AWAY, not simply the next one. A 4-bar
+   riser armed two beats before the bar line has to wait for the boundary after, or it gets
+   a run-up of two beats and sounds like a mistake. Waiting is visible — the panel counts
+   down — and a transition that always gets its full length is the only version of this
+   worth having. */
+function schedule(){
+  ensureAudio();
+  const beats = TS.bars * 4;
+  const dur = beats * Patchwork.clock.beatSeconds();
+  let land = Patchwork.clock.claim(beats);
+  const now = ctx.currentTime;
+  while (land - dur < now + .05) land += dur;
+  TS.startAt = land - dur;
+  TS.landAt = land;
+  TS.armed = true;
+  build(TS.startAt, land, dur);
+  notify();
+  return {startAt: TS.startAt, landAt: land, dur};
+}
+
+/* ---- landing on the very next boundary ----
+   The escape hatch from schedule()'s rule. Sometimes the part changes in one bar and a
+   two-bar riser squashed into it is better than no riser at all — so this takes the next
+   boundary whatever it costs the run-up, and the panel says that is what it does. */
+function fireNow(){
+  ensureAudio();
+  const beats = TS.bars * 4;
+  const dur = beats * Patchwork.clock.beatSeconds();
+  let land = Patchwork.clock.claim(beats);
+  const now = ctx.currentTime;
+  /* ⚠️ WITH NOTHING ELSE RUNNING THERE IS NO GRID TO LAND ON, and claim() says so by
+     handing back "now" — this instrument's downbeat would define the grid, which is right
+     for a sequencer pressing Play and nonsense for a riser: it collapses the whole run-up
+     into a few milliseconds and all you hear is the impact. A boundary this close cannot
+     carry a transition whatever the reason for it, so take the one after. */
+  if (land - now < Math.min(.15, dur * .1)) land += dur;
+  const start = Math.max(now + .02, land - dur);
+  TS.startAt = start;
+  TS.landAt = land;
+  TS.armed = true;
+  build(start, land, Math.max(.05, land - start));
+  notify();
+  return {startAt: start, landAt: land};
+}
+
+function cancel(){
+  if (!TS.armed) return;
+  const t = ctx ? ctx.currentTime : 0;
+  live.forEach(n => { try{ n.stop ? n.stop(t + .05) : n.disconnect(); }catch(e){} });
+  live = [];
+  if (fade){ try{ fade.gain.cancelScheduledValues(t);
+                   fade.gain.setTargetAtTime(0, t, .02); }catch(e){} }
+  if (verbGate){ try{ verbGate.gain.cancelScheduledValues(t);
+                      verbGate.gain.setTargetAtTime(0, t, .04); }catch(e){} }
+  TS.armed = false;
+  notify();
+}
+
+let live = [], fade = null;
+
+/* ---- building one ----
+   Scheduled entirely up front, from startAt to landAt. Nothing here runs on a timer and
+   nothing checks the clock again once it is built: the whole gesture is a set of ramps on
+   an audio parameter, which is the only way it can be sample-accurate about the one moment
+   that matters. */
+/* How long the sound has to keep existing after the landing. The carry is a decay rather
+   than a hard stop, so the source has to outlive it — cutting at the landing would silence
+   the very thing carry exists to produce. */
+function tailSec(dur){
+  return .35 + TS.carry * 4 * Patchwork.clock.beatSeconds() * 1.4;
+}
+
+function build(t0, land, dur){
+  const rise = TS.shape === "rise";
+  const d = clampf(TS.depth, 0, 1);
+  const amp = ctx.createGain();
+  amp.gain.value = 0;
+  fade = amp;
+
+  const filt = ctx.createBiquadFilter();
+  filt.type = TS.character === "siren" ? "lowpass" : "bandpass";
+  filt.Q.setValueAtTime(TS.character === "air" ? 1.2 + 6*d : 1.4, t0);
+
+  amp.connect(out);
+  filt.connect(amp);
+  /* the send is per transition so Space can change between them; the convolver is not */
+  const send = ctx.createGain();
+  send.gain.setValueAtTime(clampf(TS.space, 0, 1) * 1.15, t0);
+  amp.connect(send);
+  send.connect(verb);
+  live.push(send);
+
+  /* The sweep, in one place for all three characters: a frequency that travels from one
+     end of its range to the other across the run-up. Exponential, because pitch is. */
+  const lo = 180, hi = 180 + 7600 * (0.25 + 0.75*d);
+  const fA = rise ? lo : hi, fB = rise ? hi : lo;
+  filt.frequency.setValueAtTime(fA, t0);
+  filt.frequency.exponentialRampToValueAtTime(fB, land);
+
+  if (TS.character === "siren"){
+    /* A tone rather than noise: the same gesture, but it has a pitch you can hear moving,
+       which is what makes it read as a siren rather than as wind. */
+    const osc = ctx.createOscillator();
+    osc.type = "sawtooth";
+    const pA = rise ? 90 : 90 * Math.pow(2, 3*d), pB = rise ? 90 * Math.pow(2, 3*d) : 90;
+    osc.frequency.setValueAtTime(pA, t0);
+    osc.frequency.exponentialRampToValueAtTime(pB, land);
+    osc.connect(filt);
+    osc.start(t0); osc.stop(land + tailSec(dur));
+    live.push(osc);
+  } else {
+    const src = ctx.createBufferSource();
+    src.buffer = noise; src.loop = true;
+    src.connect(filt);
+    src.start(t0); src.stop(land + tailSec(dur));
+    live.push(src);
+  }
+
+  /* ---- the swell ----
+     Up into the landing and then off it, fast. A riser that decays through the boundary
+     smears the downbeat it exists to announce. */
+  amp.gain.setValueAtTime(0, t0);
+  const peak = clampf(TS.fxLevel, 0, 1) * .55;
+  amp.gain.linearRampToValueAtTime(peak * .12, t0 + dur * .25);
+  amp.gain.exponentialRampToValueAtTime(Math.max(.0005, peak), land - .01);
+  /* ---- the landing, and what comes after it ----
+     Without carry this cuts hard, because a riser decaying through the boundary smears the
+     downbeat it exists to announce. With carry it is let go slowly instead, and the sweep
+     keeps travelling in the direction it was going — a riser that goes on rising as it fades
+     is the sound of the wash hanging over the new part, and one that froze in pitch on the
+     boundary would just sound like a stuck note. */
+  const carrySec = TS.carry * 4 * Patchwork.clock.beatSeconds();
+  /* the wet is open through the run-up and then follows the dry off the landing */
+  const vg = verbGate.gain;
+  vg.cancelScheduledValues(t0);
+  vg.setValueAtTime(1, t0);
+  if (carrySec > .01){
+    amp.gain.setTargetAtTime(0, land, carrySec / 3.2);
+    vg.setTargetAtTime(0, land, carrySec / 2.4);          // the tail outlives the dry a little
+    filt.frequency.exponentialRampToValueAtTime(
+      clampf(fB * (rise ? 1.7 : .55), 40, 18000), land + carrySec);
+  } else {
+    amp.gain.setTargetAtTime(0, land, TS.impact ? .012 : .05);
+    /* the gate, in the 80s sense: the tail is cut rather than allowed to ring out */
+    vg.setTargetAtTime(0, land, .03);
+  }
+
+  if (TS.character === "roll"){
+    /* An accelerating stutter — the snare-roll shape, done as scheduled gain steps rather
+       than an LFO because the whole point is that the rate CHANGES, and it has to land on
+       the boundary exactly however many pulses that takes. */
+    const gate = ctx.createGain();
+    filt.disconnect(); filt.connect(gate); gate.connect(amp);
+    let t = t0, step = dur / 8;
+    const floorStep = Math.max(.028, dur / (24 + 72*d));
+    while (t < land - .001){
+      gate.gain.setValueAtTime(1, t);
+      gate.gain.setTargetAtTime(.06, t + step * .35, step * .18);
+      t += step;
+      step = Math.max(floorStep, step * (0.86 - .06*d));
+    }
+    gate.gain.setValueAtTime(1, Math.max(t0, land - .001));
+    live.push(gate);
+  }
+
+  if (TS.impact) buildImpact(land);
+  buildFill(t0, land, dur);
+
+  /* One timer, for the panel and for anyone asking whether a transition is running. The
+     audio is already scheduled and does not depend on this firing on time. */
+  const ms = Math.max(0, (land - ctx.currentTime + tailSec(dur)) * 1000);
+  setTimeout(() => { if (TS.landAt === land){ TS.armed = false; live = []; notify(); } }, ms);
+}
+
+/* ---- drum fills ----
+   Written as fractions of the run-up, not as steps, so one fill works at any length: the
+   same pattern is four hits over a bar or sixteen over eight bars without a second version
+   of it existing. `at` is 0 at the start of the run-up and 1 on the landing.
+
+   ⚠️ Nothing lands ON 1. The boundary belongs to the downbeat the fill is announcing, and a
+   fill hit sitting exactly on it doubles whatever fires there — including TS·1's own
+   impact. The last hit of every pattern is deliberately just before.
+
+   Ten of each kind rather than one, because a fill you have heard forty times is a fill you
+   stop hearing. They are generated from a handful of shared shapes instead of being thirty
+   hand-written arrays — the arrays would be longer, and every one of them would be a place
+   for a typo to hide as a musical decision. */
+
+/* positions: n hits spread evenly between two points in the run-up */
+function evenly(n, from, to){
+  const out = [];
+  for (let k = 0; k < n; k++) out.push(from + (to - from) * (k / n));
+  return out;
+}
+/* positions that get closer together — `bite` is how hard it accelerates */
+function accel(n, from, to, bite){
+  const out = [];
+  for (let k = 0; k < n; k++){
+    const f = k / n;
+    out.push(from + (to - from) * Math.pow(f, 1 + bite));
+  }
+  return out;
+}
+/* Every hit in a run-up is louder than the one before it. Fills are a crescendo by nature,
+   and the ones that are not read as a mistake rather than as a choice. */
+const swell = (f, lo, hi) => (lo == null ? .55 : lo) + ((hi == null ? .98 : hi) - (lo == null ? .55 : lo)) * f;
+
+/* ---- a run of pitches across the toms ----
+   ⚠️ AIMED AT FREQUENCIES, NOT AT RATIOS. A ratio means something different on each tom, so
+   "×0.83 then ×1.13" reads as a descent in the code and is a jump upward in the air — which
+   is what the first version of the cascade did at the handover. Ask the kit what its toms
+   are tuned to, aim at a curve of real pitches, and work each ratio back out from whichever
+   tom reaches that pitch with the least stretch. It keeps working after you retune them. */
+function tomAt(f, depth, rise){
+  const K = (typeof Patchwork !== "undefined" && Patchwork.kit) ? Patchwork.kit : null;
+  const hi = (K && K.tuneOf("ht")) || 175;
+  const lo = (K && K.tuneOf("lt")) || 92;
+  const d = 0.35 + 0.65 * depth;
+  const travel = d * 1.9;
+  /* rise runs the same curve backwards, so an up-run is the same shape inverted rather than
+     a second set of numbers to keep in step with the first */
+  const g = rise ? (1 - f) : f;
+  const hz = (hi * 1.3) * Math.pow(2, -travel * g);
+  const useLo = Math.abs(Math.log2(hz / lo)) < Math.abs(Math.log2(hz / hi));
+  return {v: useLo ? "lt" : "ht", tune: hz / (useLo ? lo : hi), hz};
+}
+/* a tom run of n hits at the given positions */
+function tomRun(pos, depth, rise, velLo, velHi){
+  return pos.map((at, k) => {
+    const f = pos.length < 2 ? 0 : k / (pos.length - 1);
+    const t = tomAt(f, depth, rise);
+    return {v: t.v, at, tune: t.tune, hz: t.hz,
+            vel: swell(f, velLo, velHi), decay: 1.5 + .8 * f};
+  });
+}
+const hits = (pos, v, velLo, velHi, extra) => pos.map((at, k) => Object.assign(
+  {v, at, vel: swell(pos.length < 2 ? 1 : k / (pos.length - 1), velLo, velHi)}, extra || {}));
+
+/* ---- the bank ----
+   Each entry is {name, make({dur, depth, rise})}. `rise` is the panel's Shape: a fill runs
+   the same way the sweep over it does, so one control steers both and there is not a second
+   direction switch that can disagree with the first. */
+const FILL_BANK = {
+  roll: [
+    {name: "Straight",   make: () => hits(evenly(16, 0, 1), "sd")},
+    {name: "Eighths",    make: () => hits(evenly(8, 0, 1), "sd", .6)},
+    {name: "Triplets",   make: () => hits(evenly(12, 0, 1), "sd")},
+    {name: "Accelerate", make: ({depth}) => hits(accel(20, 0, 1, .9 + depth), "sd", .4)},
+    {name: "Half-time",  make: () => hits(evenly(4, 0, 1), "sd", .7, 1)},
+    {name: "Buzz",       make: () => hits(evenly(4, 0, .5), "sd", .5, .6)
+                                     .concat(hits(evenly(24, .5, 1), "sd", .55))},
+    {name: "Flams",      make: () => evenly(8, 0, 1).flatMap((at, k) => {
+                                       const f = k / 8;
+                                       return [{v: "sd", at, vel: swell(f) * .5},
+                                               {v: "sd", at: at + .012, vel: swell(f)}];
+                                     })},
+    {name: "Backbeat",   make: () => hits(evenly(16, 0, 1), "sd", .4, .7)
+                                     .map((h, k) => (k % 4 === 2 ? Object.assign(h, {vel: 1}) : h))},
+    {name: "Stutter",    make: () => [0, .25, .5, .75].flatMap(b =>
+                                       hits(evenly(3, b, b + .16), "sd", .5, .9))},
+    {name: "Crescendo",  make: () => hits(evenly(24, 0, 1), "sd", .12, 1)}
+  ],
+  toms: [
+    {name: "Cascade",    make: ({depth, rise}) =>
+                           tomRun(evenly(6, 0, .75).concat(evenly(4, .75, 1)), depth, rise)},
+    {name: "Steps",      make: ({depth, rise}) => tomRun(evenly(8, 0, 1), depth, rise)},
+    {name: "Tumble",     make: ({depth, rise}) => tomRun(accel(14, 0, 1, .8), depth, rise, .45)},
+    {name: "Pairs",      make: ({depth, rise}) => tomRun(
+                           evenly(6, 0, 1).flatMap(a => [a, a + .028]), depth, rise)},
+    {name: "Alternating",make: ({depth, rise}) => tomRun(evenly(12, 0, 1), depth, rise)
+                           .map((h, k) => (k % 2 ? Object.assign(h, {v: h.v === "ht" ? "lt" : "ht"}) : h))},
+    {name: "Triplets",   make: ({depth, rise}) => tomRun(evenly(12, 0, 1), depth, rise, .5)},
+    {name: "Last half",  make: ({depth, rise}) => tomRun(evenly(8, .5, 1), depth, rise, .6)},
+    {name: "Sparse",     make: ({depth, rise}) => tomRun(evenly(4, 0, 1), depth, rise, .75, 1)},
+    {name: "Avalanche",  make: ({depth, rise}) => tomRun(evenly(16, 0, 1), depth, rise, .4)},
+    {name: "Tom & kick", make: ({depth, rise}) => tomRun(evenly(8, 0, 1), depth, rise)
+                           .flatMap((h, k) => (k % 2 === 0
+                             ? [h, {v: "bd", at: h.at + .5 / 8, vel: h.vel * .85}] : [h]))}
+  ],
+  build: [
+    {name: "Hats",       make: () => hits(evenly(8, 0, .5), "ch", .4, .6)
+                                     .concat(hits(evenly(16, .5, 1), "ch", .6, .95))},
+    {name: "Doubling",   make: () => [[.0, 4], [.25, 8], [.5, 12], [.75, 20]]
+                                     .flatMap(([b, n], i) => hits(evenly(n / 4, b, b + .25), "ch", .35 + i * .16))},
+    {name: "Snare rise", make: () => hits(accel(18, 0, 1, .6), "sd", .3, 1)},
+    {name: "Open hats",  make: () => evenly(8, 0, 1).map((at, k) => ({
+                                       v: k % 2 ? "oh" : "ch", at, vel: swell(k / 8, .45)}))},
+    {name: "Ride",       make: () => hits(evenly(16, 0, 1), "rs", .4, .9)},
+    {name: "Claps",      make: () => hits(evenly(8, 0, 1), "cp", .5, 1)},
+    {name: "Four floor", make: () => hits(evenly(4, 0, 1), "bd", .8, 1)
+                                     .concat(hits(evenly(8, 0, 1), "ch", .35, .6))},
+    {name: "Thin out",   make: () => hits(evenly(16, 0, .6), "ch", .9, .5)
+                                     .concat(hits(evenly(2, .6, 1), "sd", .6, 1))},
+    {name: "Machine",    make: () => hits(evenly(32, 0, 1), "ch", .3, .85)},
+    {name: "Hat & clap", make: () => hits(evenly(16, 0, 1), "ch", .3, .7)
+                                     .concat(hits(evenly(4, .5, 1), "cp", .6, 1))}
+  ]
+};
+
+function fillList(kind){ return FILL_BANK[kind] || []; }
+function currentFill(){
+  const bank = fillList(TS.fill);
+  if (!bank.length) return null;
+  return bank[Math.max(0, Math.min(bank.length - 1, TS.fillVariant | 0))];
+}
+
+function buildFill(t0, land, dur){
+  const entry = currentFill();
+  if (!entry || !Patchwork.kit || !Patchwork.kit.ready) return;
+  let list = [];
+  try{ list = entry.make({dur, depth: clampf(TS.depth, 0, 1), rise: TS.shape === "rise"}) || []; }
+  catch(e){ return; }
+  list.forEach(h => {
+    if (h.at >= 1) return;                       // see the warning above
+    const when = t0 + h.at * dur;
+    if (when >= land) return;
+    /* fall back to the snare for a voice this kit does not have, rather than dropping the
+       hit and leaving a hole in the middle of a fill */
+    const v = Patchwork.kit.has(h.v) ? h.v : "sd";
+    Patchwork.kit.hit(v, when, clampf(h.vel, .05, 1) * clampf(TS.fillLevel, 0, 1),
+                      (h.tune || h.decay) ? {tune: h.tune, decay: h.decay} : null);
+  });
+}
+
+/* ---- the landing itself ----
+   A drop is a transition that ends in something, and without this the riser simply stops —
+   which sounds like the audio failing rather than like an arrival. */
+function buildImpact(land){
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(clampf(TS.fxLevel, 0, 1) * .9, land);
+  g.gain.exponentialRampToValueAtTime(.0005, land + .9);
+  g.connect(out);
+  if (verb){
+    const isend = ctx.createGain();
+    isend.gain.setValueAtTime(clampf(TS.space, 0, 1) * .8, land);
+    g.connect(isend); isend.connect(verb);
+    live.push(isend);
+  }
+
+  const sub = ctx.createOscillator();
+  sub.type = "sine";
+  sub.frequency.setValueAtTime(150, land);
+  sub.frequency.exponentialRampToValueAtTime(38, land + .5);
+  sub.connect(g);
+  sub.start(land); sub.stop(land + 1);
+
+  const burst = ctx.createBufferSource();
+  burst.buffer = noise; burst.loop = false;
+  const bf = ctx.createBiquadFilter();
+  bf.type = "lowpass";
+  bf.frequency.setValueAtTime(6000, land);
+  bf.frequency.exponentialRampToValueAtTime(400, land + .35);
+  const bg = ctx.createGain();
+  bg.gain.setValueAtTime(clampf(TS.fxLevel, 0, 1) * .5, land);
+  bg.gain.exponentialRampToValueAtTime(.0005, land + .45);
+  burst.connect(bf); bf.connect(bg); bg.connect(out);
+  burst.start(land); burst.stop(land + .5);
+  live.push(sub, burst);
+}
+
+/* How far off the landing is, in seconds — what the panel counts down. */
+function untilLanding(){
+  if (!TS.armed || !ctx) return 0;
+  return Math.max(0, TS.landAt - ctx.currentTime);
+}
+
+const subs = [];
+function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
+function onChange(fn){ subs.push(fn); }
+
+/* ============ panel ============ */
+/* Segments and two faders. There is no keyboard, no grid and no patch browser, and that is
+   the design rather than an unfinished version of one: every control here changes the same
+   single gesture, and a transition you had to program would be one you reached for after
+   the moment had passed. */
+function seg(sel, attr, get, set){
+  const g = $(sel);
+  if (!g) return function(){};
+  const paint = () => g.querySelectorAll("button").forEach(b =>
+    b.classList.toggle("on", b.dataset[attr] === String(get())));
+  g.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    set(b.dataset[attr]); paint(); paintRead();
+  });
+  paint();
+  return paint;
+}
+
+const paintBars   = seg("#tsBars", "b", () => TS.bars, v => { TS.bars = +v; });
+const paintShape  = seg("#tsShapeSeg", "s", () => TS.shape, v => { TS.shape = v; });
+const paintChar   = seg("#tsChar", "c", () => TS.character, v => { TS.character = v; });
+const paintFill   = seg("#tsFill", "f", () => TS.fill,
+                        v => { TS.fill = v; TS.fillVariant = 0; fillVariants(); });
+const paintCarry  = seg("#tsCarry", "k", () => TS.carry, v => { TS.carry = +v; });
+
+/* ---- which of the ten ----
+   Rebuilt when the family changes, because the names are the family's. Disabled rather than
+   hidden with the fill off: a control that vanishes moves everything beside it, and this row
+   is one somebody is reaching for in a hurry. */
+const variantSel = $("#tsVariant");
+function fillVariants(){
+  const list = fillList(TS.fill);
+  variantSel.textContent = "";
+  list.forEach((f, i) => variantSel.appendChild(Object.assign(
+    document.createElement("option"), {value: String(i), textContent: (i + 1) + ". " + f.name})));
+  variantSel.disabled = !list.length;
+  if (!list.length) variantSel.appendChild(Object.assign(
+    document.createElement("option"), {textContent: "—"}));
+  variantSel.value = String(Math.min(TS.fillVariant, Math.max(0, list.length - 1)));
+  TS.fillVariant = list.length ? +variantSel.value : 0;
+}
+variantSel.addEventListener("change", () => {
+  TS.fillVariant = +variantSel.value || 0;
+  paintRead();
+});
+fillVariants();
+const paintImpact = seg("#tsImpact", "i", () => TS.impact ? "on" : "off",
+                        v => { TS.impact = v === "on"; });
+
+function fader(sel, get, set, fmt){
+  const el = $(sel), slot = el.querySelector(".hslot"),
+        cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
+  function paintF(){
+    cap.style.left = (Math.max(0, Math.min(1, get())) * 100) + "%";
+    val.textContent = fmt(get());
+  }
+  el.addEventListener("pointerdown", e => {
+    const r = slot.getBoundingClientRect();
+    const move = ev => {
+      const cx = ev.clientX != null ? ev.clientX : (ev.touches && ev.touches[0].clientX);
+      set(Math.max(0, Math.min(1, (cx - r.left) / r.width)));
+      paintF();
+    };
+    move(e); el.classList.add("dragging");
+    const up = () => { el.classList.remove("dragging");
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+  paintF();
+  return paintF;
+}
+const paintDepth = fader("#depthF", () => TS.depth, v => { TS.depth = v; },
+                         v => Math.round(v * 100) + "%");
+const paintSpace = fader("#spaceF", () => TS.space, v => { TS.space = v; },
+                         v => Math.round(v * 100) + "%");
+const paintFx = fader("#fxF", () => TS.fxLevel, v => { TS.fxLevel = v; },
+                      v => Math.round(v * 100) + "%");
+const paintFillLvl = fader("#fillLvlF", () => TS.fillLevel, v => { TS.fillLevel = v; },
+                           v => Math.round(v * 100) + "%");
+
+/* ---- the readout ----
+   Between arming and landing there is nothing to hear for up to eight bars, so the panel
+   has to carry the whole answer: what is coming, and how long until it arrives. Without
+   the countdown, arming a long transition is indistinguishable from a dead button. */
+const armBtn = $("#arm");
+const shapeEl = $("#tsShape"), lenEl = $("#tsLen"), whenEl = $("#tsWhen");
+const fillMeter = $(".ts-fill");
+
+function label(){
+  const c = TS.character === "air" ? "Air" : TS.character === "siren" ? "Siren" : "Roll";
+  const f = currentFill();
+  return (TS.shape === "rise" ? "Rise" : "Fall") + " · " + c
+       + (f ? " · " + f.name : "")
+       + (TS.carry ? " · carry " + TS.carry : "");
+}
+function paintRead(){
+  shapeEl.textContent = label();
+  lenEl.textContent = TS.bars + (TS.bars === 1 ? " bar" : " bars");
+  armBtn.classList.toggle("on", TS.armed);
+  armBtn.textContent = TS.armed ? "Cancel" : "Arm";
+  const left = untilLanding();
+  if (!TS.armed){
+    whenEl.textContent = "Idle — arm it and it lands on the next boundary";
+    if (fillMeter) fillMeter.style.width = "0%";
+    root.classList.remove("ts-armed");
+    return;
+  }
+  root.classList.add("ts-armed");
+  const beats = left / Patchwork.clock.beatSeconds();
+  whenEl.textContent = left > .05
+    ? "Lands in " + (beats >= 4 ? (beats / 4).toFixed(1) + " bars" : beats.toFixed(1) + " beats")
+    : "Landing";
+  if (fillMeter){
+    const dur = Math.max(.001, TS.landAt - TS.startAt);
+    const done = Math.max(0, Math.min(1, 1 - left / dur));
+    fillMeter.style.width = (done * 100) + "%";
+  }
+}
+
+armBtn.addEventListener("click", () => { if (TS.armed) cancel(); else schedule(); paintRead(); });
+$("#fire").addEventListener("click", () => { if (TS.armed) cancel(); fireNow(); paintRead(); });
+$("#panic").addEventListener("click", () => { cancel(); paintRead(); });
+
+/* rAF rather than an interval: the countdown is a moving number and this is the only thing
+   on the panel that animates. It stops paying for itself the moment nothing is armed. */
+(function paintLoop(){
+  if (TS.armed) paintRead();
+  requestAnimationFrame(paintLoop);
+})();
+onChange(paintRead);
+paintRead();
+
+/* ============ boot ============ */
+
+/* A scene row can arm a transition, which is the point of it being on the launcher at all:
+   the row you fire to change the part is the row that should announce the change. `capture`
+   is the whole setting, so different rows can hold different transitions — a 1-bar fill on
+   one, an 8-bar riser on another. */
+Patchwork.scenes.register("ts1", {
+  name: "TS·1",
+  isPlaying: () => TS.armed,
+  /* ⚠️ start() ARMS rather than starting a transport. TS·1 has none: it is a gesture with
+     an end, so "playing" means "one is on its way" and it ends by itself. */
+  start: () => { ensureAudio(); if (!TS.armed) schedule(); },
+  stop: () => cancel(),
+  capture: () => ({bars: TS.bars, shape: TS.shape, character: TS.character,
+                   depth: TS.depth, impact: TS.impact, fill: TS.fill,
+                   fillVariant: TS.fillVariant, carry: TS.carry,
+                   fxLevel: TS.fxLevel, fillLevel: TS.fillLevel, space: TS.space}),
+  apply: pat => {
+    ["bars","shape","character","depth","impact","fill","fillVariant","carry",
+     "fxLevel","fillLevel","space"].forEach(k => {
+      if (pat[k] != null) TS[k] = pat[k];
+    });
+    paintBars(); paintShape(); paintChar(); paintFill(); paintCarry(); paintImpact();
+    fillVariants();
+    paintDepth(); paintSpace(); paintFx(); paintFillLvl(); paintRead();
+  }
+});
+
+/* The sound, for a jam. Same list as the scene, because for this instrument the settings
+   ARE the sound — there is no patch underneath them. */
+Patchwork.session.registerPatch("ts1", {
+  capture: () => ({bars: TS.bars, shape: TS.shape, character: TS.character,
+                   depth: TS.depth, impact: TS.impact, fill: TS.fill,
+                   fillVariant: TS.fillVariant, carry: TS.carry,
+                   fxLevel: TS.fxLevel, fillLevel: TS.fillLevel, space: TS.space}),
+  apply: p => {
+    ["bars","shape","character","depth","impact","fill","fillVariant","carry",
+     "fxLevel","fillLevel","space"].forEach(k => {
+      if (p[k] != null) TS[k] = p[k];
+    });
+    paintBars(); paintShape(); paintChar(); paintFill(); paintCarry(); paintImpact();
+    fillVariants();
+    paintDepth(); paintSpace(); paintFx(); paintFillLvl(); paintRead();
+  }
+});
+
+/* ---- MIDI ----
+   Any note arms one. There is nothing to pitch, so which note you press does not matter,
+   and making it matter would invent a mapping nobody asked for — this is a footswitch. */
+const MIDI = {inCh: -1};
+function midiPanic(){ cancel(); paintRead(); }
+function onMidi(e){
+  const d = e.data; if (!d || !d.length) return;
+  const s = d[0];
+  if (s >= 0xF0) return;
+  if (MIDI.inCh >= 0 && (s & 0x0F) !== MIDI.inCh) return;
+  const type = s & 0xF0;
+  if (type === 0x90 && d[2] > 0){ ensureAudio(); if (!TS.armed) schedule(); paintRead(); }
+  else if (type === 0xB0 && (d[1] === 120 || d[1] === 123)) midiPanic();
+}
+if (navigator.requestMIDIAccess && window.isSecureContext){
+  Patchwork.midi.route("ts1", onMidi, function(){}, {
+    name: "TS·1", panic: midiPanic,
+    inCh: {get: () => MIDI.inCh, set: c => { MIDI.inCh = c; }}
+  });
+  Patchwork.midi.open().catch(() => {});
+}
+
+/* The fill needs a kit; without one the sweep still works and the fill silently does not.
+   Saying so on the panel beats leaving somebody to wonder why Roll does nothing. */
+function paintKit(){
+  const seg = $("#tsFill");
+  if (!seg) return;
+  const ok = Patchwork.kit && Patchwork.kit.ready;
+  seg.classList.toggle("ts-nokit", !ok);
+  seg.title = ok ? "Played on " + Patchwork.kit.name + "'s voices"
+                 : "No drum machine on this page — fills need one";
+}
+if (Patchwork.kit) Patchwork.kit.onChange(paintKit);
+paintKit();
+
+window.__ts1 = {TS, schedule, fireNow, cancel, untilLanding, ensureAudio,
+                get ctx(){ return ctx; }};
+});
 
 /* ---- the scene launcher ----
    Studio only. The model lives in shell/scenes.js and works headless; this is the row of
@@ -14985,11 +17379,25 @@ Patchwork.launch = (() => {
 /* Every instrument that is either a scene member or can record. LP·1 has no scene row of
    its own — a scene changes what an instrument PLAYS and a looper's content is a
    recording — but it very much has one take per row, so it has a column. */
+/* ⚠️ SAID OUT LOUD, not inherited from registration order. The columns used to come out in
+   whatever sequence parts.txt happened to build the instruments in, with the record-only
+   tracks tacked on the end — so LP·1 sat after TS·1 for no reason anybody chose, and moving
+   a line in a manifest would silently rearrange the launcher.
+
+   The order is a reading order: the kit, then the parts that play over it, then the looper
+   that captures them, and TS·1 last because a transition is what ends a section. Anything
+   not listed keeps its registration order at the end, so an instrument added later appears
+   rather than disappearing. */
+const COLUMN_ORDER = ["dr1", "bs1", "cs1", "pm1", "vc1", "lp1", "ts1"];
+
 function columns(){
   const seen = new Map();
   Patchwork.scenes.instruments.forEach(i => seen.set(i.id, i.name));
   Patchwork.record.tracks.forEach(t => { if (!seen.has(t.id)) seen.set(t.id, t.name); });
-  return [...seen].map(([id, name]) => ({id, name}));
+  const rank = id => { const i = COLUMN_ORDER.indexOf(id);
+                       return i < 0 ? COLUMN_ORDER.length : i; };
+  return [...seen].map(([id, name]) => ({id, name}))
+                  .sort((a, b) => rank(a.id) - rank(b.id));
 }
 
 /* A track with slots keeps a real audio take per row rather than a pattern. */
@@ -15182,8 +17590,126 @@ function build(){
     el.appendChild(fire);
     grid.appendChild(el);
   });
+
+  /* ---- the mix ----
+     One fader per column, under the grid it belongs to, so the thing you balance and the
+     thing you fire are the same list of instruments in the same order.
+
+     ⚠️ YOURS ALONE, AND DELIBERATELY. Everybody in a jam renders the same patterns through
+     their own speakers in their own room, so a balance that works in one does not work in
+     another — and unlike a pattern or a patch, nobody else needs to agree with it. It is
+     never sent, and shell/bus.js says what keeps it that way. */
+  const mix = document.createElement("div");
+  mix.className = "st-row st-row-mix";
+  const lab = Object.assign(document.createElement("span"),
+    {className: "st-num st-mixlab", textContent: "MIX"});
+  lab.title = "Your own listening balance. It is never shared with a jam — "
+            + "everyone hears the same parts through their own mix.";
+  mix.appendChild(lab);
+  cols.forEach(c => {
+    const cell = document.createElement("div");
+    cell.className = "st-fadercell";
+    const f = document.createElement("input");
+    f.type = "range"; f.className = "st-fader";
+    f.min = "0"; f.max = "100"; f.step = "1";
+    /* read back from the bus rather than from a default, so a rebuild — which happens
+       whenever a row is added or the pattern length changes — does not reset the mix */
+    f.value = String(Math.round(Patchwork.audio.level(c.id) * 100));
+    f.dataset.inst = c.id;
+    f.setAttribute("aria-label", c.name + " level");
+    f.title = c.name + " level";
+    /* the readout an instrument's fader carries, for the same reason: a fader you can only
+       set by ear is one you cannot set back */
+    const val = Object.assign(document.createElement("span"),
+      {className: "st-faderval", textContent: f.value});
+    /* M and S under each fader, in that order because that is the order they are on every
+       mixer anyone has touched. Single letters: the column is 43px wide and the words do
+       not fit, but nobody has ever had to be told what M and S are. */
+    const keys = document.createElement("div");
+    keys.className = "st-mskeys";
+    [["m", "Mute"], ["s", "Solo"]].forEach(([k, word]) => {
+      const b = document.createElement("button");
+      b.className = "st-msk st-msk-" + k;
+      b.type = "button";
+      b.dataset.inst = c.id; b.dataset.k = k;
+      b.textContent = k.toUpperCase();
+      b.setAttribute("aria-label", word + " " + c.name);
+      b.setAttribute("aria-pressed", "false");
+      keys.appendChild(b);
+    });
+    cell.appendChild(f); cell.appendChild(val); cell.appendChild(keys);
+    mix.appendChild(cell);
+  });
+  mix.appendChild(Object.assign(document.createElement("span"), {className: "st-num"}));
+  grid.appendChild(mix);
+
+  paintMix();
   paint();
 }
+
+/* Kept across reloads, because a mix you have to rebuild every time is one you stop
+   bothering with. ⚠️ It is the fader POSITION that explains a quiet instrument on the next
+   visit — which is the argument for the mixer being on screen rather than in a menu. */
+const MIX_KEY = "patchwork-mix";
+function loadMix(){
+  let saved = null;
+  try{ saved = JSON.parse(localStorage.getItem(MIX_KEY)); }catch(e){}
+  if (!saved || typeof saved !== "object") return;
+  const lv = saved.levels || saved;          // the first shape of this was levels alone
+  Object.keys(lv).forEach(id => { if (typeof lv[id] === "number") Patchwork.audio.setLevel(id, lv[id]); });
+  (saved.mute || []).forEach(id => Patchwork.audio.setMute(id, true));
+  (saved.solo || []).forEach(id => Patchwork.audio.setSolo(id, true));
+}
+function saveMix(){
+  const lv = {}, mute = [], solo = [];
+  grid.querySelectorAll(".st-fader").forEach(f => {
+    const id = f.dataset.inst;
+    lv[id] = +f.value / 100;
+    if (Patchwork.audio.muted(id)) mute.push(id);
+    if (Patchwork.audio.soloed(id)) solo.push(id);
+  });
+  try{ localStorage.setItem(MIX_KEY, JSON.stringify({levels: lv, mute, solo})); }catch(e){}
+}
+
+/* ⚠️ A soloed track dims every OTHER fader, not itself — that is what makes it obvious at a
+   glance which way round a solo is, and it is the thing that stops "why is the bass silent"
+   being a two-minute mystery three songs later. */
+function paintMix(){
+  const A = Patchwork.audio;
+  grid.querySelectorAll(".st-msk").forEach(b => {
+    const on = b.dataset.k === "m" ? A.muted(b.dataset.inst) : A.soloed(b.dataset.inst);
+    /* st-on, not on: the studio sheet is not scoped to a panel, so a bare `on` here would
+       reach inside every instrument that uses it — which build.py refuses, correctly. */
+    b.classList.toggle("st-on", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  grid.querySelectorAll(".st-fadercell").forEach(cell => {
+    const f = cell.querySelector(".st-fader");
+    if (f) cell.classList.toggle("st-silenced", A.audible(f.dataset.inst) === 0);
+  });
+}
+
+grid.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest(".st-msk");
+  if (!b) return;
+  const id = b.dataset.inst;
+  if (b.dataset.k === "m") Patchwork.audio.setMute(id, !Patchwork.audio.muted(id));
+  else Patchwork.audio.setSolo(id, !Patchwork.audio.soloed(id));
+  paintMix();
+  saveMix();
+});
+
+/* `input`, not `change`: a fader that only moved the sound when you let go of it would be
+   unusable for the one thing a fader is for. */
+grid.addEventListener("input", e => {
+  const f = e.target.closest && e.target.closest(".st-fader");
+  if (!f) return;
+  const g = Patchwork.audio.setLevel(f.dataset.inst, +f.value / 100);
+  const val = f.parentNode && f.parentNode.querySelector(".st-faderval");
+  if (val) val.textContent = String(Math.round(g * 100));
+  paintMix();
+  saveMix();
+});
 
 function paint(){
   const q = Patchwork.scenes.queued, on = Patchwork.scenes.onRow;
@@ -15218,6 +17744,7 @@ grid.addEventListener("click", e => {
   else Patchwork.launch.fireRowShared(ri);
 });
 
+loadMix();
 Patchwork.scenes.onChange(paint);
 if (window.Patchwork.record) Patchwork.record.onChange(paint);
 build();
@@ -15443,6 +17970,116 @@ Patchwork.faces.onChange(() => {
   seg.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", (b.dataset.f === "face") === on));
 });
+})();
+
+/* ---- the rack's MIDI, in one place ----
+   Every instrument answers on a channel and every panel grew a pair of selects to set it,
+   so the same question had six answers scattered across six panels — and the one you
+   needed was always inside the panel you had not opened. The input port was the page's
+   from the start (see shell/midi.js); this brings the channels up to join it.
+
+   ⚠️ It does not OWN any of it. Each instrument still keeps its own channel and still
+   filters its own input; this reads and writes them through the adapter each one registers.
+   A second copy of the routing here would be a second thing to disagree with the first, and
+   the panels' own selects — which standalone builds still need — would be the ones to go
+   stale. */
+(() => {
+"use strict";
+const box = document.querySelector("#stMidi");
+if (!box || !window.Patchwork || !Patchwork.midi) return;
+const inSel = box.querySelector("#stMidiIn"),
+      rows = box.querySelector("#stMidiRows"),
+      follow = box.querySelector("#stMidiFollow"),
+      note = box.querySelector("#stMidiNote");
+
+const chOptions = sel => {
+  sel.appendChild(Object.assign(document.createElement("option"),
+    {value: "-1", textContent: "Omni"}));
+  for (let c = 0; c < 16; c++)
+    sel.appendChild(Object.assign(document.createElement("option"),
+      {value: String(c), textContent: String(c + 1)}));
+};
+
+function fillPorts(){
+  const keep = Patchwork.midi.port ? Patchwork.midi.port.id : "";
+  inSel.textContent = "";
+  inSel.appendChild(Object.assign(document.createElement("option"),
+    {value: "", textContent: "— none —"}));
+  Patchwork.midi.ports("inputs").forEach(p => inSel.appendChild(Object.assign(
+    document.createElement("option"), {value: p.id, textContent: p.name || p.id})));
+  inSel.value = keep;
+}
+inSel.addEventListener("change", () => Patchwork.midi.select(inSel.value));
+
+/* Built once per registered instrument. The selects are not rebuilt on every repaint — a
+   <select> being rebuilt under an open menu closes it, and this repaints whenever anything
+   in the rack's MIDI changes. */
+const built = new Map();          // id -> {inCh, outCh}
+function build(){
+  Patchwork.midi.list().forEach(it => {
+    if (built.has(it.id)) return;
+    const row = document.createElement("div");
+    row.className = "st-midi-row";
+    row.dataset.inst = it.id;
+    row.appendChild(Object.assign(document.createElement("span"),
+      {className: "st-midi-name", textContent: it.name}));
+    const made = {};
+    [["inCh", "in"], ["outCh", "out"]].forEach(([key, lab]) => {
+      const cell = document.createElement("span");
+      cell.className = "st-midi-cell";
+      if (!it.spec[key]){ cell.classList.add("st-midi-none"); rows && row.appendChild(cell); return; }
+      const sel = document.createElement("select");
+      sel.className = "st-midi-ch";
+      chOptions(sel);
+      sel.value = String(it.spec[key].get());
+      sel.setAttribute("aria-label", it.name + " " + lab + " channel");
+      sel.addEventListener("change", () => {
+        it.spec[key].set(parseInt(sel.value, 10));
+        paint();
+      });
+      cell.appendChild(Object.assign(document.createElement("span"),
+        {className: "st-midi-lab", textContent: lab}));
+      cell.appendChild(sel);
+      made[key] = sel;
+      row.appendChild(cell);
+    });
+    rows.appendChild(row);
+    built.set(it.id, made);
+  });
+}
+
+function paint(){
+  build();
+  const on = Patchwork.midi.follow;
+  follow.checked = on;
+  rows.classList.toggle("st-midi-ignored", on);
+  Patchwork.midi.list().forEach(it => {
+    const made = built.get(it.id);
+    if (!made) return;
+    ["inCh", "outCh"].forEach(k => {
+      if (!made[k] || !it.spec[k]) return;
+      const v = String(it.spec[k].get());
+      if (made[k].value !== v) made[k].value = v;   // the panel's own select may have moved it
+    });
+  });
+  const n = Patchwork.midi.ports("inputs").length;
+  note.innerHTML = !n
+    ? "No MIDI inputs found. Connect one and it will appear here."
+    : on
+      ? "Notes play <b>whichever panel has the keyboard</b> — click a panel to aim them. "
+        + "Input channels are ignored while this is on; <b>out</b> still sends on its own channel."
+      : n + " input" + (n === 1 ? "" : "s") + ". Each instrument listens on its own channel — "
+        + "<b>Omni</b> answers to all of them.";
+}
+
+/* ⚠️ Held notes are dropped on the way through — see setFollow in shell/midi.js. Switching
+   the rule a note-off will be routed by, while a note is held, is the one way to strand it. */
+follow.addEventListener("change", () => { Patchwork.midi.setFollow(follow.checked); paint(); });
+
+Patchwork.midi.onChange(() => { fillPorts(); paint(); });
+fillPorts(); paint();
+/* The instruments register during their own boot, which may be after this file runs. */
+setTimeout(() => { fillPorts(); paint(); }, 0);
 })();
 
 /* ---- the live page ----

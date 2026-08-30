@@ -1,0 +1,68 @@
+:scope{
+  width:100%;max-width:760px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);
+  border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  padding:20px 18px 24px;
+  position:relative;
+  overflow:hidden;
+}
+:scope::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+}
+:scope > *{position:relative}
+
+/* ---- the readout ----
+   The card is the instrument's face. Between arming and landing there is nothing to hear,
+   so this is what says something is coming — and the meter is the only moving part on the
+   panel, which is what makes it read as a countdown rather than as decoration. */
+.ts-read{display:flex;align-items:baseline;gap:12px;margin:8px 0 10px;flex-wrap:wrap}
+.ts-shape{
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;font-weight:600;
+  font-size:24px;letter-spacing:.1em;text-transform:uppercase;color:var(--silk);
+}
+.ts-len{font-family:"DM Mono",ui-monospace,monospace;font-size:12px;color:var(--silk-dim);
+  letter-spacing:.12em;text-transform:uppercase}
+.ts-meter{
+  height:8px;border-radius:4px;overflow:hidden;
+  background:linear-gradient(180deg,var(--groove-hi),var(--groove) 45%,var(--groove-hi));
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset;
+}
+.ts-fill{display:block;height:100%;width:0;border-radius:4px;background:var(--cap-yellow);
+  box-shadow:0 0 10px rgba(232,178,58,.5)}
+/* Armed is a state worth seeing from across the room — this is the instrument you press
+   and then look away from. */
+:scope.ts-armed .ts-shape{color:var(--cap-yellow)}
+.btn.on{background:linear-gradient(180deg,#8a6a2a,#6a5020);border-color:var(--cap-yellow)}
+.ts-nokit{opacity:.45}
+.knobrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.knobrow .hfader{flex:1 1 190px}
+.patrow{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+
+/* ---- faders ----
+   The same control every other panel draws, from the shell's tokens. It is not in
+   chrome.css for the reason that file gives at length: lifting a rule that four sheets
+   already declare flips whichever equal-specificity conflict used to resolve the other
+   way, so each panel keeps its own copy and the tokens keep them identical. */
+.hfader{display:flex;align-items:center;gap:9px;cursor:ew-resize;touch-action:none;
+  padding:5px 9px;border-radius:6px;background:rgba(0,0,0,.13)}
+.hslot{position:relative;flex:1 1 auto;min-width:60px;height:20px;border-radius:4px;
+  background:linear-gradient(180deg,var(--groove-hi),var(--groove) 45%,var(--groove-hi));
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06)}
+.hslot::after{content:"";position:absolute;left:7px;right:7px;top:50%;height:3px;
+  transform:translateY(-50%);background:var(--groove-deep);border-radius:2px}
+.hcap{position:absolute;top:-3px;height:26px;width:20px;border-radius:3px;
+  transform:translateX(-50%);
+  background:linear-gradient(180deg,var(--cap-hi),var(--cap-lo));border:1px solid var(--cap-edge);
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset}
+.hcap::after{content:"";position:absolute;top:3px;bottom:3px;left:50%;width:3px;
+  margin-left:-1.5px;border-radius:2px;background:var(--cap-yellow)}
+.hfader.dragging .hcap{border-color:var(--mint)}
+.hfader .hlab{white-space:nowrap;font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--silk-dim)}
+.hfader .hval{font-family:"DM Mono",ui-monospace,monospace;font-size:10px;color:#aeb8be;
+  min-width:44px;text-align:right}
+
+/* select and text fields come from shell/chrome.css — see the note there */

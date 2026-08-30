@@ -277,6 +277,9 @@ function paintLocked(){
     const f = faderReg[id];
     if (f && f.el) f.el.classList.toggle("locked", seq.SEQ.mode === "program" && seq.isLocked(id));
   });
+  /* here rather than in paintSeqEdit: this is what the grid calls when the selection moves,
+     and both the button's label and whether it is disabled depend on the selected step */
+  if (clearLocksBtn) clearLocksBtn.paint();
 }
 function paintSeqEdit(){
   const program = seq.SEQ.mode === "program";
@@ -298,9 +301,14 @@ $("#seqLane").addEventListener("click", e => {
   seq.SEQ.lane = b.dataset.l;
   paintSeqEdit();
 });
-$("#clearLocks").addEventListener("click", e => {
-  seq.clearLocks(e.shiftKey);
-  paintSeqEdit();
+/* declared before it is assigned: a paint can run while this file is still being
+   evaluated, and a `const` in its temporal dead zone throws on any access at all */
+let clearLocksBtn = null;
+clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
+  steps: () => seq.steps,
+  sel: () => seq.SEQ.sel,
+  clear: all => seq.clearLocks(all),
+  repaint: () => paintSeqEdit()
 });
 paintSeqEdit();
 
@@ -325,13 +333,20 @@ function refreshAllControls(){
   setOct(P.oct);
   applyLive();
 }
-Patchwork.session.registerPatch("bs1", {
+/* ⚠️ ONE definition of this instrument's sound, handed to both the jam and the
+   patch store. Written twice they would drift, and the symptom would be a saved
+   patch that recalls slightly less than a jam shares — invisible until two people
+   compare what they are hearing. */
+const SOUND = {
   capture: () => Object.assign({}, P),
   apply: src => {
     Object.keys(DEFAULT).forEach(k => { if (src && src[k] !== undefined) P[k] = src[k]; });
     refreshAllControls();
   }
-});
+};
+Patchwork.session.registerPatch("bs1", SOUND);
+Patchwork.patches.mount(root, "bs1", SOUND);
+
 
 /* ---- somebody else's notes ----
    The same noteOn/noteOff a person here uses. Nothing is special about a remote note once
@@ -340,3 +355,47 @@ Patchwork.session.registerVoice("bs1", {
   on: (n, v) => { ensureAudio(); noteOn(n, v); paintNow(); },
   off: n => { noteOff(n); paintNow(); }
 });
+
+/* ---- groove from the chords on the page ----
+   A bass line is the one part whose notes are almost entirely decided by the progression,
+   which is what makes filling it by hand feel like transcription. Roots on the beat, an
+   octave lead-in on the last step before the chord changes — the most ordinary bass line
+   there is, and deliberately so: this is a starting point to play against and edit, not a
+   composition. Everything it writes is a normal step you can move afterwards.
+
+   ⚠️ It writes the whole pattern, including the rests. A generator that only turned steps
+   ON would leave whatever was there before showing through, and the result would be
+   neither the old line nor the new one. */
+(() => {
+"use strict";
+const btn = $("#grooveBtn");
+if (!btn || !window.Patchwork || !Patchwork.chords) return;
+
+function paintGroove(){
+  const ok = Patchwork.chords.ready;
+  btn.disabled = !ok;
+  btn.title = ok
+    ? "Fill this sequence from CS·1's progression — roots on the beat, octave into each change"
+    : "No chords on this page yet. CS·1 makes a progression; this plays along with it.";
+}
+btn.addEventListener("click", () => {
+  const C = Patchwork.chords;
+  if (!C.ready) return;
+  const len = seq.SEQ.len, per = Math.max(1, Math.round(len / C.current.chords.length));
+  for (let i = 0; i < len; i++){
+    const st = seq.steps[i];
+    const ch = C.at(i, len);
+    st.on = 0; st.tie = 0; st.slide = 0; st.accent = 0;
+    if (!ch) continue;
+    const first = C.starts(i, len);
+    const last  = C.starts((i + 1) % len, len);      // the step before the next chord
+    if (first){ seq.setStepNote(i, ch.bass, 110); }
+    else if (last && per > 2){ seq.setStepNote(i, ch.bass + 12, 80); st.slide = 1; }
+    else if (per > 3 && (i % Math.max(2, Math.round(per / 2))) === 0) seq.setStepNote(i, ch.bass, 80);
+  }
+  paintSeqEdit();
+  grid.render();
+});
+Patchwork.chords.onChange(paintGroove);
+paintGroove();
+})();

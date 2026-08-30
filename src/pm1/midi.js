@@ -320,8 +320,20 @@ function initMidi(){
       + "rather than opening it with <code>file://</code>.", true);
     return;
   }
+  /* What this instrument answers on, so the studio can show the whole rig's channels in
+     one place. The setters keep this panel's own selects in step: the two views are the
+     same setting and must never disagree about it. */
+  /* ⚠️ PM·1's input channel is called synCh, not inCh — MS·1 had three sections sharing one
+     instrument and each needed its own. The adapter is why the shell never has to know. */
   Patchwork.midi.route("pm1", onMidi, pt => {
     fillPorts(); followInput(pt); bindOutput(); describe();
+  }, {
+    name: "PM\u00b71", panic: midiPanic,
+    inCh:  {get: () => MIDI.synCh,
+            set: c => { MIDI.synCh = c; synChSel.value = String(c);
+                        allNotesOff(); paintRoute(); saveMap(); describe(); }},
+    outCh: {get: () => MIDI.ch,
+            set: c => { midiPanic(); MIDI.ch = c; midiChSel.value = String(c); }}
   });
   Patchwork.midi.open().then(a => {
     MIDI.access = a;

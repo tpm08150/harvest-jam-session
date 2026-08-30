@@ -41,6 +41,34 @@
 .btn.play{min-width:112px}
 .btn.play.on{background:linear-gradient(180deg,#79e6c3,var(--mint));border-color:#1f7a61;color:#0d2c24}
 
+/* ---------- selects and text fields ----------
+   ⚠️ These were in CS·1's and PM·1's sheets and NOWHERE ELSE, so DR·1, BS·1, VC·1 and LP·1
+   rendered the browser's own white boxes in the middle of a dark panel — measured, not
+   guessed: five of the eight panels came back `appearance:auto`, white on black text. It
+   was easy to miss because macOS paints a native select dark enough to pass at a glance,
+   and impossible to miss on anything that does not.
+
+   Here rather than copied a fifth time, and safe to put here for the reason this file gives
+   at the top: chrome.css loads FIRST, so CS·1's and PM·1's own copies still win every
+   equal-specificity conflict and neither of them can change. What this adds is a floor for
+   the panels that had nothing. */
+select{
+  appearance:none;width:100%;
+  font-family:"Saira Semi Condensed";font-size:14px;letter-spacing:.04em;
+  background:var(--slot);color:var(--field);border:1px solid var(--groove);border-radius:4px;
+  padding:9px 26px 9px 10px;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--silk-dim) 50%),linear-gradient(135deg,var(--silk-dim) 50%,transparent 50%);
+  background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+  box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+select:disabled{opacity:.4;cursor:default}
+input[type="text"]{
+  width:100%;font-family:"Saira Semi Condensed";font-size:14px;letter-spacing:.04em;
+  background:var(--slot);color:var(--field);border:1px solid var(--groove);border-radius:4px;
+  padding:9px 10px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+
 /* ---------- selects & tempo ---------- */
 .row{display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
 .field{display:flex;flex-direction:column;gap:5px;flex:1 1 118px;min-width:0}
@@ -122,6 +150,12 @@ input[type="text"]::placeholder{color:#5a646a}
    full panels as they are on the faces, and a standalone build keeps its own because
    nothing else is there to hold it. */
 :scope.hosted [data-hosted]{display:none}
+/* ...and `data-page` is its mirror: a line that only makes sense once the page HAS taken
+   the control over, so a panel whose fields just vanished can say where they went. Opening
+   a full panel to set a channel and finding the field gone is a worse bug than the six
+   duplicate controls this mechanism exists to remove. */
+:scope [data-page]{display:none}
+:scope.hosted [data-page]{display:block}
 
 /* ---------- the plate ----------
    Only CS·1 and PM·1 ever defined this, so on every other panel the header had no layout

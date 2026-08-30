@@ -4,6 +4,12 @@
 const playBtn = $("#play"), tempoOut = $("#tempoOut"), lanesEl = $("#lanes");
 const clampf = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+/* Which element owns each lockable parameter, so a lock can be shown on the control that
+   wrote it — the yellow label BS·1 and PM·1 both use. */
+const faderReg = {};
+/* assigned further down; declared here so an early paint cannot hit a temporal dead zone */
+let clearLocksBtn = null;
+
 /* ---- the lane grid ---- */
 function buildLanes(){
   lanesEl.textContent = "";
@@ -83,11 +89,19 @@ lanesEl.addEventListener("click", e => {
   const pad = e.target.closest(".pad");
   if (!pad) return;
   const id = pad.dataset.v, i = +pad.dataset.i;
-  steps[id][i] = (steps[id][i] + 1) % 3;
-  SEQ.lane = id;
+  /* Program mode: the click chooses which hit the faders will write a lock onto, and
+     leaves the pattern alone. Play mode keeps the three-state cycle that IS this
+     instrument's grammar — off, on, accent — untouched. */
+  if (SEQ.mode === "program"){
+    SEQ.lane = id; SEQ.sel = i;
+  } else {
+    steps[id][i] = (steps[id][i] + 1) % 3;
+    SEQ.lane = id;
+  }
   $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === id));
   syncVoice();
   paintPads();
+  paintLocks();
 });
 
 function flashLane(id){
@@ -124,9 +138,14 @@ const faderCtl = {};
    selected — a kick tuned to a hat's 40 Hz fundamental is inaudible, and a hat at a
    kick's 48 Hz is a buzz. One fader serving eight voices needs the range to move with
    the selection rather than being remapped after the fact. */
-function makeFader(sel, get, set, fmt, min, max){
+/* `param` is the key in P[lane] this fader owns. It is what a parameter lock is keyed on,
+   and the reason a fader has to say which one it is rather than just how to set it — the
+   same argument BS·1's fader() makes. Faders with no param (swing, accent) are the
+   pattern's, not a voice's, and cannot be locked. */
+function makeFader(sel, get, set, fmt, min, max, param){
   const el = $(sel), slot = el.querySelector(".hslot"), cap = el.querySelector(".hcap"),
         val = el.querySelector(".hval");
+  if (param) faderReg[param] = el;
   const lo = () => (typeof min === "function" ? min() : min);
   const hi = () => (typeof max === "function" ? max() : max);
   function paintF(){
@@ -142,6 +161,9 @@ function makeFader(sel, get, set, fmt, min, max){
       const a = lo(), b = hi();
       set(a + x * (b - a));
       paintF();
+      /* In program mode moving a control IS the lock gesture — no separate arm step, the
+         same as the other three sequencers. */
+      if (param && lock(param)) paintLocks();
     };
     move(e);
     el.classList.add("dragging");
@@ -169,6 +191,7 @@ const cur = () => P[SEQ.lane];
 
 function syncVoice(){
   const v = VOICES[SEQ.lane];
+  if (typeof paintLocks === "function") paintLocks();
   $("#voiceTag").textContent = v.name;
   $("#voiceMeta").textContent = v.full;
   ["#tuneF", "#toneF", "#decayF", "#levelF"].forEach(k => faderCtl[k] && faderCtl[k]());
@@ -176,17 +199,65 @@ function syncVoice(){
 
 makeFader("#tuneF",  () => cur().tune,  v => { cur().tune = v; },
           v => (v < 100 ? v.toFixed(1) : Math.round(v)) + " Hz",
-          () => TUNE_RANGE[SEQ.lane][0], () => TUNE_RANGE[SEQ.lane][1]);
+          () => TUNE_RANGE[SEQ.lane][0], () => TUNE_RANGE[SEQ.lane][1], "tune");
 makeFader("#toneF",  () => cur().tone,  v => { cur().tone = v; },
-          v => Math.round(v * 100) + "%", 0, 1);
+          v => Math.round(v * 100) + "%", 0, 1, "tone");
 makeFader("#decayF", () => cur().decay, v => { cur().decay = v; },
-          v => (v * 1000).toFixed(0) + " ms", .02, 1.2);
+          v => (v * 1000).toFixed(0) + " ms", .02, 1.2, "decay");
 makeFader("#levelF", () => cur().level, v => { cur().level = v; },
-          v => Math.round(v * 100) + "%", 0, 1);
+          v => Math.round(v * 100) + "%", 0, 1, "level");
 makeFader("#swingF",  () => SEQ.swing,     v => { SEQ.swing = v; },
           v => Math.round(v * 100) + "%", .5, .75);
 makeFader("#accentF", () => SEQ.accentAmt, v => { SEQ.accentAmt = v; },
           v => Math.round(v * 100) + "%", 0, .8);
+
+/* ---- program mode and parameter locks ---- */
+const seqModeEl = $("#seqMode"), lockHintEl = $("#lockHint");
+seqModeEl.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  SEQ.mode = b.dataset.p;
+  $$("#seqMode button").forEach(x => x.classList.toggle("on", x.dataset.p === SEQ.mode));
+  paintPads();
+  paintLocks();
+});
+/* Double-click unlocks BEFORE it would reset anything: otherwise there is no way to take a
+   lock off a control without also losing the voice setting underneath it. PM·1's rule. */
+["tune", "tone", "decay", "level"].forEach(param => {
+  const el = faderReg[param];
+  if (el) el.addEventListener("dblclick", () => {
+    if (SEQ.mode === "program" && unlock(param)) paintLocks();
+  });
+});
+
+function paintLocks(){
+  const program = SEQ.mode === "program";
+  ["tune", "tone", "decay", "level"].forEach(param => {
+    const el = faderReg[param];
+    if (el) el.classList.toggle("locked", program && isLocked(param));
+  });
+  $$(".pad").forEach(b => {
+    const id = b.dataset.v, i = +b.dataset.i;
+    b.classList.toggle("lock", !!lockAt(id, i));
+    b.classList.toggle("sel", program && id === SEQ.lane && i === SEQ.sel);
+  });
+  if (lockHintEl){
+    const n = lockCount(SEQ.lane);
+    lockHintEl.textContent = !program
+      ? (n ? n + " locked step" + (n === 1 ? "" : "s") + " on " + SEQ.lane.toUpperCase() : "")
+      : "step " + (SEQ.sel + 1) + " of " + SEQ.lane.toUpperCase()
+        + " — move a voice fader to lock it";
+  }
+  if (clearLocksBtn) clearLocksBtn.paint();
+}
+
+/* One implementation of this button across the rack — see seq/step-seq.js. DR·1 keeps its
+   locks per LANE, so the button is about the lane whose voice the faders are editing. */
+clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
+  steps: () => Array.from({length: SEQ.len}, (_, i) => ({locks: lockAt(SEQ.lane, i)})),
+  sel: () => SEQ.sel,
+  clear: all => clearLocks(all),
+  repaint: () => { paintPads(); paintLocks(); }
+});
 
 /* ---- transport and pattern controls ---- */
 playBtn.addEventListener("click", () => SEQ.playing ? stopPlay() : startPlay());
@@ -236,7 +307,11 @@ syncVoice();
 /* ---- the kit, for a shared jam ----
    Eight voices of four numbers. Not the pattern — that is the scene's — and not the trims,
    which are measured constants rather than anything you dial. */
-Patchwork.session.registerPatch("dr1", {
+/* ⚠️ ONE definition of this instrument's sound, handed to both the jam and the
+   patch store. Written twice they would drift, and the symptom would be a saved
+   patch that recalls slightly less than a jam shares — invisible until two people
+   compare what they are hearing. */
+const SOUND = {
   capture: () => {
     const out = {};
     ORDER.forEach(id => {
@@ -255,7 +330,10 @@ Patchwork.session.registerPatch("dr1", {
     });
     syncVoice();
   }
-});
+};
+Patchwork.session.registerPatch("dr1", SOUND);
+Patchwork.patches.mount(root, "dr1", SOUND);
+
 
 /* ---- somebody else's hits ----
    A lane id rather than a note number, because that is what DR·1's keyboard sends. A drum

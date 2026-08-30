@@ -4,8 +4,13 @@
 let ctx = null, out = null, node = null, monitor = null, inGain = null,
     stream = null, src = null, ready = false;
 
-/* The sentinel for "the studio's own output" in the input list. */
+/* The sentinel for "the studio's own output" in the input list, and the prefix for one
+   instrument on its own — "__inst:dr1". Both are sources INSIDE the page rather than
+   devices, which is the distinction closeInput() cares about: there are no tracks to stop
+   and there is a tap to release. */
 const BUS = "__bus";
+const INST = "__inst:";
+const instOf = id => String(id || "").indexOf(INST) === 0 ? String(id).slice(INST.length) : null;
 
 const LP = {
   bars: 2,                  // loop length, in bars of the shell's grid
@@ -167,16 +172,25 @@ async function openInput(deviceId){
      useful of the two — capture the band, then overdub over it — and it needs no
      permission, no headphones and no feedback risk, because the tap excludes this
      instrument's own strip. */
-  if (deviceId === BUS){
+  const one = instOf(deviceId);
+  if (deviceId === BUS || one){
     closeInput();
-    /* the metronome's strip is excluded too — a click on the bus prints into every take */
-    /* the metronome's strip and the talkback's are excluded too — a click or a voice on
-       the bus would be printed into every take from then on */
-    src = Patchwork.audio.tap(["lp1", Patchwork.click.STRIP, Patchwork.talk.STRIP]);
+    /* ⚠️ ONE INSTRUMENT NEEDS NO EXCLUSIONS, and that is not an oversight. The bus tap has
+       to name three strips to leave out — this looper's, the metronome's and the
+       talkback's — because it takes everything and those three would be printed into every
+       take. Naming one strip is the exclusion: nothing else is in it. The only id that
+       could bite is "lp1", and the list never offers it. */
+    src = one
+      ? Patchwork.audio.tapOnly(one)
+      : Patchwork.audio.tap(["lp1", Patchwork.click.STRIP, Patchwork.talk.STRIP]);
     src.connect(inGain);
-    stream = BUS;                   // "an input is open", without a MediaStream
-    say("Recording the <b>studio output</b> — everything the other instruments play, but "
-      + "not this looper, so an overdub cannot record itself.");
+    /* "an input is open", without a MediaStream — true of both sources inside the page */
+    stream = BUS;
+    say(one
+      ? "Recording <b>" + inputLabel(deviceId) + "</b> on its own — that instrument only, so "
+        + "the rest of the studio stays out of the take and can be looped separately."
+      : "Recording the <b>studio output</b> — everything the other instruments play, but "
+        + "not this looper, so an overdub cannot record itself.");
     return true;
   }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
@@ -204,7 +218,14 @@ async function openInput(deviceId){
   }
 }
 function closeInput(){
-  if (src){ try{ src.disconnect(); }catch(e){} src = null; }
+  /* Release before disconnect: a tap is wired FROM every strip it listens to, and dropping
+     only its output would leave it attached to the graph for the life of the page. Harmless
+     on a microphone source, which is not a tap. */
+  if (src){
+    try{ Patchwork.audio.untap(src); }catch(e){}
+    try{ src.disconnect(); }catch(e){}
+    src = null;
+  }
   if (stream && stream !== BUS){
     stream.getTracks().forEach(t => { try{ t.stop(); }catch(e){} });
   }

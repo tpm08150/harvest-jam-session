@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Harvest Jam Session — BS·1 — bass</title>
+<title>Jam Session — BS·1 — bass</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Saira+Semi+Condensed:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -74,6 +74,15 @@ body{
   display:flex;justify-content:center;align-items:flex-start;
   -webkit-font-smoothing:antialiased;
 }
+
+/* ⚠️ `hidden` has to beat a layout rule, everywhere — not just in the studio.
+
+   The UA sheet says [hidden]{display:none}, which any `display:flex` on the same element
+   loses to on specificity, so el.hidden = true did nothing to a flex row. The studio sheet
+   carried this line and the six standalone builds did not, which is why PM·1's arp
+   controls stayed on screen in poly-synth.html while behaving correctly in index.html —
+   the same code, two answers, and only one of the pages ever tested. */
+[hidden]{display:none !important}
 /* Panel chrome a new instrument can build on.
 
    CS·1 and MS·1 were written as separate whole pages and independently grew the same
@@ -116,6 +125,34 @@ body{
 .btn:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(255,255,255,.08) inset}
 .btn.play{min-width:112px}
 .btn.play.on{background:linear-gradient(180deg,#79e6c3,var(--mint));border-color:#1f7a61;color:#0d2c24}
+
+/* ---------- selects and text fields ----------
+   ⚠️ These were in CS·1's and PM·1's sheets and NOWHERE ELSE, so DR·1, BS·1, VC·1 and LP·1
+   rendered the browser's own white boxes in the middle of a dark panel — measured, not
+   guessed: five of the eight panels came back `appearance:auto`, white on black text. It
+   was easy to miss because macOS paints a native select dark enough to pass at a glance,
+   and impossible to miss on anything that does not.
+
+   Here rather than copied a fifth time, and safe to put here for the reason this file gives
+   at the top: chrome.css loads FIRST, so CS·1's and PM·1's own copies still win every
+   equal-specificity conflict and neither of them can change. What this adds is a floor for
+   the panels that had nothing. */
+select{
+  appearance:none;width:100%;
+  font-family:"Saira Semi Condensed";font-size:14px;letter-spacing:.04em;
+  background:var(--slot);color:var(--field);border:1px solid var(--groove);border-radius:4px;
+  padding:9px 26px 9px 10px;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--silk-dim) 50%),linear-gradient(135deg,var(--silk-dim) 50%,transparent 50%);
+  background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+  box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+select:disabled{opacity:.4;cursor:default}
+input[type="text"]{
+  width:100%;font-family:"Saira Semi Condensed";font-size:14px;letter-spacing:.04em;
+  background:var(--slot);color:var(--field);border:1px solid var(--groove);border-radius:4px;
+  padding:9px 10px;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
 
 /* ---------- selects & tempo ---------- */
 .row{display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
@@ -198,6 +235,12 @@ input[type="text"]::placeholder{color:#5a646a}
    full panels as they are on the faces, and a standalone build keeps its own because
    nothing else is there to hold it. */
 :scope.hosted [data-hosted]{display:none}
+/* ...and `data-page` is its mirror: a line that only makes sense once the page HAS taken
+   the control over, so a panel whose fields just vanished can say where they went. Opening
+   a full panel to set a channel and finding the field gone is a worse bug than the six
+   duplicate controls this mechanism exists to remove. */
+:scope [data-page]{display:none}
+:scope.hosted [data-page]{display:block}
 
 /* ---------- the plate ----------
    Only CS·1 and PM·1 ever defined this, so on every other panel the header had no layout
@@ -366,26 +409,49 @@ input[type="text"]::placeholder{color:#5a646a}
     <button class="btn panic" id="panic">Panic</button>
   </div>
 
+  <!-- The patch row every instrument with saved sounds has. The behaviour is
+       shell/patches.js; what a sound IS stays with the instrument. -->
+  <div data-face class="row patchrow">
+    <div class="field">
+      <label for="patchSel">Patch</label>
+      <select id="patchSel"></select>
+    </div>
+    <div class="field">
+      <label for="patchName">Name</label>
+      <input type="text" id="patchName" placeholder="Untitled" autocomplete="off">
+    </div>
+    <div class="patch-actions">
+      <button class="btn ghost sm" id="patchSave">Save</button>
+      <button class="btn ghost sm" id="patchDelete">Delete</button>
+      <button data-deep class="btn ghost sm" id="patchExport">Export</button>
+      <button data-deep class="btn ghost sm" id="patchImport">Import</button>
+      <input type="file" id="patchFile" accept="application/json,.json" hidden>
+    </div>
+  </div>
+  <p class="note" id="patchNote" style="display:none"></p>
+
   <div data-face class="sect">
     <div class="sect-head">
       <span class="silk">Sequence</span>
-      <div class="patrow">
-        <div class="field" style="flex:0 0 84px">
-          <label for="seqLen">Steps</label>
-          <select id="seqLen"></select>
-        </div>
-        <div class="field" style="flex:0 0 92px">
-          <label for="seqRate">Rate</label>
-          <select id="seqRate"></select>
-        </div>
-        <div class="field" style="flex:0 0 96px">
-          <label for="seqKey">Key</label>
-          <select id="seqKey"></select>
-        </div>
-        <div class="field" style="flex:0 0 116px">
-          <label for="seqScale">Scale</label>
-          <select id="seqScale"></select>
-        </div>
+    </div>
+    <!-- A row of its own rather than four selects wedged into the header, so all three
+         sequencers read head → settings → edit → grid → legend from three feet away. -->
+    <div class="patrow">
+      <div class="field" style="flex:0 0 84px">
+        <label for="seqLen">Steps</label>
+        <select id="seqLen"></select>
+      </div>
+      <div class="field" style="flex:0 0 92px">
+        <label for="seqRate">Rate</label>
+        <select id="seqRate"></select>
+      </div>
+      <div class="field" style="flex:0 0 96px">
+        <label for="seqKey">Key</label>
+        <select id="seqKey"></select>
+      </div>
+      <div class="field" style="flex:0 0 116px">
+        <label for="seqScale">Scale</label>
+        <select id="seqScale"></select>
       </div>
     </div>
     <!-- The same editing controls PM·1 has, so one grid answers one set of rules across
@@ -402,6 +468,8 @@ input[type="text"]::placeholder{color:#5a646a}
         <button data-l="slide">Slide</button>
         <button data-l="tie">Tie</button>
       </div>
+      <button class="btn ghost sm" id="grooveBtn"
+              title="Fill this sequence from CS·1's progression">Groove</button>
       <button class="btn ghost sm" id="clearLocks" title="Clear this step's locks — shift-click clears every step">Clear locks</button>
     </div>
     <div class="seqwrap" id="seqWrap"></div>
@@ -449,7 +517,7 @@ input[type="text"]::placeholder{color:#5a646a}
     <div class="sect-head">
       <span class="silk"><i class="led" id="midiLed"></i>MIDI</span>
     </div>
-    <div class="row">
+    <div class="row" data-hosted>
       <div class="field">
         <label for="midiIn">Input</label>
         <select id="midiIn"><option value="">— none —</option></select>
@@ -459,6 +527,7 @@ input[type="text"]::placeholder{color:#5a646a}
         <select id="midiInCh"></select>
       </div>
     </div>
+    <p class="note" data-page>The rack's MIDI input and channels are set together on the <b>Scenes</b> panel.</p>
     <p class="note" id="midiNote">—</p>
   </div>
 
@@ -562,7 +631,11 @@ Patchwork.audio = (() => {
 "use strict";
 
 let ctx = null, master = null;
-const strips = new Map();
+const strips = new Map();   // id -> {in, out}
+const levels = new Map();   // id -> fader gain, remembered even before the strip exists
+const mutes = new Set();    // ids held silent
+const solos = new Set();    // ids held audible — while any exist, everything else is not
+const applied = new Map();  // id -> the gain last written to the node, to ramp from
 
 function context(){
   if (!ctx){
@@ -575,18 +648,122 @@ function context(){
 }
 
 /* Where an instrument sends its output instead of ctx.destination. One per instrument,
-   so a mixer — or a solo button — has something to hold on to later. */
+   so a mixer — or a solo button — has something to hold on to later. Later is now.
+
+   TWO NODES, not one. `in` is where the instrument plays and where every tap listens;
+   `out` carries the fader on its way to master. What that buys is the answer to a question
+   a one-node strip cannot even ask:
+
+   ⚠️ TAPS ARE PRE-FADER. Your mix changes what YOU hear and nothing else — not what the
+   looper prints, not what the vocoder is modulated by. Post-fader is the other defensible
+   answer and it is the one to avoid here, because a take gets PUSHED: pull the drums down
+   for yourself, record the studio output, and you would hand the room a loop with quiet
+   drums in it and no way to know why. Worse with per-instrument sources, where your own
+   mix would silently rewrite a take of somebody ELSE's instrument. A monitor balance is
+   not supposed to leave your headphones. */
 function strip(id){
   context();
   if (!strips.has(id)){
-    const g = ctx.createGain();
-    g.gain.value = 1;
-    g.connect(master);
-    strips.set(id, g);
+    const into = ctx.createGain(), out = ctx.createGain();
+    into.gain.value = 1;
+    out.gain.value = gainFor(id);
+    applied.set(id, out.gain.value);
+    into.connect(out);
+    out.connect(master);
+    strips.set(id, {in: into, out});
     taps.forEach(wireTap);          // an instrument built after a tap still reaches it
   }
-  return strips.get(id);
+  return strips.get(id).in;
 }
+
+/* ---- the mix ----
+   One gain per instrument, and NOTHING here is shared with a jam. That is the whole point
+   of it rather than an omission: everybody renders the same patterns through their own
+   speakers, in their own room, and the balance that works in one is not the balance that
+   works in another. Patterns and patches are shared because they are the MUSIC; a mix is
+   how you happen to be listening to it.
+
+   ⚠️ Which is also why it must never be registered with session.registerPatch(). That
+   would poll it, notice it differed from the last thing sent, and push your balance to
+   everyone — the failure being that it works perfectly alone and only goes wrong with
+   somebody else in the room.
+
+   Levels are kept here as well as on the node, so the mixer can be set before the
+   instrument has ever made a sound. A strip is not built until its instrument first plays,
+   and a fader that silently did nothing until then would be the kind of bug you blame on
+   the audio rather than on the order things happened in. */
+/* ⚠️ ANSWERED FROM THE MAP, NEVER FROM THE NODE. `gain.value` looks like the obvious
+   source of truth and is not one: it reports the value from the last render quantum in
+   which that node was PROCESSED, and Chrome does not process a branch with nothing
+   flowing through it. So a strip whose instrument is not currently sounding reports
+   whatever its gain happened to be when it last made a noise, no matter what has been set
+   since — the automation underneath is perfectly correct and the readback is a ghost.
+
+   It cost a real diagnosis: one fader read 0.5 while its audio measurably ran at 0.2, and
+   only that instrument, because only that one had gone quiet. What made it convincing was
+   that every other fader was right — the ones still playing. The mixer's model is this
+   map; the AudioParam is what the map does to the sound. */
+function level(id){
+  return levels.has(id) ? levels.get(id) : 1;
+}
+
+/* ---- mute and solo ----
+   Standard mixer rules, and worth writing down because "obvious" here is only obvious once
+   you have used a mixer: a mute silences that one strip; a solo silences everything that is
+   NOT soloed, and several can be soloed at once. Mute wins over solo, so soloing a track you
+   have muted leaves it silent rather than quietly un-muting it behind your back.
+
+   ⚠️ They live on the SAME node as the fader, which puts them post-tap like it — your mute
+   changes what you hear and not what the looper prints or what the vocoder is modulated by.
+   A mute that silenced a take being recorded would be the worst kind of surprise: you would
+   not find out until you played the loop back. */
+function gainFor(id){
+  if (mutes.has(id)) return 0;
+  if (solos.size && !solos.has(id)) return 0;
+  return levels.has(id) ? levels.get(id) : 1;
+}
+/* Ramped, not assigned: a gain that jumps clicks, and a fader drag is a jump per frame.
+   Cancel first, and ramp from the value we KNOW we last wrote rather than from gain.value —
+   which reports the last RENDERED value and is a ghost on a strip that has gone quiet. Plus
+   setTargetAtTime approaches forever and never clears, so a dragged fader would pile an
+   event per frame onto a timeline nothing ever empties. */
+function applyGain(id){
+  const s = strips.get(id);
+  const g = gainFor(id);
+  if (!s || !ctx){ applied.set(id, g); return g; }
+  const from = applied.has(id) ? applied.get(id) : 1;
+  const t = ctx.currentTime, p = s.out.gain;
+  p.cancelScheduledValues(t);
+  p.setValueAtTime(from, t);
+  p.linearRampToValueAtTime(g, t + .02);
+  applied.set(id, g);
+  return g;
+}
+function setLevel(id, v){
+  const g = Math.max(0, Math.min(1, +v || 0));
+  levels.set(id, g);
+  applyGain(id);
+  return g;
+}
+function setMute(id, on){
+  if (on) mutes.add(id); else mutes.delete(id);
+  applyGain(id);
+  return mutes.has(id);
+}
+/* ⚠️ Every strip, not just this one. Soloing a track changes what you hear from all the
+   others, and that is the entire point of the control — repainting only the one you clicked
+   is the bug that makes solo look like it does nothing. */
+function setSolo(id, on){
+  if (on) solos.add(id); else solos.delete(id);
+  const ids = new Set([...strips.keys(), ...levels.keys(), ...mutes, ...solos]);
+  ids.forEach(applyGain);
+  return solos.has(id);
+}
+function muted(id){ return mutes.has(id); }
+function soloed(id){ return solos.has(id); }
+/* what a strip is actually doing, once the fader, the mute and everyone else's solo have
+   had their say — the number the meter would show, as opposed to where the fader is */
+function audible(id){ return gainFor(id); }
 
 /* A sum of every instrument's strip EXCEPT one — what the looper records when you point
    it at the studio rather than a microphone.
@@ -596,23 +773,68 @@ function strip(id){
    until it clips. Taps are kept and re-wired when a new strip appears, because an
    instrument can be built after the tap was made. */
 const taps = [];
-/* `exclude` is one id or several. The looper needs two — its own strip and the metronome's
-   — because a click on the bus would be printed into every take. */
+/* `exclude` is one id or several. The looper needs three — its own strip, the metronome's
+   and the talkback's — because a click or a voice on the bus would be printed into every
+   take from then on. */
 function tap(exclude){
+  return makeTap({exclude: [].concat(exclude || [])});
+}
+
+/* The other direction: a sum of ONLY the named strips.
+
+   Same machinery, opposite question. "Everything except me" is what you want when you are
+   capturing the band; "just this one" is what you want when you are capturing a part — the
+   drums to loop under a bass line, say — and the difference between them is a whole
+   feature rather than a knob, because a take with the whole studio printed into it can
+   never be separated again afterwards.
+
+   ⚠️ Point this at a strip, never AT the strip itself. Handing out `strips.get(id)` would
+   be one node fewer and would work perfectly until the caller released it: disconnect()
+   with no argument drops every outgoing connection, so releasing that input would also cut
+   the instrument off from master and silence it with nothing to say why. */
+function tapOnly(include){
+  return makeTap({only: [].concat(include || [])});
+}
+
+function makeTap(spec){
   context();
   const g = ctx.createGain();
   g.gain.value = 1;
-  const t = {node: g, exclude: [].concat(exclude || []), wired: new Set()};
+  const t = Object.assign({node: g, wired: new Set()}, spec);
   taps.push(t);
   wireTap(t);
   return g;
 }
 function wireTap(t){
-  strips.forEach((strip, id) => {
-    if (t.exclude.indexOf(id) >= 0 || t.wired.has(id)) return;
-    strip.connect(t.node);
+  strips.forEach((s, id) => {
+    if (t.wired.has(id)) return;
+    if (t.only ? t.only.indexOf(id) < 0 : t.exclude.indexOf(id) >= 0) return;
+    s.in.connect(t.node);            // .in, not .out — see the pre-fader warning above
     t.wired.add(id);
   });
+}
+
+/* ⚠️ A TAP HAS TO BE RELEASED, not merely disconnected downstream.
+
+   Every strip holds a connection INTO the tap, and `taps` holds the tap so that an
+   instrument built later still reaches it. Dropping only the tap's own output leaves both:
+   the node is inaudible, so nothing sounds wrong, and it quietly stays wired to every
+   strip on the page forever — plus each new strip joins it. One abandoned tap per input
+   change was survivable when the only source was the whole studio and you chose it once.
+   Choosing between six instruments makes changing source a normal gesture, so the graph
+   has to come apart as cleanly as it went together.
+
+   Safe to call on anything: a node that is not a tap is simply not one, and says so. */
+function untap(node){
+  const i = taps.findIndex(t => t.node === node);
+  if (i < 0) return false;
+  const t = taps.splice(i, 1)[0];
+  t.wired.forEach(id => {
+    const s = strips.get(id);
+    if (s) try{ s.in.disconnect(t.node); }catch(e){}
+  });
+  try{ t.node.disconnect(); }catch(e){}
+  return true;
 }
 
 /* iOS parks the context in "suspended" until a gesture and in "interrupted" after a
@@ -627,10 +849,13 @@ function resume(){
   return ctx.state;
 }
 
-return {context, strip, resume, tap,
+return {context, strip, resume, tap, tapOnly, untap, level, setLevel,
+        setMute, setSolo, muted, soloed, audible,
+        get anySolo(){ return solos.size > 0; },
         get ctx(){ return ctx; },
         get master(){ return master; },
-        get strips(){ return new Map(strips); }};
+        /* the input nodes, which is what a strip has always meant to a caller */
+        get strips(){ return new Map([...strips].map(([id, s]) => [id, s.in])); }};
 })();
 
 /* One clock for the page.
@@ -678,7 +903,24 @@ function claim(quantumBeats){
     origin = shared;
   }
   const q = Math.max(1e-6, quantumBeats * beatSeconds());
-  return origin + Math.ceil((soon - origin) / q) * q;
+  /* ⚠️ A HAIR PAST A BOUNDARY IS STILL THAT BOUNDARY.
+
+     Without this window, one row press could start two instruments a bar apart. The first
+     to start finds nothing running, sets origin to now and returns it; the second calls in
+     a few milliseconds later — the cost of the first one's own start — sees itself just
+     past the line that was only defined for it, and Math.ceil rounds a hair up to a whole
+     quantum. Measured at 5.3 ms between the two claims and exactly one bar between the
+     sounds, which is the shape of the bug: silent, tempo-correct, and only when more than
+     one instrument starts at once.
+
+     It also covers the human case it looks like it covers — pressing a row a few ms after
+     the downbeat means you were aiming at that downbeat, not the next one.
+
+     A time slightly in the past is safe: every caller schedules against it through a 200 ms
+     lookahead, so it lands a few ms early rather than a bar late. Clamped against q so a
+     small quantum can never be swallowed whole. */
+  const window = Math.min(.05, q * .25);
+  return origin + Math.ceil((soon - origin - window) / q) * q;
 }
 
 /* Where a shared grid comes from — see shell/session.js. Returns null when playing alone,
@@ -930,7 +1172,9 @@ Patchwork.midi = (() => {
 "use strict";
 
 let accessPromise = null, access = null, port = null;
-const subs = [];                 // {id, onMidi, onPort}
+const subs = [];                 // {id, onMidi, onPort, spec}
+const watchers = [];             // UI that wants to know when any of this changed
+function notify(){ watchers.forEach(fn => { try{ fn(); }catch(e){} }); }
 
 /* One requestMIDIAccess for the page — two calls mean two permission paths and two
    onstatechange owners racing to rebuild the same port lists. */
@@ -953,16 +1197,87 @@ function open(){
 
 function ports(kind){ return access ? Array.from(access[kind].values()) : []; }
 
-function fanout(e){
+function deliver(s, e){
   /* A handler that throws must not stop the message reaching the other instruments. */
-  subs.forEach(s => { try{ s.onMidi(e); }catch(err){ console.error("midi handler failed", err); } });
+  try{ s.onMidi(e); }catch(err){ console.error("midi handler failed", err); }
+}
+
+/* ---- play whatever panel you are looking at ----
+   Channels are the right model when a controller has several parts on it and you have set
+   the rig up once. They are the wrong model for one keyboard and six instruments, where
+   the question is always "play THIS one" and the answer was a trip into a panel to change
+   a number. Follow mode makes clicking a panel the whole gesture — the same click that
+   already hands it the computer keyboard.
+
+   ⚠️ THE CHANNEL IS REWRITTEN, not bypassed. Every instrument filters by channel on its
+   own way in and that filter is not moving — the router has never had opinions about
+   channels and should not grow them. So a message aimed at the focused instrument is
+   re-stamped with the channel that instrument is listening on, and its own filter passes
+   it for its own reasons. An instrument on Omni needs no rewrite and gets none. */
+let follow = false;
+
+/* ⚠️ A NOTE-OFF GOES WHERE ITS NOTE-ON WENT, focus or no focus. Hold a note, click another
+   panel, let go: without this the note-off lands on the newly focused instrument and the
+   first one sustains that note until a panic. host.js has exactly this problem with the
+   computer keyboard and exactly this answer — a keyup is routed to whichever panel took
+   its keydown. Held notes are the thing a focus change is most likely to interrupt, so
+   this is the common case rather than the corner. */
+const heldBy = new Map();        // "channel:note" -> the id that took the note-on
+
+function focusedId(){
+  const r = Patchwork.focused;
+  return r && r.dataset ? r.dataset.instrument : null;
+}
+function retarget(s, d){
+  const want = s.spec && s.spec.inCh ? s.spec.inCh.get() : -1;
+  if (want == null || want < 0) return {data: d};    // Omni: nothing to re-stamp
+  const out = Uint8Array.from(d);
+  out[0] = (d[0] & 0xF0) | (want & 0x0F);
+  return {data: out};
+}
+
+function fanout(e){
+  const d = e.data;
+  if (!follow || !d || !d.length){ subs.forEach(s => deliver(s, e)); return; }
+  const st = d[0];
+  /* Realtime carries no channel and belongs to everyone — CS·1 follows the clock, and a
+     transport that only reached the panel you happened to be looking at would be a bug
+     nobody would think to describe as a MIDI routing problem. */
+  if (st >= 0xF0){ subs.forEach(s => deliver(s, e)); return; }
+  const type = st & 0xF0, ch = st & 0x0F;
+  /* All-notes-off and all-sound-off reach everything. A panic that only works on the panel
+     you are looking at is not a panic. */
+  if (type === 0xB0 && (d[1] === 120 || d[1] === 123)){
+    subs.forEach(s => deliver(s, e)); return;
+  }
+
+  const key = ch + ":" + d[1];
+  let id = null;
+  if (type === 0x80 || (type === 0x90 && d[2] === 0)){
+    id = heldBy.get(key) || null;
+    heldBy.delete(key);
+  }
+  if (!id) id = focusedId();
+  const s = subs.find(x => x.id === id);
+  if (!s) return;                                   // focus is on something that takes no MIDI
+  if (type === 0x90 && d[2] > 0) heldBy.set(key, s.id);
+  deliver(s, retarget(s, d));
 }
 
 /* Register an instrument. onMidi gets every message — filter by channel yourself.
    onPort is called when the page's input changes, including when the OTHER panel
    changed it, so a selector and an LED can follow. */
-function route(id, onMidi, onPort){
-  subs.push({id, onMidi, onPort: onPort || function(){}});
+/* `spec` is how an instrument says which channels it answers on, so ONE place can show
+   them all and set them. It is an adapter rather than a field because every instrument
+   keeps this somewhere different and calls it something different — bs1 and vc1 have
+   MIDI.inCh, dr1 has inCh and ch, cs1 has both under other names again, and pm1's input
+   channel is called synCh for reasons that date to MS·1. Asking each to expose a getter
+   and a setter costs one object and means the shell never has to know any of that.
+
+     {name, inCh:{get,set}, outCh:{get,set}}   — every part optional */
+function route(id, onMidi, onPort, spec){
+  subs.push({id, onMidi, onPort: onPort || function(){}, spec: spec || null});
+  notify();
 }
 
 function select(portId){
@@ -970,10 +1285,27 @@ function select(portId){
   port = portId ? (ports("inputs").find(p => p.id === portId) || null) : null;
   if (port) port.onmidimessage = fanout;
   subs.forEach(s => { try{ s.onPort(port); }catch(e){} });
+  notify();
   return port;
 }
 
-return {open, ports, route, select,
+/* Everything registered, in the order it registered, for a page that wants to show the
+   whole rig's channels in one place. */
+function list(){
+  return subs.filter(s => s.spec).map(s => ({id: s.id, name: (s.spec.name || s.id), spec: s.spec}));
+}
+function setFollow(on){
+  follow = !!on;
+  /* ⚠️ Notes held across the switch would never be released by the rule that is now in
+     force, so let go of everything first. Silence is recoverable; a stuck note is not. */
+  heldBy.clear();
+  subs.forEach(s => { try{ if (s.spec && s.spec.panic) s.spec.panic(); }catch(e){} });
+  notify();
+}
+
+return {open, ports, route, select, list, setFollow,
+        onChange: fn => watchers.push(fn),
+        get follow(){ return follow; },
         get access(){ return access; },
         get port(){ return port; }};
 })();
@@ -1297,6 +1629,275 @@ return {register, store, storeAll, clear, fire, take, onChange, playing, start,
            just moved one says so — the same signal record.changed() is. */
         changed: notify,
         has(row, id){ return !!(rows[row] && rows[row].cells[id]); }};
+})();
+/* The chords on the page, for whoever wants to play along.
+
+   CS·1 generates a progression and then plays it alone. Everything else in the rack — the
+   bass, the poly synth, the vocoder — starts from an empty grid you fill by hand, in a key
+   nothing tells you. That is a lot of typing to arrive at the notes already on screen.
+
+   So one instrument PROVIDES chords and any number of instruments READ them. Deliberately
+   not "CS·1 drives the rack": nothing here plays anything or changes anybody's pattern.
+   A reader asks what the chords are, when it is asked to, and writes its own notes — which
+   is why the button lives on the instrument being filled rather than on CS·1.
+
+   ⚠️ POLLED, NOT PUSHED, and for the reason session.js already gives about patches: the
+   progression is set in three different places today — generated, loaded from a patch,
+   applied from a scene — and the fourth one added later is the one nobody remembers to
+   hook. One snapshot compared against the last catches every way it can change, including
+   the ways added after this was written.
+
+   The provider hands back RESOLVED notes, not chord symbols. Voicing a chord is CS·1's
+   theory and belongs in CS·1; a reader that had to know what "♭VII" meant would be a
+   second implementation of the part of this app most worth having only once. */
+Patchwork.chords = (() => {
+"use strict";
+
+let read = null;                 // the provider's snapshot function
+let cur = null;                  // the last progression seen
+let sig = null;                  // its signature, for spotting a change
+const subs = [];
+
+function notify(){ subs.forEach(fn => { try{ fn(cur); }catch(e){} }); }
+
+/* One provider. A page with two instruments claiming to own the chords has a question
+   nobody has asked yet, and answering it now would be inventing the problem. */
+function provide(fn){ read = fn; poll(); }
+
+function poll(){
+  if (!read) return;
+  let next = null;
+  try{ next = read(); }catch(e){ next = null; }
+  const s = next ? JSON.stringify(next) : null;
+  if (s === sig) return;
+  sig = s; cur = next;
+  notify();
+}
+setInterval(poll, 500);
+
+/* ---- which chord a step belongs to ----
+   The progression is divided evenly across the pattern, whatever the rate or length: four
+   chords over sixteen steps is four steps each, and the same four over a 12-step pattern
+   is three each. Bars would be the musical answer and are the wrong one here — a reader's
+   pattern length has nothing to do with how long CS·1 holds a chord, and a mapping that
+   ran off the end of the grid would drop the last chords silently. Even division means the
+   whole progression is always in the pattern, which is what the button is for. */
+function at(i, len){
+  if (!cur || !cur.chords || !cur.chords.length || !len) return null;
+  const n = cur.chords.length;
+  const k = Math.min(n - 1, Math.floor((i % len) * n / len));
+  return cur.chords[k];
+}
+/* True on the first step of each chord — where a reader puts the thing that lands. */
+function starts(i, len){
+  if (!cur || !cur.chords || !cur.chords.length || !len) return false;
+  const n = cur.chords.length;
+  return Math.floor((i % len) * n / len) !== Math.floor((((i % len) - 1 + len) % len) * n / len)
+      || (i % len) === 0;
+}
+
+return {provide, at, starts, poll,
+        onChange: fn => { subs.push(fn); if (cur) { try{ fn(cur); }catch(e){} } },
+        get current(){ return cur; },
+        get ready(){ return !!(cur && cur.chords && cur.chords.length); }};
+})();
+/* The drum kit on the page, for whoever wants to hit it.
+
+   TS·1 plays fills. It has no drums, and giving it some would put a second kit on the page
+   that sounds nothing like the first — you would tune DR·1 and the fills would stay where
+   they were, which is the kind of wrong that is hard to even describe once you are hearing
+   it. So the same arrangement chords use: one instrument PROVIDES a kit, and anyone else
+   asks it to hit something at a given time.
+
+   Deliberately a scheduling API and not a note API. A fill is written as "these hits, at
+   these audio times", which is what makes it land on the seam sample-accurately; anything
+   routed through a note-now call would arrive whenever the timer happened to fire. */
+Patchwork.kit = (() => {
+"use strict";
+
+let provider = null;
+const subs = [];
+function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
+
+/* `spec` is {name, voices:[ids], hit(id, when, vel, opts)} — `when` in the audio clock's
+   time, `vel` 0..1. The provider keeps every opinion about what a kick sounds like.
+
+   `opts` is {tune, decay} as RATIOS of however that voice is currently set, and it is what
+   lets a caller play a descending tom run on a kit with two toms in it. Ratios rather than
+   values on purpose: a fill asking for "a fifth below this tom" still works after you have
+   retuned the tom, where a fill asking for 92 Hz would quietly stop matching the kit. */
+function provide(spec){ provider = spec || null; notify(); }
+
+function hit(id, when, vel, opts){
+  if (!provider || !provider.hit) return false;
+  try{ provider.hit(id, when, vel == null ? 1 : vel, opts || null); return true; }
+  catch(e){ return false; }
+}
+function has(id){ return !!(provider && provider.voices && provider.voices.indexOf(id) >= 0); }
+
+/* What a voice is currently tuned to, in Hz, or null if the provider will not say.
+
+   A caller wanting a run of pitches needs this: ratios alone are not comparable ACROSS two
+   voices, so a fill computing "×0.8 on the high tom then ×1.1 on the low" has no idea
+   whether that second hit is above or below the first. With the base pitches it can aim at
+   real frequencies and work the ratios back out — and it keeps following the kit when you
+   retune it, which is why this is asked for rather than assumed. */
+function tuneOf(id){
+  if (!provider || !provider.tuneOf) return null;
+  try{ const v = provider.tuneOf(id); return (typeof v === "number" && v > 0) ? v : null; }
+  catch(e){ return null; }
+}
+
+return {provide, hit, has, tuneOf,
+        onChange: fn => { subs.push(fn); },
+        get ready(){ return !!(provider && provider.hit); },
+        get name(){ return provider ? provider.name : null; },
+        get voices(){ return provider && provider.voices ? provider.voices.slice() : []; }};
+})();
+/* Saved sounds, for any instrument that wants them.
+
+   CS·1 and PM·1 each grew their own patch browser, and the two are the same list, the same
+   name box, the same four buttons and the same localStorage dance written twice. DR·1, BS·1
+   and VC·1 need one too, and a third and fourth copy is the point at which duplication
+   stops being a shortcut — so this is the implementation those three share.
+
+   ⚠️ IT DOES NOT DEFINE WHAT A SOUND IS. Every instrument already answers that for a jam,
+   through session.registerPatch(), and the answer must not be given twice: a patch that
+   saved a slightly different set of parameters from the one a jam shares would be a bug
+   nobody could see until two people compared what they were hearing. So an instrument hands
+   the SAME object to both, and the two cannot drift.
+
+     const SOUND = {capture: () => ..., apply: p => ...};
+     Patchwork.session.registerPatch("bs1", SOUND);
+     Patchwork.patches.mount(root, "bs1", SOUND);
+
+   CS·1 keeps its own. Its patches carry a progression, a MIDI program number and a trigger
+   note, and folding all of that in here to save a list box would make this the thing it is
+   replacing. */
+Patchwork.patches = (() => {
+"use strict";
+
+function mount(root, id, spec){
+  if (!root || !spec || !spec.capture || !spec.apply) return null;
+  const $ = s => root.querySelector(s);
+  const sel = $("#patchSel"), nameEl = $("#patchName"), note = $("#patchNote"),
+        file = $("#patchFile");
+  if (!sel || !nameEl) return null;                 // this panel has no patch row
+
+  const KEY = "patchwork-" + id + "-patches";
+  const APP = "patchwork-" + id;
+
+  function say(msg, bad){
+    if (!note) return;
+    note.style.display = msg ? "" : "none";
+    note.innerHTML = msg || "";
+    note.classList.toggle("bad", !!bad);
+  }
+  function load(){
+    try{ return JSON.parse(localStorage.getItem(KEY)) || {}; }catch(e){ return {}; }
+  }
+  function store(o){
+    try{ localStorage.setItem(KEY, JSON.stringify(o)); return true; }
+    catch(e){ say("Couldn't save — browser storage is full or blocked.", true); return false; }
+  }
+  function refresh(selected){
+    const s = load(), names = Object.keys(s).sort((a, b) => a.localeCompare(b));
+    sel.textContent = "";
+    sel.appendChild(Object.assign(document.createElement("option"),
+      {value: "", textContent: names.length ? "— select —" : "— none saved —"}));
+    names.forEach(n => sel.appendChild(Object.assign(document.createElement("option"),
+      {value: n, textContent: n})));
+    sel.value = selected && s[selected] ? selected : "";
+    return names;
+  }
+
+  sel.addEventListener("change", () => {
+    const name = sel.value;
+    if (!name) return;
+    const p = load()[name];
+    if (!p){ say("That patch is gone.", true); refresh(); return; }
+    try{ spec.apply(p.sound); }catch(e){ say("Couldn't load that patch.", true); return; }
+    nameEl.value = name;
+    say("Loaded <b>" + name + "</b>.");
+  });
+
+  /* Save takes the NAME BOX, not the selection: typing a new name over a loaded patch and
+     pressing Save is how you make a variant, and it is what everybody tries first. */
+  const saveBtn = $("#patchSave");
+  if (saveBtn) saveBtn.addEventListener("click", () => {
+    const name = (nameEl.value || "").trim() || (sel.value || "").trim();
+    if (!name){ say("Give it a name first.", true); nameEl.focus(); return; }
+    const s = load();
+    const existed = !!s[name];
+    s[name] = {app: APP, v: 1, name, sound: spec.capture()};
+    if (!store(s)) return;
+    refresh(name);
+    nameEl.value = name;
+    say((existed ? "Replaced <b>" : "Saved <b>") + name + "</b>.");
+  });
+
+  const delBtn = $("#patchDelete");
+  if (delBtn) delBtn.addEventListener("click", () => {
+    const name = sel.value;
+    if (!name){ say("Pick a saved patch to delete.", true); return; }
+    const s = load();
+    delete s[name];
+    if (!store(s)) return;
+    refresh();
+    say("Deleted <b>" + name + "</b>.");
+  });
+
+  const expBtn = $("#patchExport");
+  if (expBtn) expBtn.addEventListener("click", () => {
+    const name = (nameEl.value || sel.value || id + "-patch").trim();
+    const data = {app: APP, v: 1, name, sound: spec.capture()};
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name.replace(/[^\w\-. ]+/g, "_") + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    /* revoked late: revoking immediately races the download in some browsers */
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    say("Exported <b>" + a.download + "</b>.");
+  });
+
+  const impBtn = $("#patchImport");
+  if (impBtn && file){
+    impBtn.addEventListener("click", () => file.click());
+    file.addEventListener("change", () => {
+      const f = file.files && file.files[0];
+      file.value = "";                    // so re-picking the same file fires again
+      if (!f) return;
+      const rd = new FileReader();
+      rd.onerror = () => say("Couldn't read that file.", true);
+      rd.onload = () => {
+        let data;
+        try{ data = JSON.parse(rd.result); }
+        catch(e){ say("That file isn't valid JSON.", true); return; }
+        /* ⚠️ Checked, because a PM·1 patch loaded into BS·1 would apply a handful of keys
+           that happened to match and silently leave the rest — a sound that is neither
+           patch and no message saying so. */
+        if (!data || data.app !== APP){
+          say("That is a patch for <b>" + ((data && data.app) || "something else")
+            + "</b>, not " + APP + ".", true);
+          return;
+        }
+        try{ spec.apply(data.sound); }
+        catch(err){ say("Couldn't apply that patch.", true); return; }
+        if (data.name) nameEl.value = data.name;
+        say("Imported <b>" + (data.name || f.name)
+          + "</b>. Press Save to keep it in this browser.");
+      };
+      rd.readAsText(f);
+    });
+  }
+
+  refresh();
+  return {refresh};
+}
+
+return {mount};
 })();
 
 /* Live faces.
@@ -3278,6 +3879,60 @@ el.addEventListener("pointerdown", e => {
 render();
 return {render, paint};
 };
+
+/* ---- the Clear locks button ----
+   ⚠️ IT ONLY EVER CLEARED THE SELECTED STEP, and said "Clear locks", which reads as all of
+   them. Lock three steps, press it, and two locks stay lit — the button looks broken when
+   it is doing exactly what it was built to do. Worse, with a step selected that holds no
+   locks it did nothing at all, which is indistinguishable from a dead control.
+
+   So the button names its own scope and refuses to be a no-op: it reads "Clear step"
+   normally and "Clear all (3)" while Shift is held, and it is disabled precisely when
+   pressing it would change nothing. The count is the part that matters — it is what tells
+   you locks exist somewhere else, which is the thing you could not see before.
+
+   Three instruments grew the same button and BS·1, VC·1 and PM·1 had three copies of the
+   same mistake between them, so this is the one implementation. PM·1 keeps its own
+   sequencer rather than this module's, which is why the state arrives through an adapter
+   instead of a `seq`. */
+Patchwork.mountClearLocks = function(btn, o){
+"use strict";
+if (!btn || !o) return {paint(){}};
+const held = st => !!(st && st.locks && Object.keys(st.locks).length);
+const count = () => o.steps().filter(held).length;
+const here = () => held(o.steps()[o.sel()]);
+let shift = false;
+
+function paint(){
+  const n = count(), mine = here();
+  btn.textContent = shift ? (n > 1 ? "Clear all (" + n + ")" : "Clear all") : "Clear step";
+  btn.disabled = shift ? n === 0 : !mine;
+  btn.title = n === 0
+    ? "No parameter locks to clear."
+    : shift
+      ? "Clear the locks on every step."
+      : mine
+        ? "Clear this step's locks. Hold Shift to clear all " + n + "."
+        : "This step has no locks. Hold Shift to clear all " + n + ".";
+}
+
+btn.addEventListener("click", e => {
+  /* read the modifier from the event, not from `shift` — a keyboard Enter on a focused
+     button carries its own shiftKey and never fired the keydown we track */
+  o.clear(!!e.shiftKey);
+  if (o.repaint) o.repaint();
+  paint();
+});
+/* Tracked on the window because the label has to change while the pointer is nowhere near
+   the button — that is the whole point of it. */
+addEventListener("keydown", e => { if (e.key === "Shift" && !shift){ shift = true; paint(); } });
+addEventListener("keyup", e => { if (e.key === "Shift" && shift){ shift = false; paint(); } });
+/* a window that loses focus with Shift down never sends the keyup */
+addEventListener("blur", () => { if (shift){ shift = false; paint(); } });
+
+paint();
+return {paint};
+};
 /* BS·1 — the bass, as its own instrument. Was a section inside MS·1; see the handoff for
    why the three sections were split. */
 Patchwork.instrument("bs1", root => {
@@ -3765,6 +4420,9 @@ function paintLocked(){
     const f = faderReg[id];
     if (f && f.el) f.el.classList.toggle("locked", seq.SEQ.mode === "program" && seq.isLocked(id));
   });
+  /* here rather than in paintSeqEdit: this is what the grid calls when the selection moves,
+     and both the button's label and whether it is disabled depend on the selected step */
+  if (clearLocksBtn) clearLocksBtn.paint();
 }
 function paintSeqEdit(){
   const program = seq.SEQ.mode === "program";
@@ -3786,9 +4444,14 @@ $("#seqLane").addEventListener("click", e => {
   seq.SEQ.lane = b.dataset.l;
   paintSeqEdit();
 });
-$("#clearLocks").addEventListener("click", e => {
-  seq.clearLocks(e.shiftKey);
-  paintSeqEdit();
+/* declared before it is assigned: a paint can run while this file is still being
+   evaluated, and a `const` in its temporal dead zone throws on any access at all */
+let clearLocksBtn = null;
+clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
+  steps: () => seq.steps,
+  sel: () => seq.SEQ.sel,
+  clear: all => seq.clearLocks(all),
+  repaint: () => paintSeqEdit()
 });
 paintSeqEdit();
 
@@ -3813,13 +4476,20 @@ function refreshAllControls(){
   setOct(P.oct);
   applyLive();
 }
-Patchwork.session.registerPatch("bs1", {
+/* ⚠️ ONE definition of this instrument's sound, handed to both the jam and the
+   patch store. Written twice they would drift, and the symptom would be a saved
+   patch that recalls slightly less than a jam shares — invisible until two people
+   compare what they are hearing. */
+const SOUND = {
   capture: () => Object.assign({}, P),
   apply: src => {
     Object.keys(DEFAULT).forEach(k => { if (src && src[k] !== undefined) P[k] = src[k]; });
     refreshAllControls();
   }
-});
+};
+Patchwork.session.registerPatch("bs1", SOUND);
+Patchwork.patches.mount(root, "bs1", SOUND);
+
 
 /* ---- somebody else's notes ----
    The same noteOn/noteOff a person here uses. Nothing is special about a remote note once
@@ -3828,6 +4498,50 @@ Patchwork.session.registerVoice("bs1", {
   on: (n, v) => { ensureAudio(); noteOn(n, v); paintNow(); },
   off: n => { noteOff(n); paintNow(); }
 });
+
+/* ---- groove from the chords on the page ----
+   A bass line is the one part whose notes are almost entirely decided by the progression,
+   which is what makes filling it by hand feel like transcription. Roots on the beat, an
+   octave lead-in on the last step before the chord changes — the most ordinary bass line
+   there is, and deliberately so: this is a starting point to play against and edit, not a
+   composition. Everything it writes is a normal step you can move afterwards.
+
+   ⚠️ It writes the whole pattern, including the rests. A generator that only turned steps
+   ON would leave whatever was there before showing through, and the result would be
+   neither the old line nor the new one. */
+(() => {
+"use strict";
+const btn = $("#grooveBtn");
+if (!btn || !window.Patchwork || !Patchwork.chords) return;
+
+function paintGroove(){
+  const ok = Patchwork.chords.ready;
+  btn.disabled = !ok;
+  btn.title = ok
+    ? "Fill this sequence from CS·1's progression — roots on the beat, octave into each change"
+    : "No chords on this page yet. CS·1 makes a progression; this plays along with it.";
+}
+btn.addEventListener("click", () => {
+  const C = Patchwork.chords;
+  if (!C.ready) return;
+  const len = seq.SEQ.len, per = Math.max(1, Math.round(len / C.current.chords.length));
+  for (let i = 0; i < len; i++){
+    const st = seq.steps[i];
+    const ch = C.at(i, len);
+    st.on = 0; st.tie = 0; st.slide = 0; st.accent = 0;
+    if (!ch) continue;
+    const first = C.starts(i, len);
+    const last  = C.starts((i + 1) % len, len);      // the step before the next chord
+    if (first){ seq.setStepNote(i, ch.bass, 110); }
+    else if (last && per > 2){ seq.setStepNote(i, ch.bass + 12, 80); st.slide = 1; }
+    else if (per > 3 && (i % Math.max(2, Math.round(per / 2))) === 0) seq.setStepNote(i, ch.bass, 80);
+  }
+  paintSeqEdit();
+  grid.render();
+});
+Patchwork.chords.onChange(paintGroove);
+paintGroove();
+})();
 
 /* ============ midi ============ */
 /* Its own input channel, which is what splitting MS·1 buys: the bass used to share one
@@ -3895,7 +4609,14 @@ function initMidi(){
   if (!window.isSecureContext){
     say("Web MIDI needs a secure context — serve over <code>localhost</code>.", true); return;
   }
-  Patchwork.midi.route("bs1", onMidi, pt => { fillPorts(); followInput(pt); describe(); });
+  /* What this instrument answers on, so the studio can show the whole rig's channels in
+     one place. The setters keep this panel's own selects in step: the two views are the
+     same setting and must never disagree about it. */
+  Patchwork.midi.route("bs1", onMidi, pt => { fillPorts(); followInput(pt); describe(); }, {
+    name: "BS\u00b71", panic: midiPanic,
+    inCh: {get: () => MIDI.inCh,
+           set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
+  });
   Patchwork.midi.open().then(a => {
     MIDI.access = a; fillPorts();
     const ins = ports("inputs");

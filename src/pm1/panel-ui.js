@@ -43,12 +43,17 @@ segPaint.voiceMode = seg("#voiceMode","m",
     else { P.mode = "uni"; P.uni = parseInt(v.slice(3),10); }
     paintMeta();
   });
-segPaint.motion = seg("#motion","m", () => SEQ.motion, v => {
+/* Named, because two things change the motion now: the segment and the Groove button. seg()
+   hands back a PAINTER and not a setter, so anything else wanting to move this had to
+   either duplicate these four lines or — as the first attempt at Groove did — call the
+   painter with an argument it ignores and silently change nothing. */
+function setMotion(v){
   SEQ.motion = v;
   renderRoll();
   if (SEQ.playing && v === "off") stopPlay();
   paintMeta();
-});
+}
+segPaint.motion = seg("#motion","m", () => SEQ.motion, setMotion);
 segPaint.seqMode = seg("#seqMode","p", () => SEQ.mode, v => {
   SEQ.mode = v;
   paintSteps(); paintLocks(); paintMeta();
@@ -56,10 +61,17 @@ segPaint.seqMode = seg("#seqMode","p", () => SEQ.mode, v => {
     ? "click a step, then play a note to write it — every knob you move locks to that step"
     : (LANE_HINT[SEQ.lane] || "");
 });
-$("#clearLocks").addEventListener("click", e => {
-  if (e.shiftKey){ SEQ.steps.forEach(st => { delete st.locks; }); }
-  else { const st = SEQ.steps[SEQ.sel]; if (st) delete st.locks; }
-  paintSteps(); paintLocks();
+/* declared before it is assigned: a paint can run while this file is still being
+   evaluated, and a `const` in its temporal dead zone throws on any access at all */
+let clearLocksBtn = null;
+clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
+  steps: () => SEQ.steps,
+  sel: () => SEQ.sel,
+  clear: all => {
+    if (all) SEQ.steps.forEach(st => { delete st.locks; });
+    else { const st = SEQ.steps[SEQ.sel]; if (st) delete st.locks; }
+  },
+  repaint: () => { paintSteps(); paintLocks(); }
 });
 segPaint.arpDir = seg("#arpDir","d", () => SEQ.dir, v => { SEQ.dir = v; renderRoll(); });
 segPaint.arpOct = seg("#arpOct","o", () => String(SEQ.octaves), v => { SEQ.octaves = +v; renderRoll(); });
@@ -228,12 +240,22 @@ function paintSteps(){
     b.classList.toggle("sel", SEQ.mode === "program" && +b.dataset.i === SEQ.sel);
     b.classList.toggle("lock", !!(st.locks && Object.keys(st.locks).length));
     /* the note it will play, quantised to the current key — a tie has no note of its own */
-    b.textContent = (!st.on || st.tie) ? "" : noteLabel(stepNote(st, true));
+    /* The root, and how many notes are stacked on it. Printing the whole chord does not
+       fit a step button at any pattern length worth using, and the root is the part you
+       read when you are scanning the line. */
+    const stack = (st.add && st.add.length) ? st.add.length + 1 : 1;
+    b.classList.toggle("chord", !!st.on && !st.tie && stack > 1);
+    b.textContent = (!st.on || st.tie) ? ""
+      : noteLabel(stepNote(st, true)) + (stack > 1 ? "\u00b7" + stack : "");
+    b.title = (!st.on || st.tie) ? "" : (stack > 1
+      ? stepNotes(st, true).map(noteLabel).join(" ")
+      : noteLabel(stepNote(st, true)));
   });
 }
 /* Highlight the knobs that are locked on the selected step, so a p-lock is something you
    can see rather than remember. */
 function paintLocks(){
+  if (clearLocksBtn) clearLocksBtn.paint();
   const st = SEQ.mode === "program" ? SEQ.steps[SEQ.sel] : null;
   const L = (st && st.locks) || {};
   Object.keys(ctlReg).forEach(id => {
@@ -313,7 +335,12 @@ seqWrap.addEventListener("pointerdown", e => {
     return;
   }
   if (heldNotes.length){
-    writeStep(st, heldNotes[heldNotes.length - 1].midi);
+    /* ⚠️ The WHOLE held chord, lowest note as the root. It used to take
+       heldNotes[heldNotes.length - 1] — the last key pressed — so holding a triad and
+       clicking a step recorded one note of it, and which one depended on the order your
+       fingers landed. Sorting means the same chord records the same way every time. */
+    const ns = heldNotes.map(h => h.midi).sort((a, b) => a - b);
+    writeStep(st, ns[0], ns.slice(1).map(m => m - ns[0]));
     paintSteps();
     return;
   }
@@ -525,3 +552,45 @@ Patchwork.keys.mount(root, {
   octave: d => setOctave(octave + d)
 });
 
+/* ---- groove from the chords on the page ----
+   PM·1 is the one that can play the progression as CHORDS rather than a line, now that a
+   step holds more than one note — so this writes CS·1's actual voicing onto the first step
+   of each chord and leaves the rest as rests. Stabs, not a pad: the notes are all there and
+   the gate, the envelope and a tie or two are what turn it into whatever you want.
+
+   ⚠️ It writes the whole pattern, rests included, or the line that was there before would
+   show through the gaps in the new one. */
+(() => {
+"use strict";
+const btn = $("#grooveBtn");
+if (!btn || !window.Patchwork || !Patchwork.chords) return;
+
+function paintGroove(){
+  const ok = Patchwork.chords.ready;
+  btn.disabled = !ok;
+  btn.title = ok
+    ? "Fill this sequence from CS·1's progression — the whole chord on each change"
+    : "No chords on this page yet. CS·1 makes a progression; this plays along with it.";
+}
+btn.addEventListener("click", () => {
+  const C = Patchwork.chords;
+  if (!C.ready) return;
+  const len = SEQ.len;
+  for (let i = 0; i < len; i++){
+    const st = SEQ.steps[i];
+    st.on = 0; st.tie = 0; st.slide = 0; st.accent = 0;
+    delete st.add;
+    const ch = C.at(i, len);
+    if (!ch || !C.starts(i, len)) continue;
+    const ns = (ch.notes && ch.notes.length ? ch.notes.slice() : [ch.bass]).sort((a, b) => a - b);
+    writeStep(st, ns[0], ns.slice(1).map(n => n - ns[0]));
+    st.accent = 1;
+  }
+  /* Seq is the motion this pattern is for — landing on a filled grid while the arp plays
+     something else would look like the button had done nothing. */
+  if (SEQ.motion !== "seq"){ setMotion("seq"); segPaint.motion(); }
+  paintSteps(); paintLocks(); paintMeta();
+});
+Patchwork.chords.onChange(paintGroove);
+paintGroove();
+})();

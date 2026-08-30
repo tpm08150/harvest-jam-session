@@ -55,22 +55,45 @@
     </div>
   </div>
 
+  <!-- The patch row every instrument with saved sounds has. The behaviour is
+       shell/patches.js; what a sound IS stays with the instrument. -->
+  <div data-face class="row patchrow">
+    <div class="field">
+      <label for="patchSel">Patch</label>
+      <select id="patchSel"></select>
+    </div>
+    <div class="field">
+      <label for="patchName">Name</label>
+      <input type="text" id="patchName" placeholder="Untitled" autocomplete="off">
+    </div>
+    <div class="patch-actions">
+      <button class="btn ghost sm" id="patchSave">Save</button>
+      <button class="btn ghost sm" id="patchDelete">Delete</button>
+      <button data-deep class="btn ghost sm" id="patchExport">Export</button>
+      <button data-deep class="btn ghost sm" id="patchImport">Import</button>
+      <input type="file" id="patchFile" accept="application/json,.json" hidden>
+    </div>
+  </div>
+  <p class="note" id="patchNote" style="display:none"></p>
+
   <div data-face class="sect">
     <div class="sect-head">
       <span class="silk">Sequence</span>
-      <div class="patrow">
-        <div class="field" style="flex:0 0 84px">
-          <label for="seqLen">Steps</label><select id="seqLen"></select>
-        </div>
-        <div class="field" style="flex:0 0 92px">
-          <label for="seqRate">Rate</label><select id="seqRate"></select>
-        </div>
-        <div class="field" style="flex:0 0 96px">
-          <label for="seqKey">Key</label><select id="seqKey"></select>
-        </div>
-        <div class="field" style="flex:0 0 116px">
-          <label for="seqScale">Scale</label><select id="seqScale"></select>
-        </div>
+    </div>
+    <!-- A row of its own rather than four selects wedged into the header, so all three
+         sequencers read head → settings → edit → grid → legend from three feet away. -->
+    <div class="patrow">
+      <div class="field" style="flex:0 0 84px">
+        <label for="seqLen">Steps</label><select id="seqLen"></select>
+      </div>
+      <div class="field" style="flex:0 0 92px">
+        <label for="seqRate">Rate</label><select id="seqRate"></select>
+      </div>
+      <div class="field" style="flex:0 0 96px">
+        <label for="seqKey">Key</label><select id="seqKey"></select>
+      </div>
+      <div class="field" style="flex:0 0 116px">
+        <label for="seqScale">Scale</label><select id="seqScale"></select>
       </div>
     </div>
     <!-- The same editing controls PM·1 has, so one grid answers one set of rules across
@@ -87,6 +110,8 @@
         <button data-l="slide">Slide</button>
         <button data-l="tie">Tie</button>
       </div>
+      <button class="btn ghost sm" id="grooveBtn"
+              title="Fill this sequence from CS·1's progression">Groove</button>
       <button class="btn ghost sm" id="clearLocks" title="Clear this step's locks — shift-click clears every step">Clear locks</button>
     </div>
     <div class="seqwrap" id="seqWrap"></div>
@@ -95,11 +120,14 @@
       <span><i style="box-shadow:0 0 0 1px var(--cap-yellow) inset"></i>parameter lock</span>
       <span><i style="background:var(--vc-accent)"></i>step</span>
       <span><i style="background:var(--cap-yellow)"></i>accent — click again</span>
-      <span>shift-click ties · drag a step to pitch it</span>
+      <span>shift-click ties &middot; alt-click slides &middot; drag a step to pitch it</span>
     </div>
   </div>
 
-  <div class="sect">
+  <!-- Squeeze, Unvoiced and Q are what make a vocoder intelligible, and they were behind
+       the Panel button — so the face offered a modulator picker and no way to make the
+       thing speak. These are the controls, not the setup. -->
+  <div data-face class="sect">
     <div class="sect-head"><span class="silk">Bank</span></div>
     <div class="knobrow">
       <div class="hfader" id="qF"><span class="hlab">Q</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
@@ -112,7 +140,10 @@
       <div class="hfader" id="relF"><span class="hlab">Release</span><span class="hslot"><i class="hcap"></i></span><span class="hval">—</span></div>
     </div>
     <p class="note" id="vocNote">Press <b>Listen</b> to open the modulator. <b>Use headphones</b> — a microphone into speakers will feed back.</p>
-    <p class="note">
+    <!-- data-deep: the explanation earns its place on the panel and would be four lines of
+         prose in the middle of a performance face. #vocNote above it stays — that one is
+         live status, not documentation. -->
+    <p data-deep class="note">
       <b>Squeeze</b> is what stops the vocoder needing a hot input: a band opens in
       proportion to its energy, so without compression the whole output level tracks how
       loudly you speak. <b>Unvoiced</b> is a separate noise path, because a pitched carrier
@@ -122,7 +153,7 @@
 
   <div class="sect">
     <div class="sect-head"><span class="silk"><i class="led" id="midiLed"></i>MIDI</span></div>
-    <div class="row">
+    <div class="row" data-hosted>
       <div class="field">
         <label for="midiIn">Input</label>
         <select id="midiIn"><option value="">— none —</option></select>
@@ -132,6 +163,7 @@
         <select id="midiInCh"></select>
       </div>
     </div>
+    <p class="note" data-page>The rack's MIDI input and channels are set together on the <b>Scenes</b> panel.</p>
     <p class="note" id="midiNote">—</p>
   </div>
 

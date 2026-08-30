@@ -22,6 +22,9 @@ pm1/_panel-close.css
 vc1/_panel-open.css
 vc1/panel.css
 vc1/_panel-close.css
+ts1/_panel-open.css
+ts1/panel.css
+ts1/_panel-close.css
 lp1/_panel-open.css
 lp1/panel.css
 lp1/_panel-close.css
@@ -36,6 +39,7 @@ cs1/panel.html
 pm1/panel.html
 vc1/panel.html
 lp1/panel.html
+ts1/panel.html
 studio/rack-close.html
 studio/live.html
 shell/script-open.html
@@ -45,6 +49,9 @@ shell/clock.js
 shell/click.js
 shell/midi.js
 shell/scenes.js
+shell/chords.js
+shell/kit.js
+shell/patches.js
 shell/faces.js
 shell/keys.js
 shell/record.js
@@ -98,6 +105,11 @@ lp1/engine.js
 lp1/ui.js
 lp1/boot.js
 lp1/_close.js
+ts1/_open.js
+ts1/engine.js
+ts1/ui.js
+ts1/boot.js
+ts1/_close.js
 studio/scenes.js
 studio/live.js
 studio/boot.js

@@ -29,6 +29,7 @@ APPS = {"cs1": "chord-synth.html",
         "bs1": "bass.html",
         "vc1": "vocoder.html",
         "pm1": "poly-synth.html",
+        "ts1": "transitions.html",
         "studio": "index.html"}
 
 

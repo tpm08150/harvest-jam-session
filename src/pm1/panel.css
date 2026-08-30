@@ -94,6 +94,11 @@
 
 .row{display:flex;gap:9px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
 .field{display:flex;flex-direction:column;gap:5px;flex:1 1 118px;min-width:0}
+/* The sequencer's two rows, the same shape BS·1 and VC·1 use. PM·1 had every one of these
+   controls in the rack head, which is why its sequencer read as a different instrument's
+   from three feet away — same controls, same order, no grouping. */
+.patrow{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.seqedit{margin-top:10px;gap:8px;align-items:center}
 label,.silk{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--silk-dim);font-weight:500}
 select{
   appearance:none;width:100%;
@@ -305,3 +310,8 @@ input[type="text"]::placeholder{color:#5a646a}
   .transport .tempo output{font-size:13px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* A step holding more than one note. Marked rather than spelled out — the button is 34px
+   wide and the root is what you read when scanning; the full voicing is in its title. */
+.step.chord{box-shadow:0 0 0 1px var(--silk-dim) inset}
+.step.chord.on{box-shadow:0 0 0 1px rgba(255,255,255,.5) inset}

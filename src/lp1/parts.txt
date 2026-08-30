@@ -15,6 +15,9 @@ shell/clock.js
 shell/click.js
 shell/midi.js
 shell/scenes.js
+shell/chords.js
+shell/kit.js
+shell/patches.js
 shell/faces.js
 shell/keys.js
 shell/record.js

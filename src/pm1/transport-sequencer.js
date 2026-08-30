@@ -19,12 +19,25 @@ const S = (on,p,o,g,a,sl,ti) => ({on, pitch:p, oct:o, gate:g, accent:a, slide:sl
 /* Turn a played note into a step. The distance from the root is split across `oct` and
    `pitch` rather than crammed into pitch alone — pitch is only +-24, so forcing oct to 0
    silently truncated anything more than two octaves up (G4 over a C2 root recorded as C4). */
-function writeStep(st, midi){
+/* ⚠️ `extra` is the REST OF A CHORD, in semitones above the step's own note — and it is
+   semitones rather than scale degrees on purpose. A step's root is stored as a degree so
+   that changing key re-reads the pattern instead of destroying it; the notes stacked on top
+   of it are a VOICING, and a voicing that re-spelled itself when you changed key would give
+   you a different chord than the one you played. So the root moves with the key and the
+   shape on top of it does not.
+
+   Absent rather than empty when there is no chord: every step written before this existed
+   has no `add` at all, and the whole path below has to read those as the single notes they
+   are. */
+function writeStep(st, midi, extra){
   const rel = clampf(Math.round(midi - SEQ.root), -48, 48);
   const oct = clampf(Math.trunc(rel/12), -2, 2);
   st.oct = oct;
   st.pitch = rel - 12*oct;
   st.on = 1; st.tie = 0;
+  const ivs = (extra || []).map(n => Math.round(n)).filter(n => n > 0 && n <= 48);
+  if (ivs.length) st.add = [...new Set(ivs)].sort((a, b) => a - b).slice(0, 5);
+  else delete st.add;
 }
 /* A C-minor acid line, so accent, tie and slide are all audible on the first Play without
    the player having to build a pattern to hear what the buttons do. */
@@ -105,6 +118,15 @@ function stepNote(st, atRest){
   const shift = atRest ? 0 : seqShift(keyPc, sc);
   return clampf(fromDegree(toDegree(base, keyPc, sc) + shift, keyPc, sc), 0, 127);
 }
+/* The step's note, and anything stacked on it. One note stays one note — see writeStep. */
+function stepNotes(st, atRest){
+  const root = stepNote(st, atRest);
+  if (!st.add || !st.add.length) return [root];
+  const out = [root];
+  st.add.forEach(iv => { const n = clampf(root + iv, 0, 127); if (out.indexOf(n) < 0) out.push(n); });
+  return out;
+}
+
 const beatSeconds = () => 60 / (SEQ.bpmExact || SEQ.bpm);
 const stepSeconds = () => beatSeconds() / (RATES[SEQ.rate] || 4);
 /* Swing as the share of each step PAIR given to the first note: .5 straight, .667 triplet,
@@ -124,6 +146,9 @@ function stepEvent(i, t){
   const dur = Math.max(.02, gap * span * (st.slide ? 1 : clampf(st.gate, .05, 1)));
   return {
     n: stepNote(st),
+    /* `n` stays the root and stays first, so every existing consumer — slide, glide, the
+       roll, MIDI out's note choice — keeps reading exactly what it read before. */
+    ns: stepNotes(st),
     t: at,
     d: dur,
     vel: clampf(Math.round(SEQ.vel * (st.accent ? 1 + SEQ.accentAmt*.45 : 1)), 1, 127),
@@ -181,12 +206,42 @@ function seqFire(ev, slideIn, holdOn){
   } else {
     curVoice.retrigger(ev.t, ev.n, ev.vel, 0);
   }
+  /* ⚠️ THE ROOT KEEPS THE MONO PATH, exactly as it was. Slide, glide and retrigger all
+     hang off `curVoice` and all of them are about ONE line moving — a chord that joined
+     that machinery would have to answer what it means to slide a triad into a dyad, which
+     is a question this sequencer should not be asked. The notes stacked on top are plain
+     voices: struck with the root, released with it, and never slid. */
+  fireExtras(ev, holdOn);
   if (!holdOn){
     const v = curVoice;
     v.release(ev.t + ev.d);
     curVoice = null;          // the next event builds a fresh voice, as it should
   }
-  if (MIDI.noteOut) sendNote(ev.n, ev.t, ev.d, ev.vel);
+  if (MIDI.noteOut) (ev.ns || [ev.n]).forEach(n => sendNote(n, ev.t, ev.d, ev.vel));
+}
+
+/* The chord above the root. Held separately from curVoice because they are not part of the
+   line — releasing them on every fire is what stops a held chord smearing into the next
+   step when the pattern is not legato. */
+let seqExtras = [];
+function releaseExtras(t){
+  seqExtras.forEach(v => { try{ v.release(t); }catch(e){} });
+  seqExtras = [];
+}
+function fireExtras(ev, holdOn){
+  releaseExtras(ev.t);
+  const ns = ev.ns;
+  if (!ns || ns.length < 2) return;
+  for (let k = 1; k < ns.length; k++){
+    let v = null;
+    try{ v = buildVoice(ns[k], ev.vel, ev.t); }catch(e){ continue; }
+    if (!v) continue;
+    seqExtras.push(v);
+    if (!holdOn) v.release(ev.t + ev.d);
+  }
+  /* held voices stay in seqExtras so the next fire, the transport stopping and a panic can
+     all still find them */
+  if (!holdOn) seqExtras = [];
 }
 
 function scheduleStep(i, t){
@@ -263,6 +318,7 @@ function stopPlay(){
   Patchwork.clock.stop(tick); timer = null;
   const t = ctx ? ctx.currentTime : 0;
   if (curVoice){ curVoice.release(t); curVoice = null; }
+  releaseExtras(t);
   active.forEach(v => { try{ v.release(t); }catch(e){} });
   midiPanic();
   playBtn.classList.remove("on");

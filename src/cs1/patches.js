@@ -355,6 +355,27 @@ Patchwork.record.register("cs1", {name: "CS\u00b71"});
 /* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input
    path can be driven and asserted on without hardware, which is how the channel filter
    above was verified. */
+/* ---- what the rest of the rack can play along to ----
+   Resolved notes, not chord symbols: voicing is this instrument's theory and stays here.
+   Read on a poll rather than pushed, because state.prog is set from three places already —
+   see shell/chords.js. */
+Patchwork.chords.provide(() => {
+  const p = state.prog;
+  if (!p || !p.chords || !p.chords.length) return null;
+  let prev = null;
+  return {
+    key: state.keyPc, minor: !!p.minor, mood: p.mood,
+    chords: p.chords.map(ch => {
+      const v = voiceChord(ch, state.keyPc, prev);
+      prev = v.center;
+      return {name: chordName(ch, state.keyPc, !!p.minor),
+              roman: romanName(ch),
+              bass: bassNote(ch, state.keyPc),
+              notes: v.notes.slice()};
+    })
+  };
+});
+
 window.__cs1 = {MIDI, onMidi, state, P, renderChord, VOICES,
                 get held(){ return held; }, get litPads(){ return litPads; },
                 get ctx(){ return ctx; }, get active(){ return active; }, ensureAudio};

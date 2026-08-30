@@ -176,6 +176,9 @@ window.__pm1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
                 onMidi, routeFor, MIDI,
                 get held(){ return heldNotes; },
                 get poly(){ return polyVoices; }, MAX_POLY, chordName,
+                /* how you ask whether a step played a chord or a single note without
+                   having to listen to it — `active` is already below */
+                stepNotes,
                 get outNotes(){ return outNotes; },
                 applyParam, get ctlReg(){ return ctlReg; }, get master(){ return master; }, get bend(){ return {syn:bendSrc && bendSrc.offset.value}; },
                 get buses(){ return {pitchMod}; },

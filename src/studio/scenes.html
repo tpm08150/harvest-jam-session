@@ -4,14 +4,6 @@
     <!-- The page's tempo, not an instrument's. Every panel had its own and they all moved
          together, so five of the six were noise — see shell/boot.js. -->
     <div class="st-master">
-      <span class="st-lab" id="stBpmLab">Tempo</span>
-      <div class="st-tempo" role="group" aria-labelledby="stBpmLab">
-        <button id="stDown" aria-label="Slower">&minus;</button>
-        <span id="stBpm">120</span>
-        <button id="stUp" aria-label="Faster">+</button>
-      </div>
-    </div>
-    <div class="st-master">
       <span class="st-lab" id="stQuantLab">Lands on</span>
       <div class="st-seg st-quant" id="stQuant" role="group" aria-labelledby="stQuantLab">
       <button data-q="instant">Instant</button>
@@ -47,7 +39,36 @@
                aria-label="Metronome level">
       </div>
     </div>
+    <div class="st-master">
+      <span class="st-lab" id="stBpmLab">Tempo</span>
+      <div class="st-tempo" role="group" aria-labelledby="stBpmLab">
+        <button id="stDown" aria-label="Slower">&minus;</button>
+        <span id="stBpm">120</span>
+        <button id="stUp" aria-label="Faster">+</button>
+      </div>
+    </div>
     <span class="st-hint">click a cell to add or edit &middot; shift-click to delete &middot; click &#9654; to fire the row &middot; nothing lands until the next loop point</span>
   </div>
   <div class="st-grid" id="stGrid"></div>
+
+  <!-- One MIDI setup for the rack. Every instrument already filtered by channel on its own
+       way in and every panel grew its own selects to set that — six copies of one question,
+       and the answer lived inside whichever panel you had to open to find it. The port was
+       always the page's; now the channels are too. -->
+  <div class="st-midi" id="stMidi">
+    <div class="st-midi-top">
+      <span class="st-lab">MIDI</span>
+      <div class="st-midi-port">
+        <label class="st-lab" for="stMidiIn">Input</label>
+        <select id="stMidiIn"><option value="">&mdash; none &mdash;</option></select>
+      </div>
+      <label class="st-follow" for="stMidiFollow"
+             title="Incoming notes play whichever panel has the keyboard, whatever channel they arrive on">
+        <input type="checkbox" id="stMidiFollow">
+        <span>Plays the selected panel</span>
+      </label>
+    </div>
+    <div class="st-midi-rows" id="stMidiRows"></div>
+    <p class="st-midi-note" id="stMidiNote"></p>
+  </div>
 </div>

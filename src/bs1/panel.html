@@ -27,26 +27,49 @@
     <button class="btn panic" id="panic">Panic</button>
   </div>
 
+  <!-- The patch row every instrument with saved sounds has. The behaviour is
+       shell/patches.js; what a sound IS stays with the instrument. -->
+  <div data-face class="row patchrow">
+    <div class="field">
+      <label for="patchSel">Patch</label>
+      <select id="patchSel"></select>
+    </div>
+    <div class="field">
+      <label for="patchName">Name</label>
+      <input type="text" id="patchName" placeholder="Untitled" autocomplete="off">
+    </div>
+    <div class="patch-actions">
+      <button class="btn ghost sm" id="patchSave">Save</button>
+      <button class="btn ghost sm" id="patchDelete">Delete</button>
+      <button data-deep class="btn ghost sm" id="patchExport">Export</button>
+      <button data-deep class="btn ghost sm" id="patchImport">Import</button>
+      <input type="file" id="patchFile" accept="application/json,.json" hidden>
+    </div>
+  </div>
+  <p class="note" id="patchNote" style="display:none"></p>
+
   <div data-face class="sect">
     <div class="sect-head">
       <span class="silk">Sequence</span>
-      <div class="patrow">
-        <div class="field" style="flex:0 0 84px">
-          <label for="seqLen">Steps</label>
-          <select id="seqLen"></select>
-        </div>
-        <div class="field" style="flex:0 0 92px">
-          <label for="seqRate">Rate</label>
-          <select id="seqRate"></select>
-        </div>
-        <div class="field" style="flex:0 0 96px">
-          <label for="seqKey">Key</label>
-          <select id="seqKey"></select>
-        </div>
-        <div class="field" style="flex:0 0 116px">
-          <label for="seqScale">Scale</label>
-          <select id="seqScale"></select>
-        </div>
+    </div>
+    <!-- A row of its own rather than four selects wedged into the header, so all three
+         sequencers read head → settings → edit → grid → legend from three feet away. -->
+    <div class="patrow">
+      <div class="field" style="flex:0 0 84px">
+        <label for="seqLen">Steps</label>
+        <select id="seqLen"></select>
+      </div>
+      <div class="field" style="flex:0 0 92px">
+        <label for="seqRate">Rate</label>
+        <select id="seqRate"></select>
+      </div>
+      <div class="field" style="flex:0 0 96px">
+        <label for="seqKey">Key</label>
+        <select id="seqKey"></select>
+      </div>
+      <div class="field" style="flex:0 0 116px">
+        <label for="seqScale">Scale</label>
+        <select id="seqScale"></select>
       </div>
     </div>
     <!-- The same editing controls PM·1 has, so one grid answers one set of rules across
@@ -63,6 +86,8 @@
         <button data-l="slide">Slide</button>
         <button data-l="tie">Tie</button>
       </div>
+      <button class="btn ghost sm" id="grooveBtn"
+              title="Fill this sequence from CS·1's progression">Groove</button>
       <button class="btn ghost sm" id="clearLocks" title="Clear this step's locks — shift-click clears every step">Clear locks</button>
     </div>
     <div class="seqwrap" id="seqWrap"></div>
@@ -110,7 +135,7 @@
     <div class="sect-head">
       <span class="silk"><i class="led" id="midiLed"></i>MIDI</span>
     </div>
-    <div class="row">
+    <div class="row" data-hosted>
       <div class="field">
         <label for="midiIn">Input</label>
         <select id="midiIn"><option value="">— none —</option></select>
@@ -120,6 +145,7 @@
         <select id="midiInCh"></select>
       </div>
     </div>
+    <p class="note" data-page>The rack's MIDI input and channels are set together on the <b>Scenes</b> panel.</p>
     <p class="note" id="midiNote">—</p>
   </div>
 

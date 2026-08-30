@@ -229,6 +229,9 @@ function paintLocked(){
     const f = faderReg[id];
     if (f && f.el) f.el.classList.toggle("locked", seq.SEQ.mode === "program" && seq.isLocked(id));
   });
+  /* here rather than in paintSeqEdit: this is what the grid calls when the selection moves,
+     and both the button's label and whether it is disabled depend on the selected step */
+  if (clearLocksBtn) clearLocksBtn.paint();
 }
 function paintSeqEdit(){
   const program = seq.SEQ.mode === "program";
@@ -250,9 +253,14 @@ $("#seqLane").addEventListener("click", e => {
   seq.SEQ.lane = b.dataset.l;
   paintSeqEdit();
 });
-$("#clearLocks").addEventListener("click", e => {
-  seq.clearLocks(e.shiftKey);
-  paintSeqEdit();
+/* declared before it is assigned: a paint can run while this file is still being
+   evaluated, and a `const` in its temporal dead zone throws on any access at all */
+let clearLocksBtn = null;
+clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
+  steps: () => seq.steps,
+  sel: () => seq.SEQ.sel,
+  clear: all => seq.clearLocks(all),
+  repaint: () => paintSeqEdit()
 });
 paintSeqEdit();
 
@@ -271,7 +279,11 @@ function refreshAllControls(){
   $$("#wave button").forEach(x => x.classList.toggle("on", x.dataset.w === P.wave));
   applyVocoder();
 }
-Patchwork.session.registerPatch("vc1", {
+/* ⚠️ ONE definition of this instrument's sound, handed to both the jam and the
+   patch store. Written twice they would drift, and the symptom would be a saved
+   patch that recalls slightly less than a jam shares — invisible until two people
+   compare what they are hearing. */
+const SOUND = {
   capture: () => {
     const out = Object.assign({}, P);
     /* the modulator input is a DEVICE on this machine and names nothing on another */
@@ -285,10 +297,57 @@ Patchwork.session.registerPatch("vc1", {
     });
     refreshAllControls();
   }
-});
+};
+Patchwork.session.registerPatch("vc1", SOUND);
+Patchwork.patches.mount(root, "vc1", SOUND);
+
 
 /* ---- somebody else's notes ---- see BS·1's. */
 Patchwork.session.registerVoice("vc1", {
   on: (n, v) => { ensureAudio(); noteOn(n, v); paintNow(); },
   off: n => { noteOff(n); paintNow(); }
 });
+
+/* ---- groove from the chords on the page ----
+   A vocoder wants long vowels, not a line: one note per chord, held through it with ties,
+   so the carrier sustains and whatever is speaking into the modulator does the moving. The
+   top note of CS·1's voicing rather than the root — it is the one that reads as a melody
+   when a voice is put through it.
+
+   ⚠️ It writes the whole pattern, rests included, or the previous line would show through
+   the gaps in the new one. */
+(() => {
+"use strict";
+const btn = $("#grooveBtn");
+if (!btn || !window.Patchwork || !Patchwork.chords) return;
+
+function paintGroove(){
+  const ok = Patchwork.chords.ready;
+  btn.disabled = !ok;
+  btn.title = ok
+    ? "Fill this sequence from CS·1's progression — one held note per chord"
+    : "No chords on this page yet. CS·1 makes a progression; this plays along with it.";
+}
+btn.addEventListener("click", () => {
+  const C = Patchwork.chords;
+  if (!C.ready) return;
+  const len = seq.SEQ.len;
+  for (let i = 0; i < len; i++){
+    const st = seq.steps[i];
+    const ch = C.at(i, len);
+    st.on = 0; st.tie = 0; st.slide = 0; st.accent = 0;
+    if (!ch) continue;
+    if (C.starts(i, len)){
+      const top = ch.notes && ch.notes.length ? ch.notes[ch.notes.length - 1] : ch.bass + 12;
+      seq.setStepNote(i, top, 100);
+    } else {
+      /* a tie extends the note before it rather than sounding — see stepEvent */
+      st.tie = 1;
+    }
+  }
+  paintSeqEdit();
+  grid.render();
+});
+Patchwork.chords.onChange(paintGroove);
+paintGroove();
+})();

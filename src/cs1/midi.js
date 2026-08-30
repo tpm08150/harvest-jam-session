@@ -729,8 +729,18 @@ function initMidi(){
       + "rather than opening it with <code>file://</code>.", true);
     return;
   }
+  /* What this instrument answers on, so the studio can show the whole rig's channels in
+     one place. The setters keep this panel's own selects in step: the two views are the
+     same setting and must never disagree about it. */
   Patchwork.midi.route("cs1", onMidi, pt => {
     fillPorts(); followInput(pt); bindOutput(); describe();
+  }, {
+    name: "CS\u00b71", panic: midiPanic,
+    inCh:  {get: () => MIDI.inCh,
+            set: c => { MIDI.inCh = c; midiInChSel.value = String(c);
+                        allPadsOff(); saveMap(); describe(); }},
+    outCh: {get: () => MIDI.ch,
+            set: c => { midiPanic(); MIDI.ch = c; midiChSel.value = String(c); }}
   });
   Patchwork.midi.open().then(a => {
     MIDI.access = a;

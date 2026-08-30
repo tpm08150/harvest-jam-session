@@ -384,3 +384,57 @@ el.addEventListener("pointerdown", e => {
 render();
 return {render, paint};
 };
+
+/* ---- the Clear locks button ----
+   ⚠️ IT ONLY EVER CLEARED THE SELECTED STEP, and said "Clear locks", which reads as all of
+   them. Lock three steps, press it, and two locks stay lit — the button looks broken when
+   it is doing exactly what it was built to do. Worse, with a step selected that holds no
+   locks it did nothing at all, which is indistinguishable from a dead control.
+
+   So the button names its own scope and refuses to be a no-op: it reads "Clear step"
+   normally and "Clear all (3)" while Shift is held, and it is disabled precisely when
+   pressing it would change nothing. The count is the part that matters — it is what tells
+   you locks exist somewhere else, which is the thing you could not see before.
+
+   Three instruments grew the same button and BS·1, VC·1 and PM·1 had three copies of the
+   same mistake between them, so this is the one implementation. PM·1 keeps its own
+   sequencer rather than this module's, which is why the state arrives through an adapter
+   instead of a `seq`. */
+Patchwork.mountClearLocks = function(btn, o){
+"use strict";
+if (!btn || !o) return {paint(){}};
+const held = st => !!(st && st.locks && Object.keys(st.locks).length);
+const count = () => o.steps().filter(held).length;
+const here = () => held(o.steps()[o.sel()]);
+let shift = false;
+
+function paint(){
+  const n = count(), mine = here();
+  btn.textContent = shift ? (n > 1 ? "Clear all (" + n + ")" : "Clear all") : "Clear step";
+  btn.disabled = shift ? n === 0 : !mine;
+  btn.title = n === 0
+    ? "No parameter locks to clear."
+    : shift
+      ? "Clear the locks on every step."
+      : mine
+        ? "Clear this step's locks. Hold Shift to clear all " + n + "."
+        : "This step has no locks. Hold Shift to clear all " + n + ".";
+}
+
+btn.addEventListener("click", e => {
+  /* read the modifier from the event, not from `shift` — a keyboard Enter on a focused
+     button carries its own shiftKey and never fired the keydown we track */
+  o.clear(!!e.shiftKey);
+  if (o.repaint) o.repaint();
+  paint();
+});
+/* Tracked on the window because the label has to change while the pointer is nowhere near
+   the button — that is the whole point of it. */
+addEventListener("keydown", e => { if (e.key === "Shift" && !shift){ shift = true; paint(); } });
+addEventListener("keyup", e => { if (e.key === "Shift" && shift){ shift = false; paint(); } });
+/* a window that loses focus with Shift down never sends the keyup */
+addEventListener("blur", () => { if (shift){ shift = false; paint(); } });
+
+paint();
+return {paint};
+};

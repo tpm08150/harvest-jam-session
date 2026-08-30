@@ -25,11 +25,25 @@ Patchwork.launch = (() => {
 /* Every instrument that is either a scene member or can record. LP·1 has no scene row of
    its own — a scene changes what an instrument PLAYS and a looper's content is a
    recording — but it very much has one take per row, so it has a column. */
+/* ⚠️ SAID OUT LOUD, not inherited from registration order. The columns used to come out in
+   whatever sequence parts.txt happened to build the instruments in, with the record-only
+   tracks tacked on the end — so LP·1 sat after TS·1 for no reason anybody chose, and moving
+   a line in a manifest would silently rearrange the launcher.
+
+   The order is a reading order: the kit, then the parts that play over it, then the looper
+   that captures them, and TS·1 last because a transition is what ends a section. Anything
+   not listed keeps its registration order at the end, so an instrument added later appears
+   rather than disappearing. */
+const COLUMN_ORDER = ["dr1", "bs1", "cs1", "pm1", "vc1", "lp1", "ts1"];
+
 function columns(){
   const seen = new Map();
   Patchwork.scenes.instruments.forEach(i => seen.set(i.id, i.name));
   Patchwork.record.tracks.forEach(t => { if (!seen.has(t.id)) seen.set(t.id, t.name); });
-  return [...seen].map(([id, name]) => ({id, name}));
+  const rank = id => { const i = COLUMN_ORDER.indexOf(id);
+                       return i < 0 ? COLUMN_ORDER.length : i; };
+  return [...seen].map(([id, name]) => ({id, name}))
+                  .sort((a, b) => rank(a.id) - rank(b.id));
 }
 
 /* A track with slots keeps a real audio take per row rather than a pattern. */
@@ -222,8 +236,126 @@ function build(){
     el.appendChild(fire);
     grid.appendChild(el);
   });
+
+  /* ---- the mix ----
+     One fader per column, under the grid it belongs to, so the thing you balance and the
+     thing you fire are the same list of instruments in the same order.
+
+     ⚠️ YOURS ALONE, AND DELIBERATELY. Everybody in a jam renders the same patterns through
+     their own speakers in their own room, so a balance that works in one does not work in
+     another — and unlike a pattern or a patch, nobody else needs to agree with it. It is
+     never sent, and shell/bus.js says what keeps it that way. */
+  const mix = document.createElement("div");
+  mix.className = "st-row st-row-mix";
+  const lab = Object.assign(document.createElement("span"),
+    {className: "st-num st-mixlab", textContent: "MIX"});
+  lab.title = "Your own listening balance. It is never shared with a jam — "
+            + "everyone hears the same parts through their own mix.";
+  mix.appendChild(lab);
+  cols.forEach(c => {
+    const cell = document.createElement("div");
+    cell.className = "st-fadercell";
+    const f = document.createElement("input");
+    f.type = "range"; f.className = "st-fader";
+    f.min = "0"; f.max = "100"; f.step = "1";
+    /* read back from the bus rather than from a default, so a rebuild — which happens
+       whenever a row is added or the pattern length changes — does not reset the mix */
+    f.value = String(Math.round(Patchwork.audio.level(c.id) * 100));
+    f.dataset.inst = c.id;
+    f.setAttribute("aria-label", c.name + " level");
+    f.title = c.name + " level";
+    /* the readout an instrument's fader carries, for the same reason: a fader you can only
+       set by ear is one you cannot set back */
+    const val = Object.assign(document.createElement("span"),
+      {className: "st-faderval", textContent: f.value});
+    /* M and S under each fader, in that order because that is the order they are on every
+       mixer anyone has touched. Single letters: the column is 43px wide and the words do
+       not fit, but nobody has ever had to be told what M and S are. */
+    const keys = document.createElement("div");
+    keys.className = "st-mskeys";
+    [["m", "Mute"], ["s", "Solo"]].forEach(([k, word]) => {
+      const b = document.createElement("button");
+      b.className = "st-msk st-msk-" + k;
+      b.type = "button";
+      b.dataset.inst = c.id; b.dataset.k = k;
+      b.textContent = k.toUpperCase();
+      b.setAttribute("aria-label", word + " " + c.name);
+      b.setAttribute("aria-pressed", "false");
+      keys.appendChild(b);
+    });
+    cell.appendChild(f); cell.appendChild(val); cell.appendChild(keys);
+    mix.appendChild(cell);
+  });
+  mix.appendChild(Object.assign(document.createElement("span"), {className: "st-num"}));
+  grid.appendChild(mix);
+
+  paintMix();
   paint();
 }
+
+/* Kept across reloads, because a mix you have to rebuild every time is one you stop
+   bothering with. ⚠️ It is the fader POSITION that explains a quiet instrument on the next
+   visit — which is the argument for the mixer being on screen rather than in a menu. */
+const MIX_KEY = "patchwork-mix";
+function loadMix(){
+  let saved = null;
+  try{ saved = JSON.parse(localStorage.getItem(MIX_KEY)); }catch(e){}
+  if (!saved || typeof saved !== "object") return;
+  const lv = saved.levels || saved;          // the first shape of this was levels alone
+  Object.keys(lv).forEach(id => { if (typeof lv[id] === "number") Patchwork.audio.setLevel(id, lv[id]); });
+  (saved.mute || []).forEach(id => Patchwork.audio.setMute(id, true));
+  (saved.solo || []).forEach(id => Patchwork.audio.setSolo(id, true));
+}
+function saveMix(){
+  const lv = {}, mute = [], solo = [];
+  grid.querySelectorAll(".st-fader").forEach(f => {
+    const id = f.dataset.inst;
+    lv[id] = +f.value / 100;
+    if (Patchwork.audio.muted(id)) mute.push(id);
+    if (Patchwork.audio.soloed(id)) solo.push(id);
+  });
+  try{ localStorage.setItem(MIX_KEY, JSON.stringify({levels: lv, mute, solo})); }catch(e){}
+}
+
+/* ⚠️ A soloed track dims every OTHER fader, not itself — that is what makes it obvious at a
+   glance which way round a solo is, and it is the thing that stops "why is the bass silent"
+   being a two-minute mystery three songs later. */
+function paintMix(){
+  const A = Patchwork.audio;
+  grid.querySelectorAll(".st-msk").forEach(b => {
+    const on = b.dataset.k === "m" ? A.muted(b.dataset.inst) : A.soloed(b.dataset.inst);
+    /* st-on, not on: the studio sheet is not scoped to a panel, so a bare `on` here would
+       reach inside every instrument that uses it — which build.py refuses, correctly. */
+    b.classList.toggle("st-on", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  grid.querySelectorAll(".st-fadercell").forEach(cell => {
+    const f = cell.querySelector(".st-fader");
+    if (f) cell.classList.toggle("st-silenced", A.audible(f.dataset.inst) === 0);
+  });
+}
+
+grid.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest(".st-msk");
+  if (!b) return;
+  const id = b.dataset.inst;
+  if (b.dataset.k === "m") Patchwork.audio.setMute(id, !Patchwork.audio.muted(id));
+  else Patchwork.audio.setSolo(id, !Patchwork.audio.soloed(id));
+  paintMix();
+  saveMix();
+});
+
+/* `input`, not `change`: a fader that only moved the sound when you let go of it would be
+   unusable for the one thing a fader is for. */
+grid.addEventListener("input", e => {
+  const f = e.target.closest && e.target.closest(".st-fader");
+  if (!f) return;
+  const g = Patchwork.audio.setLevel(f.dataset.inst, +f.value / 100);
+  const val = f.parentNode && f.parentNode.querySelector(".st-faderval");
+  if (val) val.textContent = String(Math.round(g * 100));
+  paintMix();
+  saveMix();
+});
 
 function paint(){
   const q = Patchwork.scenes.queued, on = Patchwork.scenes.onRow;
@@ -258,6 +390,7 @@ grid.addEventListener("click", e => {
   else Patchwork.launch.fireRowShared(ri);
 });
 
+loadMix();
 Patchwork.scenes.onChange(paint);
 if (window.Patchwork.record) Patchwork.record.onChange(paint);
 build();
@@ -483,4 +616,114 @@ Patchwork.faces.onChange(() => {
   seg.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", (b.dataset.f === "face") === on));
 });
+})();
+
+/* ---- the rack's MIDI, in one place ----
+   Every instrument answers on a channel and every panel grew a pair of selects to set it,
+   so the same question had six answers scattered across six panels — and the one you
+   needed was always inside the panel you had not opened. The input port was the page's
+   from the start (see shell/midi.js); this brings the channels up to join it.
+
+   ⚠️ It does not OWN any of it. Each instrument still keeps its own channel and still
+   filters its own input; this reads and writes them through the adapter each one registers.
+   A second copy of the routing here would be a second thing to disagree with the first, and
+   the panels' own selects — which standalone builds still need — would be the ones to go
+   stale. */
+(() => {
+"use strict";
+const box = document.querySelector("#stMidi");
+if (!box || !window.Patchwork || !Patchwork.midi) return;
+const inSel = box.querySelector("#stMidiIn"),
+      rows = box.querySelector("#stMidiRows"),
+      follow = box.querySelector("#stMidiFollow"),
+      note = box.querySelector("#stMidiNote");
+
+const chOptions = sel => {
+  sel.appendChild(Object.assign(document.createElement("option"),
+    {value: "-1", textContent: "Omni"}));
+  for (let c = 0; c < 16; c++)
+    sel.appendChild(Object.assign(document.createElement("option"),
+      {value: String(c), textContent: String(c + 1)}));
+};
+
+function fillPorts(){
+  const keep = Patchwork.midi.port ? Patchwork.midi.port.id : "";
+  inSel.textContent = "";
+  inSel.appendChild(Object.assign(document.createElement("option"),
+    {value: "", textContent: "— none —"}));
+  Patchwork.midi.ports("inputs").forEach(p => inSel.appendChild(Object.assign(
+    document.createElement("option"), {value: p.id, textContent: p.name || p.id})));
+  inSel.value = keep;
+}
+inSel.addEventListener("change", () => Patchwork.midi.select(inSel.value));
+
+/* Built once per registered instrument. The selects are not rebuilt on every repaint — a
+   <select> being rebuilt under an open menu closes it, and this repaints whenever anything
+   in the rack's MIDI changes. */
+const built = new Map();          // id -> {inCh, outCh}
+function build(){
+  Patchwork.midi.list().forEach(it => {
+    if (built.has(it.id)) return;
+    const row = document.createElement("div");
+    row.className = "st-midi-row";
+    row.dataset.inst = it.id;
+    row.appendChild(Object.assign(document.createElement("span"),
+      {className: "st-midi-name", textContent: it.name}));
+    const made = {};
+    [["inCh", "in"], ["outCh", "out"]].forEach(([key, lab]) => {
+      const cell = document.createElement("span");
+      cell.className = "st-midi-cell";
+      if (!it.spec[key]){ cell.classList.add("st-midi-none"); rows && row.appendChild(cell); return; }
+      const sel = document.createElement("select");
+      sel.className = "st-midi-ch";
+      chOptions(sel);
+      sel.value = String(it.spec[key].get());
+      sel.setAttribute("aria-label", it.name + " " + lab + " channel");
+      sel.addEventListener("change", () => {
+        it.spec[key].set(parseInt(sel.value, 10));
+        paint();
+      });
+      cell.appendChild(Object.assign(document.createElement("span"),
+        {className: "st-midi-lab", textContent: lab}));
+      cell.appendChild(sel);
+      made[key] = sel;
+      row.appendChild(cell);
+    });
+    rows.appendChild(row);
+    built.set(it.id, made);
+  });
+}
+
+function paint(){
+  build();
+  const on = Patchwork.midi.follow;
+  follow.checked = on;
+  rows.classList.toggle("st-midi-ignored", on);
+  Patchwork.midi.list().forEach(it => {
+    const made = built.get(it.id);
+    if (!made) return;
+    ["inCh", "outCh"].forEach(k => {
+      if (!made[k] || !it.spec[k]) return;
+      const v = String(it.spec[k].get());
+      if (made[k].value !== v) made[k].value = v;   // the panel's own select may have moved it
+    });
+  });
+  const n = Patchwork.midi.ports("inputs").length;
+  note.innerHTML = !n
+    ? "No MIDI inputs found. Connect one and it will appear here."
+    : on
+      ? "Notes play <b>whichever panel has the keyboard</b> — click a panel to aim them. "
+        + "Input channels are ignored while this is on; <b>out</b> still sends on its own channel."
+      : n + " input" + (n === 1 ? "" : "s") + ". Each instrument listens on its own channel — "
+        + "<b>Omni</b> answers to all of them.";
+}
+
+/* ⚠️ Held notes are dropped on the way through — see setFollow in shell/midi.js. Switching
+   the rule a note-off will be routed by, while a note is held, is the one way to strand it. */
+follow.addEventListener("change", () => { Patchwork.midi.setFollow(follow.checked); paint(); });
+
+Patchwork.midi.onChange(() => { fillPorts(); paint(); });
+fillPorts(); paint();
+/* The instruments register during their own boot, which may be after this file runs. */
+setTimeout(() => { fillPorts(); paint(); }, 0);
 })();

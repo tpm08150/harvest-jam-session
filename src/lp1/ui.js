@@ -209,28 +209,79 @@ const inSel = $("#inSel");
 inSel.addEventListener("change", () => { LP.input = inSel.value; if (stream) openInput(LP.input); });
 
 let devices = [];
+
+/* The instruments this page actually has, as the input list should name them.
+
+   ⚠️ LP·1 is filtered out, and it is the one entry that would break the feature rather
+   than merely be useless: pointing the looper at its own strip is the feedback path the
+   bus tap already names an exclusion to avoid, and it would build until it clips.
+
+   Taken from what has REGISTERED rather than from a list written here, so an instrument
+   added to a build appears without this file being told about it. */
+function pageInstruments(){
+  const S = window.Patchwork && Patchwork.scenes;
+  if (!S || !S.instruments) return [];
+  return S.instruments.filter(i => i.id !== "lp1" && i.name);
+}
+function instName(id){
+  const it = pageInstruments().find(i => i.id === id);
+  return it ? it.name : id;
+}
 function inputLabel(id){
-  if (id === "__bus") return "the studio output";
+  if (id === BUS) return "the studio output";
+  const one = instOf(id);
+  if (one) return instName(one);
   const d = devices.find(x => x.deviceId === id);
   return d && d.label ? d.label : (id ? "the selected input" : "the default input");
 }
+
+const option = (value, text) => Object.assign(document.createElement("option"),
+  {value, textContent: text});
+
+function buildInputs(){
+  /* ⚠️ Restored from LP.input, not from inSel.value. The old line only put back DEVICE
+     ids, so a rebuild — a headset appearing, say — silently dropped the selection back to
+     the first option. That was invisible while "the first option" and "the only internal
+     source" were the same thing, and stops being invisible the moment there are six. */
+  const keep = LP.input;
+  inSel.textContent = "";
+
+  const here = document.createElement("optgroup");
+  here.label = "From this page";
+  here.appendChild(option(BUS, "Studio output"));
+  pageInstruments().forEach(i => here.appendChild(option(INST + i.id, i.name + " only")));
+  inSel.appendChild(here);
+
+  /* Offered only when the browser has any, rather than listed and then apologised for on
+     the one path that cannot work. */
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+    const mics = document.createElement("optgroup");
+    mics.label = "Microphone";
+    mics.appendChild(option("", "Default microphone"));
+    devices.forEach((d, i) => mics.appendChild(
+      option(d.deviceId, d.label || ("Input " + (i + 1)))));
+    inSel.appendChild(mics);
+  }
+
+  if ([].some.call(inSel.options, o => o.value === keep)) inSel.value = keep;
+}
+
 async function listInputs(){
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-  try{
-    const devs = await navigator.mediaDevices.enumerateDevices();
-    devices = devs.filter(d => d.kind === "audioinput");
-    const keep = inSel.value;
-    inSel.textContent = "";
-    inSel.appendChild(Object.assign(document.createElement("option"),
-      {value:"__bus", textContent:"Studio output"}));
-    inSel.appendChild(Object.assign(document.createElement("option"),
-      {value:"", textContent:"Default microphone"}));
-    devices.forEach((d, i) => inSel.appendChild(Object.assign(document.createElement("option"),
-      {value:d.deviceId, textContent:d.label || ("Input " + (i + 1))})));
-    if (keep && devices.some(d => d.deviceId === keep)) inSel.value = keep;
-  }catch(e){}
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices){
+    try{
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      devices = devs.filter(d => d.kind === "audioinput");
+    }catch(e){}
+  }
+  buildInputs();
 }
 listInputs();
+/* ⚠️ Again once the page has finished assembling. The instrument options come from what
+   has registered, and this file happens to be built after every other instrument today —
+   but that is parts.txt's business, not this file's, and an instrument listed below LP·1
+   would otherwise be missing from the menu with nothing to explain why. A timeout of 0
+   runs after every synchronous script on the page, whatever the order turns out to be. */
+setTimeout(listInputs, 0);
 if (navigator.mediaDevices) navigator.mediaDevices.addEventListener("devicechange", listInputs);
 
 /* The loop's level and the click's are the same control twice, so it is written once. */

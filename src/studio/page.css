@@ -102,7 +102,28 @@ body{
 }
 
 /* ---- scene launcher ---- */
-.st-scenes{padding:0}
+/* ---- the launcher is a panel too ----
+   It is already an item in the same grid as the instruments, sized and stretched with
+   them, and it was the one thing in the rack with no box around it — which read as a
+   caption floating beside the rack rather than as part of it.
+
+   The recipe is each instrument's :scope rule, written out rather than shared, for the
+   reason page.css already gives about the studio's own chrome: those rules live inside
+   @scope (.unit) and do not reach a section that is not a unit. Every value is a token,
+   so the two cannot drift apart quietly. */
+.st-scenes{
+  padding:20px 18px 24px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);
+  border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  position:relative;overflow:hidden;
+}
+/* the fine horizontal grain every panel carries */
+.st-scenes::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+}
 .st-scenes-head{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:9px}
 /* A bare "− 120 +" beside the word Scenes reads as a count of something. The panels label
    their controls; the page's own controls have to as well. */
@@ -124,14 +145,19 @@ body{
 .st-bars.st-idle .st-bar{opacity:.45}
 .st-lab{font-family:"Saira Semi Condensed",system-ui,sans-serif;
   font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--silk-dim)}
-.st-scenes-head .st-brand{align-self:flex-end;line-height:2.1}
-.st-grid{
-  display:block;max-width:380px;
-  background:linear-gradient(180deg,var(--panel-hi),var(--panel-lo));
-  border:1px solid var(--edge);border-radius:8px;
-  padding:10px 12px;
-  box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 10px 24px rgba(0,0,0,.4);
+/* The launcher's title, in the face every instrument's plate uses — same family, weight,
+   size and tracking as .model in chrome.css. It was inheriting the body font and reading as
+   a caption next to six panels that were shouting their names. */
+.st-scenes-head .st-brand{
+  align-self:flex-end;
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:19px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--silk);line-height:1;padding-bottom:10px;
 }
+/* ⚠️ No box of its own any more. It had one because the section around it did not, and
+   now that .st-scenes carries the panel, keeping both would put a panel inside a panel —
+   the one arrangement that looks less uniform than having no box at all. */
+.st-grid{display:block}
 .st-row{
   display:grid;
   grid-template-columns:26px repeat(var(--cols,3),minmax(0,1fr)) 34px;
@@ -144,6 +170,83 @@ body{
 }
 .st-inst{font-size:10px;color:var(--silk)}
 .st-row-head{margin-bottom:3px}
+
+/* ---- the mix row ----
+   Vertical, because a column here is about 43px wide and a horizontal slider in that is a
+   switch with extra steps — and because every mixer anyone has touched is vertical. Ruled
+   off from the scene rows: it belongs to the same columns but it is not another scene, and
+   a row of faders reading as row seven would be a lie.
+
+   BUILT FROM THE SAME PARTS AS AN INSTRUMENT'S FADER, turned ninety degrees. The slot is a
+   recessed groove with a dark channel down the middle and the cap is a lit grey block with
+   an accent stripe across it — the shell's own --groove-* and --cap-* tokens, which exist
+   because DR·1, BS·1 and CS·1 all draw this same control. A native <input type=range> was
+   worth keeping over a hand-built div: it arrives with keyboard control, a focus ring and a
+   real value, and every one of those would have had to be rebuilt to gain nothing.
+
+   ⚠️ `appearance:none` AND `writing-mode`, never `appearance:slider-vertical`. The legacy
+   spelling does make the control vertical, and it also makes the browser draw its own
+   thumb and ignore ::-webkit-slider-thumb entirely — so the faders came out vertical with
+   stock blue pucks on them and the styling looked like it had simply not loaded. The
+   modern pair is what allows a custom cap at all. */
+.st-row-mix{
+  margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--groove);
+  align-items:end;
+}
+.st-fadercell{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.st-fader{
+  -webkit-appearance:none;appearance:none;
+  writing-mode:vertical-rl;direction:rtl;
+  width:26px;height:96px;margin:0;padding:0;
+  background:transparent;cursor:ns-resize;touch-action:none;
+}
+.st-fader::-webkit-slider-runnable-track{
+  width:20px;height:100%;border-radius:4px;
+  background:
+    linear-gradient(90deg,transparent calc(50% - 1.5px),var(--groove-deep) calc(50% - 1.5px),
+                    var(--groove-deep) calc(50% + 1.5px),transparent calc(50% + 1.5px)),
+    linear-gradient(90deg,var(--groove-hi),var(--groove) 45%,var(--groove-hi));
+  box-shadow:0 2px 4px rgba(0,0,0,.6) inset,0 1px 0 rgba(255,255,255,.06);
+}
+.st-fader::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:26px;height:20px;border-radius:3px;
+  border:1px solid var(--cap-edge);
+  background:
+    linear-gradient(var(--mint),var(--mint)) center/calc(100% - 8px) 3px no-repeat,
+    linear-gradient(180deg,var(--cap-hi),var(--cap-lo));
+  box-shadow:0 2px 3px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.18) inset;
+}
+.st-fader:hover::-webkit-slider-thumb{border-color:var(--silk-dim)}
+.st-fader:active::-webkit-slider-thumb{border-color:var(--mint)}
+.st-fader:focus-visible{outline:none}
+.st-fader:focus-visible::-webkit-slider-thumb{border-color:var(--mint);
+  box-shadow:0 0 0 1px var(--mint),0 2px 3px rgba(0,0,0,.55)}
+/* ---- mute and solo ----
+   Two letters under each fader. Colour does the telling: red for held silent, yellow for
+   held audible — the two conventions every mixer already uses, so nobody has to learn them.
+   A soloed track dims every OTHER cell, which is what makes the direction of a solo
+   obvious at a glance rather than something you work out from what you can hear. */
+.st-mskeys{display:flex;gap:3px;width:100%}
+.st-msk{
+  flex:1 1 0;min-width:0;height:15px;padding:0;border-radius:3px;cursor:pointer;
+  font-family:"DM Mono",ui-monospace,monospace;font-size:8.5px;letter-spacing:.06em;
+  background:var(--slot);color:var(--silk-dim);border:1px solid var(--groove);
+}
+.st-msk:hover{color:var(--silk);border-color:var(--silk-dim)}
+.st-msk-m.st-on{background:var(--cap-red);border-color:var(--cap-red);color:#fff}
+.st-msk-s.st-on{background:var(--cap-yellow);border-color:var(--cap-yellow);color:#241c07}
+.st-msk:focus-visible{outline:1px solid var(--mint);outline-offset:1px}
+/* silenced by anything — its own mute, or somebody else's solo */
+.st-fadercell.st-silenced .st-fader{opacity:.35}
+.st-fadercell.st-silenced .st-faderval{opacity:.4}
+
+/* the readout an instrument's fader carries, in the same face and at column width */
+.st-faderval{font-family:"DM Mono",ui-monospace,monospace;font-size:9px;
+  color:#aeb8be;line-height:1;letter-spacing:.04em}
+/* the label sits with the caps rather than on the floor with their bases */
+.st-mixlab{align-self:center;cursor:help}
 
 .st-cell{
   height:26px;border-radius:4px;cursor:pointer;
@@ -220,13 +323,14 @@ body{
 @media (max-height:760px){
   body{padding-bottom:24px}
   .st-head{padding:12px 20px 2px}
-  .st-scenes{padding:2px 20px 10px}
+  .st-scenes{padding:14px 14px 16px}
   .st-scenes-head{margin-bottom:6px}
   .st-scenes-head .st-hint{display:none}     /* the gesture is discoverable by trying it */
   .st-grid{padding:7px 9px}
   .st-row{grid-template-columns:20px repeat(var(--cols,3),minmax(0,1fr)) 28px;gap:4px}
   .st-row + .st-row{margin-top:4px}
   .st-cell,.st-fire{height:18px}
+  .st-fader{height:74px}
   .st-cell::after{width:5px;height:5px}
   .st-rack{padding-top:0}
 }
@@ -325,3 +429,60 @@ body.living .st-seg#stFaces{display:none}
 
 .st-quant{align-self:center}
 .st-quant button{padding:8px 12px}
+
+/* ---- the rack's MIDI ----
+   Ruled off under the launcher the way the mix row is ruled off under the scenes: same
+   panel, different question. A table rather than six pairs of labelled fields, because the
+   thing you actually want to read is the COLUMN — which channel is each instrument on —
+   and six separate two-field rows is the layout that hides exactly that. */
+.st-midi{margin-top:12px;padding-top:11px;border-top:1px solid var(--groove)}
+.st-midi-top{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:9px}
+.st-midi-port{display:flex;flex-direction:column;gap:4px;flex:1 1 150px;min-width:0}
+.st-midi-port select{width:100%}
+.st-follow{
+  display:flex;align-items:center;gap:7px;cursor:pointer;
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;font-size:11px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--silk-dim);
+  padding:7px 9px;border:1px solid var(--groove);border-radius:5px;
+  background:rgba(0,0,0,.13);
+}
+.st-follow:hover{color:var(--silk);border-color:var(--silk-dim)}
+.st-follow input{accent-color:var(--mint);cursor:pointer;margin:0}
+.st-follow:has(input:checked){color:var(--mint);border-color:var(--mint)}
+
+.st-midi-rows{display:flex;flex-direction:column;gap:4px}
+.st-midi-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center}
+.st-midi-name{
+  font-family:"DM Mono",ui-monospace,monospace;font-size:10px;letter-spacing:.1em;
+  color:var(--silk);
+}
+.st-midi-cell{display:flex;align-items:center;gap:5px}
+.st-midi-none{width:0}
+.st-midi-lab{
+  font-family:"DM Mono",ui-monospace,monospace;font-size:9px;letter-spacing:.08em;
+  color:var(--silk-dim);text-transform:uppercase;
+}
+/* ⚠️ The launcher is not a .unit, and every field rule in chrome.css lives inside
+   @scope (.unit) — so none of them reach here and these came out as the browser's own white
+   boxes. Same values, from the same tokens. */
+.st-scenes select{
+  appearance:none;width:100%;
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;font-size:13px;letter-spacing:.04em;
+  background:var(--slot);color:var(--field);border:1px solid var(--groove);border-radius:4px;
+  padding:7px 24px 7px 9px;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--silk-dim) 50%),linear-gradient(135deg,var(--silk-dim) 50%,transparent 50%);
+  background-position:calc(100% - 13px) 50%,calc(100% - 8px) 50%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+  box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+.st-scenes select:disabled{opacity:.4;cursor:default}
+.st-midi-ch{padding:4px 6px;font-size:11px;min-width:62px}
+/* ⚠️ Dimmed, not disabled, while follow mode is on. The IN channels genuinely stop
+   mattering — everything goes to the focused panel — but a control you cannot reach is a
+   control you cannot set up ready for switching the mode back off. */
+.st-midi-ignored .st-midi-cell:first-of-type{opacity:.4}
+.st-midi-note{
+  margin-top:8px;font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:11px;line-height:1.5;color:var(--silk-dim);
+}
+.st-midi-note b{color:var(--silk)}

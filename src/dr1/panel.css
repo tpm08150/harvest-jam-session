@@ -110,3 +110,12 @@
   .pads{grid-template-columns:repeat(8,1fr)}
   .lane-name{flex:0 0 38px}
 }
+
+/* ---- parameter locks ----
+   A locked step is ringed rather than recoloured: the pad already uses colour for off / on
+   / accent / playing-now, and a fifth colour on the same square would be one more thing to
+   decode at a glance. The selected step, in program mode, is the one you are writing to. */
+.pad.lock{box-shadow:0 0 0 1px var(--cap-yellow) inset}
+.pad.sel{outline:1px solid var(--mint);outline-offset:1px}
+.hfader.locked .hlab{color:var(--cap-yellow)}
+#lockHint{font-size:10px;letter-spacing:.08em}

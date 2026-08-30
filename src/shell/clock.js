@@ -44,7 +44,24 @@ function claim(quantumBeats){
     origin = shared;
   }
   const q = Math.max(1e-6, quantumBeats * beatSeconds());
-  return origin + Math.ceil((soon - origin) / q) * q;
+  /* ⚠️ A HAIR PAST A BOUNDARY IS STILL THAT BOUNDARY.
+
+     Without this window, one row press could start two instruments a bar apart. The first
+     to start finds nothing running, sets origin to now and returns it; the second calls in
+     a few milliseconds later — the cost of the first one's own start — sees itself just
+     past the line that was only defined for it, and Math.ceil rounds a hair up to a whole
+     quantum. Measured at 5.3 ms between the two claims and exactly one bar between the
+     sounds, which is the shape of the bug: silent, tempo-correct, and only when more than
+     one instrument starts at once.
+
+     It also covers the human case it looks like it covers — pressing a row a few ms after
+     the downbeat means you were aiming at that downbeat, not the next one.
+
+     A time slightly in the past is safe: every caller schedules against it through a 200 ms
+     lookahead, so it lands a few ms early rather than a bar late. Clamped against q so a
+     small quantum can never be swallowed whole. */
+  const window = Math.min(.05, q * .25);
+  return origin + Math.ceil((soon - origin - window) / q) * q;
 }
 
 /* Where a shared grid comes from — see shell/session.js. Returns null when playing alone,
