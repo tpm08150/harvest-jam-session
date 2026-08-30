@@ -26,6 +26,7 @@ requiring an npm install to check the LAN relay would make the dependency-free h
 depend on the other half.
 """
 import base64
+import binascii
 import hashlib
 import json
 import os
@@ -190,17 +191,28 @@ def run(url):
     print("checking " + url)
     a = Peer(url)
 
+    # ⚠️ EVERY ROOM THIS RUN USES IS UNIQUE TO THIS RUN, and every assertion about "what
+    # rooms exist" is filtered to them. The obvious version of this script asserts the relay
+    # is EMPTY, which is true in a lab and false the moment you point it at the relay people
+    # are actually using — it failed four times against production with somebody sitting in
+    # a room called "jam", which is a working relay and a broken test. A checker you cannot
+    # run against the live thing is a checker you will not run when it matters.
+    tag = "chk-" + binascii.hexlify(os.urandom(4)).decode()
+    A, B = tag + "-a", tag + "-b"
+    mine = lambda rooms: sorted([x for x in (rooms or []) if x["name"].startswith(tag)],
+                                key=lambda x: x["name"])
+
     # ---- rooms, before anyone has joined anything ----
     a.send({"kind": "rooms"})
     r = a.take("rooms")
     ok("rooms answers on an unjoined connection", r is not None and isinstance(r.get("rooms"), list), r)
-    ok("rooms is empty before any join", r and r["rooms"] == [], r and r["rooms"])
+    ok("none of this run's rooms exist yet", r is not None and mine(r["rooms"]) == [], r and mine(r["rooms"]))
 
     # ---- join ----
-    a.send({"kind": "join", "room": "check"})
+    a.send({"kind": "join", "room": A})
     ja = a.take("joined")
     ok("join is answered", ja is not None)
-    ok("joined names the room", ja and ja.get("room") == "check", ja and ja.get("room"))
+    ok("joined names the room", ja and ja.get("room") == A, ja and ja.get("room"))
     ok("joined carries an epoch", ja and isinstance(ja.get("epoch"), (int, float)), ja)
     ok("joined carries ts", ja and isinstance(ja.get("ts"), (int, float)), ja)
     ok("first joiner sees 0 peers", ja and ja.get("peers") == 0, ja and ja.get("peers"))
@@ -215,10 +227,10 @@ def run(url):
     b.send({"kind": "rooms"})
     r = b.take("rooms")
     ok("rooms lists an occupied room",
-       r and len(r["rooms"]) == 1 and r["rooms"][0]["name"] == "check", r and r["rooms"])
-    ok("rooms counts its peers", r and r["rooms"][0].get("peers") == 1, r and r["rooms"])
+       r and len(mine(r["rooms"])) == 1 and mine(r["rooms"])[0]["name"] == A, r and mine(r["rooms"]))
+    ok("rooms counts its peers", r and mine(r["rooms"])[0].get("peers") == 1, r and mine(r["rooms"]))
 
-    b.send({"kind": "join", "room": "check"})
+    b.send({"kind": "join", "room": A})
     jb = b.take("joined")
     ok("second joiner is answered", jb is not None)
     ok("second joiner gets the SAME epoch", jb and ja and jb["epoch"] == ja["epoch"],
@@ -245,7 +257,7 @@ def run(url):
 
     # ---- rooms are isolated ----
     c = Peer(url)
-    c.send({"kind": "join", "room": "other"})
+    c.send({"kind": "join", "room": B})
     c.take("joined")
     b.drain(0.2); c.drain(0.2)
     a.send({"kind": "probe", "from": "aaa"})
@@ -256,15 +268,15 @@ def run(url):
     c.send({"kind": "rooms"})
     r = c.take("rooms")
     ok("rooms lists both, sorted",
-       r and [x["name"] for x in r["rooms"]] == ["check", "other"], r and r["rooms"])
+       r and [x["name"] for x in mine(r["rooms"])] == [A, B], r and mine(r["rooms"]))
 
     # ---- re-joining on a live connection moves you ----
-    b.send({"kind": "join", "room": "other"})
+    b.send({"kind": "join", "room": B})
     b.take("joined")
     time.sleep(0.3)
     c.send({"kind": "rooms"})
     r = c.take("rooms")
-    other = next((x for x in (r["rooms"] if r else []) if x["name"] == "other"), None)
+    other = next((x for x in mine(r["rooms"] if r else []) if x["name"] == B), None)
     ok("re-join moves the connection", other and other["peers"] == 2, r and r["rooms"])
 
     # ---- an emptied room forgets its beat 0 ----
@@ -275,8 +287,8 @@ def run(url):
     d = Peer(url)
     d.send({"kind": "rooms"})
     r = d.take("rooms")
-    ok("rooms empties when everyone leaves", r and r["rooms"] == [], r and r["rooms"])
-    d.send({"kind": "join", "room": "check"})
+    ok("this run's rooms are gone once everyone leaves", r and mine(r["rooms"]) == [], r and mine(r["rooms"]))
+    d.send({"kind": "join", "room": A})
     jd = d.take("joined")
     ok("a reused room name gets a FRESH epoch", jd and ja and jd["epoch"] != ja["epoch"],
        jd and ja and ("both %.0f" % jd["epoch"]))
