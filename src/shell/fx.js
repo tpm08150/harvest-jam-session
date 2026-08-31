@@ -33,8 +33,18 @@ Patchwork.fx = (() => {
    something else; a pad with three parameters is a menu. */
 const DIVS = ["1/2", "1/4", "1/8", "1/16", "1/32"];
 const DIVBEATS = {"1/2": 2, "1/4": 1, "1/8": .5, "1/16": .25, "1/32": .125};
-const BARS = ["1/2", "1", "2", "4"];
-const BARBEATS = {"1/2": 2, "1": 4, "2": 8, "4": 16};
+/* ⚠️ ONE LIST FROM A SIXTEENTH TO FOUR BARS, and the unit changes halfway along it because
+   the music does: below a bar you count divisions and above one you count bars. "1/2" is
+   both — a half note is two beats and so is half a bar — which is why the two halves of this
+   list join without a gap. The label carries its own unit rather than one suffix being
+   pasted onto all seven, because "1/16 bar" is not a thing anybody says.
+
+   Short lengths are not Stutter twice over. Stutter recirculates a delay line with unity
+   feedback and wraps hard, which is its whole character; Loop reads a frozen window with a
+   3 ms taper at each end, so at a sixteenth it rolls where Stutter stammers. */
+const LOOPS = ["1/16", "1/8", "1/4", "1/2", "1 bar", "2 bar", "4 bar"];
+const LOOPBEATS = {"1/16": .25, "1/8": .5, "1/4": 1, "1/2": 2,
+                   "1 bar": 4, "2 bar": 8, "4 bar": 16};
 
 const hz  = v => (v >= 1000 ? (v / 1000).toFixed(1) + "k" : Math.round(v) + "") + "Hz";
 const pct = v => Math.round(v * 100) + "%";
@@ -48,7 +58,7 @@ const P = {
   hp:      {v: 1600, lo: 150, hi: 6000,  mul: 1.4,  fmt: hz},
   iso:     {v: 900,  lo: 120, hi: 6000,  mul: 1.4,  fmt: hz},
   stutter: {opts: DIVS, i: 3},
-  loop:    {opts: BARS, i: 1, suffix: " bar"},
+  loop:    {opts: LOOPS, i: 4},
   reverse: {opts: DIVS, i: 3},
   repitch: {v: 7,    lo: -12, hi: 12,    add: 1,    fmt: v => (v > 0 ? "+" : "") + v + "st"},
   gate:    {opts: DIVS, i: 3},
@@ -64,7 +74,7 @@ const P = {
 function paramText(id){
   const p = P[id];
   if (!p) return "";
-  return p.opts ? p.opts[p.i] + (p.suffix || "") : p.fmt(p.v);
+  return p.opts ? p.opts[p.i] : p.fmt(p.v);
 }
 
 /* The pad the arrows are talking to: whichever was touched last. Nothing to select and
@@ -131,7 +141,7 @@ function divSeconds(id){
   return (beats || .25) * Patchwork.clock.beatSeconds();
 }
 function loopSeconds(){
-  return BARBEATS[BARS[P.loop.i]] * Patchwork.clock.beatSeconds();
+  return LOOPBEATS[LOOPS[P.loop.i]] * Patchwork.clock.beatSeconds();
 }
 /* A beat to sweep in and a beat to sweep back, so the filter is a gesture you hear travelling
    rather than a switch. Tempo-relative because that is what makes it land musically, clamped
@@ -375,8 +385,8 @@ function buildInto(useCtx){
    capture trigger: any change to it takes a new window, which a message would have done by
    arriving.
 
-   Sixteen seconds of buffer, because Loop is measured in BARS — four of them at 60 bpm is
-   sixteen seconds, and a loop that silently truncated would be a bug you would blame on the
+   Sixteen seconds of buffer, because Loop reaches four BARS and four bars at 60 bpm is
+   sixteen seconds — a loop that silently truncated would be a bug you would blame on the
    music. Two channels of float at 48k is six megabytes, paid once. */
 const TAPE_SRC = `
 class PunchTape extends AudioWorkletProcessor {
@@ -510,7 +520,7 @@ function engageTape(c, id, t){
        the length and direction it was asked for rather than the previous pad's */
     q.get("dir").setValueAtTime(id === "reverse" ? -1 : 1, t);
     q.get("len").setValueAtTime(id === "reverse" ? clamp(divSeconds(id), .02, 3.5)
-                                                 : clamp(loopSeconds(), .05, 15.5), t);
+                                                 : clamp(loopSeconds(), .02, 15.5), t);
     q.get("gen").setValueAtTime(++tapeGen, t);
     q.get("mode").setValueAtTime(1, t);
   }

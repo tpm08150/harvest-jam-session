@@ -34,7 +34,7 @@ const FX = [
   {id: "hp",      name: "HP",      hint: "how far up the bottom goes"},
   {id: "iso",     name: "Iso",     hint: "which slice is left"},
   {id: "stutter", name: "Stutter", hint: "how long a slice repeats"},
-  {id: "loop",    name: "Loop",    hint: "how many bars go round"},
+  {id: "loop",    name: "Loop",    hint: "how much goes round"},
   {id: "reverse", name: "Reverse", hint: "how long a slice plays backwards"},
   {id: "repitch", name: "Repitch", hint: "how far it is shifted"},
   {id: "gate",    name: "Gate",    hint: "how fast it chops"},
