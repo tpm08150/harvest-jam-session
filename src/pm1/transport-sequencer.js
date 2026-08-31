@@ -7,6 +7,8 @@ const SEQ = {
   motion:"off",                 // off | arp | seq
   len:16, rate:"1/16", gate:.5, swing:.5,
   dir:"up", octaves:1,
+  /* the last note a human played, which is what a step switched on becomes */
+  lastNote: null,
   root:36, scale:"chromatic", vel:88, accentAmt:.8, autoStart:false,
   /* play: keys start the pattern and steer it. program: keys WRITE to the selected step,
      and every knob you move is locked to that step. */

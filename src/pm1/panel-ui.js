@@ -57,9 +57,14 @@ segPaint.motion = seg("#motion","m", () => SEQ.motion, setMotion);
 segPaint.seqMode = seg("#seqMode","p", () => SEQ.mode, v => {
   SEQ.mode = v;
   paintSteps(); paintLocks(); paintMeta();
-  seqHint.textContent = v === "program"
-    ? "click a step, then play a note to write it — every knob you move locks to that step"
-    : (LANE_HINT[SEQ.lane] || "");
+  /* The last note played decides what the next step you switch on becomes, and it is state
+     you cannot see anywhere else, so it is written down rather than left to be discovered. */
+  const nx = SEQ.lastNote == null ? ""
+           : "  ·  " + noteLabel(SEQ.lastNote) + " goes into the next step you switch on";
+  seqHint.textContent =
+      v === "program" ? "click a step, then play a note to write it — every knob you move locks to that step"
+    : v === "step"    ? "play the line in — each note fills the lit step and moves on. ← → skip a step"
+    : (LANE_HINT[SEQ.lane] || "") + nx;
 });
 /* declared before it is assigned: a paint can run while this file is still being
    evaluated, and a `const` in its temporal dead zone throws on any access at all */
@@ -251,7 +256,7 @@ function paintSteps(){
     b.classList.toggle("acc", !!st.accent && !!st.on);
     b.classList.toggle("sld", !!st.slide && !!st.on);
     b.classList.toggle("tie", !!st.tie);
-    b.classList.toggle("sel", SEQ.mode === "program" && +b.dataset.i === SEQ.sel);
+    b.classList.toggle("sel", SEQ.mode !== "play" && +b.dataset.i === SEQ.sel);
     b.classList.toggle("lock", !!(st.locks && Object.keys(st.locks).length));
     /* the note it will play, quantised to the current key — a tie has no note of its own */
     /* The root, and how many notes are stacked on it. Printing the whole chord does not
@@ -270,7 +275,7 @@ function paintSteps(){
    can see rather than remember. */
 function paintLocks(){
   if (clearLocksBtn) clearLocksBtn.paint();
-  const st = SEQ.mode === "program" ? SEQ.steps[SEQ.sel] : null;
+  const st = SEQ.mode !== "play" ? SEQ.steps[SEQ.sel] : null;
   const L = (st && st.locks) || {};
   Object.keys(ctlReg).forEach(id => {
     const el = ctlReg[id] && ctlReg[id].el;
@@ -280,7 +285,7 @@ function paintLocks(){
 /* Called whenever a knob moves. In program mode that IS the gesture for locking — there is
    no separate arm step, the same as recording a note by holding one and clicking. */
 function lockKnob(id){
-  if (SEQ.mode !== "program") return;
+  if (SEQ.mode === "play") return;
   const st = SEQ.steps[SEQ.sel]; if (!st) return;
   (st.locks || (st.locks = {}))[id] = P[id];
   paintSteps(); paintLocks();
@@ -344,7 +349,7 @@ seqWrap.addEventListener("pointerdown", e => {
      is down you are recording, if it is not you are editing. The pitch is stored raw and
      quantised to the scale on playback, so changing key afterwards re-reads the pattern
      rather than destroying it. */
-  if (SEQ.mode === "program" && SEQ.sel !== +b.dataset.i){
+  if (SEQ.mode !== "play" && SEQ.sel !== +b.dataset.i){
     selectStep(+b.dataset.i);        // first click selects; click again to edit the lane
     return;
   }
@@ -363,7 +368,15 @@ seqWrap.addEventListener("pointerdown", e => {
     b._y = e.clientY; b._p = st.pitch + 12*st.oct;
     return;
   }
-  if (SEQ.lane === "on")      st.on = st.on ? 0 : 1;
+  if (SEQ.lane === "on"){
+    const turningOn = !st.on;
+    st.on = st.on ? 0 : 1;
+    /* ⚠️ THE NOTE YOU LAST PLAYED, not whatever pitch the step was holding. A step switched
+       on used to land on the root unless you dragged it, so writing a line meant turning
+       steps on and then correcting every one. Play the pitch once and tap the steps that
+       want it. Holding a note still wins, above. */
+    if (turningOn && SEQ.lastNote != null) writeStep(st, SEQ.lastNote);
+  }
   else if (SEQ.lane === "accent") st.accent = st.accent ? 0 : 1;
   else if (SEQ.lane === "slide")  st.slide  = st.slide ? 0 : 1;
   else if (SEQ.lane === "tie")    st.tie    = st.tie ? 0 : 1;
@@ -472,7 +485,7 @@ function paintMeta(){
     P.gmode === "off" ? "no glide" : P.gmode,
     SEQ.motion === "off" ? "free" : SEQ.motion
   ];
-  if (SEQ.mode === "program") bits.push("PROGRAM step " + (SEQ.sel + 1));
+  if (SEQ.mode !== "play") bits.push(SEQ.mode.toUpperCase() + " step " + (SEQ.sel + 1));
   voiceMeta.textContent = bits.join(" · ");
 }
 function paint(){
@@ -552,7 +565,7 @@ onKey("keydown", e => {
   if (e.key === " " && !e.repeat){ SEQ.playing ? stopPlay() : startPlay(); e.preventDefault(); return; }
   /* Arrow keys walk the pattern while programming. Skipped when a knob or fader has focus,
      because those use arrows themselves and the event bubbles up to here. */
-  if (SEQ.mode === "program" && e.key.indexOf("Arrow") === 0
+  if (SEQ.mode !== "play" && e.key.indexOf("Arrow") === 0
       && !(e.target.closest && e.target.closest(".knob,.hfader"))){
     const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1
             : e.key === "ArrowDown" ? 8 : e.key === "ArrowUp" ? -8 : 0;

@@ -4050,11 +4050,27 @@ const SEQ = {
   len: spec.len || 16, rate: spec.rate || "1/16", swing: .5,
   playing: false, root: spec.root == null ? 36 : spec.root, scale: "minor",
   gate: .5, accentAmt: .3, octaves: 0,
-  /* play: clicks edit the grid. program: a click SELECTS a step, and the next note you
-     play and every knob you move belong to it. PM·1's two modes, same words. */
+  /* THREE WAYS TO WRITE A LINE, because entering one by dragging every step is the slowest
+     of them and it was the only one that always worked.
+
+       play     clicks edit the grid — and a step you switch ON takes the note you last
+                played, so playing a pitch and tapping four steps writes four of it
+       program  a click SELECTS a step, and the next note you play and every knob you move
+                belong to that one step. It stays put: you are working ON a step
+       step     the same, but the cursor MOVES ON by itself. Play, play, play and the line
+                goes in; the arrows walk over steps you want left alone
+
+     Program and Step differ in one line and the difference is the whole point of having
+     both: one is for fixing a step, the other is for writing a run of them. */
   mode: "play", sel: 0,
   lane: "on"                    // on | pitch | accent | slide | tie
 };
+
+/* ⚠️ THE LAST NOTE A HUMAN PLAYED, and only a human — see played(). It is what a step you
+   switch on is set to, which turns "enter this line" into playing the pitch once and tapping
+   the steps that want it, instead of dragging each one to the right height. Null until
+   somebody plays something, so a panel nobody has touched behaves exactly as it did. */
+let lastNote = null;
 
 const S = () => ({on: 0, pitch: 0, oct: 0, gate: .5, accent: 0, slide: 0, tie: 0});
 /* MAX allocated whatever the current length, so shortening never loses what is past the
@@ -4213,6 +4229,28 @@ function setStepNote(i, midi, vel){
 }
 function selectStep(i){ SEQ.sel = ((i % SEQ.len) + SEQ.len) % SEQ.len; }
 
+/* ⚠️ A HUMAN PLAYED THIS, which is a different fact from "a note sounded" and the only one
+   that belongs in the grid. Every instrument calls this from its on-screen keys, its
+   computer keyboard and its MIDI in, and NEVER from the sequencer's own firing: the note
+   that comes round every pass is not a note anybody played, and writing it back into the
+   step it came from would be the sequencer arguing with itself. */
+function played(midi, vel){
+  lastNote = midi;
+  if (SEQ.mode === "program" || SEQ.mode === "step"){
+    setStepNote(SEQ.sel, midi, vel == null ? 100 : vel);
+    if (SEQ.mode === "step") selectStep(SEQ.sel + 1);
+  }
+  return true;
+}
+/* Turn the step under the cursor off and move on — the rest, in a mode whose other keys all
+   write something. The arrows step over what is already there; this empties it first. */
+function eraseAt(i){
+  const st = steps[((i % SEQ.len) + SEQ.len) % SEQ.len];
+  if (!st) return false;
+  st.on = 0; st.tie = 0; st.accent = 0; st.slide = 0;
+  return true;
+}
+
 /* In program mode, moving any registered control IS the lock gesture — no separate arm
    step, the same as recording a note by holding one and clicking. */
 function lock(id){
@@ -4255,7 +4293,8 @@ function recordAt(midi, vel, when){
 
 return {
   SEQ, steps, stepNote, stepEvent, start, stop, tick, playingStep, recordAt,
-  setStepNote, selectStep, lock, unlock, isLocked, clearLocks, withLocks,
+  setStepNote, selectStep, played, eraseAt, lock, unlock, isLocked, clearLocks, withLocks,
+  get lastNote(){ return lastNote; },
   RATES, SCALES,
   toggle(){ SEQ.playing ? stop() : start(); },
   setLen(n){ SEQ.len = V.clampf(n|0, 1, MAX); },
@@ -4334,12 +4373,46 @@ function paint(){
     b.classList.toggle("sld", !!st.slide && !!st.on);
     b.classList.toggle("tie", !!st.tie);
     b.classList.toggle("now", +b.dataset.i === cur);
-    b.classList.toggle("sel", seq.SEQ.mode === "program" && +b.dataset.i === seq.SEQ.sel);
+    b.classList.toggle("sel", seq.SEQ.mode !== "play" && +b.dataset.i === seq.SEQ.sel);
     /* a p-lock is something you can see rather than remember */
     b.classList.toggle("lock", !!(st.locks && Object.keys(st.locks).length));
     b.textContent = (!st.on || st.tie) ? "" : noteName(seq.stepNote(st));
   });
 }
+
+/* ---- walking the steps ----
+   ⚠️ MOUNTED BEFORE shell/keys.js, and that is what makes it work. Left and right move an
+   instrument's octave there, and host.js runs every handler registered for a panel in the
+   order they were registered — so this one has to be in place first and say so with
+   preventDefault, which is exactly what keys.js checks before acting. Every instrument that
+   mounts a grid does it well before it mounts a keyboard; PM·1 makes the same arrangement
+   with its own handler and says so too.
+
+   Up and down are deliberately left alone. They move the octave, and moving the octave is
+   what you want while typing a line in from the computer keyboard. */
+const root = el.closest("[data-instrument]");
+if (root && Patchwork.onKey) Patchwork.onKey(root, "keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "select" || tag === "textarea") return;
+  const m = seq.SEQ.mode;
+  if (m !== "program" && m !== "step") return;
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft"){
+    seq.selectStep(seq.SEQ.sel + (e.key === "ArrowRight" ? 1 : -1));
+    if (o.onSelect) o.onSelect(seq.SEQ.sel);
+    paint();
+    e.preventDefault();
+    return;
+  }
+  if (m === "step" && (e.key === "Backspace" || e.key === "Delete")){
+    seq.eraseAt(seq.SEQ.sel);
+    seq.selectStep(seq.SEQ.sel + 1);
+    if (o.onSelect) o.onSelect(seq.SEQ.sel);
+    paint();
+    if (o.onEdit) o.onEdit();
+    e.preventDefault();
+  }
+});
 
 el.addEventListener("click", e => {
   const b = e.target.closest(".step"); if (!b) return;
@@ -4347,7 +4420,7 @@ el.addEventListener("click", e => {
 
   /* Program mode: the click SELECTS, and what you play next is written here. Every knob
      you move locks to it as well — see lock() in the sequencer. */
-  if (seq.SEQ.mode === "program"){
+  if (seq.SEQ.mode === "program" || seq.SEQ.mode === "step"){
     seq.selectStep(i);
     if (o.onSelect) o.onSelect(i);
     paint();
@@ -4374,7 +4447,15 @@ el.addEventListener("click", e => {
   else if (lane === "slide"){ st.slide = st.slide ? 0 : 1; if (st.slide) st.on = 1; }
   else if (lane === "tie"){ st.tie = st.tie ? 0 : 1; if (st.tie) st.on = 1; }
   else if (lane === "pitch"){ st.on = 1; }     /* the drag below is the edit; this arms it */
-  else if (!st.on){ st.on = 1; st.accent = 0; }
+  else if (!st.on){
+    st.on = 1; st.accent = 0;
+    /* ⚠️ THE NOTE YOU LAST PLAYED, not the root. A step switched on used to land on whatever
+       pitch it happened to be holding — the root, for a step never touched — so writing a
+       line meant turning steps on and then dragging every one of them to the right height.
+       Play the pitch once and tap the steps that want it. Holding a note still wins, above,
+       because a key under a finger is a more specific statement than one you let go of. */
+    if (seq.lastNote != null) seq.setStepNote(i, seq.lastNote);
+  }
   else if (!st.accent){ st.accent = 1; }
   else { st.on = 0; st.accent = 0; st.tie = 0; st.slide = 0; }
   paint();
@@ -4385,7 +4466,7 @@ el.addEventListener("click", e => {
    the grid needs no separate pitch lane. */
 el.addEventListener("pointerdown", e => {
   const b = e.target.closest(".step"); if (!b || e.shiftKey || e.altKey) return;
-  if (seq.SEQ.mode === "program") return;          // the click selects; it does not edit
+  if (seq.SEQ.mode !== "play") return;             // the click selects; it does not edit
   if (o.held && o.held() != null) return;          // a held note is the edit
   const st = seq.steps[+b.dataset.i];
   const y0 = e.clientY, p0 = st.pitch;

@@ -57,9 +57,9 @@ const faderReg = {};
    selected, on every pass. "A human played this" is a different fact from "a note
    sounded", and only the first one belongs in the grid. */
 function played(n){
-  if (seq.SEQ.mode !== "program") return;
-  seq.setStepNote(seq.SEQ.sel, n, 100);
+  seq.played(n, 100);
   grid.paint();
+  paintSeqEdit();
 }
 const grid = Patchwork.mountSeqGrid($("#seqWrap"), seq, {
   held: heldNote,
@@ -305,19 +305,23 @@ function paintLocked(){
      rather than remember — PM·1 marks its knobs the same way. */
   Object.keys(faderReg).forEach(id => {
     const f = faderReg[id];
-    if (f && f.el) f.el.classList.toggle("locked", seq.SEQ.mode === "program" && seq.isLocked(id));
+    if (f && f.el) f.el.classList.toggle("locked", seq.SEQ.mode !== "play" && seq.isLocked(id));
   });
   /* here rather than in paintSeqEdit: this is what the grid calls when the selection moves,
      and both the button's label and whether it is disabled depend on the selected step */
   if (clearLocksBtn) clearLocksBtn.paint();
 }
 function paintSeqEdit(){
-  const program = seq.SEQ.mode === "program";
-  $$("#seqMode button").forEach(b => b.classList.toggle("on", (b.dataset.p === "program") === program));
+  const m = seq.SEQ.mode;
+  $$("#seqMode button").forEach(b => b.classList.toggle("on", b.dataset.p === m));
   $$("#seqLane button").forEach(b => b.classList.toggle("on", b.dataset.l === seq.SEQ.lane));
-  if (seqHint) seqHint.textContent = program
-    ? "click a step, then play a note to write it \u2014 every knob you move locks to that step"
-    : (LANE_HINT[seq.SEQ.lane] || "hold a note and click a step to record it");
+  /* The last note played is state you cannot see anywhere else, and it decides what the next
+     step you switch on becomes — so it is written down rather than left to be discovered. */
+  const nx = seq.lastNote == null ? "" : "  \u00b7  " + noteName(seq.lastNote) + " goes into the next step you switch on";
+  if (seqHint) seqHint.textContent =
+      m === "program" ? "click a step, then play a note to write it \u2014 every knob you move locks to that step"
+    : m === "step"    ? "play the line in \u2014 each note fills the lit step and moves on. \u2190 \u2192 skip a step, delete empties one"
+    : (LANE_HINT[seq.SEQ.lane] || "hold a note and click a step to record it") + nx;
   paintLocked();
   grid.paint();
 }

@@ -146,9 +146,13 @@ function noteOn(midi, vel, when, forceSec){
      adding a note to a running arp should thicken it, not knock it back to step 1.
      `autoStart` remembers that a key started it, so releasing the last key stops it again;
      a transport the player started with the button stays running until they stop it. */
-  if (SEQ.mode === "program"){
-    /* In program mode a played note WRITES to the selected step rather than starting
-       anything. You still hear it, because you are choosing a pitch by ear. */
+  /* ⚠️ THE LAST NOTE A HUMAN PLAYED, and only a human: the sequencer fires through seqFire()
+     and never through here, so this cannot record a note the pattern played back at itself.
+     It is what a step switched on in the grid becomes — see the click handler. */
+  SEQ.lastNote = m;
+  if (SEQ.mode === "program" || SEQ.mode === "step"){
+    /* In program and step mode a played note WRITES to the selected step rather than
+       starting anything. You still hear it, because you are choosing a pitch by ear. */
     const st = SEQ.steps[SEQ.sel];
     if (st){
       /* ⚠️ THE WHOLE HELD CHORD, not just the note that arrived. This is the gesture the
@@ -159,6 +163,13 @@ function noteOn(midi, vel, when, forceSec){
       const ns = heldNotes.map(h => h.midi).sort((a, b) => a - b);
       if (ns.length) writeStep(st, ns[0], ns.slice(1).map(x => x - ns[0]));
       else writeStep(st, m);
+      /* Step mode moves on by itself, which is the whole difference between the two:
+         Program is "this step, and everything I touch belongs to it"; Step is "play me the
+         line". ⚠️ IT MOVES ON WHEN YOU LET GO, not when you press — see noteOff. A step here
+         holds a whole chord, and heldNotes has already grown by the time the second note of
+         one arrives, so advancing per press put the first note on one step and the pair on
+         the next. Waiting for the release means a chord lands on one step and a run of
+         single notes still walks along at one step each. */
       paintSteps();
     }
   } else if (SEQ.motion !== "off" && !SEQ.playing && heldNotes.length === 1){
@@ -209,6 +220,11 @@ function noteOff(midi, when, forceSec){
   if (latch){ paintKeys(); return; }
   const i = heldNotes.findIndex(n => n.midi === m);
   if (i >= 0) heldNotes.splice(i, 1);
+  /* the step cursor moves on when your hands come off, so a chord is one step */
+  if (SEQ.mode === "step" && !heldNotes.length){
+    selectStep(SEQ.sel + 1);
+    paintSteps();
+  }
   /* releasing the last key stops a pattern that a key started */
   if (SEQ.autoStart && SEQ.playing && !heldNotes.length){
     stopPlay();
