@@ -15,5 +15,17 @@
     <div class="st-bars" id="liveBars" title="Where the pattern is"></div>
     <span class="st-live-hint" id="liveHint">Arm a track to record into a scene row.</span>
   </div>
+  <!-- The punch-in rack. Built in live.js from Patchwork.fx's own list, so the pads and the
+       effects cannot disagree about what exists. -->
+  <div class="st-fx" id="stFx">
+    <span class="st-fx-lab">Punch</span>
+    <div class="st-fx-pads" id="stFxPads"></div>
+    <div class="st-fx-side">
+      <div class="st-seg" id="stFxDiv" role="group" aria-label="Effect division"></div>
+      <button class="st-fx-latch" id="stFxLatch" aria-pressed="false"
+              title="Hold is the gesture; latch is for when both hands are busy">Latch</button>
+    </div>
+  </div>
+
   <div class="st-live-grid" id="liveGrid"></div>
 </div>

@@ -1179,6 +1179,29 @@ function untap(node){
   return true;
 }
 
+/* ---- the master insert ----
+   Splice a chain between master and the speakers. One, because there is one master; a
+   second caller is a bug rather than a feature and is told so.
+
+   ⚠️ AFTER EVERY TAP. The taps hang off each strip's input (see the pre-fader note above),
+   so nothing spliced here can reach the looper — a punch-in effect is a moment you play,
+   not something to find printed into a take on every pass afterwards. That is a
+   consequence of where the taps are rather than a decision made here, and it is the
+   reason this comment exists.
+
+   The disconnect and the connects are one synchronous block, so the graph is never
+   half-rewired at a render quantum boundary. */
+let inserted = null;
+function insert(input, output){
+  context();
+  if (inserted) return false;
+  master.disconnect();
+  master.connect(input);
+  output.connect(ctx.destination);
+  inserted = {input, output};
+  return true;
+}
+
 /* iOS parks the context in "suspended" until a gesture and in "interrupted" after a
    call or an app switch, so anything other than "running" needs a resume — not just
    "suspended". Both instruments carried this comment; now one place does. */
@@ -1191,7 +1214,7 @@ function resume(){
   return ctx.state;
 }
 
-return {context, strip, resume, tap, tapOnly, untap, level, setLevel,
+return {context, strip, resume, tap, tapOnly, untap, insert, level, setLevel,
         setMute, setSolo, muted, soloed, audible,
         get anySolo(){ return solos.size > 0; },
         get ctx(){ return ctx; },

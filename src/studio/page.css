@@ -366,6 +366,60 @@ body.living .st-seg#stFaces{display:none}
 .st-live-bar{
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;
 }
+
+/* ---- the punch-in rack ----
+   Bigger than anything else on the page on purpose. These are hit while looking somewhere
+   else — at the launcher, at a panel, at the room — so they have to be findable by aim
+   rather than by reading, which is also why each carries its number. */
+.st-fx{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;
+  padding:12px 14px;border-radius:8px;
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(0,0,0,.16));
+  border:1px solid var(--edge);
+}
+.st-fx-lab{
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--silk-dim);
+}
+.st-fx-pads{display:flex;gap:8px;flex-wrap:wrap;flex:1 1 auto}
+.st-fx-pad{
+  position:relative;flex:1 1 84px;min-width:74px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:12px 10px 9px;border-radius:6px;cursor:pointer;
+  border:1px solid var(--edge);color:var(--silk);
+  background:linear-gradient(180deg,#454e55,#333a3f);
+  box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 2px 0 #1c2124;
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  /* held, not clicked: a text selection or a long-press menu under your finger is a pad
+     that stopped being a pad */
+  user-select:none;-webkit-user-select:none;touch-action:none;
+}
+.st-fx-name{font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.st-fx-key{font-family:"DM Mono";font-size:8.5px;color:var(--silk-dim);letter-spacing:.06em}
+.st-fx-pad:hover{border-color:#5d686f}
+.st-fx-pad:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+/* down: lit, and pressed INTO the panel — the 2px shadow underneath goes away and the pad
+   moves down by the same amount, so the travel is real rather than a colour change */
+.st-fx-pad.st-on{
+  background:linear-gradient(180deg,#5fd8b4,var(--mint));color:#06231a;border-color:#2f8f74;
+  box-shadow:0 1px 3px rgba(0,0,0,.5) inset;transform:translateY(2px);
+}
+.st-fx-pad.st-on .st-fx-key{color:#06231a;opacity:.55}
+@media (prefers-reduced-motion:reduce){ .st-fx-pad.st-on{transform:none} }
+
+.st-fx-side{display:flex;align-items:center;gap:10px}
+.st-fx-side .st-seg{margin-left:0}
+.st-fx-latch{
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;
+  font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  padding:7px 12px;border-radius:4px;cursor:pointer;
+  border:1px solid var(--edge);color:var(--silk-dim);background:var(--groove);
+}
+.st-fx-latch:hover{color:var(--silk)}
+.st-fx-latch.st-on{
+  background:linear-gradient(180deg,#454e55,#333a3f);color:var(--paper);
+  box-shadow:0 1px 0 rgba(255,255,255,.12) inset;
+}
 .st-xport,.st-rec{
   font-family:"Saira Semi Condensed",system-ui,sans-serif;
   font-size:12px;letter-spacing:.14em;text-transform:uppercase;

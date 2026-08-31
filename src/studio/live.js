@@ -16,6 +16,115 @@ if (!live || !window.Patchwork || !Patchwork.record) return;
 /* The columns, the cell states and the click table are `Patchwork.launch`'s — shared with
    the studio's small launcher, because the two are views of one grid and drifted apart
    once already. */
+/* ---- the punch-in rack ----
+   HOLD is the gesture. Press, the effect is in; let go, it is out — which is why these are
+   pads rather than knobs and why they are here rather than on a panel: a control you set is
+   a mixing decision, a control you hold for two bars is playing.
+
+   The number row does the same thing, because the interesting live gesture is one hand on
+   the launcher and one on the effects, and a mouse can only be in one place. */
+const FX = [
+  {id: "lp",      name: "LP",      hint: "Sweep the top off"},
+  {id: "hp",      name: "HP",      hint: "Sweep the bottom out"},
+  {id: "stutter", name: "Stutter", hint: "Repeat the last division"},
+  {id: "gate",    name: "Gate",    hint: "Chop on the grid"},
+  {id: "delay",   name: "Delay",   hint: "Throw — the tail carries on"},
+  {id: "crush",   name: "Crush",   hint: "Quantise the samples"},
+  {id: "stop",    name: "Stop",    hint: "Tape stop, and spin back up"}
+];
+const fxPads = document.querySelector("#stFxPads");
+const fxDiv = document.querySelector("#stFxDiv");
+const fxLatch = document.querySelector("#stFxLatch");
+let latched = false;
+
+function buildFx(){
+  if (!fxPads || !window.Patchwork || !Patchwork.fx) return;
+  fxPads.textContent = "";
+  FX.forEach((f, i) => {
+    const b = document.createElement("button");
+    b.className = "st-fx-pad";
+    b.dataset.fx = f.id;
+    b.title = f.hint + " — hold, or hold " + (i + 1);
+    b.innerHTML = '<span class="st-fx-name"></span><span class="st-fx-key"></span>';
+    b.querySelector(".st-fx-name").textContent = f.name;
+    b.querySelector(".st-fx-key").textContent = String(i + 1);
+    fxPads.appendChild(b);
+  });
+  fxDiv.textContent = "";
+  Patchwork.fx.divs.forEach(d => {
+    const b = document.createElement("button");
+    b.dataset.d = d; b.textContent = d;
+    fxDiv.appendChild(b);
+  });
+  paintFx();
+}
+function paintFx(){
+  if (!fxPads) return;
+  fxPads.querySelectorAll(".st-fx-pad").forEach(b =>
+    b.classList.toggle("st-on", Patchwork.fx.active(b.dataset.fx)));
+  fxDiv.querySelectorAll("button").forEach(b =>
+    b.classList.toggle("st-sel", b.dataset.d === Patchwork.fx.div));
+  fxLatch.classList.toggle("st-on", latched);
+  fxLatch.setAttribute("aria-pressed", latched ? "true" : "false");
+}
+/* Latched, a press is a toggle; held, it is a press. One function so the pointer and the
+   number row cannot end up with different ideas about which. */
+function fxDown(id){
+  if (latched && Patchwork.fx.active(id)) Patchwork.fx.release(id);
+  else Patchwork.fx.press(id);
+}
+function fxUp(id){ if (!latched) Patchwork.fx.release(id); }
+
+if (fxPads){
+  fxPads.addEventListener("pointerdown", e => {
+    const b = e.target.closest(".st-fx-pad"); if (!b) return;
+    if (e.pointerId != null) try{ b.setPointerCapture(e.pointerId); }catch(x){}
+    fxDown(b.dataset.fx);
+    e.preventDefault();
+  });
+  /* ⚠️ RELEASED FROM THE WINDOW, not from the pad. A pad stuck down is an effect you cannot
+     turn off, which is the worst failure available to this control — and every way of
+     letting go that does not end in a pointerup ON the pad leads there: dragging off it,
+     a capture that did not take, the pointer being cancelled, the window losing focus. */
+  const letGo = () => { if (!latched) Patchwork.fx.releaseAll(); };
+  window.addEventListener("pointerup", letGo);
+  window.addEventListener("pointercancel", letGo);
+  window.addEventListener("blur", letGo);
+
+  fxDiv.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    Patchwork.fx.setDiv(b.dataset.d);
+  });
+  fxLatch.addEventListener("click", () => {
+    latched = !latched;
+    if (!latched) Patchwork.fx.releaseAll();
+    paintFx();
+  });
+
+  /* ⚠️ Only while the live page is showing, and never while something is being typed into.
+     The digits are not in the keyboard map shell/keys.js uses, so nothing is being taken
+     from an instrument — but a room name being typed into a prompt is still text. */
+  const typing = e => {
+    const t = (e.target.tagName || "").toLowerCase();
+    return t === "input" || t === "select" || t === "textarea";
+  };
+  const keyFx = e => {
+    if (live.hidden || e.metaKey || e.ctrlKey || e.altKey || typing(e)) return null;
+    const n = parseInt(e.key, 10);
+    return (n >= 1 && n <= FX.length) ? FX[n - 1].id : null;
+  };
+  document.addEventListener("keydown", e => {
+    const id = keyFx(e); if (!id || e.repeat) return;
+    fxDown(id); e.preventDefault();
+  });
+  document.addEventListener("keyup", e => {
+    const id = keyFx(e); if (!id) return;
+    fxUp(id);
+  });
+  Patchwork.fx.onChange(paintFx);
+  buildFx();
+}
+
 function build(){
   const cols = Patchwork.launch.columns();
   grid.style.setProperty("--cols", cols.length);

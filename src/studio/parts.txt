@@ -45,6 +45,7 @@ studio/live.html
 shell/script-open.html
 shell/host.js
 shell/bus.js
+shell/fx.js
 shell/clock.js
 shell/click.js
 shell/midi.js
