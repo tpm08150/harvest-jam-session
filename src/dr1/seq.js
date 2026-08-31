@@ -8,8 +8,13 @@ const SEQ = {
   len: 16, rate: "1/16", swing: .5, playing: false,
   accentAmt: .35,          // how much louder an accented step is
   lane: "bd",              // which lane the voice faders are editing
-  mode: "play",            // play | program — see the locks below
-  sel: 0,                  // the step a lock is written to, in program mode
+  /* ⚠️ P-LOCK, NOT PROGRAM, and DR·1 is not the other three by intention. Their Step
+     Programming enters a LINE — one lit step that takes a note and moves on. There are no
+     notes here: eight lanes of hits, and the second mode exists for one thing only, which
+     is choosing which hit a voice fader writes onto. Calling it what the other panels call
+     their note-entry mode would promise a gesture this instrument does not have. */
+  mode: "play",            // play | plock — see the locks below
+  sel: 0,                  // the step a lock is written to, in p-lock mode
   /* What a press writes. It used to be a three-state cycle on one control — off, on,
      accent, off — which reads well until you want a step GONE and the only way there is
      through accenting it first. Two clicks to undo one is the wrong shape for the thing
@@ -56,10 +61,10 @@ function lockCount(id){
   const L = locks[id];
   return L ? Object.keys(L).length : 0;
 }
-/* In program mode, moving a voice fader IS the lock gesture — no separate arm step. The
-   same rule BS·1, VC·1 and PM·1 use, so one habit works across the whole rack. */
+/* In p-lock mode, moving a voice fader IS the lock gesture — no separate arm step. The same
+   rule BS·1, VC·1 and PM·1 use for theirs, so one habit works across the whole rack. */
 function lock(param){
-  if (SEQ.mode !== "program" || LOCKABLE.indexOf(param) < 0) return false;
+  if (SEQ.mode !== "plock" || LOCKABLE.indexOf(param) < 0) return false;
   const id = SEQ.lane, i = SEQ.sel;
   const L = locks[id] || (locks[id] = {});
   (L[i] || (L[i] = {}))[param] = P[id][param];
@@ -95,7 +100,7 @@ function withLocks(id, i, fn){
 const RATES = {"1/8": 2, "1/8t": 3, "1/16": 4, "1/16t": 6, "1/32": 8};
 
 /* A starter pattern, so the panel makes a sound the first time Play is pressed rather
-   than asking you to program one before you can hear anything. Four on the floor with a
+   than asking you to enter one before you can hear anything. Four on the floor with a
    backbeat and offbeat hats — the most boring possible bar, which is the right default:
    it is recognisable enough to check the kit against, and nobody will mistake it for a
    creative choice. */

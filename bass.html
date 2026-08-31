@@ -4118,23 +4118,32 @@ el.addEventListener("click", e => {
   const b = e.target.closest(".step"); if (!b) return;
   const i = +b.dataset.i, st = seq.steps[i];
 
-  /* Program mode: the click SELECTS, and what you play next is written here. Every knob
-     you move locks to it as well — see lock() in the sequencer. */
-  if (seq.SEQ.mode !== "play"){
-    seq.selectStep(i);
-    if (o.onSelect) o.onSelect(i);
-    paint();
-    return;
-  }
-
-  /* Holding a note and clicking a step writes it, whatever lane is showing. It is the
-     fastest way to enter a line and it beats the lane, because reaching for a key is
-     already an unambiguous statement about what you want that step to be. */
+  /* Holding a note and clicking a step writes it, whatever lane is showing and whatever
+     mode you are in. It is the fastest way to enter a line and it beats the lane, because
+     reaching for a key is already an unambiguous statement about what you want that step to
+     be. In step programming it moves the cursor there too — you have just said which step
+     you are working on by writing to it. */
   const held = o.held && o.held();
   if (held != null){
     seq.setStepNote(i, held, 100);
+    if (seq.SEQ.mode !== "play"){ seq.selectStep(i); if (o.onSelect) o.onSelect(i); }
     paint();
     if (o.onEdit) o.onEdit();
+    return;
+  }
+
+  /* ⚠️ THE FIRST CLICK MOVES THE CURSOR, THE NEXT ONE EDITS — PM·1's rule, and the reason
+     Gate, Pitch, Accent, Slide and Tie work here at all. Step programming used to swallow
+     every click into "select this step" and nothing else, so the five lane buttons were a
+     row of controls that did nothing unless you left the mode first. There is no gesture
+     spare to give them: a click has to be able to mean "work on this one" as well.
+
+     Once the step is lit, everything below is the same code Play mode runs, so the lanes
+     cannot behave differently in the two modes. */
+  if (seq.SEQ.mode !== "play" && seq.SEQ.sel !== i){
+    seq.selectStep(i);
+    if (o.onSelect) o.onSelect(i);
+    paint();
     return;
   }
 
@@ -4166,7 +4175,9 @@ el.addEventListener("click", e => {
    the grid needs no separate pitch lane. */
 el.addEventListener("pointerdown", e => {
   const b = e.target.closest(".step"); if (!b || e.shiftKey || e.altKey) return;
-  if (seq.SEQ.mode !== "play") return;             // the click selects; it does not edit
+  /* the same rule the click follows: the lit step is draggable, an unlit one is selected
+     first — measured, and a drag fires no click event at all, so the two cannot both act */
+  if (seq.SEQ.mode !== "play" && seq.SEQ.sel !== +b.dataset.i) return;
   if (o.held && o.held() != null) return;          // a held note is the edit
   const st = seq.steps[+b.dataset.i];
   const y0 = e.clientY, p0 = st.pitch;

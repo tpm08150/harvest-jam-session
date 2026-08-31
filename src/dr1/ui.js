@@ -141,13 +141,13 @@ function selectLane(id){
   syncVoice();
 }
 
-/* Program mode is not painted. There the click chooses which hit the faders will write a
+/* P-lock mode is not painted. There the click chooses which hit the faders will write a
    lock onto and leaves the pattern alone, so a drag has nothing to fill in. */
 lanesEl.addEventListener("pointerdown", e => {
   const pad = e.target.closest(".pad");
   if (!pad || pad.hidden) return;
   const id = pad.dataset.v, i = +pad.dataset.i;
-  if (SEQ.mode === "program"){
+  if (SEQ.mode === "plock"){
     SEQ.sel = i;
   } else {
     paintVal = nextValue(steps[id][i]);
@@ -209,7 +209,7 @@ lanesEl.addEventListener("click", e => {
      one. Without the guard every mouse click would cycle the pad twice. */
   if (e.detail > 0) return;
   const id = pad.dataset.v, i = +pad.dataset.i;
-  if (SEQ.mode === "program") SEQ.sel = i;
+  if (SEQ.mode === "plock") SEQ.sel = i;
   else steps[id][i] = nextValue(steps[id][i]);
   selectLane(id);
   paintPads();
@@ -273,7 +273,7 @@ function makeFader(sel, get, set, fmt, min, max, param){
       const a = lo(), b = hi();
       set(a + x * (b - a));
       paintF();
-      /* In program mode moving a control IS the lock gesture — no separate arm step, the
+      /* In p-lock mode moving a control IS the lock gesture — no separate arm step, the
          same as the other three sequencers. */
       if (param && lock(param)) paintLocks();
     };
@@ -330,7 +330,7 @@ makeFader("#swingF",  () => SEQ.swing,     v => { SEQ.swing = v; },
 makeFader("#accentF", () => SEQ.accentAmt, v => { SEQ.accentAmt = v; },
           v => Math.round(v * 100) + "%", 0, .8);
 
-/* ---- program mode and parameter locks ---- */
+/* ---- p-lock mode and parameter locks ---- */
 const seqModeEl = $("#seqMode"), lockHintEl = $("#lockHint");
 seqModeEl.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -351,24 +351,24 @@ $("#padWrite").addEventListener("click", e => {
 LOCKABLE.forEach(param => {
   const el = faderReg[param];
   if (el) el.addEventListener("dblclick", () => {
-    if (SEQ.mode === "program" && unlock(param)) paintLocks();
+    if (SEQ.mode === "plock" && unlock(param)) paintLocks();
   });
 });
 
 function paintLocks(){
-  const program = SEQ.mode === "program";
+  const plock = SEQ.mode === "plock";
   LOCKABLE.forEach(param => {
     const el = faderReg[param];
-    if (el) el.classList.toggle("locked", program && isLocked(param));
+    if (el) el.classList.toggle("locked", plock && isLocked(param));
   });
   $$(".pad").forEach(b => {
     const id = b.dataset.v, i = +b.dataset.i;
     b.classList.toggle("lock", !!lockAt(id, i));
-    b.classList.toggle("sel", program && id === SEQ.lane && i === SEQ.sel);
+    b.classList.toggle("sel", plock && id === SEQ.lane && i === SEQ.sel);
   });
   if (lockHintEl){
     const n = lockCount(SEQ.lane);
-    lockHintEl.textContent = !program
+    lockHintEl.textContent = !plock
       ? (n ? n + " locked step" + (n === 1 ? "" : "s") + " on " + SEQ.lane.toUpperCase() : "")
       : "step " + (SEQ.sel + 1) + " of " + SEQ.lane.toUpperCase()
         + " — move a voice fader to lock it";
