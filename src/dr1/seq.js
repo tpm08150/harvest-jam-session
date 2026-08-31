@@ -29,9 +29,12 @@ ORDER.forEach(k => { steps[k] = new Array(MAX_STEPS).fill(0); });
    Locks are rare — a handful of steps in a pattern ever carry one — so a sparse map costs
    nothing for the steps that have none and leaves the hot path reading plain integers.
 
-     locks[voiceId][stepIndex] = {tune?, tone?, decay?, level?} */
+     locks[voiceId][stepIndex] = {tune?, tone?, decay?, level?, verb?, gate?} */
 const locks = {};
-const LOCKABLE = ["tune", "tone", "decay", "level"];
+/* Verb and Gate lock like the rest, which is most of the point of putting them on the voice
+   row rather than in a section of their own: the snare that is dry on 1 and enormous on 3
+   is the whole 80s gated-reverb gesture, and it is a per-step decision. */
+const LOCKABLE = ["tune", "tone", "decay", "level", "verb", "gate"];
 
 function lockAt(id, i){
   const L = locks[id];

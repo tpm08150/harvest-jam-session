@@ -194,7 +194,8 @@ function syncVoice(){
   if (typeof paintLocks === "function") paintLocks();
   $("#voiceTag").textContent = v.name;
   $("#voiceMeta").textContent = v.full;
-  ["#tuneF", "#toneF", "#decayF", "#levelF"].forEach(k => faderCtl[k] && faderCtl[k]());
+  ["#tuneF", "#toneF", "#decayF", "#levelF", "#verbF", "#gateF"]
+    .forEach(k => faderCtl[k] && faderCtl[k]());
 }
 
 makeFader("#tuneF",  () => cur().tune,  v => { cur().tune = v; },
@@ -206,6 +207,12 @@ makeFader("#decayF", () => cur().decay, v => { cur().decay = v; },
           v => (v * 1000).toFixed(0) + " ms", .02, 1.2, "decay");
 makeFader("#levelF", () => cur().level, v => { cur().level = v; },
           v => Math.round(v * 100) + "%", 0, 1, "level");
+/* Off reads as "off" rather than "0%": a send at zero is a different thing from a level at
+   zero, and the voice row is where you look to see whether a voice is in the reverb at all. */
+makeFader("#verbF",  () => cur().verb,  v => { cur().verb = v; },
+          v => (v < .005 ? "off" : Math.round(v * 100) + "%"), 0, 1, "verb");
+makeFader("#gateF",  () => cur().gate,  v => { cur().gate = v; },
+          v => (v * 1000).toFixed(0) + " ms", .04, .5, "gate");
 makeFader("#swingF",  () => SEQ.swing,     v => { SEQ.swing = v; },
           v => Math.round(v * 100) + "%", .5, .75);
 makeFader("#accentF", () => SEQ.accentAmt, v => { SEQ.accentAmt = v; },
@@ -305,7 +312,7 @@ buildLanes();
 syncVoice();
 
 /* ---- the kit, for a shared jam ----
-   Eight voices of four numbers. Not the pattern — that is the scene's — and not the trims,
+   Eight voices of six numbers. Not the pattern — that is the scene's — and not the trims,
    which are measured constants rather than anything you dial. */
 /* ⚠️ ONE definition of this instrument's sound, handed to both the jam and the
    patch store. Written twice they would drift, and the symptom would be a saved
@@ -316,7 +323,8 @@ const SOUND = {
     const out = {};
     ORDER.forEach(id => {
       const v = P[id];
-      out[id] = {tune: v.tune, tone: v.tone, decay: v.decay, level: v.level};
+      out[id] = {tune: v.tune, tone: v.tone, decay: v.decay, level: v.level,
+                 verb: v.verb, gate: v.gate};
     });
     return out;
   },
@@ -324,7 +332,9 @@ const SOUND = {
     if (!src) return;
     ORDER.forEach(id => {
       const got = src[id]; if (!got) return;
-      ["tune", "tone", "decay", "level"].forEach(k => {
+      /* a patch saved before the reverb existed carries no verb, and reads back as the
+         dry kit it was — the key is simply absent and the default stands */
+      ["tune", "tone", "decay", "level", "verb", "gate"].forEach(k => {
         if (typeof got[k] === "number" && isFinite(got[k])) P[id][k] = got[k];
       });
     });

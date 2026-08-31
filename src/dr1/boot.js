@@ -12,7 +12,10 @@ function ensureAudio(){
 async function renderHit(id, opts){
   const o = opts || {};
   const dur = o.dur || 1.5, rate = o.rate || 48000;
-  const saved = {ctx, kit, comp, noiseBuf};
+  /* ⚠️ The per-voice outputs and the reverb chain belong to the LIVE context. Left in
+     place, the offline render would connect an offline voice to an online node, which
+     throws — and the trims this measures would be measuring nothing. */
+  const saved = {ctx, kit, comp, noiseBuf, VOUT, VERB, verbIR};
   const savedOpen = openHat;
   openHat = null;
   ctx = null;
@@ -28,6 +31,7 @@ async function renderHit(id, opts){
     return await off.startRendering();
   } finally {
     ctx = saved.ctx; kit = saved.kit; comp = saved.comp; noiseBuf = saved.noiseBuf;
+    VOUT = saved.VOUT; VERB = saved.VERB; verbIR = saved.verbIR;
     openHat = savedOpen;
   }
 }
@@ -154,6 +158,7 @@ Patchwork.kit.provide({
 });
 
 window.__dr1 = {P, SEQ, steps, ORDER, VOICES, TRIM, BALANCE, TARGET_BD,
+                get verbs(){ return VERB; },
                 fire, renderHit, measure, ensureAudio, MIDI, onMidi,
                 /* the locks and the swap that applies them, so a step's overrides can be
                    asked about rather than listened for */
