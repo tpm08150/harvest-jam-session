@@ -33,6 +33,21 @@ const beatSeconds = () => 60 / (bpm || 120);
 function claim(quantumBeats){
   const ctx = Patchwork.audio.context();
   const soon = ctx.currentTime + .03;
+  /* ⚠️ A ROW THAT STARTS AN INSTRUMENT MUST LAND IT ON THE ROW'S SEAM, NOT ON A BAR LINE.
+
+     Every transport in the rack claims a bar, which is the right answer when you press an
+     instrument's own Play and the wrong one when a SCENE started it: the launcher says
+     "Lands on: Pattern", the instruments already running swap four bars later, and the one
+     that was stopped comes in on the next bar — so the row arrives in two pieces, and the
+     setting looks like it is being ignored. Measured before the fix: pressed at bar 28.05,
+     the joining instrument started at bar 29 and the running one changed at bar 32.
+
+     scenes.js has already worked that boundary out for the swap, so it pins it here around
+     the start() calls rather than every transport learning what a scene is. A TIME rather
+     than a flag, and cleared by the same caller that set it, so a claim from anywhere else
+     cannot pick up a boundary that was not meant for it. */
+  if (pinned != null && origin !== null && running.size > 0 && pinned > ctx.currentTime - .05)
+    return pinned;
   if (origin === null || running.size === 0){
     /* ⚠️ A session IMPOSES the grid: whoever opened the jam defined beat 0, and a client
        that starts playing an hour later has to land on that grid rather than starting a
@@ -63,6 +78,11 @@ function claim(quantumBeats){
   const window = Math.min(.05, q * .25);
   return origin + Math.ceil((soon - origin - window) / q) * q;
 }
+
+/* Set for the length of one scene fire, by the only caller that knows where a row lands.
+   Null the rest of the time, which is every claim made by a Play button. */
+let pinned = null;
+function pin(t){ pinned = (t == null ? null : t); }
 
 /* Where a shared grid comes from — see shell/session.js. Returns null when playing alone,
    which is every standalone build and the studio until someone starts a jam. */
@@ -200,7 +220,7 @@ function onTempo(id, fn, initial){
   return bpm;
 }
 
-return {claim, run, stop, setBpm, onTempo, beatSeconds, setRate, setOriginSource,
+return {claim, pin, run, stop, setBpm, onTempo, beatSeconds, setRate, setOriginSource,
         get rate(){ return rate; },
         get bpm(){ return bpm; },
         get origin(){ return origin; },
