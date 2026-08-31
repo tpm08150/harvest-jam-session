@@ -367,7 +367,10 @@ input[type="text"]::placeholder{color:#5a646a}
    because it has ONE lane and the extra height costs nothing; eight lanes wrapped would
    be sixteen rows, and a drum grid that does not read left-to-right as a bar is not a
    drum grid. Gap tightens rather than wrapping when the panel narrows. */
+/* touch-action so a drag across the grid draws instead of scrolling the panel, and
+   user-select so it draws instead of selecting the lane names it passes. */
 .pads{display:grid;grid-template-columns:repeat(var(--steps,16),1fr);gap:3px;
+  touch-action:none;user-select:none;-webkit-user-select:none;
   flex:1 1 auto;min-width:0}
 .pad{
   height:22px;border-radius:3px;padding:0;cursor:pointer;position:relative;
@@ -2189,6 +2192,7 @@ body.living .st-seg#stFaces{display:none}
       <span><i style="background:var(--cap-yellow)"></i>accent — click a lit step again</span>
       <span><i style="box-shadow:0 0 0 1px var(--cap-yellow) inset"></i>parameter lock</span>
       <span><i style="background:var(--mint)"></i>playing now</span>
+      <span>drag to fill — the pad you press decides whether you are drawing, accenting or erasing</span>
     </div>
   </div>
 
@@ -7613,9 +7617,109 @@ function audition(id){
   flashLane(id);
 }
 
-/* A click cycles off → on → accent → off. Three states on one control, because a
-   separate accent mode means holding a modifier to program the thing you most want to
-   program — the downbeat of a kick is accented nearly every time. */
+/* ---- painting the grid ----
+   A click cycles off → on → accent → off. Three states on one control, because a separate
+   accent mode means holding a modifier to program the thing you most want to program — the
+   downbeat of a kick is accented nearly every time.
+
+   ⚠️ A DRAG PAINTS WHATEVER THE FIRST PAD BECAME. It falls out of that cycle rather than
+   being bolted on beside it: press an empty step and you are drawing steps, press a lit one
+   and you are drawing accents, press an accented one and you are erasing. Erase comes free
+   and there is no modifier to remember, because the pad you started on already said what
+   you meant. Lanes are not a boundary — drag down a column and you are writing a flam.
+
+   Each pad is written once per drag, or a wiggle inside one pad would cycle it repeatedly
+   and the value under your cursor would depend on how steady your hand is. */
+let paintVal = null;            // what this drag is writing, null when not dragging
+let painted = null;             // "voice:step" already written, so a wiggle cannot re-cycle
+let lastPad = null;             // where this drag was last seen, so a fast one leaves no gaps
+
+/* ⚠️ FILL THE SPAN, not the pad under the pointer. pointermove is SAMPLED — sweep the row
+   quickly and the browser reports three positions across sixteen steps, so painting only
+   what is reported draws a dotted line and the gesture reads as unreliable. Measured with a
+   synthetic drag that reported four samples over eight pads: 0, 4 and 7 were filled and the
+   rest were not.
+
+   Along one axis at a time. Two samples that differ in BOTH lane and step have no
+   unambiguous path between them and guessing one would write steps nobody dragged over —
+   but down a column is as well defined as along a row, and a flam wants the same
+   reliability a hi-hat line does. */
+function writeStep(id, i){
+  const k = id + ":" + i;
+  if (i >= SEQ.len || painted.has(k)) return false;
+  painted.add(k);
+  steps[id][i] = paintVal;
+  return true;
+}
+function writeSpan(id, from, to){
+  let hit = false;
+  for (let i = Math.min(from, to); i <= Math.max(from, to); i++) hit = writeStep(id, i) || hit;
+  return hit;
+}
+function writeColumn(from, to, i){
+  const a = ORDER.indexOf(from), b = ORDER.indexOf(to);
+  if (a < 0 || b < 0) return writeStep(to, i);
+  let hit = false;
+  for (let k = Math.min(a, b); k <= Math.max(a, b); k++) hit = writeStep(ORDER[k], i) || hit;
+  return hit;
+}
+
+/* ⚠️ elementFromPoint, not pointerenter. With the capture set below, enter and over never
+   fire on the individual pads — the capture target swallows them — which is the same trap
+   PM·1's keyboard documents at its own glissando. */
+function padAt(x, y){
+  const el = document.elementFromPoint(x, y);
+  const p = el ? el.closest(".pad") : null;
+  return p && !p.hidden && lanesEl.contains(p) ? p : null;
+}
+
+function selectLane(id){
+  SEQ.lane = id;
+  $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === id));
+  syncVoice();
+}
+
+/* Program mode is not painted. There the click chooses which hit the faders will write a
+   lock onto and leaves the pattern alone, so a drag has nothing to fill in. */
+lanesEl.addEventListener("pointerdown", e => {
+  const pad = e.target.closest(".pad");
+  if (!pad || pad.hidden) return;
+  const id = pad.dataset.v, i = +pad.dataset.i;
+  if (SEQ.mode === "program"){
+    SEQ.sel = i;
+  } else {
+    paintVal = (steps[id][i] + 1) % 3;
+    painted = new Set([id + ":" + i]);
+    lastPad = {id, i};
+    steps[id][i] = paintVal;
+    /* guarded for the same reason PM·1 guards its release: capture throws on a pointer the
+       browser no longer considers active, and the rest of this handler still has to run */
+    try{ lanesEl.setPointerCapture(e.pointerId); }catch(x){}
+  }
+  selectLane(id);
+  paintPads();
+  paintLocks();
+});
+lanesEl.addEventListener("pointermove", e => {
+  if (paintVal == null) return;
+  const pad = padAt(e.clientX, e.clientY);
+  if (!pad) return;
+  const id = pad.dataset.v, i = +pad.dataset.i;
+  if (lastPad && lastPad.id === id && lastPad.i === i) return;
+  const hit = !lastPad                ? writeStep(id, i)
+            : lastPad.id === id       ? writeSpan(id, lastPad.i, i)
+            : lastPad.i  === i        ? writeColumn(lastPad.id, id, i)
+            :                           writeStep(id, i);
+  lastPad = {id, i};
+  if (hit) paintPads();
+});
+const endPaint = e => {
+  paintVal = null; painted = null; lastPad = null;
+  if (e && e.pointerId != null){ try{ lanesEl.releasePointerCapture(e.pointerId); }catch(x){} }
+};
+lanesEl.addEventListener("pointerup", endPaint);
+lanesEl.addEventListener("pointercancel", endPaint);
+
 lanesEl.addEventListener("click", e => {
   const nm = e.target.closest(".lane-name");
   if (nm){
@@ -7636,19 +7740,16 @@ lanesEl.addEventListener("click", e => {
     return;
   }
   const pad = e.target.closest(".pad");
-  if (!pad) return;
+  if (!pad || pad.hidden) return;
+  /* ⚠️ A POINTER ALREADY DID THIS ONE. The pads are buttons, so pressing Enter on a focused
+     pad still has to work — and that click is the only one that reaches here, because a
+     click synthesised from a keypress carries detail 0 while a pointer's carries at least
+     one. Without the guard every mouse click would cycle the pad twice. */
+  if (e.detail > 0) return;
   const id = pad.dataset.v, i = +pad.dataset.i;
-  /* Program mode: the click chooses which hit the faders will write a lock onto, and
-     leaves the pattern alone. Play mode keeps the three-state cycle that IS this
-     instrument's grammar — off, on, accent — untouched. */
-  if (SEQ.mode === "program"){
-    SEQ.lane = id; SEQ.sel = i;
-  } else {
-    steps[id][i] = (steps[id][i] + 1) % 3;
-    SEQ.lane = id;
-  }
-  $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === id));
-  syncVoice();
+  if (SEQ.mode === "program") SEQ.sel = i;
+  else steps[id][i] = (steps[id][i] + 1) % 3;
+  selectLane(id);
   paintPads();
   paintLocks();
 });

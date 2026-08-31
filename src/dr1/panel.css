@@ -62,7 +62,10 @@
    because it has ONE lane and the extra height costs nothing; eight lanes wrapped would
    be sixteen rows, and a drum grid that does not read left-to-right as a bar is not a
    drum grid. Gap tightens rather than wrapping when the panel narrows. */
+/* touch-action so a drag across the grid draws instead of scrolling the panel, and
+   user-select so it draws instead of selecting the lane names it passes. */
 .pads{display:grid;grid-template-columns:repeat(var(--steps,16),1fr);gap:3px;
+  touch-action:none;user-select:none;-webkit-user-select:none;
   flex:1 1 auto;min-width:0}
 .pad{
   height:22px;border-radius:3px;padding:0;cursor:pointer;position:relative;
