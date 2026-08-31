@@ -23,15 +23,27 @@ if (!live || !window.Patchwork || !Patchwork.record) return;
 
    The number row does the same thing, because the interesting live gesture is one hand on
    the launcher and one on the effects, and a mouse can only be in one place. */
+/* ⚠️ SIXTEEN PADS AND SIXTEEN KEYS, in reading order: the number row, then the row above it.
+   Q, W, E, R, T and Y are note keys in shell/keys.js, and on the live page they are taken
+   from it — the panels are hidden there, so a note key is playing an instrument you cannot
+   see, and an effect is the thing in front of you. The handler preventDefaults, which is
+   what keys.js checks. */
+const FXKEYS = "1234567890qwerty";
 const FX = [
   {id: "lp",      name: "LP",      hint: "how far down the top comes off"},
   {id: "hp",      name: "HP",      hint: "how far up the bottom goes"},
+  {id: "iso",     name: "Iso",     hint: "which slice is left"},
   {id: "stutter", name: "Stutter", hint: "how long a slice repeats"},
+  {id: "loop",    name: "Loop",    hint: "how many bars go round"},
   {id: "reverse", name: "Reverse", hint: "how long a slice plays backwards"},
+  {id: "repitch", name: "Repitch", hint: "how far it is shifted"},
   {id: "gate",    name: "Gate",    hint: "how fast it chops"},
   {id: "pump",    name: "Pump",    hint: "how fast it breathes"},
   {id: "delay",   name: "Delay",   hint: "how much it feeds back"},
   {id: "space",   name: "Space",   hint: "how much goes to the room"},
+  {id: "flange",  name: "Flange",  hint: "how fast the notch sweeps"},
+  {id: "ring",    name: "Ring",    hint: "what it is multiplied by"},
+  {id: "drive",   name: "Drive",   hint: "how hard it is pushed"},
   {id: "crush",   name: "Crush",   hint: "how many bits are left"},
   {id: "stop",    name: "Stop",    hint: "how long the machine takes to stop"}
 ];
@@ -47,9 +59,8 @@ function buildFx(){
     const b = document.createElement("button");
     b.className = "st-fx-pad";
     b.dataset.fx = f.id;
-    /* 1-9 then 0, which is where the tenth key is on the row */
-    b.dataset.key = String((i + 1) % 10);
-    b.title = f.name + " — " + f.hint + ". Hold, or hold " + b.dataset.key +
+    b.dataset.key = FXKEYS[i] || "";
+    b.title = f.name + " — " + f.hint + ". Hold, or hold " + b.dataset.key.toUpperCase() +
               ". Arrows or the wheel move its number.";
     b.innerHTML = '<span class="st-fx-name"></span><span class="st-fx-val"></span>' +
                   '<span class="st-fx-key"></span>';
@@ -122,8 +133,8 @@ if (fxPads){
   const mine = e => !(live.hidden || e.metaKey || e.ctrlKey || e.altKey || typing(e));
   const keyFx = e => {
     if (!mine(e)) return null;
-    const f = FX.find((x, i) => String((i + 1) % 10) === e.key);
-    return f ? f.id : null;
+    const i = FXKEYS.indexOf((e.key || "").toLowerCase());
+    return i >= 0 && i < FX.length ? FX[i].id : null;
   };
   /* ⚠️ CAPTURING, and that is not a detail. shell/keys.js takes the left and right arrows to
      move an instrument's octave, and its listener is installed by host.js at load — earlier

@@ -3867,12 +3867,14 @@ return {context, strip, resume, tap, tapOnly, untap, insert, level, setLevel,
    already follows and it is the right one here for a stronger reason: a punch-in is a
    moment, and a moment baked into a loop plays back on every pass afterwards.
 
-   ⚠️ SEVEN OF THE EIGHT ARE NATIVE NODES, which sounds like a restriction and is mostly a
-   discovery: a DelayNode holds its own history, so freezing one with unity feedback IS a
-   beat repeat, and ramping another one's delayTime along a quadratic slows its read head to
-   a stop, which IS a tape stop. Reverse is the one that cannot be had that way — it needs
-   the samples themselves, backwards — so it is a worklet, on a branch of its own, and the
-   note above loadReverse() says why it is not in the chain. */
+   ⚠️ THIRTEEN OF THE SIXTEEN ARE NATIVE NODES, which sounds like a restriction and is mostly
+   a discovery: a DelayNode holds its own history, so freezing one with unity feedback IS a
+   beat repeat; ramping another one's delayTime along a quadratic slows its read head to a
+   stop, which IS a tape stop; and a GainNode with an oscillator on its gain IS a ring
+   modulator, because a gain node is a multiplier. The three that cannot be had that way all
+   need the samples themselves — backwards, from a frozen window, or at a rate that is not
+   one — so they share a single worklet on a branch of its own, and the note above loadTape()
+   says why it is not in the chain. */
 Patchwork.fx = (() => {
 "use strict";
 
@@ -3888,30 +3890,38 @@ Patchwork.fx = (() => {
    something else; a pad with three parameters is a menu. */
 const DIVS = ["1/2", "1/4", "1/8", "1/16", "1/32"];
 const DIVBEATS = {"1/2": 2, "1/4": 1, "1/8": .5, "1/16": .25, "1/32": .125};
+const BARS = ["1/2", "1", "2", "4"];
+const BARBEATS = {"1/2": 2, "1": 4, "2": 8, "4": 16};
 
 const hz  = v => (v >= 1000 ? (v / 1000).toFixed(1) + "k" : Math.round(v) + "") + "Hz";
 const pct = v => Math.round(v * 100) + "%";
 const ms  = v => (v < 1 ? Math.round(v * 1000) + "ms" : v.toFixed(2) + "s");
 
 /* `mul` steps geometrically and `add` arithmetically — a filter corner wants octaves and a
-   feedback amount wants percentage points. `div` is an index into DIVS. */
+   feedback amount wants percentage points. `opts` is a list the index walks along, for the
+   ones whose useful values are musical rather than continuous. */
 const P = {
-  lp:      {v: 200,  lo: 60,  hi: 4000, mul: 1.4,  fmt: hz},
-  hp:      {v: 1600, lo: 150, hi: 6000, mul: 1.4,  fmt: hz},
-  stutter: {div: 3},
-  reverse: {div: 3},
-  gate:    {div: 3},
-  pump:    {div: 1},
-  delay:   {v: .45, lo: .1,  hi: .92, add: .07, fmt: pct},
-  space:   {v: .55, lo: .1,  hi: 1,   add: .1,  fmt: pct},
-  crush:   {v: 5,   lo: 1,   hi: 10,  add: 1,   fmt: v => v + " bit"},
-  stop:    {v: .9,  lo: .2,  hi: 2.4, mul: 1.35, fmt: ms}
+  lp:      {v: 200,  lo: 60,  hi: 4000,  mul: 1.4,  fmt: hz},
+  hp:      {v: 1600, lo: 150, hi: 6000,  mul: 1.4,  fmt: hz},
+  iso:     {v: 900,  lo: 120, hi: 6000,  mul: 1.4,  fmt: hz},
+  stutter: {opts: DIVS, i: 3},
+  loop:    {opts: BARS, i: 1, suffix: " bar"},
+  reverse: {opts: DIVS, i: 3},
+  repitch: {v: 7,    lo: -12, hi: 12,    add: 1,    fmt: v => (v > 0 ? "+" : "") + v + "st"},
+  gate:    {opts: DIVS, i: 3},
+  pump:    {opts: DIVS, i: 1},
+  delay:   {v: .45, lo: .1,  hi: .92,   add: .07,  fmt: pct},
+  space:   {v: .55, lo: .1,  hi: 1,     add: .1,   fmt: pct},
+  flange:  {v: .5,  lo: .05, hi: 4,     mul: 1.5,  fmt: v => v.toFixed(2) + "Hz"},
+  ring:    {v: 220, lo: 20,  hi: 3000,  mul: 1.4,  fmt: hz},
+  drive:   {v: 6,   lo: 1,   hi: 40,    mul: 1.5,  fmt: v => Math.round(v) + "x"},
+  crush:   {v: 5,   lo: 1,   hi: 10,    add: 1,    fmt: v => v + " bit"},
+  stop:    {v: .9,  lo: .2,  hi: 2.4,   mul: 1.35, fmt: ms}
 };
-const val = id => (P[id] && P[id].v) || 0;
 function paramText(id){
   const p = P[id];
   if (!p) return "";
-  return p.div != null ? DIVS[p.div] : p.fmt(p.v);
+  return p.opts ? p.opts[p.i] + (p.suffix || "") : p.fmt(p.v);
 }
 
 /* The pad the arrows are talking to: whichever was touched last. Nothing to select and
@@ -3924,7 +3934,7 @@ let focus = null;
 function nudge(dir){
   const id = focus, p = P[id];
   if (!p || !dir) return false;
-  if (p.div != null) p.div = clamp(p.div + dir, 0, DIVS.length - 1);
+  if (p.opts) p.i = clamp(p.i + dir, 0, p.opts.length - 1);
   else if (p.mul) p.v = clamp(p.v * (dir > 0 ? p.mul : 1 / p.mul), p.lo, p.hi);
   else p.v = clamp(p.v + dir * p.add, p.lo, p.hi);
   if (p.add) p.v = Math.round(p.v * 1000) / 1000;
@@ -3932,17 +3942,26 @@ function nudge(dir){
   notify();
   return true;
 }
+/* ⚠️ DELAY'S NUMBER IS ITS FEEDBACK, and this reached for its delayTime instead — so the
+   pad read 45%, the arrows moved the number, and nothing whatever happened to the sound
+   until you turned the pad off and on again. Reported from the live page, which is the only
+   place it could have been caught: every measurement of Delay so far had set the value
+   before the press. A parameter that only lands on the next press is the exact failure the
+   arrows exist to avoid. */
 function applyLive(id){
   if (!chain || !on.has(id)) return;
   const c = chain, t = now();
   if (id === "lp") sweep(c.lp.frequency, P.lp.v, .06);
   else if (id === "hp") sweep(c.hp.frequency, P.hp.v, .06);
+  else if (id === "iso") sweep(c.isoBand.frequency, P.iso.v, .06);
   else if (id === "stutter") c.stDelay.delayTime.setValueAtTime(clamp(divSeconds(id), .01, 1.9), t);
-  else if (id === "delay") c.dlDelay.delayTime.setValueAtTime(clamp(divSeconds(id), .01, 1.9), t);
+  else if (id === "delay") set(c.dlFb.gain, P.delay.v, FADE);
   else if (id === "space") set(c.spSend.gain, P.space.v, FADE);
+  else if (id === "flange") sweep(c.flOsc.frequency, P.flange.v, .08);
+  else if (id === "ring") sweep(c.ringOsc.frequency, P.ring.v, .06);
+  else if (id === "drive") c.driveShaper.curve = driveCurve(P.drive.v);
   else if (id === "crush") c.shaper.curve = crushCurve(P.crush.v);
-  else if (id === "reverse" && c.revNode)
-    c.revNode.port.postMessage({op: "on", len: clamp(divSeconds(id), .02, 3.5), at: null});
+  else if (TAPED.indexOf(id) >= 0 && c.tapeNode && tapeOwner === id) engageTape(c, id, t);
   else if (id === "gate" || id === "pump"){ stopChop(id); startChop(id); }
 }
 
@@ -3965,8 +3984,11 @@ const FADE = .004;                  // the crossfade every engage and release us
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 function divSeconds(id){
   const p = P[id];
-  const beats = p && p.div != null ? DIVBEATS[DIVS[p.div]] : .25;
-  return beats * Patchwork.clock.beatSeconds();
+  const beats = p && p.opts ? DIVBEATS[p.opts[p.i]] : .25;
+  return (beats || .25) * Patchwork.clock.beatSeconds();
+}
+function loopSeconds(){
+  return BARBEATS[BARS[P.loop.i]] * Patchwork.clock.beatSeconds();
 }
 /* A beat to sweep in and a beat to sweep back, so the filter is a gesture you hear travelling
    rather than a switch. Tempo-relative because that is what makes it land musically, clamped
@@ -4052,9 +4074,9 @@ function buildInto(useCtx){
   const afterSt = g();
   stDry.connect(afterSt); stWet.connect(afterSt);
 
-  const revTap = g(), revWet = g();
-  put(revTap.gain, 1); put(revWet.gain, 0);
-  input.connect(revTap); revWet.connect(afterSt);
+  const tapeIn = g(), tapeWet = g();
+  put(tapeIn.gain, 1); put(tapeWet.gain, 0);
+  input.connect(tapeIn); tapeWet.connect(afterSt);
 
   /* ---- tape stop ----
      Read position is t − d(t), so the playback rate is 1 − d′(t): hold delayTime still and
@@ -4090,13 +4112,49 @@ function buildInto(useCtx){
   const afterCrush = g();
   crushDry.connect(afterCrush); crushWet.connect(afterCrush);
 
+  /* ---- drive ----
+     Soft clip rather than hard: tanh rounds the peaks off where a clip square-corners them,
+     which is the difference between a saturator and a fuzz pedal. Normalised by tanh of the
+     drive so turning it up gets dirtier rather than just louder. */
+  const driveDry = g(), driveWet = g(), driveShaper = ctx.createWaveShaper();
+  driveShaper.curve = driveCurve(P.drive.v);
+  driveShaper.oversample = "2x";
+  put(driveDry.gain, 1); put(driveWet.gain, 0);
+  afterCrush.connect(driveDry); afterCrush.connect(driveShaper); driveShaper.connect(driveWet);
+  const afterDrive = g();
+  driveDry.connect(afterDrive); driveWet.connect(afterDrive);
+
+  /* ---- ring ----
+     ⚠️ A GAIN NODE IS A MULTIPLIER, which is all a ring modulator is. Park the gain at zero
+     and connect an oscillator to the AudioParam: the param sums its own value with what
+     arrives, so the output is the signal times a sine. No shaper, no worklet, one node. */
+  const ringDry = g(), ringWet = g(), ringMul = g();
+  const ringOsc = ctx.createOscillator();
+  ringOsc.type = "sine"; put(ringOsc.frequency, P.ring.v);
+  put(ringMul.gain, 0); put(ringDry.gain, 1); put(ringWet.gain, 0);
+  ringOsc.connect(ringMul.gain); ringOsc.start();
+  afterDrive.connect(ringDry); afterDrive.connect(ringMul); ringMul.connect(ringWet);
+  const afterRing = g();
+  ringDry.connect(afterRing); ringWet.connect(afterRing);
+
+  /* ---- isolator ----
+     One resonant band, swept. LP and HP each take a half away; this keeps a slice and throws
+     both halves out, which is the third thing a filter can do and the one a DJ mixer calls
+     an isolator. */
+  const isoDry = g(), isoWet = g(), isoBand = ctx.createBiquadFilter();
+  isoBand.type = "bandpass"; put(isoBand.frequency, P.iso.v); isoBand.Q.value = 3.5;
+  put(isoDry.gain, 1); put(isoWet.gain, 0);
+  afterRing.connect(isoDry); afterRing.connect(isoBand); isoBand.connect(isoWet);
+  const afterIso = g();
+  isoDry.connect(afterIso); isoWet.connect(afterIso);
+
   /* ---- delay throw ----
      Fed from a send so the dry never stops, and the feedback is left running on release —
      the tail carrying on after you let go is the entire gesture. */
   const dlSend = g(), dlFb = g();
   const dlDelay = ctx.createDelay(2);
   put(dlSend.gain, 0); put(dlFb.gain, P.delay.v);
-  afterCrush.connect(dlSend); dlSend.connect(dlDelay);
+  afterIso.connect(dlSend); dlSend.connect(dlDelay);
   dlDelay.connect(dlFb); dlFb.connect(dlDelay);
 
   /* ---- space ----
@@ -4107,7 +4165,23 @@ function buildInto(useCtx){
   const spSend = g(), spVerb = ctx.createConvolver();
   spVerb.buffer = spaceIR(ctx);
   put(spSend.gain, 0);
-  afterCrush.connect(spSend); spSend.connect(spVerb);
+  afterIso.connect(spSend); spSend.connect(spVerb);
+
+  /* ---- flange ----
+     A delay of a few milliseconds, moved by an LFO, mixed back against the dry. The comb it
+     makes IS the effect, which is why this is a send returning to the same sum rather than a
+     replacement: with no dry to interfere with there is nothing to notch. Feedback sharpens
+     the notches into the metallic part. */
+  const flSend = g(), flWet = g(), flFb = g(), flDepth = g();
+  const flDelay = ctx.createDelay(.05);
+  const flOsc = ctx.createOscillator();
+  flOsc.type = "sine"; put(flOsc.frequency, P.flange.v);
+  put(flDepth.gain, .0025); put(flSend.gain, 0); put(flWet.gain, .8); put(flFb.gain, .6);
+  put(flDelay.delayTime, .0035);
+  flOsc.connect(flDepth); flDepth.connect(flDelay.delayTime); flOsc.start();
+  afterIso.connect(flSend); flSend.connect(flDelay);
+  flDelay.connect(flFb); flFb.connect(flDelay);
+  flDelay.connect(flWet);
 
   /* ---- the filter ----
      TWO filters, always in the path and both transparent when open, rather than one whose
@@ -4117,123 +4191,200 @@ function buildInto(useCtx){
   const lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter();
   lp.type = "lowpass";  put(lp.frequency, 20000); lp.Q.value = 1.0;
   hp.type = "highpass"; put(hp.frequency, 20);    hp.Q.value = .9;
-  afterCrush.connect(lp); dlDelay.connect(lp); spVerb.connect(lp);
+  afterIso.connect(lp); dlDelay.connect(lp); spVerb.connect(lp); flWet.connect(lp);
   lp.connect(hp); hp.connect(out);
 
   chain = {input, out, stIn, stDry, stWet, stFb, stDelay,
-           revTap, revWet, revNode: null,
+           tapeIn, tapeWet, tapeNode: null,
            tapeDelay, tapeGain, gate, pump, crushWet, crushDry, shaper,
+           driveDry, driveWet, driveShaper, ringDry, ringWet, ringOsc,
+           isoDry, isoWet, isoBand, flSend, flOsc,
            dlSend, dlDelay, dlFb, spSend, spVerb, lp, hp};
-  chain.revReady = loadReverse(ctx, chain);
+  chain.tapeReady = loadTape(ctx, chain);
   return chain;
 }
 
-/* ---- reverse ----
-   ⚠️ THE ONE EFFECT NATIVE NODES CANNOT DO. Everything else in this file is a delay line
-   read cleverly; reverse needs the samples themselves, backwards, so it is a worklet — and
-   it is on a PARALLEL path rather than in the chain. addModule() is async and the chain is
+/* ---- the tape head ----
+   ⚠️ THE THINGS NATIVE NODES CANNOT DO, and there are three of them now. Everything else in
+   this file is a delay line read cleverly; these need the samples themselves — backwards
+   (Reverse), from a frozen window over and over (Loop), or at a rate that is not one
+   (Repitch). One worklet serves all three, because they are one machine with three settings:
+   a ring buffer and a read head.
+
+   It is on a PARALLEL path rather than in the chain. addModule() is async and the chain is
    built synchronously, so a worklet in series would mean the master output waiting on a
-   network-shaped promise before anything could be heard. On its own branch it listens the
-   whole time, outputs silence until you press it, and if it never loads at all the other
-   seven pads do not care.
+   promise before anything could be heard. On its own branch it listens the whole time,
+   outputs silence until you press something, and if it never loads the other thirteen pads
+   do not care.
 
    ⚠️ NO BACKTICK MAY APPEAR BELOW, not even in a comment: this is a template literal and a
    backtick ends it. LP·1's worklet carries the same warning, for the same reason and after
    the same outage.
 
-   The window is faded at both ends. Reading a slab of audio backwards and looping it puts a
-   discontinuity at the wrap, which is a click on every repetition — 3 ms of taper at each
-   end costs nothing and is why this sounds like an effect rather than a fault. */
-const REV_SRC = `
-class PunchReverse extends AudioWorkletProcessor {
+   ⚠️ DRIVEN BY AudioParams, NOT BY PORT MESSAGES, and the offline harness is what forced it.
+   A message to a worklet crosses threads with no timestamp and no delivery guarantee: post
+   one just before startRendering and an OfflineAudioContext can finish the whole render
+   before it arrives. It is not even a reliable failure — repitch measured correctly once and
+   as digital silence the next call, same code, same input. There is no fixing that from the
+   outside either, because a worklet's onmessage runs on the audio thread and an offline
+   audio thread does not exist until rendering starts, so it cannot acknowledge anything.
+   AudioParams are sample-accurate, ordered, and identical live and offline. `gen` is the
+   capture trigger: any change to it takes a new window, which a message would have done by
+   arriving.
+
+   Sixteen seconds of buffer, because Loop is measured in BARS — four of them at 60 bpm is
+   sixteen seconds, and a loop that silently truncated would be a bug you would blame on the
+   music. Two channels of float at 48k is six megabytes, paid once. */
+const TAPE_SRC = `
+class PunchTape extends AudioWorkletProcessor {
+  static get parameterDescriptors(){
+    return [
+      {name: "mode", defaultValue: 0, minValue: 0,  maxValue: 2,   automationRate: "k-rate"},
+      {name: "dir",  defaultValue: 1, minValue: -1, maxValue: 1,   automationRate: "k-rate"},
+      {name: "len",  defaultValue: .25, minValue: .001, maxValue: 16, automationRate: "k-rate"},
+      {name: "rate", defaultValue: 1, minValue: .25, maxValue: 4,  automationRate: "k-rate"},
+      {name: "gen",  defaultValue: 0, minValue: 0,  maxValue: 1e7, automationRate: "k-rate"}
+    ];
+  }
   constructor(){
     super();
-    this.n = Math.floor(sampleRate * 4);
+    this.n = Math.floor(sampleRate * 16);
     this.buf = [new Float32Array(this.n), new Float32Array(this.n)];
-    this.w = 0;              // write head, frozen while engaged
-    this.on = false;
-    this.len = 1;            // samples in the window being read backwards
-    this.r = 0;              // how far into that window, counting down
+    this.w = 0;              // write head, frozen while a window is playing
+    this.dir = 1;
+    this.len = 1;
+    this.r = 0;
+    this.start = 0;
+    this.p = 0;
+    this.lastMode = 0;
+    this.lastGen = 0;
     this.fade = Math.max(8, Math.floor(sampleRate * .003));
-    this.q = [];
-    /* A message has no timestamp. Live that is fine — you pressed it, you meant now — but a
-       render schedules its whole script before startRendering, so every message would arrive
-       before the first sample and the freeze would capture an empty buffer. Measured exactly
-       that: a reverse that should have been at full level came back as digital silence.
-       An optional time, checked against the clock this side, and the same code answers both. */
-    this.port.onmessage = e => { if (e.data) this.q.push(e.data); };
+    this.W = Math.max(64, Math.floor(sampleRate * .07));
   }
-  due(){
-    while (this.q.length){
-      const d = this.q[0];
-      if (d.at != null && d.at > currentTime) return;
-      this.q.shift();
-      if (d.op === "on"){
-        this.on = true;
-        this.start = this.w;
-        this.len = Math.max(this.fade * 2 + 2,
-                            Math.min(this.n - 1, Math.floor(d.len * sampleRate)));
-        this.r = this.len - 1;
-      } else if (d.op === "off"){
-        this.on = false;
-      }
-    }
+  read(ch, idx, f){
+    let a = idx % this.n; if (a < 0) a += this.n;
+    let b = a - 1; if (b < 0) b += this.n;
+    return this.buf[ch][a] * (1 - f) + this.buf[ch][b] * f;
   }
-  process(inputs, outputs){
-    this.due();
-    const inp = inputs[0], out = outputs[0];
+  process(inputs, outputs, params){
+    const out = outputs[0];
     if (!out || !out.length) return true;
+    const mode = params.mode[0] | 0, gen = params.gen[0];
+    /* the capture edge: entering window mode, or being told to take a new one */
+    if (mode === 1 && (this.lastMode !== 1 || gen !== this.lastGen)){
+      this.start = this.w;
+      this.dir = params.dir[0] < 0 ? -1 : 1;
+      this.len = Math.max(this.fade * 2 + 2,
+                          Math.min(this.n - 1, Math.floor(params.len[0] * sampleRate)));
+      this.r = this.dir < 0 ? this.len - 1 : 0;
+    }
+    if (mode === 2 && this.lastMode !== 2) this.p = 0;
+    this.lastMode = mode; this.lastGen = gen;
+    const rate = params.rate[0];
+    const inp = inputs[0];
     const L = out[0], R = out[1] || out[0];
     const iL = inp && inp[0] ? inp[0] : null;
     const iR = inp && inp[1] ? inp[1] : iL;
+    const TAU = 6.283185307179586;
     for (let i = 0; i < L.length; i++){
-      if (!this.on){
-        this.buf[0][this.w] = iL ? iL[i] : 0;
-        this.buf[1][this.w] = iR ? iR[i] : 0;
-        this.w = this.w + 1 === this.n ? 0 : this.w + 1;
+      if (mode === 1){
+        let idx = (this.start - this.len + this.r) % this.n;
+        if (idx < 0) idx += this.n;
+        let env = 1;
+        if (this.r < this.fade) env = this.r / this.fade;
+        else if (this.r > this.len - 1 - this.fade) env = (this.len - 1 - this.r) / this.fade;
+        L[i] = this.buf[0][idx] * env;
+        R[i] = this.buf[1][idx] * env;
+        this.r += this.dir;
+        if (this.r >= this.len) this.r = 0;
+        else if (this.r < 0) this.r = this.len - 1;
+        continue;
+      }
+      this.buf[0][this.w] = iL ? iL[i] : 0;
+      this.buf[1][this.w] = iR ? iR[i] : 0;
+      this.w = this.w + 1 === this.n ? 0 : this.w + 1;
+      if (mode !== 2){
         L[i] = 0; R[i] = 0;          // silent: the dry path is carrying the sound
         continue;
       }
-      let idx = (this.start - this.len + this.r) % this.n;
-      if (idx < 0) idx += this.n;
-      let env = 1;
-      if (this.r < this.fade) env = this.r / this.fade;
-      else if (this.r > this.len - 1 - this.fade) env = (this.len - 1 - this.r) / this.fade;
-      L[i] = this.buf[0][idx] * env;
-      R[i] = this.buf[1][idx] * env;
-      this.r = this.r > 0 ? this.r - 1 : this.len - 1;
+      /* ⚠️ TWO READ HEADS, HALF A WINDOW APART. The read pointer moves at the pitch ratio
+         while the write pointer moves at one, so it drifts — and the only way to keep it
+         near the write head forever is to jump it back a window at a time. A jump is a
+         click, so there are two of them, each under a Hann window, and two Hann windows
+         half a period apart sum to exactly one. Whichever head is jumping is silent while
+         it does. This is what a pitch shifter IS, at the cheap end. */
+      this.p += (1 - rate);
+      if (this.p >= this.W) this.p -= this.W;
+      if (this.p < 0) this.p += this.W;
+      const pb = this.p + this.W * .5 >= this.W ? this.p - this.W * .5 : this.p + this.W * .5;
+      const ea = .5 - .5 * Math.cos(TAU * this.p / this.W);
+      const eb = .5 - .5 * Math.cos(TAU * pb / this.W);
+      const base = this.w - 2;
+      const fa = this.p - Math.floor(this.p), fb = pb - Math.floor(pb);
+      L[i] = this.read(0, base - Math.floor(this.p), fa) * ea +
+             this.read(0, base - Math.floor(pb), fb) * eb;
+      R[i] = this.read(1, base - Math.floor(this.p), fa) * ea +
+             this.read(1, base - Math.floor(pb), fb) * eb;
     }
     return true;
   }
 }
-registerProcessor("punch-reverse", PunchReverse);
+registerProcessor("punch-tape", PunchTape);
 `;
 
-let revURL = null;
-async function loadReverse(c, ch){
+let tapeURL = null;
+async function loadTape(c, ch){
   try{
-    if (!revURL) revURL = URL.createObjectURL(new Blob([REV_SRC], {type: "application/javascript"}));
-    await c.audioWorklet.addModule(revURL);
-    const n = new AudioWorkletNode(c, "punch-reverse",
+    if (!tapeURL) tapeURL = URL.createObjectURL(new Blob([TAPE_SRC], {type: "application/javascript"}));
+    await c.audioWorklet.addModule(tapeURL);
+    const n = new AudioWorkletNode(c, "punch-tape",
       {numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2]});
-    ch.revTap.connect(n); n.connect(ch.revWet);
+    ch.tapeIn.connect(n); n.connect(ch.tapeWet);
     /* onto the chain it was built for, not onto whichever one the module happens to be
        holding now — an offline render swaps that out and puts it back while this promise is
        still in flight */
-    ch.revNode = n;
+    ch.tapeNode = n;
     return n;
   }catch(e){ return null; }
 }
 
-/* Whether the dry should be heard at all: stutter and reverse each replace it, so the
-   answer is one question asked of both rather than two gains fighting over one node. */
-function dryLevel(){ return (on.has("stutter") || on.has("reverse")) ? 0 : 1; }
+/* ⚠️ ONE HEAD, THREE PADS. Reverse, Loop and Repitch are the same machine, so holding two of
+   them cannot mean two things at once: the last one pressed owns it, and letting that one go
+   hands the head to whichever of the others is still held rather than switching it off under
+   your finger. */
+const TAPED = ["reverse", "loop", "repitch"];
+let tapeOwner = null;
 
-function engageReverse(c, t){
-  c.revNode.port.postMessage({op: "on", len: clamp(divSeconds("reverse"), .02, 3.5),
-                              at: offline() ? t : null});
-  set(c.revWet.gain, 1, FADE);
+let tapeGen = 0;
+function engageTape(c, id, t){
+  tapeOwner = id;
+  const q = c.tapeNode.parameters;
+  if (id === "repitch"){
+    q.get("rate").setValueAtTime(Math.pow(2, P.repitch.v / 12), t);
+    q.get("mode").setValueAtTime(2, t);
+  } else {
+    /* all four at the same time, so the worklet reads them in one quantum and captures with
+       the length and direction it was asked for rather than the previous pad's */
+    q.get("dir").setValueAtTime(id === "reverse" ? -1 : 1, t);
+    q.get("len").setValueAtTime(id === "reverse" ? clamp(divSeconds(id), .02, 3.5)
+                                                 : clamp(loopSeconds(), .05, 15.5), t);
+    q.get("gen").setValueAtTime(++tapeGen, t);
+    q.get("mode").setValueAtTime(1, t);
+  }
+  set(c.tapeWet.gain, 1, FADE);
   set(c.stDry.gain, dryLevel(), FADE);
+}
+function stopTape(c, t){
+  /* told to start writing again only after the crossfade, or the last few milliseconds of
+     the frozen window are overwritten by live audio while you can still hear them */
+  c.tapeNode.parameters.get("mode").setValueAtTime(0, t + FADE + .008);
+}
+
+/* Whether the dry should be heard at all. Stutter and all three tape modes REPLACE it, so
+   the answer is one question asked of everything that does rather than four gains fighting
+   over one node. */
+function dryLevel(){
+  return (on.has("stutter") || TAPED.some(x => on.has(x))) ? 0 : 1;
 }
 
 /* A hall rather than the plate DR·1's gated reverb uses: longer, softer at the front, and
@@ -4248,6 +4399,16 @@ function spaceIR(c){
       d[i] = (Math.random() * 2 - 1) * Math.exp(-3.4 * (i / n)) * Math.min(1, i / build);
   }
   return ir;
+}
+
+/* Soft clip. Normalised by tanh(drive) so the loud end stays put and only the shape moves. */
+function driveCurve(drive){
+  const n = 4096, c = new Float32Array(n), k = Math.tanh(drive);
+  for (let i = 0; i < n; i++){
+    const x = (i / (n - 1)) * 2 - 1;
+    c[i] = Math.tanh(x * drive) / k;
+  }
+  return c;
 }
 
 /* bits of resolution, as a lookup the shaper reads per sample */
@@ -4336,17 +4497,31 @@ function press(id){
     set(c.stIn.gain, 0, 0);
     set(c.stWet.gain, 1, FADE);
     set(c.stDry.gain, dryLevel(), FADE);
-  } else if (id === "reverse"){
+  } else if (TAPED.indexOf(id) >= 0){
     /* ⚠️ THE WORKLET MAY NOT BE THERE YET, and the first press after a page load is exactly
        when it is not — the chain is built on that press and addModule is a promise. Dropping
        the press was the first version and it is the worst possible answer: the pad lights
        nothing, nothing happens, and pressing it again works, so it reads as a flaky control
        rather than a slow one. It is queued instead, and lands the moment the module does —
        unless you let go first, which is what the on.has() is asking. */
-    if (c.revNode) engageReverse(c, t);
-    else c.revReady.then(() => {
-      if (chain === c && c.revNode && on.has("reverse")) engageReverse(c, now());
+    if (c.tapeNode) engageTape(c, id, t);
+    else c.tapeReady.then(() => {
+      if (chain === c && c.tapeNode && on.has(id)) engageTape(c, id, now());
     });
+  } else if (id === "iso"){
+    set(c.isoWet.gain, 1, FADE);
+    set(c.isoDry.gain, 0, FADE);
+  } else if (id === "ring"){
+    sweep(c.ringOsc.frequency, P.ring.v, .02);
+    set(c.ringWet.gain, 1, FADE);
+    set(c.ringDry.gain, 0, FADE);
+  } else if (id === "drive"){
+    c.driveShaper.curve = driveCurve(P.drive.v);
+    set(c.driveWet.gain, 1, FADE);
+    set(c.driveDry.gain, 0, FADE);
+  } else if (id === "flange"){
+    sweep(c.flOsc.frequency, P.flange.v, .02);
+    set(c.flSend.gain, 1, FADE);
   } else if (id === "stop"){
     tapeAt = t; tapeT = P.stop.v;
     const n = 64, curve = new Float32Array(n);
@@ -4397,16 +4572,27 @@ function release(id){
     set(c.stDry.gain, dryLevel(), FADE);
     set(c.stFb.gain, 0, 0);
     set(c.stIn.gain, 1, 0);
-  } else if (id === "reverse"){
-    set(c.revWet.gain, 0, FADE);
-    set(c.stDry.gain, dryLevel(), FADE);
-    /* told to start writing again only after the crossfade, or the last few milliseconds of
-       the reversed window are overwritten by live audio while you can still hear them */
-    if (c.revNode){
-      if (offline()) c.revNode.port.postMessage({op: "off", at: t + FADE + .008});
-      else setTimeout(() => { try{ c.revNode.port.postMessage({op: "off"}); }catch(x){} },
-                      Math.ceil(FADE * 1000) + 8);
+  } else if (TAPED.indexOf(id) >= 0){
+    /* hand the head over rather than switching it off, if one of the other two is still down */
+    const next = TAPED.find(x => x !== id && on.has(x));
+    if (next && c.tapeNode){ engageTape(c, next, t); }
+    else {
+      if (tapeOwner === id) tapeOwner = null;
+      set(c.tapeWet.gain, 0, FADE);
+      set(c.stDry.gain, dryLevel(), FADE);
+      if (c.tapeNode) stopTape(c, t);
     }
+  } else if (id === "iso"){
+    set(c.isoWet.gain, 0, FADE);
+    set(c.isoDry.gain, 1, FADE);
+  } else if (id === "ring"){
+    set(c.ringWet.gain, 0, FADE);
+    set(c.ringDry.gain, 1, FADE);
+  } else if (id === "drive"){
+    set(c.driveWet.gain, 0, FADE);
+    set(c.driveDry.gain, 1, FADE);
+  } else if (id === "flange"){
+    set(c.flSend.gain, 0, FADE);
   } else if (id === "stop"){
     /* ⚠️ How far the read head actually got, from elapsed time rather than off delayTime —
        which reports the last RENDERED value and is a ghost the moment a branch goes quiet.
@@ -4472,7 +4658,7 @@ async function render(o){
     chain.out.connect(off.destination);
     /* the worklet loads asynchronously and a render that did not wait would measure the
        seven effects that do not need it and silence for the one that does */
-    await chain.revReady;
+    await chain.tapeReady;
     if (o.source) o.source(off, chain.input);
     (o.at || []).forEach(a => {
       nowAt = a.t;
@@ -19399,15 +19585,27 @@ if (!live || !window.Patchwork || !Patchwork.record) return;
 
    The number row does the same thing, because the interesting live gesture is one hand on
    the launcher and one on the effects, and a mouse can only be in one place. */
+/* ⚠️ SIXTEEN PADS AND SIXTEEN KEYS, in reading order: the number row, then the row above it.
+   Q, W, E, R, T and Y are note keys in shell/keys.js, and on the live page they are taken
+   from it — the panels are hidden there, so a note key is playing an instrument you cannot
+   see, and an effect is the thing in front of you. The handler preventDefaults, which is
+   what keys.js checks. */
+const FXKEYS = "1234567890qwerty";
 const FX = [
   {id: "lp",      name: "LP",      hint: "how far down the top comes off"},
   {id: "hp",      name: "HP",      hint: "how far up the bottom goes"},
+  {id: "iso",     name: "Iso",     hint: "which slice is left"},
   {id: "stutter", name: "Stutter", hint: "how long a slice repeats"},
+  {id: "loop",    name: "Loop",    hint: "how many bars go round"},
   {id: "reverse", name: "Reverse", hint: "how long a slice plays backwards"},
+  {id: "repitch", name: "Repitch", hint: "how far it is shifted"},
   {id: "gate",    name: "Gate",    hint: "how fast it chops"},
   {id: "pump",    name: "Pump",    hint: "how fast it breathes"},
   {id: "delay",   name: "Delay",   hint: "how much it feeds back"},
   {id: "space",   name: "Space",   hint: "how much goes to the room"},
+  {id: "flange",  name: "Flange",  hint: "how fast the notch sweeps"},
+  {id: "ring",    name: "Ring",    hint: "what it is multiplied by"},
+  {id: "drive",   name: "Drive",   hint: "how hard it is pushed"},
   {id: "crush",   name: "Crush",   hint: "how many bits are left"},
   {id: "stop",    name: "Stop",    hint: "how long the machine takes to stop"}
 ];
@@ -19423,9 +19621,8 @@ function buildFx(){
     const b = document.createElement("button");
     b.className = "st-fx-pad";
     b.dataset.fx = f.id;
-    /* 1-9 then 0, which is where the tenth key is on the row */
-    b.dataset.key = String((i + 1) % 10);
-    b.title = f.name + " — " + f.hint + ". Hold, or hold " + b.dataset.key +
+    b.dataset.key = FXKEYS[i] || "";
+    b.title = f.name + " — " + f.hint + ". Hold, or hold " + b.dataset.key.toUpperCase() +
               ". Arrows or the wheel move its number.";
     b.innerHTML = '<span class="st-fx-name"></span><span class="st-fx-val"></span>' +
                   '<span class="st-fx-key"></span>';
@@ -19498,8 +19695,8 @@ if (fxPads){
   const mine = e => !(live.hidden || e.metaKey || e.ctrlKey || e.altKey || typing(e));
   const keyFx = e => {
     if (!mine(e)) return null;
-    const f = FX.find((x, i) => String((i + 1) % 10) === e.key);
-    return f ? f.id : null;
+    const i = FXKEYS.indexOf((e.key || "").toLowerCase());
+    return i >= 0 && i < FX.length ? FX[i].id : null;
   };
   /* ⚠️ CAPTURING, and that is not a detail. shell/keys.js takes the left and right arrows to
      move an instrument's octave, and its listener is installed by host.js at load — earlier
