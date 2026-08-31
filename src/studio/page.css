@@ -381,9 +381,15 @@ body.living .st-seg#stFaces{display:none}
   font-family:"Saira Semi Condensed",system-ui,sans-serif;
   font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--silk-dim);
 }
-.st-fx-pads{display:flex;gap:8px;flex-wrap:wrap;flex:1 1 auto}
+/* ⚠️ A GRID, NOT WRAPPING FLEX. Eight pads and room for seven put the eighth on a row of
+   its own, where flex-grow stretched it across the whole width — one pad four times the
+   size of the others and nothing to say why. Grid wraps to even columns instead. */
+.st-fx-pads{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));
+  gap:8px;flex:1 1 420px;
+}
 .st-fx-pad{
-  position:relative;flex:1 1 84px;min-width:74px;
+  position:relative;min-width:0;
   display:flex;flex-direction:column;align-items:center;gap:3px;
   padding:12px 10px 9px;border-radius:6px;cursor:pointer;
   border:1px solid var(--edge);color:var(--silk);

@@ -27,6 +27,7 @@ const FX = [
   {id: "lp",      name: "LP",      hint: "Sweep the top off"},
   {id: "hp",      name: "HP",      hint: "Sweep the bottom out"},
   {id: "stutter", name: "Stutter", hint: "Repeat the last division"},
+  {id: "reverse", name: "Reverse", hint: "Play the last division backwards"},
   {id: "gate",    name: "Gate",    hint: "Chop on the grid"},
   {id: "delay",   name: "Delay",   hint: "Throw — the tail carries on"},
   {id: "crush",   name: "Crush",   hint: "Quantise the samples"},
@@ -243,7 +244,12 @@ function show(which){
   scenes.hidden = isLive;
   document.body.classList.toggle("living", isLive);
   seg.querySelectorAll("button").forEach(b => b.classList.toggle("st-sel", b.dataset.v === which));
-  if (isLive) paint();
+  if (isLive){
+    paint();
+    /* the punch rack's reverse is a worklet and loads asynchronously — built here so it is
+       ready by the time a pad is pressed rather than a beat after */
+    if (Patchwork.fx) try{ Patchwork.fx.prime(); }catch(e){}
+  }
 }
 seg.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
