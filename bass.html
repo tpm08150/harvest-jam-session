@@ -264,6 +264,40 @@ input[type="text"]::placeholder{color:#5a646a}
   color:var(--silk);margin-top:0;line-height:1;
 }
 .face-toggle{margin-left:auto;align-self:flex-start}
+
+/* ---------- the keyboard's octave ----------
+   Built by shell/keys.js rather than written into three panel.html files, so it sits in the
+   same place and reads the same on every keyboard. The range beside it is the point of the
+   control: an octave number on its own tells you the offset, and what you want to know is
+   what your hands are about to play. */
+.kboct{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  font-family:"DM Mono";font-size:10px;margin-top:8px;
+}
+.kboct-lab{letter-spacing:.14em;text-transform:uppercase;color:var(--silk-dim)}
+.kboct-btn{
+  background:var(--slot);border:1px solid var(--groove);border-radius:3px;
+  color:var(--silk-dim);font-family:inherit;font-size:12px;line-height:1;
+  padding:4px 9px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+.kboct-btn:hover:not(:disabled){color:var(--silk)}
+.kboct-btn:disabled{opacity:.35;cursor:default}
+.kboct-out{
+  min-width:26px;text-align:center;font-variant-numeric:tabular-nums;
+  color:var(--read-dim);
+}
+/* lit only when it is NOT where you left it, so a shifted keyboard is visible without
+   having to read the number */
+.kboct.shifted .kboct-out{color:var(--mint)}
+.kboct-range{color:var(--silk-dim);letter-spacing:.06em;margin-left:2px}
+
+/* The octave written on every C, on the keyboards that draw plain keys. PM·1 has its own
+   .klabel doing the same job and keeps it — see the note at the top of this file about
+   what happens when a rule is lifted out of a panel sheet. */
+.keys .k .klab{
+  position:absolute;bottom:3px;left:0;right:0;text-align:center;
+  font-family:"DM Mono";font-size:8px;color:#9aa0a3;pointer-events:none;
+}
 }
 /* Everything below is scoped to this instrument's panel. @scope rather than nesting
    because it adds no specificity. */
@@ -2120,6 +2154,10 @@ Patchwork.keys = (() => {
 const MAP = {a:0, w:1, s:2, e:3, d:4, f:5, t:6, g:7, y:8, h:9, u:10,
              j:11, k:12, o:13, l:14, p:15, ";": 16};
 
+/* Every panel that holds notes, so a control that moves the octave can drop them first —
+   see octaveUI(). Keyed by root because that is what a panel IS to the shell. */
+const releasers = new Map();
+
 function mount(root, spec){
   /* The RESOLVED value is held, not the key index. Shift the octave with a note down and
      map(i) answers differently, so a keyup routed through map() would release a note that
@@ -2138,6 +2176,12 @@ function mount(root, spec){
     if (spec.off) spec.off(v);
     if (Patchwork.session) Patchwork.session.played(root.dataset.instrument, v, 0, false);
   };
+  const dropAll = () => {
+    if (!held.size) return;
+    [...held.keys()].forEach(release);
+    if (spec.paint) spec.paint();
+  };
+  releasers.set(root, dropAll);
 
   Patchwork.onKey(root, "keydown", e => {
     if (e.metaKey || e.ctrlKey || e.altKey || editing(e)) return;
@@ -2145,8 +2189,13 @@ function mount(root, spec){
        step grid with the arrows, and while that is on it is the better use of them. */
     if (e.defaultPrevented) return;
 
-    if (e.key === "ArrowLeft" || e.key === "ArrowRight"){
-      const d = e.key === "ArrowRight" ? 1 : -1;
+    /* Up and down as well as left and right. Up/down is what everybody reaches for and what
+       the owner asked for; left/right was here first and stays, because a habit that already
+       works is not worth taking away to make a point about consistency. PM·1's program mode
+       walks its grid with all four and takes them first — see defaultPrevented above. */
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight" ||
+        e.key === "ArrowUp"   || e.key === "ArrowDown"){
+      const d = (e.key === "ArrowRight" || e.key === "ArrowUp") ? 1 : -1;
       /* ⚠️ Release first. PM·1 applies its octave inside noteOff() as well as noteOn(), so
          moving it under a held key would release a note it never started and leave the
          sounding one held forever. Rare with a pair of ± buttons; the ordinary case the
@@ -2185,14 +2234,66 @@ function mount(root, spec){
 
   /* A key held while the window loses focus never sends its keyup, so nothing would
      release the note. host.js clears its own routing table for the same reason. */
-  window.addEventListener("blur", () => {
-    if (!held.size) return;
-    [...held.keys()].forEach(release);
-    if (spec.paint) spec.paint();
-  });
+  window.addEventListener("blur", dropAll);
 }
 
-return {mount, get layout(){ return Object.assign({}, MAP); }};
+/* ---- the octave control ----
+   Built rather than written into three panel.html files, for the reason at the top of this
+   file: an instrument added later should get this by asking. It is the same − n + stepper
+   PM·1 already had in its transport, moved to where the thing it moves actually is.
+
+   `range` is the instrument's, not ours: only the panel knows what its keyboard spans and
+   what its note names are — BS·1's keys read a further octave down than they play, because
+   its oscillator has an octave of its own underneath this one. */
+function octaveUI(host, spec){
+  if (!host) return function(){};
+  const lo = spec.min == null ? -3 : spec.min, hi = spec.max == null ? 3 : spec.max;
+  const root = host.closest("[data-instrument]");
+  const wrap = document.createElement("div");
+  wrap.className = "kboct";
+  const mk = (cls, tag) => { const e = document.createElement(tag || "span"); e.className = cls; return e; };
+  const lab = mk("kboct-lab"); lab.textContent = "Oct";
+  const down = mk("kboct-btn", "button"), up = mk("kboct-btn", "button");
+  down.type = up.type = "button";
+  down.textContent = "\u2212"; up.textContent = "+";
+  down.setAttribute("aria-label", "Down an octave");
+  up.setAttribute("aria-label", "Up an octave");
+  const out = mk("kboct-out", "output");
+  const range = mk("kboct-range");
+  wrap.appendChild(lab); wrap.appendChild(down); wrap.appendChild(out);
+  wrap.appendChild(up); wrap.appendChild(range);
+  host.appendChild(wrap);
+
+  function paint(){
+    const v = spec.get();
+    out.textContent = (v > 0 ? "+" : "") + v;
+    wrap.classList.toggle("shifted", v !== 0);
+    down.disabled = v <= lo; up.disabled = v >= hi;
+    if (spec.range) range.textContent = spec.range();
+  }
+  function step(d){
+    const v = Math.max(lo, Math.min(hi, spec.get() + d));
+    if (v === spec.get()) return;
+    /* ⚠️ Drop what is held BEFORE the shift, the same rule the arrow keys follow: an
+       instrument that applies the octave on the way out of noteOff too would otherwise
+       release a note it never started and leave the sounding one held for good. */
+    if (root) panic(root);
+    spec.set(v);
+    paint();
+  }
+  down.addEventListener("click", () => step(-1));
+  up.addEventListener("click", () => step(1));
+  paint();
+  return paint;
+}
+
+/* Drop every typed note a panel is holding. */
+function panic(root){
+  const f = releasers.get(root);
+  if (f) f();
+}
+
+return {mount, octaveUI, panic, get layout(){ return Object.assign({}, MAP); }};
 })();
 
 /* Live recording.
@@ -4352,22 +4453,49 @@ $("#hold").addEventListener("click", () => {
 });
 
 /* ---- the keyboard ----
-   Two octaves from the sequencer's root, which is where a pedalboard sits. */
+   Two octaves from the sequencer's root, which is where a pedalboard sits.
+
+   ⚠️ TWO OCTAVES ARE IN PLAY HERE AND THEY ARE NOT THE SAME THING. `kbOct` is this one: it
+   moves the keys, so it changes where your hands are and nothing else. `P.oct`, in the
+   Oscillator section, multiplies every voice's frequency — the sequencer's included — and
+   is the register the whole instrument sits in. Shifting your hands and transposing the
+   bassline under them are different gestures, so they are different controls.
+
+   What is written on a key is what that key SOUNDS, which means it carries both: the
+   default P.oct of −1 is why the leftmost key reads C1 while it sends note 36. */
 const keysEl = $("#keys");
 const KEY_BASE = 36;
+const KEY_SPAN = 25;
 const BLACK = {1:1,3:1,6:1,8:1,10:1};
+let kbOct = 0;
 function buildKeys(){
   keysEl.textContent = "";
-  for (let i = 0; i < 25; i++){
-    const n = KEY_BASE + i;
+  for (let i = 0; i < KEY_SPAN; i++){
+    const n = KEY_BASE + kbOct * 12 + i;
     const k = document.createElement("div");
     k.className = "k" + (BLACK[n % 12] ? " b" : "");
     k.dataset.n = n;
+    k.title = noteName(n + P.oct * 12);
     if (BLACK[n % 12]) k.appendChild(document.createElement("i"));
+    else if (n % 12 === 0){
+      const lab = document.createElement("span");
+      lab.className = "klab"; lab.textContent = noteName(n + P.oct * 12);
+      k.appendChild(lab);
+    }
     keysEl.appendChild(k);
   }
 }
 buildKeys();
+const keyRange = () => noteName(KEY_BASE + (kbOct + P.oct) * 12) + " – " +
+                       noteName(KEY_BASE + (kbOct + P.oct) * 12 + KEY_SPAN - 1);
+function setKbOct(v){
+  kbOct = Math.max(-2, Math.min(3, v | 0));
+  buildKeys();
+  paintNow();
+}
+const paintOct = Patchwork.keys.octaveUI(keysEl.parentNode, {
+  get: () => kbOct, set: setKbOct, min: -2, max: 3, range: keyRange
+});
 keysEl.addEventListener("pointerdown", e => {
   const k = e.target.closest(".k"); if (!k) return;
   ensureAudio();
@@ -4475,6 +4603,8 @@ const OCTS = [-2, -1, 0];
 function setOct(v){
   P.oct = OCTS.indexOf(v) < 0 ? 0 : v;
   $$("#oct button").forEach(x => x.classList.toggle("on", +x.dataset.o === P.oct));
+  /* the keys say what they sound, so moving the instrument's register relabels them */
+  buildKeys(); paintNow(); paintOct();
 }
 $("#oct").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -4483,10 +4613,11 @@ $("#oct").addEventListener("click", e => {
 
 /* The computer keyboard is the shell's — see shell/keys.js. It plays the same path a
    pointer on the on-screen keys does, record.note() included, so a typed line lands on the
-   grid exactly as a clicked one does. The arrows walk BS·1's own octave segment, which is
-   a transposition rather than a keyboard offset — so the control keeps telling the truth. */
+   grid exactly as a clicked one does. The arrows move the KEYBOARD's octave, not the
+   oscillator's: pressing up should move your hands, not transpose the bassline that is
+   already playing underneath them. */
 Patchwork.keys.mount(root, {
-  map: i => KEY_BASE + i,
+  map: i => KEY_BASE + kbOct * 12 + i,
   on: (n, v) => {
     ensureAudio();
     Patchwork.record.note("bs1", n, v);
@@ -4495,7 +4626,7 @@ Patchwork.keys.mount(root, {
   },
   off: n => { if (!latch) noteOff(n); },
   paint: paintNow,
-  octave: d => setOct(OCTS[Math.max(0, Math.min(OCTS.length - 1, OCTS.indexOf(P.oct) + d))])
+  octave: d => { setKbOct(kbOct + d); paintOct(); }
 });
 
 

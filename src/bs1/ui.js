@@ -111,22 +111,49 @@ $("#hold").addEventListener("click", () => {
 });
 
 /* ---- the keyboard ----
-   Two octaves from the sequencer's root, which is where a pedalboard sits. */
+   Two octaves from the sequencer's root, which is where a pedalboard sits.
+
+   ⚠️ TWO OCTAVES ARE IN PLAY HERE AND THEY ARE NOT THE SAME THING. `kbOct` is this one: it
+   moves the keys, so it changes where your hands are and nothing else. `P.oct`, in the
+   Oscillator section, multiplies every voice's frequency — the sequencer's included — and
+   is the register the whole instrument sits in. Shifting your hands and transposing the
+   bassline under them are different gestures, so they are different controls.
+
+   What is written on a key is what that key SOUNDS, which means it carries both: the
+   default P.oct of −1 is why the leftmost key reads C1 while it sends note 36. */
 const keysEl = $("#keys");
 const KEY_BASE = 36;
+const KEY_SPAN = 25;
 const BLACK = {1:1,3:1,6:1,8:1,10:1};
+let kbOct = 0;
 function buildKeys(){
   keysEl.textContent = "";
-  for (let i = 0; i < 25; i++){
-    const n = KEY_BASE + i;
+  for (let i = 0; i < KEY_SPAN; i++){
+    const n = KEY_BASE + kbOct * 12 + i;
     const k = document.createElement("div");
     k.className = "k" + (BLACK[n % 12] ? " b" : "");
     k.dataset.n = n;
+    k.title = noteName(n + P.oct * 12);
     if (BLACK[n % 12]) k.appendChild(document.createElement("i"));
+    else if (n % 12 === 0){
+      const lab = document.createElement("span");
+      lab.className = "klab"; lab.textContent = noteName(n + P.oct * 12);
+      k.appendChild(lab);
+    }
     keysEl.appendChild(k);
   }
 }
 buildKeys();
+const keyRange = () => noteName(KEY_BASE + (kbOct + P.oct) * 12) + " – " +
+                       noteName(KEY_BASE + (kbOct + P.oct) * 12 + KEY_SPAN - 1);
+function setKbOct(v){
+  kbOct = Math.max(-2, Math.min(3, v | 0));
+  buildKeys();
+  paintNow();
+}
+const paintOct = Patchwork.keys.octaveUI(keysEl.parentNode, {
+  get: () => kbOct, set: setKbOct, min: -2, max: 3, range: keyRange
+});
 keysEl.addEventListener("pointerdown", e => {
   const k = e.target.closest(".k"); if (!k) return;
   ensureAudio();
@@ -234,6 +261,8 @@ const OCTS = [-2, -1, 0];
 function setOct(v){
   P.oct = OCTS.indexOf(v) < 0 ? 0 : v;
   $$("#oct button").forEach(x => x.classList.toggle("on", +x.dataset.o === P.oct));
+  /* the keys say what they sound, so moving the instrument's register relabels them */
+  buildKeys(); paintNow(); paintOct();
 }
 $("#oct").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -242,10 +271,11 @@ $("#oct").addEventListener("click", e => {
 
 /* The computer keyboard is the shell's — see shell/keys.js. It plays the same path a
    pointer on the on-screen keys does, record.note() included, so a typed line lands on the
-   grid exactly as a clicked one does. The arrows walk BS·1's own octave segment, which is
-   a transposition rather than a keyboard offset — so the control keeps telling the truth. */
+   grid exactly as a clicked one does. The arrows move the KEYBOARD's octave, not the
+   oscillator's: pressing up should move your hands, not transpose the bassline that is
+   already playing underneath them. */
 Patchwork.keys.mount(root, {
-  map: i => KEY_BASE + i,
+  map: i => KEY_BASE + kbOct * 12 + i,
   on: (n, v) => {
     ensureAudio();
     Patchwork.record.note("bs1", n, v);
@@ -254,7 +284,7 @@ Patchwork.keys.mount(root, {
   },
   off: n => { if (!latch) noteOff(n); },
   paint: paintNow,
-  octave: d => setOct(OCTS[Math.max(0, Math.min(OCTS.length - 1, OCTS.indexOf(P.oct) + d))])
+  octave: d => { setKbOct(kbOct + d); paintOct(); }
 });
 
 

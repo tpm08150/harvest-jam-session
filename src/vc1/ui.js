@@ -86,18 +86,46 @@ $("#listen").addEventListener("click", async () => {
 });
 $("#inSel").addEventListener("change", () => { if (modStream) openInput($("#inSel").value === "__bus" ? "__bus" : ""); });
 
-/* ---- carrier keyboard ---- */
+/* ---- carrier keyboard ----
+   ⚠️ The OCTAVE MOVES THE KEYS, rather than being added to whatever they send. It used to be
+   an offset the shell's keys module kept to itself, which meant a typed note and a clicked
+   one played different pitches the moment you shifted it — the on-screen keyboard was not
+   in on it. Rebuilding the row is both cheaper to reason about and the only version where
+   what is written on a key is what that key does. */
 const keysEl = $("#keys");
 const KEY_BASE = 48;
+const KEY_SPAN = 25;
 const BLACK = {1:1,3:1,6:1,8:1,10:1};
-for (let i = 0; i < 25; i++){
-  const n = KEY_BASE + i;
-  const k = document.createElement("div");
-  k.className = "k" + (BLACK[n % 12] ? " b" : "");
-  k.dataset.n = n;
-  if (BLACK[n % 12]) k.appendChild(document.createElement("i"));
-  keysEl.appendChild(k);
+let octave = 0;
+function buildKeys(){
+  keysEl.textContent = "";
+  for (let i = 0; i < KEY_SPAN; i++){
+    const n = KEY_BASE + octave * 12 + i;
+    const k = document.createElement("div");
+    k.className = "k" + (BLACK[n % 12] ? " b" : "");
+    k.dataset.n = n;
+    k.title = noteName(n);
+    if (BLACK[n % 12]) k.appendChild(document.createElement("i"));
+    /* every C carries its octave, which is the whole of "where am I" */
+    else if (n % 12 === 0){
+      const lab = document.createElement("span");
+      lab.className = "klab"; lab.textContent = noteName(n);
+      k.appendChild(lab);
+    }
+    keysEl.appendChild(k);
+  }
 }
+buildKeys();
+const keyRange = () => noteName(KEY_BASE + octave * 12) + " – " +
+                       noteName(KEY_BASE + octave * 12 + KEY_SPAN - 1);
+function setOctave(v){
+  octave = Math.max(-3, Math.min(3, v | 0));
+  buildKeys();
+  paintNow();
+}
+const paintOct = Patchwork.keys.octaveUI(keysEl.parentNode, {
+  get: () => octave, set: setOctave, range: keyRange
+});
 keysEl.addEventListener("pointerdown", e => {
   const k = e.target.closest(".k"); if (!k) return;
   ensureAudio();
@@ -109,11 +137,12 @@ keysEl.addEventListener("pointerdown", e => {
 });
 window.addEventListener("pointerup", () => { if (!latch) allNotesOff(); });
 
-/* The computer keyboard is the shell's — see shell/keys.js. VC·1 has no octave control of
-   its own, so the arrows move the offset the keys module keeps; the carrier is voiced from
-   the note it is given, so shifting it is the whole of what an octave means here. */
+/* The computer keyboard is the shell's — see shell/keys.js. The arrows drive VC·1's own
+   octave now, so the on-screen keys move with them and typing an A plays the key marked A.
+   The carrier is voiced from the note it is given, so shifting it is the whole of what an
+   octave means here. */
 Patchwork.keys.mount(root, {
-  map: (i, oct) => KEY_BASE + oct * 12 + i,
+  map: i => KEY_BASE + octave * 12 + i,
   on: (n, v) => {
     ensureAudio();
     Patchwork.record.note("vc1", n, v);
@@ -121,7 +150,8 @@ Patchwork.keys.mount(root, {
     if (latch && carriers.has(n)) noteOff(n); else noteOn(n, v);
   },
   off: n => { if (!latch) noteOff(n); },
-  paint: () => paintNow()
+  paint: () => paintNow(),
+  octave: d => { setOctave(octave + d); paintOct(); }
 });
 
 function paintNow(){

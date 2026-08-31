@@ -96,8 +96,7 @@ function buildKeys(){
       const b = document.createElement("button");
       b.className = "kw"; b.style.setProperty("--i", i);
       b.dataset.n = midi; b.type = "button";
-      b.setAttribute("aria-label", noteLabel(midi));
-      if (WHITE_PC[w] === 0) b.innerHTML = '<span class="klabel">'+noteLabel(midi)+'</span>';
+      if (WHITE_PC[w] === 0) b.innerHTML = '<span class="klabel"></span>';
       keysEl.appendChild(b);
     }
   }
@@ -108,11 +107,26 @@ function buildKeys(){
       const b = document.createElement("button");
       b.className = "kb"; b.style.setProperty("--w", o*7 + w);
       b.dataset.n = midi; b.type = "button";
-      b.setAttribute("aria-label", noteLabel(midi));
       keysEl.appendChild(b);
     }
   }
+  labelKeys();
 }
+
+/* ⚠️ What a key is CALLED has to follow the octave, because what it PLAYS does. The keys
+   send their raw data-n and noteOn() adds the offset (note-layer.js), so a keyboard drawn
+   once and labelled once was telling you C3 while playing C5. Relabelled rather than
+   rebuilt: a rebuild mid-drag would throw away the element the pointer is captured on. */
+function labelKeys(){
+  keysEl.querySelectorAll(".kw,.kb").forEach(k => {
+    const name = noteLabel(+k.dataset.n + octave*12);
+    k.setAttribute("aria-label", name);
+    const lab = k.querySelector(".klabel");
+    if (lab) lab.textContent = name;
+  });
+}
+const keyRange = () => noteLabel(KEY_BASE + octave*12) + " – " +
+                       noteLabel(KEY_BASE + octave*12 + 24);
 buildKeys();
 
 /* Pointer capture on the CONTAINER, then resolve the key under the pointer on each move.
@@ -511,10 +525,12 @@ $("#bpmDown").addEventListener("click", () => setBpm(SEQ.bpmExact - 1));
 $("#bpmUp").addEventListener("click", () => setBpm(SEQ.bpmExact + 1));
 function setOctave(v){
   octave = clampf(v|0, -3, 3);
-  octOut.textContent = (octave > 0 ? "+" : "") + octave;
+  labelKeys();
 }
-$("#octDown").addEventListener("click", () => setOctave(octave - 1));
-$("#octUp").addEventListener("click", () => setOctave(octave + 1));
+/* the stepper itself is the shell's, mounted on the keyboard — see shell/keys.js */
+const paintOct = Patchwork.keys.octaveUI(keysEl.parentNode, {
+  get: () => octave, set: setOctave, range: keyRange
+});
 $("#panic").addEventListener("click", () => {
   if (SEQ.playing) stopPlay();
   allNotesOff();
@@ -549,7 +565,7 @@ Patchwork.keys.mount(root, {
   on: (n, v) => noteOn(n, v),
   off: n => noteOff(n),
   paint: paintKeys,
-  octave: d => setOctave(octave + d)
+  octave: d => { setOctave(octave + d); paintOct(); }
 });
 
 /* ---- groove from the chords on the page ----

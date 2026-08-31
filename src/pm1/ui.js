@@ -1,5 +1,5 @@
 /* ============ ui ============ */
-const playBtn = $("#play"), tempoOut = $("#tempoOut"), octOut = $("#octOut"),
+const playBtn = $("#play"), tempoOut = $("#tempoOut"),
       nowNote = $("#nowNote"), nowDetail = $("#nowDetail"), voiceMeta = $("#voiceMeta"),
       patchTag = $("#patchTag");
 

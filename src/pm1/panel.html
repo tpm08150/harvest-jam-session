@@ -40,14 +40,9 @@
         <button id="bpmUp" aria-label="Faster">+</button>
       </div>
     </div>
-    <div class="field" style="flex:0 0 116px">
-      <label for="octOut">Octave</label>
-      <div class="tempo">
-        <button id="octDown" aria-label="Down an octave">−</button>
-        <output id="octOut">0</output>
-        <button id="octUp" aria-label="Up an octave">+</button>
-      </div>
-    </div>
+    <!-- The octave stepper used to live here. It is on the keyboard now, built by
+         shell/keys.js, so all three synths carry the same control in the same place — and
+         it is beside the keys it moves rather than a row away from them. -->
     <button class="btn panic" id="panic" title="Send all-notes-off on every channel">Panic</button>
   </div>
 
