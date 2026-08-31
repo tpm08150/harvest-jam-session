@@ -3721,18 +3721,23 @@ const SEQ = {
   len: spec.len || 16, rate: spec.rate || "1/16", swing: .5,
   playing: false, root: spec.root == null ? 36 : spec.root, scale: "minor",
   gate: .5, accentAmt: .3, octaves: 0,
-  /* THREE WAYS TO WRITE A LINE, because entering one by dragging every step is the slowest
-     of them and it was the only one that always worked.
+  /* TWO WAYS TO WRITE A LINE, because entering one by dragging every step is the slowest of
+     them and it was the only one that always worked.
 
-       play     clicks edit the grid — and a step you switch ON takes the note you last
-                played, so playing a pitch and tapping four steps writes four of it
-       program  a click SELECTS a step, and the next note you play and every knob you move
-                belong to that one step. It stays put: you are working ON a step
-       step     the same, but the cursor MOVES ON by itself. Play, play, play and the line
-                goes in; the arrows walk over steps you want left alone
+       play  clicks edit the grid — and a step you switch ON takes the note you last played,
+             so playing a pitch and tapping four steps writes four of it
+       step  ONE LIT STEP, and everything you do lands on it. Play a note and it is written
+             there and the cursor moves on; move a knob and it locks to the lit step; the
+             arrows walk over steps you want left alone; delete empties one and moves on
 
-     Program and Step differ in one line and the difference is the whole point of having
-     both: one is for fixing a step, the other is for writing a run of them. */
+     ⚠️ Program and Step used to be two modes and they should never have been. They differed
+     in one line — whether the cursor advanced — and everything else about them was the same
+     gesture, so choosing between them was choosing whether the OTHER half of the mode was
+     available. Notes and parameter locks belong to the same step for the same reason.
+
+     Which means the order is: land on a step, set what you want locked, play its note, and
+     it moves on. Playing first is fine too — the left arrow puts you back on what you just
+     wrote. */
   mode: "play", sel: 0,
   lane: "on"                    // on | pitch | accent | slide | tie
 };
@@ -3907,25 +3912,29 @@ function selectStep(i){ SEQ.sel = ((i % SEQ.len) + SEQ.len) % SEQ.len; }
    step it came from would be the sequencer arguing with itself. */
 function played(midi, vel){
   lastNote = midi;
-  if (SEQ.mode === "program" || SEQ.mode === "step"){
+  if (SEQ.mode !== "play"){
     setStepNote(SEQ.sel, midi, vel == null ? 100 : vel);
-    if (SEQ.mode === "step") selectStep(SEQ.sel + 1);
+    selectStep(SEQ.sel + 1);
   }
   return true;
 }
 /* Turn the step under the cursor off and move on — the rest, in a mode whose other keys all
    write something. The arrows step over what is already there; this empties it first. */
+/* ⚠️ THE LOCKS GO WITH THE NOTE. A step emptied of its note but still holding a filter
+   sweep is a step that does nothing and changes the sound anyway — invisible except as a
+   ring on a pad, and impossible to reason about later. Delete means delete. */
 function eraseAt(i){
   const st = steps[((i % SEQ.len) + SEQ.len) % SEQ.len];
   if (!st) return false;
   st.on = 0; st.tie = 0; st.accent = 0; st.slide = 0;
+  delete st.locks;
   return true;
 }
 
 /* In program mode, moving any registered control IS the lock gesture — no separate arm
    step, the same as recording a note by holding one and clicking. */
 function lock(id){
-  if (SEQ.mode !== "program" || !spec.params) return false;
+  if (SEQ.mode === "play" || !spec.params) return false;
   const st = steps[SEQ.sel];
   if (!st) return false;
   (st.locks || (st.locks = {}))[id] = spec.params[id];
@@ -4066,8 +4075,7 @@ if (root && Patchwork.onKey) Patchwork.onKey(root, "keydown", e => {
   if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "select" || tag === "textarea") return;
-  const m = seq.SEQ.mode;
-  if (m !== "program" && m !== "step") return;
+  if (seq.SEQ.mode === "play") return;
   if (e.key === "ArrowRight" || e.key === "ArrowLeft"){
     seq.selectStep(seq.SEQ.sel + (e.key === "ArrowRight" ? 1 : -1));
     if (o.onSelect) o.onSelect(seq.SEQ.sel);
@@ -4075,7 +4083,7 @@ if (root && Patchwork.onKey) Patchwork.onKey(root, "keydown", e => {
     e.preventDefault();
     return;
   }
-  if (m === "step" && (e.key === "Backspace" || e.key === "Delete")){
+  if (e.key === "Backspace" || e.key === "Delete"){
     seq.eraseAt(seq.SEQ.sel);
     seq.selectStep(seq.SEQ.sel + 1);
     if (o.onSelect) o.onSelect(seq.SEQ.sel);
@@ -4091,7 +4099,7 @@ el.addEventListener("click", e => {
 
   /* Program mode: the click SELECTS, and what you play next is written here. Every knob
      you move locks to it as well — see lock() in the sequencer. */
-  if (seq.SEQ.mode === "program" || seq.SEQ.mode === "step"){
+  if (seq.SEQ.mode !== "play"){
     seq.selectStep(i);
     if (o.onSelect) o.onSelect(i);
     paint();

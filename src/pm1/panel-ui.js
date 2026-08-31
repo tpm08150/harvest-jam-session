@@ -61,9 +61,8 @@ segPaint.seqMode = seg("#seqMode","p", () => SEQ.mode, v => {
      you cannot see anywhere else, so it is written down rather than left to be discovered. */
   const nx = SEQ.lastNote == null ? ""
            : "  ·  " + noteLabel(SEQ.lastNote) + " goes into the next step you switch on";
-  seqHint.textContent =
-      v === "program" ? "click a step, then play a note to write it — every knob you move locks to that step"
-    : v === "step"    ? "play the line in — each note fills the lit step and moves on. ← → skip a step"
+  seqHint.textContent = v !== "play"
+    ? "everything lands on the lit step — a note writes it and moves on, a knob locks to it. ← → walk, delete empties note and locks"
     : (LANE_HINT[SEQ.lane] || "") + nx;
 });
 /* declared before it is assigned: a paint can run while this file is still being
@@ -485,7 +484,7 @@ function paintMeta(){
     P.gmode === "off" ? "no glide" : P.gmode,
     SEQ.motion === "off" ? "free" : SEQ.motion
   ];
-  if (SEQ.mode !== "play") bits.push(SEQ.mode.toUpperCase() + " step " + (SEQ.sel + 1));
+  if (SEQ.mode !== "play") bits.push("STEP " + (SEQ.sel + 1));
   voiceMeta.textContent = bits.join(" · ");
 }
 function paint(){
@@ -570,6 +569,17 @@ onKey("keydown", e => {
     const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1
             : e.key === "ArrowDown" ? 8 : e.key === "ArrowUp" ? -8 : 0;
     if (d){ selectStep(SEQ.sel + d); e.preventDefault(); return; }
+  }
+  /* ⚠️ THE LOCKS GO WITH THE NOTE. A step emptied of its note but still holding a filter
+     sweep is a step that does nothing and changes the sound anyway. Delete means delete. */
+  if (SEQ.mode !== "play" && (e.key === "Backspace" || e.key === "Delete")
+      && !(e.target.closest && e.target.closest(".knob,.hfader"))){
+    const st = SEQ.steps[SEQ.sel];
+    if (st){ st.on = 0; st.tie = 0; st.accent = 0; st.slide = 0; delete st.locks; }
+    selectStep(SEQ.sel + 1);
+    paintSteps(); paintLocks();
+    e.preventDefault();
+    return;
   }
 });
 

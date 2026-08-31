@@ -158,7 +158,7 @@ function makeKnob(host, d){
   el.addEventListener("dblclick", () => {
     /* in program mode the first thing a double-click undoes is the LOCK, not the value —
        otherwise there is no way to unlock a knob without also losing your patch setting */
-    if (SEQ.mode === "program"){
+    if (SEQ.mode !== "play"){
       const st = SEQ.steps[SEQ.sel];
       if (st && st.locks && Object.prototype.hasOwnProperty.call(st.locks, d.id)){
         delete st.locks[d.id];

@@ -232,7 +232,7 @@ function fader(sel, get, set, fmt, min, max, id){
   /* Double-click unlocks BEFORE it resets: otherwise there is no way to take a lock off a
      control without also losing the patch setting underneath it. PM·1's rule. */
   el.addEventListener("dblclick", () => {
-    if (id && seq.SEQ.mode === "program" && seq.unlock(id)){ paintSeqEdit(); return; }
+    if (id && seq.SEQ.mode !== "play" && seq.unlock(id)){ paintSeqEdit(); return; }
   });
   if (id) faderReg[id].paint = paintF;
   paintF();
@@ -318,9 +318,8 @@ function paintSeqEdit(){
   /* The last note played is state you cannot see anywhere else, and it decides what the next
      step you switch on becomes — so it is written down rather than left to be discovered. */
   const nx = seq.lastNote == null ? "" : "  \u00b7  " + noteName(seq.lastNote) + " goes into the next step you switch on";
-  if (seqHint) seqHint.textContent =
-      m === "program" ? "click a step, then play a note to write it \u2014 every knob you move locks to that step"
-    : m === "step"    ? "play the line in \u2014 each note fills the lit step and moves on. \u2190 \u2192 skip a step, delete empties one"
+  if (seqHint) seqHint.textContent = m !== "play"
+    ? "everything lands on the lit step \u2014 a note writes it and moves on, a knob locks to it. \u2190 \u2192 walk, delete empties note and locks"
     : (LANE_HINT[seq.SEQ.lane] || "hold a note and click a step to record it") + nx;
   paintLocked();
   grid.paint();

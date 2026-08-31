@@ -735,8 +735,7 @@ input[type="text"]::placeholder{color:#5a646a}
     <div class="patrow seqedit" data-seqonly>
       <div class="seg sm" id="seqMode" role="group" aria-label="Sequencer mode">
         <button data-p="play" class="on">Play</button>
-        <button data-p="program">Program</button>
-        <button data-p="step" title="Play the line in: each note fills the lit step and moves on">Step</button>
+        <button data-p="step" title="One lit step: a note writes it and moves on, a knob locks to it, delete empties it">Step Programming</button>
       </div>
       <div class="seg sm" id="seqLane" role="group" aria-label="Edit lane">
         <button data-l="on" class="on">Gate</button>
@@ -4136,18 +4135,23 @@ const SEQ = {
   len: spec.len || 16, rate: spec.rate || "1/16", swing: .5,
   playing: false, root: spec.root == null ? 36 : spec.root, scale: "minor",
   gate: .5, accentAmt: .3, octaves: 0,
-  /* THREE WAYS TO WRITE A LINE, because entering one by dragging every step is the slowest
-     of them and it was the only one that always worked.
+  /* TWO WAYS TO WRITE A LINE, because entering one by dragging every step is the slowest of
+     them and it was the only one that always worked.
 
-       play     clicks edit the grid — and a step you switch ON takes the note you last
-                played, so playing a pitch and tapping four steps writes four of it
-       program  a click SELECTS a step, and the next note you play and every knob you move
-                belong to that one step. It stays put: you are working ON a step
-       step     the same, but the cursor MOVES ON by itself. Play, play, play and the line
-                goes in; the arrows walk over steps you want left alone
+       play  clicks edit the grid — and a step you switch ON takes the note you last played,
+             so playing a pitch and tapping four steps writes four of it
+       step  ONE LIT STEP, and everything you do lands on it. Play a note and it is written
+             there and the cursor moves on; move a knob and it locks to the lit step; the
+             arrows walk over steps you want left alone; delete empties one and moves on
 
-     Program and Step differ in one line and the difference is the whole point of having
-     both: one is for fixing a step, the other is for writing a run of them. */
+     ⚠️ Program and Step used to be two modes and they should never have been. They differed
+     in one line — whether the cursor advanced — and everything else about them was the same
+     gesture, so choosing between them was choosing whether the OTHER half of the mode was
+     available. Notes and parameter locks belong to the same step for the same reason.
+
+     Which means the order is: land on a step, set what you want locked, play its note, and
+     it moves on. Playing first is fine too — the left arrow puts you back on what you just
+     wrote. */
   mode: "play", sel: 0,
   lane: "on"                    // on | pitch | accent | slide | tie
 };
@@ -4322,25 +4326,29 @@ function selectStep(i){ SEQ.sel = ((i % SEQ.len) + SEQ.len) % SEQ.len; }
    step it came from would be the sequencer arguing with itself. */
 function played(midi, vel){
   lastNote = midi;
-  if (SEQ.mode === "program" || SEQ.mode === "step"){
+  if (SEQ.mode !== "play"){
     setStepNote(SEQ.sel, midi, vel == null ? 100 : vel);
-    if (SEQ.mode === "step") selectStep(SEQ.sel + 1);
+    selectStep(SEQ.sel + 1);
   }
   return true;
 }
 /* Turn the step under the cursor off and move on — the rest, in a mode whose other keys all
    write something. The arrows step over what is already there; this empties it first. */
+/* ⚠️ THE LOCKS GO WITH THE NOTE. A step emptied of its note but still holding a filter
+   sweep is a step that does nothing and changes the sound anyway — invisible except as a
+   ring on a pad, and impossible to reason about later. Delete means delete. */
 function eraseAt(i){
   const st = steps[((i % SEQ.len) + SEQ.len) % SEQ.len];
   if (!st) return false;
   st.on = 0; st.tie = 0; st.accent = 0; st.slide = 0;
+  delete st.locks;
   return true;
 }
 
 /* In program mode, moving any registered control IS the lock gesture — no separate arm
    step, the same as recording a note by holding one and clicking. */
 function lock(id){
-  if (SEQ.mode !== "program" || !spec.params) return false;
+  if (SEQ.mode === "play" || !spec.params) return false;
   const st = steps[SEQ.sel];
   if (!st) return false;
   (st.locks || (st.locks = {}))[id] = spec.params[id];
@@ -4481,8 +4489,7 @@ if (root && Patchwork.onKey) Patchwork.onKey(root, "keydown", e => {
   if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "select" || tag === "textarea") return;
-  const m = seq.SEQ.mode;
-  if (m !== "program" && m !== "step") return;
+  if (seq.SEQ.mode === "play") return;
   if (e.key === "ArrowRight" || e.key === "ArrowLeft"){
     seq.selectStep(seq.SEQ.sel + (e.key === "ArrowRight" ? 1 : -1));
     if (o.onSelect) o.onSelect(seq.SEQ.sel);
@@ -4490,7 +4497,7 @@ if (root && Patchwork.onKey) Patchwork.onKey(root, "keydown", e => {
     e.preventDefault();
     return;
   }
-  if (m === "step" && (e.key === "Backspace" || e.key === "Delete")){
+  if (e.key === "Backspace" || e.key === "Delete"){
     seq.eraseAt(seq.SEQ.sel);
     seq.selectStep(seq.SEQ.sel + 1);
     if (o.onSelect) o.onSelect(seq.SEQ.sel);
@@ -4506,7 +4513,7 @@ el.addEventListener("click", e => {
 
   /* Program mode: the click SELECTS, and what you play next is written here. Every knob
      you move locks to it as well — see lock() in the sequencer. */
-  if (seq.SEQ.mode === "program" || seq.SEQ.mode === "step"){
+  if (seq.SEQ.mode !== "play"){
     seq.selectStep(i);
     if (o.onSelect) o.onSelect(i);
     paint();
@@ -5844,9 +5851,9 @@ function noteOn(midi, vel, when, forceSec){
      and never through here, so this cannot record a note the pattern played back at itself.
      It is what a step switched on in the grid becomes — see the click handler. */
   SEQ.lastNote = m;
-  if (SEQ.mode === "program" || SEQ.mode === "step"){
-    /* In program and step mode a played note WRITES to the selected step rather than
-       starting anything. You still hear it, because you are choosing a pitch by ear. */
+  if (SEQ.mode !== "play"){
+    /* In step programming a played note WRITES to the lit step rather than starting
+       anything. You still hear it, because you are choosing a pitch by ear. */
     const st = SEQ.steps[SEQ.sel];
     if (st){
       /* ⚠️ THE WHOLE HELD CHORD, not just the note that arrived. This is the gesture the
@@ -5857,13 +5864,11 @@ function noteOn(midi, vel, when, forceSec){
       const ns = heldNotes.map(h => h.midi).sort((a, b) => a - b);
       if (ns.length) writeStep(st, ns[0], ns.slice(1).map(x => x - ns[0]));
       else writeStep(st, m);
-      /* Step mode moves on by itself, which is the whole difference between the two:
-         Program is "this step, and everything I touch belongs to it"; Step is "play me the
-         line". ⚠️ IT MOVES ON WHEN YOU LET GO, not when you press — see noteOff. A step here
-         holds a whole chord, and heldNotes has already grown by the time the second note of
-         one arrives, so advancing per press put the first note on one step and the pair on
-         the next. Waiting for the release means a chord lands on one step and a run of
-         single notes still walks along at one step each. */
+      /* ⚠️ THE CURSOR MOVES ON WHEN YOU LET GO, not when you press — see noteOff. A step
+         here holds a whole chord, and heldNotes has already grown by the time the second
+         note of one arrives, so advancing per press put the first note on one step and the
+         pair on the next. Waiting for the release means a chord lands on one step and a run
+         of single notes still walks along at one step each. */
       paintSteps();
     }
   } else if (SEQ.motion !== "off" && !SEQ.playing && heldNotes.length === 1){
@@ -5915,7 +5920,7 @@ function noteOff(midi, when, forceSec){
   const i = heldNotes.findIndex(n => n.midi === m);
   if (i >= 0) heldNotes.splice(i, 1);
   /* the step cursor moves on when your hands come off, so a chord is one step */
-  if (SEQ.mode === "step" && !heldNotes.length){
+  if (SEQ.mode !== "play" && !heldNotes.length){
     selectStep(SEQ.sel + 1);
     paintSteps();
   }
@@ -6457,7 +6462,7 @@ function makeKnob(host, d){
   el.addEventListener("dblclick", () => {
     /* in program mode the first thing a double-click undoes is the LOCK, not the value —
        otherwise there is no way to unlock a knob without also losing your patch setting */
-    if (SEQ.mode === "program"){
+    if (SEQ.mode !== "play"){
       const st = SEQ.steps[SEQ.sel];
       if (st && st.locks && Object.prototype.hasOwnProperty.call(st.locks, d.id)){
         delete st.locks[d.id];
@@ -6791,9 +6796,8 @@ segPaint.seqMode = seg("#seqMode","p", () => SEQ.mode, v => {
      you cannot see anywhere else, so it is written down rather than left to be discovered. */
   const nx = SEQ.lastNote == null ? ""
            : "  ·  " + noteLabel(SEQ.lastNote) + " goes into the next step you switch on";
-  seqHint.textContent =
-      v === "program" ? "click a step, then play a note to write it — every knob you move locks to that step"
-    : v === "step"    ? "play the line in — each note fills the lit step and moves on. ← → skip a step"
+  seqHint.textContent = v !== "play"
+    ? "everything lands on the lit step — a note writes it and moves on, a knob locks to it. ← → walk, delete empties note and locks"
     : (LANE_HINT[SEQ.lane] || "") + nx;
 });
 /* declared before it is assigned: a paint can run while this file is still being
@@ -7215,7 +7219,7 @@ function paintMeta(){
     P.gmode === "off" ? "no glide" : P.gmode,
     SEQ.motion === "off" ? "free" : SEQ.motion
   ];
-  if (SEQ.mode !== "play") bits.push(SEQ.mode.toUpperCase() + " step " + (SEQ.sel + 1));
+  if (SEQ.mode !== "play") bits.push("STEP " + (SEQ.sel + 1));
   voiceMeta.textContent = bits.join(" · ");
 }
 function paint(){
@@ -7300,6 +7304,17 @@ onKey("keydown", e => {
     const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1
             : e.key === "ArrowDown" ? 8 : e.key === "ArrowUp" ? -8 : 0;
     if (d){ selectStep(SEQ.sel + d); e.preventDefault(); return; }
+  }
+  /* ⚠️ THE LOCKS GO WITH THE NOTE. A step emptied of its note but still holding a filter
+     sweep is a step that does nothing and changes the sound anyway. Delete means delete. */
+  if (SEQ.mode !== "play" && (e.key === "Backspace" || e.key === "Delete")
+      && !(e.target.closest && e.target.closest(".knob,.hfader"))){
+    const st = SEQ.steps[SEQ.sel];
+    if (st){ st.on = 0; st.tie = 0; st.accent = 0; st.slide = 0; delete st.locks; }
+    selectStep(SEQ.sel + 1);
+    paintSteps(); paintLocks();
+    e.preventDefault();
+    return;
   }
 });
 
