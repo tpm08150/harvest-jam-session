@@ -401,8 +401,15 @@ body.living .st-seg#stFaces{display:none}
   user-select:none;-webkit-user-select:none;touch-action:none;
 }
 .st-fx-name{font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+/* the number the arrows move, on the pad rather than in a readout somewhere else: this is
+   played while looking at the launcher, and a value you have to go and find is not a value */
+.st-fx-val{font-family:"DM Mono";font-size:9.5px;color:var(--mint);letter-spacing:.04em}
 .st-fx-key{font-family:"DM Mono";font-size:8.5px;color:var(--silk-dim);letter-spacing:.06em}
 .st-fx-pad:hover{border-color:#5d686f}
+/* which pad the arrows are talking to — a ring rather than a fill, because the fill already
+   means "this one is down" and the two are independent */
+.st-fx-pad.st-focus{border-color:var(--mint)}
+.st-fx-pad.st-focus .st-fx-key{color:var(--mint)}
 .st-fx-pad:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
 /* down: lit, and pressed INTO the panel — the 2px shadow underneath goes away and the pad
    moves down by the same amount, so the travel is real rather than a colour change */
@@ -410,11 +417,14 @@ body.living .st-seg#stFaces{display:none}
   background:linear-gradient(180deg,#5fd8b4,var(--mint));color:#06231a;border-color:#2f8f74;
   box-shadow:0 1px 3px rgba(0,0,0,.5) inset;transform:translateY(2px);
 }
-.st-fx-pad.st-on .st-fx-key{color:#06231a;opacity:.55}
+.st-fx-pad.st-on .st-fx-key,.st-fx-pad.st-on .st-fx-val{color:#06231a;opacity:.72}
 @media (prefers-reduced-motion:reduce){ .st-fx-pad.st-on{transform:none} }
 
-.st-fx-side{display:flex;align-items:center;gap:10px}
-.st-fx-side .st-seg{margin-left:0}
+.st-fx-side{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.st-fx-hint{
+  font-family:"DM Mono";font-size:9.5px;color:var(--silk-dim);letter-spacing:.04em;
+  max-width:190px;line-height:1.5;
+}
 .st-fx-latch{
   font-family:"Saira Semi Condensed",system-ui,sans-serif;
   font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;

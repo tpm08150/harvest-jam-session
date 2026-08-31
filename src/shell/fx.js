@@ -19,8 +19,75 @@
 Patchwork.fx = (() => {
 "use strict";
 
-const DIVS = {"1/4": 1, "1/8": .5, "1/16": .25, "1/32": .125};   // in beats
-let div = "1/16";
+/* ---- one parameter per pad ----
+   ⚠️ A SHARED DIVISION WAS THE WRONG SHAPE. Stutter, Gate and Reverse all read one global
+   size, so choosing a rate for the chop chose it for the repeat as well — and the interesting
+   live move is exactly the one that was unavailable: a gate at 1/16 under a stutter at 1/4.
+   Each pad owns its own now, and the segment that used to set the global is gone rather than
+   left there meaning something subtly different.
+
+   Every pad has ONE number, moved by the left and right arrows and shown on the pad. One,
+   not several, because this is played with a hand on the number row while looking at
+   something else; a pad with three parameters is a menu. */
+const DIVS = ["1/2", "1/4", "1/8", "1/16", "1/32"];
+const DIVBEATS = {"1/2": 2, "1/4": 1, "1/8": .5, "1/16": .25, "1/32": .125};
+
+const hz  = v => (v >= 1000 ? (v / 1000).toFixed(1) + "k" : Math.round(v) + "") + "Hz";
+const pct = v => Math.round(v * 100) + "%";
+const ms  = v => (v < 1 ? Math.round(v * 1000) + "ms" : v.toFixed(2) + "s");
+
+/* `mul` steps geometrically and `add` arithmetically — a filter corner wants octaves and a
+   feedback amount wants percentage points. `div` is an index into DIVS. */
+const P = {
+  lp:      {v: 200,  lo: 60,  hi: 4000, mul: 1.4,  fmt: hz},
+  hp:      {v: 1600, lo: 150, hi: 6000, mul: 1.4,  fmt: hz},
+  stutter: {div: 3},
+  reverse: {div: 3},
+  gate:    {div: 3},
+  pump:    {div: 1},
+  delay:   {v: .45, lo: .1,  hi: .92, add: .07, fmt: pct},
+  space:   {v: .55, lo: .1,  hi: 1,   add: .1,  fmt: pct},
+  crush:   {v: 5,   lo: 1,   hi: 10,  add: 1,   fmt: v => v + " bit"},
+  stop:    {v: .9,  lo: .2,  hi: 2.4, mul: 1.35, fmt: ms}
+};
+const val = id => (P[id] && P[id].v) || 0;
+function paramText(id){
+  const p = P[id];
+  if (!p) return "";
+  return p.div != null ? DIVS[p.div] : p.fmt(p.v);
+}
+
+/* The pad the arrows are talking to: whichever was touched last. Nothing to select and
+   nothing to remember — the thing you just played is the thing you are adjusting. */
+let focus = null;
+
+/* ⚠️ A NUDGE UNDER A HELD PAD HAS TO LAND ON THE SOUND, not just on the number. Sweeping a
+   stutter from 1/4 to 1/32 while it repeats is the whole reason the arrows are here; a value
+   that only took effect on the next press would make them a settings screen. */
+function nudge(dir){
+  const id = focus, p = P[id];
+  if (!p || !dir) return false;
+  if (p.div != null) p.div = clamp(p.div + dir, 0, DIVS.length - 1);
+  else if (p.mul) p.v = clamp(p.v * (dir > 0 ? p.mul : 1 / p.mul), p.lo, p.hi);
+  else p.v = clamp(p.v + dir * p.add, p.lo, p.hi);
+  if (p.add) p.v = Math.round(p.v * 1000) / 1000;
+  applyLive(id);
+  notify();
+  return true;
+}
+function applyLive(id){
+  if (!chain || !on.has(id)) return;
+  const c = chain, t = now();
+  if (id === "lp") sweep(c.lp.frequency, P.lp.v, .06);
+  else if (id === "hp") sweep(c.hp.frequency, P.hp.v, .06);
+  else if (id === "stutter") c.stDelay.delayTime.setValueAtTime(clamp(divSeconds(id), .01, 1.9), t);
+  else if (id === "delay") c.dlDelay.delayTime.setValueAtTime(clamp(divSeconds(id), .01, 1.9), t);
+  else if (id === "space") set(c.spSend.gain, P.space.v, FADE);
+  else if (id === "crush") c.shaper.curve = crushCurve(P.crush.v);
+  else if (id === "reverse" && c.revNode)
+    c.revNode.port.postMessage({op: "on", len: clamp(divSeconds(id), .02, 3.5), at: null});
+  else if (id === "gate" || id === "pump"){ stopChop(id); startChop(id); }
+}
 
 let ctx = null, chain = null;
 const on = new Set();               // which pads are down
@@ -39,7 +106,11 @@ const offline = () => nowAt != null;
 
 const FADE = .004;                  // the crossfade every engage and release uses
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-function divSeconds(){ return (DIVS[div] || .25) * Patchwork.clock.beatSeconds(); }
+function divSeconds(id){
+  const p = P[id];
+  const beats = p && p.div != null ? DIVBEATS[DIVS[p.div]] : .25;
+  return beats * Patchwork.clock.beatSeconds();
+}
 /* A beat to sweep in and a beat to sweep back, so the filter is a gesture you hear travelling
    rather than a switch. Tempo-relative because that is what makes it land musically, clamped
    so it is neither a click at 240 nor a wait at 40. */
@@ -138,13 +209,19 @@ function buildInto(useCtx){
   put(tapeGain.gain, 1);
   afterSt.connect(tapeDelay); tapeDelay.connect(tapeGain);
 
-  /* ---- gate ----
-     Scheduled against the shared grid rather than run off an oscillator, so the chop lands
-     on the beat instead of wherever the LFO happened to be when you pressed. Refilled by a
-     timer while it is held — see startGate(). */
-  const gate = g();
-  put(gate.gain, 1);
-  tapeGain.connect(gate);
+  /* ---- gate, and pump ----
+     Two rhythmic amplitude effects that are not the same effect. Gate is a chop: on, off,
+     on, off, and what you hear between the chops is nothing. Pump is a duck with a fast fall
+     and a long recovery — the sidechain move, where nothing is ever silent and everything
+     breathes on the beat. Same scheduling, different shape, separate nodes so both can be
+     held at once.
+
+     Scheduled against the shared grid rather than run off an oscillator, so a chop lands on
+     the beat instead of wherever the LFO happened to be when you pressed. Refilled by a
+     timer while held — see startChop(). */
+  const gate = g(), pump = g();
+  put(gate.gain, 1); put(pump.gain, 1);
+  tapeGain.connect(gate); gate.connect(pump);
 
   /* ---- crush ----
      Quantising the sample values, with no oversampling, so the aliasing is part of it. */
@@ -152,7 +229,7 @@ function buildInto(useCtx){
   shaper.curve = crushCurve(5);
   shaper.oversample = "none";
   put(crushDry.gain, 1); put(crushWet.gain, 0);
-  gate.connect(crushDry); gate.connect(shaper); shaper.connect(crushWet);
+  pump.connect(crushDry); pump.connect(shaper); shaper.connect(crushWet);
   const afterCrush = g();
   crushDry.connect(afterCrush); crushWet.connect(afterCrush);
 
@@ -161,9 +238,19 @@ function buildInto(useCtx){
      the tail carrying on after you let go is the entire gesture. */
   const dlSend = g(), dlFb = g();
   const dlDelay = ctx.createDelay(2);
-  put(dlSend.gain, 0); put(dlFb.gain, .45);
+  put(dlSend.gain, 0); put(dlFb.gain, P.delay.v);
   afterCrush.connect(dlSend); dlSend.connect(dlDelay);
   dlDelay.connect(dlFb); dlFb.connect(dlDelay);
+
+  /* ---- space ----
+     A throw, on the same terms as the delay: the send closes when you let go and the tail is
+     left to run out on its own, because a reverb that stopped dead the moment you released
+     would be a gate rather than a room. The impulse is generated here for the same reason
+     DR·1 and TS·1 generate theirs — no samples anywhere in this repo. */
+  const spSend = g(), spVerb = ctx.createConvolver();
+  spVerb.buffer = spaceIR(ctx);
+  put(spSend.gain, 0);
+  afterCrush.connect(spSend); spSend.connect(spVerb);
 
   /* ---- the filter ----
      TWO filters, always in the path and both transparent when open, rather than one whose
@@ -173,13 +260,13 @@ function buildInto(useCtx){
   const lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter();
   lp.type = "lowpass";  put(lp.frequency, 20000); lp.Q.value = 1.0;
   hp.type = "highpass"; put(hp.frequency, 20);    hp.Q.value = .9;
-  afterCrush.connect(lp); dlDelay.connect(lp);
+  afterCrush.connect(lp); dlDelay.connect(lp); spVerb.connect(lp);
   lp.connect(hp); hp.connect(out);
 
   chain = {input, out, stIn, stDry, stWet, stFb, stDelay,
            revTap, revWet, revNode: null,
-           tapeDelay, tapeGain, gate, crushWet, crushDry, shaper,
-           dlSend, dlDelay, dlFb, lp, hp};
+           tapeDelay, tapeGain, gate, pump, crushWet, crushDry, shaper,
+           dlSend, dlDelay, dlFb, spSend, spVerb, lp, hp};
   chain.revReady = loadReverse(ctx, chain);
   return chain;
 }
@@ -286,10 +373,24 @@ async function loadReverse(c, ch){
 function dryLevel(){ return (on.has("stutter") || on.has("reverse")) ? 0 : 1; }
 
 function engageReverse(c, t){
-  c.revNode.port.postMessage({op: "on", len: clamp(divSeconds(), .02, 3.5),
+  c.revNode.port.postMessage({op: "on", len: clamp(divSeconds("reverse"), .02, 3.5),
                               at: offline() ? t : null});
   set(c.revWet.gain, 1, FADE);
   set(c.stDry.gain, dryLevel(), FADE);
+}
+
+/* A hall rather than the plate DR·1's gated reverb uses: longer, softer at the front, and
+   nothing chopping it — this one is for throwing a snare into and letting it ring. */
+function spaceIR(c){
+  const secs = 3.2, rate = c.sampleRate, n = Math.floor(secs * rate);
+  const ir = c.createBuffer(2, n, rate);
+  const build = Math.max(1, rate * .02);
+  for (let ch = 0; ch < 2; ch++){
+    const d = ir.getChannelData(ch);
+    for (let i = 0; i < n; i++)
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-3.4 * (i / n)) * Math.min(1, i / build);
+  }
+  return ir;
 }
 
 /* bits of resolution, as a lookup the shaper reads per sample */
@@ -302,63 +403,78 @@ function crushCurve(bits){
   return c;
 }
 
-/* ---- the gate's chop ----
-   Aligned to the grid origin, so pressing it mid-bar still lands the chops on the division
-   and not on your reaction time. Scheduled a third of a second ahead and refilled on a
-   timer: an AudioParam has no loop, and the alternative — one long curve written on engage
-   — cannot follow a tempo change or stop cleanly when you let go. */
-let gateTimer = null, gateFilled = 0;
-function fillGate(until){
-  const c = chain, t = now(), step = divSeconds();
-  if (!(step > 0)) return;
+/* ---- the two rhythmic ones ----
+   Aligned to the grid origin, so pressing mid-bar still lands on the division and not on
+   your reaction time. Written a third of a second ahead and refilled on a timer: an
+   AudioParam has no loop, and the alternative — one long curve written on engage — cannot
+   follow a tempo change or stop cleanly when you let go.
+
+   One scheduler, two shapes. Gate is a chop and Pump is a duck; they differ in four lines
+   and in nothing else, so they are not two copies of this.
+
+   ⚠️ PUMP RECOVERS EXPONENTIALLY, which is the whole difference between a duck and a
+   triangle wave. A compressor releasing is a decaying exponential, and a linear climb back
+   to unity sounds mechanical in a way you notice immediately at a quarter note. */
+const PUMP_DEPTH = .16;
+const chops = {gate: {timer: null, filled: 0}, pump: {timer: null, filled: 0}};
+
+function fillChop(id, until){
+  const st = chops[id], t = now(), step = divSeconds(id);
+  if (!(step > 0) || !chain) return;
   /* offline there is no shared grid to align to — the render's own zero is the only origin
      there is, and aligning to a live clock's would put every chop outside the buffer */
   const origin = offline() ? null : Patchwork.clock.origin;
   const base = origin == null ? t : origin;
-  let k = Math.ceil((Math.max(t, gateFilled) - base) / step);
+  let k = Math.ceil((Math.max(t, st.filled) - base) / step);
   const stop = until == null ? t + .3 : until;
-  const p = c.gate.gain;
+  const p = chain[id].gain;
   for (let n = 0; n < 4096; n++){
     const at = base + k * step;
     if (at > stop) break;
     if (at >= t){
-      p.setValueAtTime(1, at);
-      p.linearRampToValueAtTime(1, at + .002);
-      p.setValueAtTime(1, at + step * .45);
-      p.linearRampToValueAtTime(0, at + step * .45 + .004);
+      if (id === "gate"){
+        p.setValueAtTime(1, at);
+        p.setValueAtTime(1, at + step * .45);
+        p.linearRampToValueAtTime(0, at + step * .45 + .004);
+      } else {
+        p.setValueAtTime(1, at);
+        p.linearRampToValueAtTime(PUMP_DEPTH, at + .012);
+        p.exponentialRampToValueAtTime(1, at + step * .92);
+      }
     }
-    gateFilled = at + step;
+    st.filled = at + step;
     k++;
   }
 }
-function startGate(until){
-  const p = chain.gate.gain;
-  p.cancelScheduledValues(now());
-  gateFilled = 0;
-  fillGate(until);
-  /* the timer is the live half: an AudioParam has no loop, so the chop is topped up as it
-     goes. Offline the whole render is written in one pass and there is nothing to top up. */
-  if (until == null) gateTimer = setInterval(() => fillGate(), 120);
+function startChop(id, until){
+  const st = chops[id];
+  chain[id].gain.cancelScheduledValues(now());
+  st.filled = 0;
+  fillChop(id, until);
+  /* the timer is the live half. Offline the whole render is written in one pass and there
+     is nothing to top up. */
+  if (until == null) st.timer = setInterval(() => fillChop(id), 120);
 }
-function stopGate(){
-  if (gateTimer) clearInterval(gateTimer);
-  gateTimer = null;
-  set(chain.gate.gain, 1, FADE);
+function stopChop(id){
+  const st = chops[id];
+  if (st.timer) clearInterval(st.timer);
+  st.timer = null;
+  if (chain) set(chain[id].gain, 1, FADE);
 }
 
 /* ---- the pads ---- */
-let tapeAt = 0;
-const TAPE_T = .9;                  // how long the machine takes to stop
+let tapeAt = 0, tapeT = .9;   // the machine's stopping time, and the one currently running
 
 function press(id){
   if (on.has(id)) return;
   if (!offline()){ build(); Patchwork.audio.resume(); }
   const c = chain, t = now();
   on.add(id);
+  if (P[id]) focus = id;            // the arrows follow the thing you just played
   if (id === "stutter"){
     /* the read head moves while the wet side is still silent, so the jump is not heard */
     c.stDelay.delayTime.cancelScheduledValues(t);
-    c.stDelay.delayTime.setValueAtTime(clamp(divSeconds(), .01, 1.9), t);
+    c.stDelay.delayTime.setValueAtTime(clamp(divSeconds(id), .01, 1.9), t);
     set(c.stFb.gain, 1, 0);
     set(c.stIn.gain, 0, 0);
     set(c.stWet.gain, 1, FADE);
@@ -375,37 +491,41 @@ function press(id){
       if (chain === c && c.revNode && on.has("reverse")) engageReverse(c, now());
     });
   } else if (id === "stop"){
-    tapeAt = t;
+    tapeAt = t; tapeT = P.stop.v;
     const n = 64, curve = new Float32Array(n);
     for (let i = 0; i < n; i++){
-      const x = (i / (n - 1)) * TAPE_T;
-      curve[i] = (x * x) / (2 * TAPE_T);
+      const x = (i / (n - 1)) * tapeT;
+      curve[i] = (x * x) / (2 * tapeT);
     }
     const p = c.tapeDelay.delayTime;
     p.cancelScheduledValues(t);
-    p.setValueCurveAtTime(curve, t, TAPE_T);
-    held.set(p, TAPE_T / 2);
+    p.setValueCurveAtTime(curve, t, tapeT);
+    held.set(p, tapeT / 2);
     /* down at the end rather than throughout: a machine losing speed is still loud until
        it is nearly stopped, and fading from the start just sounds like a fade */
     const gp = c.tapeGain.gain;
     gp.cancelScheduledValues(t);
     gp.setValueAtTime(1, t);
-    gp.setValueAtTime(1, t + TAPE_T * .6);
-    gp.linearRampToValueAtTime(0, t + TAPE_T);
+    gp.setValueAtTime(1, t + tapeT * .6);
+    gp.linearRampToValueAtTime(0, t + tapeT);
     /* written down so releasing mid-fall knows how loud it still is — see valueOf() */
-    mark(gp, 1, 0, t + TAPE_T * .6, TAPE_T * .4);
-  } else if (id === "gate"){
-    startGate(offline() ? t + RENDER_TAIL : null);
+    mark(gp, 1, 0, t + tapeT * .6, tapeT * .4);
+  } else if (id === "gate" || id === "pump"){
+    startChop(id, offline() ? t + RENDER_TAIL : null);
   } else if (id === "crush"){
+    c.shaper.curve = crushCurve(P.crush.v);
     set(c.crushWet.gain, 1, FADE);
     set(c.crushDry.gain, 0, FADE);
   } else if (id === "delay"){
-    c.dlDelay.delayTime.setValueAtTime(clamp(divSeconds(), .01, 1.9), t);
+    c.dlDelay.delayTime.setValueAtTime(clamp(divSeconds(id), .01, 1.9), t);
+    set(c.dlFb.gain, P.delay.v, FADE);
     set(c.dlSend.gain, .8, FADE);
+  } else if (id === "space"){
+    set(c.spSend.gain, P.space.v, FADE);
   } else if (id === "lp"){
-    sweep(c.lp.frequency, 200, sweepSeconds());
+    sweep(c.lp.frequency, P.lp.v, sweepSeconds());
   } else if (id === "hp"){
-    sweep(c.hp.frequency, 1600, sweepSeconds());
+    sweep(c.hp.frequency, P.hp.v, sweepSeconds());
   }
   notify();
 }
@@ -434,8 +554,8 @@ function release(id){
     /* ⚠️ How far the read head actually got, from elapsed time rather than off delayTime —
        which reports the last RENDERED value and is a ghost the moment a branch goes quiet.
        Letting go early has to spin up from where it was, not from the bottom. */
-    const e = Math.min(TAPE_T, t - tapeAt);
-    const d = (e * e) / (2 * TAPE_T);
+    const e = Math.min(tapeT, t - tapeAt);
+    const d = (e * e) / (2 * tapeT);
     /* ⚠️ THE SPIN-UP IS PACED BY HOW FAR IT FELL, not by a fixed time. Closing a 450 ms
        offset in 220 ms means playing at three times speed to catch up, which is a chipmunk
        zip rather than a machine coming back — and it was over before you could hear what it
@@ -450,8 +570,11 @@ function release(id){
     /* and the level comes back from wherever the fall had got to, over the same glide, so
        the machine is audible while it picks up speed instead of snapping on at the end */
     set(c.tapeGain.gain, 1, Math.min(spin, .35));
-  } else if (id === "gate"){
-    stopGate();
+  } else if (id === "gate" || id === "pump"){
+    stopChop(id);
+  } else if (id === "space"){
+    /* the send closes and the room is left ringing — the tail IS the throw */
+    set(c.spSend.gain, 0, FADE);
   } else if (id === "crush"){
     set(c.crushWet.gain, 0, FADE);
     set(c.crushDry.gain, 1, FADE);
@@ -468,19 +591,8 @@ function release(id){
 
 function releaseAll(){ [...on].forEach(release); }
 
-function setDiv(v){
-  if (!DIVS[v]) return;
-  div = v;
-  /* a size changed under a held pad follows it, which is half the fun of the size buttons */
-  if (chain && on.has("stutter"))
-    chain.stDelay.delayTime.setValueAtTime(clamp(divSeconds(), .01, 1.9), now());
-  if (chain && on.has("delay"))
-    chain.dlDelay.delayTime.setValueAtTime(clamp(divSeconds(), .01, 1.9), now());
-  if (chain && on.has("reverse") && chain.revNode)
-    chain.revNode.port.postMessage({op: "on", len: clamp(divSeconds(), .02, 3.5), at: null});
-  if (on.has("gate")){ stopGate(); startGate(); }
-  notify();
-}
+/* Which pad the arrows are talking to, when a pointer rather than a keypress chose it. */
+function setFocus(id){ if (P[id]){ focus = id; notify(); } }
 
 /* ---- the harness ----
    A test hook, not a feature, the same one every instrument in this repo carries. Renders
@@ -493,10 +605,12 @@ function setDiv(v){
 const RENDER_TAIL = 30;             // how far ahead a gate is written when there is no timer
 async function render(o){
   const dur = o.dur || 3, rate = o.rate || 48000;
-  const saved = {ctx, chain, on: [...on], gateTimer, held: new Map(held), nowAt};
+  const saved = {ctx, chain, on: [...on], held: new Map(held), nowAt,
+                 chops: {gate: chops.gate.timer, pump: chops.pump.timer}};
   const off = new OfflineAudioContext(2, Math.ceil(rate * dur), rate);
   try{
-    ctx = null; chain = null; on.clear(); held.clear(); gateTimer = null;
+    ctx = null; chain = null; on.clear(); held.clear();
+    chops.gate.timer = null; chops.pump.timer = null;
     buildInto(off);
     chain.out.connect(off.destination);
     /* the worklet loads asynchronously and a render that did not wait would measure the
@@ -511,8 +625,10 @@ async function render(o){
     nowAt = null;
     return await off.startRendering();
   } finally {
-    if (gateTimer) clearInterval(gateTimer);
-    ctx = saved.ctx; chain = saved.chain; gateTimer = saved.gateTimer; nowAt = saved.nowAt;
+    if (chops.gate.timer) clearInterval(chops.gate.timer);
+    if (chops.pump.timer) clearInterval(chops.pump.timer);
+    ctx = saved.ctx; chain = saved.chain; nowAt = saved.nowAt;
+    chops.gate.timer = saved.chops.gate; chops.pump.timer = saved.chops.pump;
     on.clear(); saved.on.forEach(x => on.add(x));
     held.clear(); saved.held.forEach((v, k) => held.set(k, v));
   }
@@ -527,10 +643,9 @@ window.__fx = {render, get chain(){ return chain; }, get on(){ return new Set(on
    context here is a gesture rather than an autoplay attempt. */
 function prime(){ build(); return !!chain; }
 
-return {press, release, releaseAll, setDiv, render, prime,
+return {press, release, releaseAll, render, prime, nudge, setFocus, paramText,
         onChange: fn => subs.push(fn),
         active: id => on.has(id),
-        get div(){ return div; },
-        get divs(){ return Object.keys(DIVS); },
+        get focus(){ return focus; },
         get any(){ return on.size > 0; }};
 })();

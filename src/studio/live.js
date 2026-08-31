@@ -24,18 +24,20 @@ if (!live || !window.Patchwork || !Patchwork.record) return;
    The number row does the same thing, because the interesting live gesture is one hand on
    the launcher and one on the effects, and a mouse can only be in one place. */
 const FX = [
-  {id: "lp",      name: "LP",      hint: "Sweep the top off"},
-  {id: "hp",      name: "HP",      hint: "Sweep the bottom out"},
-  {id: "stutter", name: "Stutter", hint: "Repeat the last division"},
-  {id: "reverse", name: "Reverse", hint: "Play the last division backwards"},
-  {id: "gate",    name: "Gate",    hint: "Chop on the grid"},
-  {id: "delay",   name: "Delay",   hint: "Throw — the tail carries on"},
-  {id: "crush",   name: "Crush",   hint: "Quantise the samples"},
-  {id: "stop",    name: "Stop",    hint: "Tape stop, and spin back up"}
+  {id: "lp",      name: "LP",      hint: "how far down the top comes off"},
+  {id: "hp",      name: "HP",      hint: "how far up the bottom goes"},
+  {id: "stutter", name: "Stutter", hint: "how long a slice repeats"},
+  {id: "reverse", name: "Reverse", hint: "how long a slice plays backwards"},
+  {id: "gate",    name: "Gate",    hint: "how fast it chops"},
+  {id: "pump",    name: "Pump",    hint: "how fast it breathes"},
+  {id: "delay",   name: "Delay",   hint: "how much it feeds back"},
+  {id: "space",   name: "Space",   hint: "how much goes to the room"},
+  {id: "crush",   name: "Crush",   hint: "how many bits are left"},
+  {id: "stop",    name: "Stop",    hint: "how long the machine takes to stop"}
 ];
 const fxPads = document.querySelector("#stFxPads");
-const fxDiv = document.querySelector("#stFxDiv");
 const fxLatch = document.querySelector("#stFxLatch");
+const fxHint = document.querySelector("#stFxHint");
 let latched = false;
 
 function buildFx(){
@@ -45,28 +47,31 @@ function buildFx(){
     const b = document.createElement("button");
     b.className = "st-fx-pad";
     b.dataset.fx = f.id;
-    b.title = f.hint + " — hold, or hold " + (i + 1);
-    b.innerHTML = '<span class="st-fx-name"></span><span class="st-fx-key"></span>';
+    /* 1-9 then 0, which is where the tenth key is on the row */
+    b.dataset.key = String((i + 1) % 10);
+    b.title = f.name + " — " + f.hint + ". Hold, or hold " + b.dataset.key +
+              ". Arrows or the wheel move its number.";
+    b.innerHTML = '<span class="st-fx-name"></span><span class="st-fx-val"></span>' +
+                  '<span class="st-fx-key"></span>';
     b.querySelector(".st-fx-name").textContent = f.name;
-    b.querySelector(".st-fx-key").textContent = String(i + 1);
+    b.querySelector(".st-fx-key").textContent = b.dataset.key;
     fxPads.appendChild(b);
-  });
-  fxDiv.textContent = "";
-  Patchwork.fx.divs.forEach(d => {
-    const b = document.createElement("button");
-    b.dataset.d = d; b.textContent = d;
-    fxDiv.appendChild(b);
   });
   paintFx();
 }
 function paintFx(){
   if (!fxPads) return;
-  fxPads.querySelectorAll(".st-fx-pad").forEach(b =>
-    b.classList.toggle("st-on", Patchwork.fx.active(b.dataset.fx)));
-  fxDiv.querySelectorAll("button").forEach(b =>
-    b.classList.toggle("st-sel", b.dataset.d === Patchwork.fx.div));
+  const focus = Patchwork.fx.focus;
+  fxPads.querySelectorAll(".st-fx-pad").forEach(b => {
+    const id = b.dataset.fx;
+    b.classList.toggle("st-on", Patchwork.fx.active(id));
+    b.classList.toggle("st-focus", id === focus);
+    b.querySelector(".st-fx-val").textContent = Patchwork.fx.paramText(id);
+  });
   fxLatch.classList.toggle("st-on", latched);
   fxLatch.setAttribute("aria-pressed", latched ? "true" : "false");
+  const f = FX.find(x => x.id === focus);
+  fxHint.textContent = f ? "\u2190 \u2192  " + f.name + " \u00b7 " + f.hint : "";
 }
 /* Latched, a press is a toggle; held, it is a press. One function so the pointer and the
    number row cannot end up with different ideas about which. */
@@ -83,6 +88,15 @@ if (fxPads){
     fxDown(b.dataset.fx);
     e.preventDefault();
   });
+  /* The wheel is the pointer's arrow keys. Over a pad it moves that pad's number and takes
+     the focus with it, so reaching for one with the mouse and then reaching for the arrows
+     carries on where you left off. */
+  fxPads.addEventListener("wheel", e => {
+    const b = e.target.closest(".st-fx-pad"); if (!b) return;
+    Patchwork.fx.setFocus(b.dataset.fx);
+    Patchwork.fx.nudge(e.deltaY < 0 ? 1 : -1);
+    e.preventDefault();
+  }, {passive: false});
   /* ⚠️ RELEASED FROM THE WINDOW, not from the pad. A pad stuck down is an effect you cannot
      turn off, which is the worst failure available to this control — and every way of
      letting go that does not end in a pointerup ON the pad leads there: dragging off it,
@@ -92,10 +106,6 @@ if (fxPads){
   window.addEventListener("pointercancel", letGo);
   window.addEventListener("blur", letGo);
 
-  fxDiv.addEventListener("click", e => {
-    const b = e.target.closest("button"); if (!b) return;
-    Patchwork.fx.setDiv(b.dataset.d);
-  });
   fxLatch.addEventListener("click", () => {
     latched = !latched;
     if (!latched) Patchwork.fx.releaseAll();
@@ -109,19 +119,30 @@ if (fxPads){
     const t = (e.target.tagName || "").toLowerCase();
     return t === "input" || t === "select" || t === "textarea";
   };
+  const mine = e => !(live.hidden || e.metaKey || e.ctrlKey || e.altKey || typing(e));
   const keyFx = e => {
-    if (live.hidden || e.metaKey || e.ctrlKey || e.altKey || typing(e)) return null;
-    const n = parseInt(e.key, 10);
-    return (n >= 1 && n <= FX.length) ? FX[n - 1].id : null;
+    if (!mine(e)) return null;
+    const f = FX.find((x, i) => String((i + 1) % 10) === e.key);
+    return f ? f.id : null;
   };
+  /* ⚠️ CAPTURING, and that is not a detail. shell/keys.js takes the left and right arrows to
+     move an instrument's octave, and its listener is installed by host.js at load — earlier
+     than this one, so in the bubble phase it would win. A capturing listener on document runs
+     before every bubble listener on it, and preventDefault here is what keys.js checks for
+     before it does anything. On the live page an octave is the wrong thing for an arrow to
+     mean anyway: you cannot see the keyboard it would be moving. */
   document.addEventListener("keydown", e => {
+    if (mine(e) && (e.key === "ArrowLeft" || e.key === "ArrowRight")){
+      if (Patchwork.fx.nudge(e.key === "ArrowRight" ? 1 : -1)) e.preventDefault();
+      return;
+    }
     const id = keyFx(e); if (!id || e.repeat) return;
     fxDown(id); e.preventDefault();
-  });
+  }, true);
   document.addEventListener("keyup", e => {
     const id = keyFx(e); if (!id) return;
     fxUp(id);
-  });
+  }, true);
   Patchwork.fx.onChange(paintFx);
   buildFx();
 }
