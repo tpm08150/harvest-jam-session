@@ -65,9 +65,15 @@ function audition(id){
 }
 
 /* ---- painting the grid ----
-   A click cycles off → on → accent → off. Three states on one control, because a separate
-   accent mode means holding a modifier to program the thing you most want to program — the
-   downbeat of a kick is accented nearly every time.
+   ⚠️ WHAT A PRESS WRITES IS A SETTING, not a cycle. It used to be off → on → accent → off on
+   the one control, which is elegant right up to the moment you want a step gone and the only
+   route there is through accenting it first. Two presses to undo one is the wrong shape for
+   the gesture you make most often with a pattern running. Step turns a step on and off;
+   Accent writes the accent. See SEQ.write.
+
+   The cycle's original argument still stands and is why this is a toggle rather than a
+   modifier: the downbeat of a kick is accented nearly every time, and holding shift to
+   program the thing you program most is worse than pressing a button once and drawing.
 
    ⚠️ A DRAG PAINTS WHATEVER THE FIRST PAD BECAME. It falls out of that cycle rather than
    being bolted on beside it: press an empty step and you are drawing steps, press a lit one
@@ -120,6 +126,15 @@ function padAt(x, y){
   return p && !p.hidden && lanesEl.contains(p) ? p : null;
 }
 
+/* One place, so the press, the drag and the Enter key cannot disagree about what a pad
+   becomes. Accent on an empty step writes an accented step rather than nothing: you are
+   asking for a loud hit there, and making you draw it twice would be the two presses this
+   whole control exists to remove. */
+function nextValue(v){
+  if (SEQ.write === "accent") return v === 2 ? 1 : 2;
+  return v ? 0 : 1;
+}
+
 function selectLane(id){
   SEQ.lane = id;
   $$(".lane-name").forEach(x => x.classList.toggle("sel", x.dataset.v === id));
@@ -135,7 +150,7 @@ lanesEl.addEventListener("pointerdown", e => {
   if (SEQ.mode === "program"){
     SEQ.sel = i;
   } else {
-    paintVal = (steps[id][i] + 1) % 3;
+    paintVal = nextValue(steps[id][i]);
     painted = new Set([id + ":" + i]);
     lastPad = {id, i};
     steps[id][i] = paintVal;
@@ -195,7 +210,7 @@ lanesEl.addEventListener("click", e => {
   if (e.detail > 0) return;
   const id = pad.dataset.v, i = +pad.dataset.i;
   if (SEQ.mode === "program") SEQ.sel = i;
-  else steps[id][i] = (steps[id][i] + 1) % 3;
+  else steps[id][i] = nextValue(steps[id][i]);
   selectLane(id);
   paintPads();
   paintLocks();
@@ -324,9 +339,16 @@ seqModeEl.addEventListener("click", e => {
   paintPads();
   paintLocks();
 });
+$("#padWrite").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  SEQ.write = b.dataset.w;
+  $$("#padWrite button").forEach(x => x.classList.toggle("on", x.dataset.w === SEQ.write));
+});
 /* Double-click unlocks BEFORE it would reset anything: otherwise there is no way to take a
    lock off a control without also losing the voice setting underneath it. PM·1's rule. */
-["tune", "tone", "decay", "level"].forEach(param => {
+/* LOCKABLE rather than a list written out again — Verb and Gate were added to the voice row
+   and to the locks and would otherwise have been the two faders that never showed one. */
+LOCKABLE.forEach(param => {
   const el = faderReg[param];
   if (el) el.addEventListener("dblclick", () => {
     if (SEQ.mode === "program" && unlock(param)) paintLocks();
@@ -335,7 +357,7 @@ seqModeEl.addEventListener("click", e => {
 
 function paintLocks(){
   const program = SEQ.mode === "program";
-  ["tune", "tone", "decay", "level"].forEach(param => {
+  LOCKABLE.forEach(param => {
     const el = faderReg[param];
     if (el) el.classList.toggle("locked", program && isLocked(param));
   });

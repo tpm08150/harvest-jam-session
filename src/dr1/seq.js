@@ -9,7 +9,19 @@ const SEQ = {
   accentAmt: .35,          // how much louder an accented step is
   lane: "bd",              // which lane the voice faders are editing
   mode: "play",            // play | program — see the locks below
-  sel: 0                   // the step a lock is written to, in program mode
+  sel: 0,                  // the step a lock is written to, in program mode
+  /* What a press writes. It used to be a three-state cycle on one control — off, on,
+     accent, off — which reads well until you want a step GONE and the only way there is
+     through accenting it first. Two clicks to undo one is the wrong shape for the thing
+     you do most while a pattern is running.
+
+     step   | on and off, which is the gesture ninety-nine presses in a hundred are
+     accent | the accent, on whatever you press, so a whole run can be accented in one drag
+
+     Called `step` rather than `gate` even though gate is the drum-machine word for it: the
+     voice row now has a Gate fader for the reverb, and one panel with two different Gates
+     on it is a panel you have to read twice. */
+  write: "step"
 };
 
 /* steps[voice][i] = 0 off, 1 on, 2 on+accent. A flat integer per step rather than an

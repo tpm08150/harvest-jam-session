@@ -88,6 +88,10 @@
         <button data-p="play" class="on">Play</button>
         <button data-p="program">Program</button>
       </div>
+      <div class="seg sm" id="padWrite" role="group" aria-label="What a press writes">
+        <button data-w="step" class="on" title="Press turns a step on or off">Step</button>
+        <button data-w="accent" title="Press accents a step, or writes an accented one">Accent</button>
+      </div>
       <button class="btn ghost sm" id="clearLocks"></button>
       <span class="silk" id="lockHint"></span>
     </div>
@@ -96,7 +100,7 @@
 
     <div class="seqlegend">
       <span><i style="background:var(--dr-accent)"></i>step</span>
-      <span><i style="background:var(--cap-yellow)"></i>accent — click a lit step again</span>
+      <span><i style="background:var(--cap-yellow)"></i>accent — switch the press to Accent</span>
       <span><i style="box-shadow:0 0 0 1px var(--cap-yellow) inset"></i>parameter lock</span>
       <span><i style="background:var(--mint)"></i>playing now</span>
       <span>drag to fill — the pad you press decides whether you are drawing, accenting or erasing</span>
