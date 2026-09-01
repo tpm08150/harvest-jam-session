@@ -42,6 +42,12 @@ const cradle = () => cd() ? well : (vinyl() ? bed : slot);
 /* ⚠️ Object URLs are REVOKED on every re-render. One per sleeve per render leaks a blob
    each time the shelf redraws, which on a page that redraws whenever anything changes adds
    up to the whole library held twice over and then again. */
+/* ⚠️ COVERS ARE FETCHED FOR THE SHELF, audio is not — and the difference is two orders of
+   magnitude. A cover is ~40 kB, so fifty of them is a couple of megabytes and the shelf
+   looks like a shelf; the audio behind them is ~5 MB each, which is why that still waits
+   until somebody actually presses play. Cached per session, and a failed fetch is cached as
+   null so a missing object is not retried on every redraw. */
+const artCache = new Map();
 const artUrls = new Map();
 function artUrl(id, blob){
   const had = artUrls.get(id);
@@ -206,6 +212,8 @@ async function refresh(){
     else byId.set(r.id, Object.assign({}, r, {local: false, remote: true}));
   });
   tapes = [...byId.values()].sort((a, b) => b.made - a.made);
+  /* whatever this session has already pulled down */
+  tapes.forEach(t => { if (!t.art && artCache.get(t.id)) t.art = artCache.get(t.id); });
 }
 
 async function render(){
@@ -222,12 +230,30 @@ async function render(){
   /* only where art is actually shown — a cassette gets a written label, as it did */
   const hint = $("libHint");
   if (hint) hint.hidden = !tapes.some(t => t.mine) || (!vinyl() && !cd());
+  fetchCovers();
   const mine = tapes.filter(t => t.mine).length;
   const word = cd() ? "discs" : vinyl() ? "records" : "tapes";
   note.textContent = tapes.length
     ? tapes.length + " " + word + (tapes.length > mine ? " · " + mine + " yours" : "")
     : "";
 }
+/* Runs after the shelf has already drawn, so covers appear rather than delaying it. */
+let coverRun = false;
+async function fetchCovers(){
+  if (!C || !C.signedIn || coverRun) return;
+  const need = tapes.filter(t => !t.art && t.hasArt && t.owner && !artCache.has(t.id));
+  if (!need.length) return;
+  coverRun = true;
+  await Promise.all(need.map(async t => {
+    /* null on failure, deliberately: it still counts as "asked", so a cover that has been
+       deleted from the bucket does not get requested again on every single redraw */
+    try{ artCache.set(t.id, await C.getArt(t.owner, t.id)); }
+    catch(e){ artCache.set(t.id, null); }
+  }));
+  coverRun = false;
+  if (open) render();
+}
+
 LIB.onChange(() => { if (open) render(); });
 
 /* ---- the drag ----
