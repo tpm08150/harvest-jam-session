@@ -1,0 +1,161 @@
+
+<!-- The library: a room with a hi-fi in it. The scene is decoration, but the deck and the
+     cassettes are real elements, because you drag one into the other and both have to be
+     hit-testable. -->
+<div class="st-lib" id="stLib" hidden>
+  <div class="lib-room" id="libRoom">
+    <div class="lib-wall"></div>
+    <div class="lib-floor"></div>
+    <div class="lib-lamp"></div>
+    <!-- Enough furniture to read as a room and no more. A rug to sit the hi-fi on and
+         something on the wall; the deck is the subject and everything else is context. -->
+    <div class="lib-art"></div>
+    <div class="lib-rug"></div>
+
+    <!-- Speakers. The woofer cones are driven from an analyser, so they move with the
+         actual low end rather than on a timer. -->
+    <svg class="lib-spk lib-spk-l" viewBox="0 0 120 320" aria-hidden="true">
+      <rect class="lib-cab" x="6" y="4" width="108" height="300" rx="4" />
+      <rect class="lib-baffle" x="12" y="10" width="96" height="288" rx="3" />
+      <g class="lib-driver">
+        <circle class="lib-surround" cx="60" cy="96" r="34" />
+        <circle class="lib-cone" id="libWooferL" cx="60" cy="96" r="27" />
+        <circle class="lib-dust" cx="60" cy="96" r="9" />
+      </g>
+      <g class="lib-driver">
+        <circle class="lib-surround" cx="60" cy="212" r="17" />
+        <circle class="lib-cone lib-tw" id="libTweetL" cx="60" cy="212" r="12" />
+      </g>
+      <rect class="lib-port" x="46" y="252" width="28" height="10" rx="5" />
+      <rect class="lib-foot" x="16" y="304" width="18" height="8" rx="2" />
+      <rect class="lib-foot" x="86" y="304" width="18" height="8" rx="2" />
+    </svg>
+
+    <svg class="lib-spk lib-spk-r" viewBox="0 0 120 320" aria-hidden="true">
+      <rect class="lib-cab" x="6" y="4" width="108" height="300" rx="4" />
+      <rect class="lib-baffle" x="12" y="10" width="96" height="288" rx="3" />
+      <g class="lib-driver">
+        <circle class="lib-surround" cx="60" cy="96" r="34" />
+        <circle class="lib-cone" id="libWooferR" cx="60" cy="96" r="27" />
+        <circle class="lib-dust" cx="60" cy="96" r="9" />
+      </g>
+      <g class="lib-driver">
+        <circle class="lib-surround" cx="60" cy="212" r="17" />
+        <circle class="lib-cone lib-tw" id="libTweetR" cx="60" cy="212" r="12" />
+      </g>
+      <rect class="lib-port" x="46" y="252" width="28" height="10" rx="5" />
+      <rect class="lib-foot" x="16" y="304" width="18" height="8" rx="2" />
+      <rect class="lib-foot" x="86" y="304" width="18" height="8" rx="2" />
+    </svg>
+
+    <!-- the deck, on its console -->
+    <div class="lib-console">
+      <div class="lib-deck" id="libDeck">
+        <div class="lib-deck-top">
+          <span class="lib-deck-name" id="libDeckName">HV&middot;2 &mdash; cassette deck</span>
+          <span class="lib-deck-now" id="libNow">no tape</span>
+        </div>
+        <!-- ⚠️ One chassis, two stages, ONE transport. The cassette mouth and the platter
+             are alternatives; play/stop/eject mean the same thing either way, and building
+             two of them would be two things to keep in step for no gain.
+
+             ⚠️ The drop target is the STAGE, not the whole deck. Dropping a tape on the
+             transport buttons and having it load is the kind of forgiving that reads as
+             sloppy — the mouth (or the platter) is where the thing goes. -->
+        <div class="lib-slot" id="libSlot">
+          <div class="lib-slot-mouth">
+            <span class="lib-slot-hint">drag a tape here</span>
+          </div>
+          <div class="lib-door" id="libDoor"></div>
+        </div>
+
+        <!-- the CD stage: a tray that comes out for a disc and takes it back in -->
+        <div class="lib-tray" id="libTray" hidden>
+          <div class="lib-tray-body">
+            <div class="lib-tray-drawer" id="libDrawer">
+              <div class="lib-tray-well" id="libWell">
+                <span class="lib-slot-hint">drag a disc here</span>
+              </div>
+            </div>
+            <div class="lib-tray-face">
+              <span class="lib-cd-lab">COMPACT DISC &mdash; DIGITAL AUDIO</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- the turntable stage -->
+        <div class="lib-platter" id="libPlatter" hidden>
+          <div class="lib-plinth">
+            <div class="lib-disc-bed" id="libBed">
+              <div class="lib-mat"></div>
+              <span class="lib-slot-hint">drag a record here</span>
+            </div>
+            <!-- Pivots about its own base; the angle is written from playback position, so
+                 the arm tracks inward across the side exactly as the music runs out. -->
+            <div class="lib-arm" id="libArm">
+              <div class="lib-arm-tube"></div>
+              <div class="lib-arm-head"></div>
+              <div class="lib-arm-pivot"></div>
+            </div>
+            <div class="lib-rest"></div>
+            <div class="lib-speed"><span class="lib-sel">33</span><span>45</span></div>
+          </div>
+        </div>
+        <div class="lib-deck-bar">
+          <div class="lib-time" id="libTime">0:00</div>
+          <div class="lib-prog"><i id="libBar"></i></div>
+          <div class="lib-tr">
+            <button class="lib-btn" id="libPlay" disabled title="Play">&#9654;</button>
+            <button class="lib-btn" id="libStop" disabled title="Stop">&#9632;</button>
+            <button class="lib-btn" id="libEject" disabled title="Eject">&#9650;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- the shelf, under the room -->
+  <div class="lib-rack">
+    <div class="lib-rack-head">
+      <span class="lib-rack-title" id="libRackTitle">Tapes</span>
+      <!-- Which machine you would rather be using. Remembered, because it is a taste and
+           not a setting anyone wants to make twice. -->
+      <div class="st-seg lib-fmt" id="libFmt" role="group" aria-label="Format">
+        <button data-f="tape" class="st-sel">Cassette</button>
+        <button data-f="vinyl">Vinyl</button>
+        <button data-f="cd">CD</button>
+      </div>
+      <span class="lib-rack-note" id="libNote"></span>
+    </div>
+    <!-- Sync. Hidden entirely until cloud.js has a project in it, so an unconfigured build
+         shows no dead controls. -->
+    <div class="lib-cloud" id="libCloud" hidden>
+      <span class="lib-cloud-state" id="libCloudState">Not signed in</span>
+      <!-- Google first: anyone arriving from the Hub already has a live Google session, so
+           this is one click and no typing. The magic link stays for anyone without one. -->
+      <button class="st-xport lib-google" id="libGoogle">Continue with Google</button>
+      <form class="lib-cloud-in" id="libSignIn">
+        <input type="email" id="libEmail" placeholder="or email me a link" required
+               autocomplete="email" spellcheck="false" />
+        <button class="st-xport" type="submit">Send</button>
+      </form>
+      <label class="lib-who" id="libWhoWrap" hidden>
+        as <input type="text" id="libWho" placeholder="your name" maxlength="40"
+                  spellcheck="false" />
+      </label>
+      <button class="st-xport" id="libSync" hidden>Share mine</button>
+      <button class="st-xport" id="libOut" hidden>Sign out</button>
+      <span class="lib-cloud-msg" id="libCloudMsg"></span>
+    </div>
+    <div class="lib-shelf" id="libShelf"></div>
+    <p class="lib-hint" id="libHint" hidden>
+      Drop an image on a sleeve to give it cover art &mdash; or click the
+      <b>picture button</b> on one of your own.
+    </p>
+    <p class="lib-empty" id="libEmpty">
+      Nothing on the shelf yet. Record something on the <b>Tape</b> page and press
+      <b>&#9654; To library</b>, and it will turn up here &mdash; as a cassette or a record,
+      whichever you pick.
+    </p>
+  </div>
+</div>

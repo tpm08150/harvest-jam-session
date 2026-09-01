@@ -596,27 +596,9 @@ Patchwork.session.onChange(paint);
 paint();
 })();
 
-/* ---- faces / full panels, for every instrument at once ----
-   The per-panel toggle is the shell's; this is the one that moves all of them, because
-   the common gesture is "show me everything" rather than "show me everything about MS·1". */
-(() => {
-"use strict";
-const seg = document.querySelector("#stFaces");
-if (!seg || !window.Patchwork || !Patchwork.faces) return;
-seg.addEventListener("click", e => {
-  const b = e.target.closest("button");
-  if (!b) return;
-  Patchwork.faces.setAll(b.dataset.f === "face");
-});
-/* Follows the per-panel toggles too, so the pair never disagree — with a mix showing, the
-   segment reads as whichever state most panels are in. */
-Patchwork.faces.onChange(() => {
-  const faces = Patchwork.faces.count, total = Patchwork.roots.length;
-  const on = faces * 2 >= total;
-  seg.querySelectorAll("button").forEach(b =>
-    b.classList.toggle("st-sel", (b.dataset.f === "face") === on));
-});
-})();
+/* The all-at-once faces/panels switch used to live here. It is gone: every panel already
+   carries its own Panel button, so nothing was lost except a control in the header that
+   made the Studio page's chrome sit differently from every other tab's. */
 
 /* ---- the rack's MIDI, in one place ----
    Every instrument answers on a channel and every panel grew a pair of selects to set it,

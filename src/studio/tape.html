@@ -1,0 +1,86 @@
+
+<!-- TP·1, the master recorder. Its own view rather than a strip on the Live page, because
+     what it prints is the whole performance and it should not be competing for space with
+     the thing being performed. -->
+<div class="st-tape" id="stTape" hidden>
+  <div class="tp-deck">
+    <div class="tp-name"><span class="tp-badge">TP&middot;1</span> Reel to reel</div>
+
+    <!-- The reels. Radii and spin come from the transport in tape.js: the take-up reel grows
+         as the supply shrinks, and each turns at the rate a constant tape speed implies —
+         which is why the small one visibly races the big one. -->
+    <div class="tp-reels">
+      <svg viewBox="0 0 520 210" class="tp-svg" aria-hidden="true">
+        <!-- Guides and heads first, then the tape over them, then the reels on top. Draw
+             order IS the physical stacking: tape runs across the face of the heads, and
+             winds onto the reels rather than under them. -->
+        <g class="tp-heads">
+          <rect x="236" y="166" width="48" height="28" rx="3" />
+          <rect x="245" y="158" width="9" height="12" rx="1.5" class="tp-head-gap" />
+          <rect x="266" y="158" width="9" height="12" rx="1.5" class="tp-head-gap" />
+        </g>
+        <circle class="tp-roller" cx="206" cy="172" r="10" />
+        <circle class="tp-roller" cx="314" cy="172" r="10" />
+        <path id="tpPath" class="tp-ribbon" d="" />
+        <circle class="tp-roller-cap" cx="206" cy="172" r="4" />
+        <circle class="tp-roller-cap" cx="314" cy="172" r="4" />
+        <g id="tpSupply" class="tp-reel">
+          <!-- ⚠️ The flange is a FIXED size and the pack varies inside it. That is the whole
+               reason a reel reads as a reel: without it an empty take-up is a small disc
+               floating in space rather than an empty reel waiting to be filled. -->
+          <circle class="tp-flange" cx="128" cy="96" r="72" />
+          <circle class="tp-pack" cx="128" cy="96" r="72" />
+          <g id="tpSupplySpokes" class="tp-arms"></g>
+          <circle class="tp-hub" cx="128" cy="96" r="24" />
+          <circle class="tp-spindle" cx="128" cy="96" r="7" />
+        </g>
+        <g id="tpTake" class="tp-reel">
+          <circle class="tp-flange" cx="392" cy="96" r="72" />
+          <circle class="tp-pack" cx="392" cy="96" r="24" />
+          <g id="tpTakeSpokes" class="tp-arms"></g>
+          <circle class="tp-hub" cx="392" cy="96" r="24" />
+          <circle class="tp-spindle" cx="392" cy="96" r="7" />
+        </g>
+      </svg>
+    </div>
+
+    <div class="tp-row">
+      <div class="tp-counter" id="tpCounter">0:00.0</div>
+      <div class="tp-meters" aria-hidden="true">
+        <div class="tp-vu"><span class="tp-vu-lab">L</span><div class="tp-vu-track"><i id="tpVuL"></i></div></div>
+        <div class="tp-vu"><span class="tp-vu-lab">R</span><div class="tp-vu-track"><i id="tpVuR"></i></div></div>
+        <span class="tp-clip" id="tpClip" hidden>CLIP</span>
+      </div>
+      <div class="tp-reelbar" title="How much of the reel is used">
+        <i id="tpUsed"></i><b id="tpHead"></b>
+      </div>
+      <span class="tp-left" id="tpLeft">5:00 left</span>
+    </div>
+
+    <div class="tp-transport">
+      <button class="tp-btn" id="tpRew" title="Rewind to the start">&#9198;</button>
+      <button class="tp-btn" id="tpStop" title="Stop">&#9632;</button>
+      <button class="tp-btn tp-play" id="tpPlay" title="Play from the head">&#9654;</button>
+      <button class="tp-btn tp-rec" id="tpRec" title="Record what the room is hearing">&#9679;</button>
+      <div class="tp-lvl">
+        <label for="tpRecLevel">Record</label>
+        <input type="range" id="tpRecLevel" min="0" max="150" value="100" />
+      </div>
+      <div class="tp-lvl">
+        <label for="tpLevel">Playback</label>
+        <input type="range" id="tpLevel" min="0" max="150" value="85" />
+      </div>
+      <input type="text" id="tpName" class="tp-name-in" placeholder="name this take"
+             maxlength="60" spellcheck="false" />
+      <button class="st-xport" id="tpKeep" disabled>&#9654; To library</button>
+      <button class="st-xport" id="tpSave" disabled>Save WAV</button>
+      <button class="st-xport" id="tpErase" disabled>Erase</button>
+    </div>
+
+    <p class="tp-note" id="tpNote">
+      The tape prints the master &mdash; every instrument, your mix, and whatever the punch
+      rack is doing. Recording from partway along the reel wipes what was after it.
+      If CLIP lights, bring Record down: the mix is louder than the tape can hold.
+    </p>
+  </div>
+</div>

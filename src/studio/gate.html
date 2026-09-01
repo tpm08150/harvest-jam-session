@@ -1,0 +1,20 @@
+
+<!-- The door. Mirrors the Hub's own sign-in screen so arriving here from the Arcade does
+     not feel like leaving the building.
+
+     ⚠️ THIS IS A DOOR, NOT A WALL. The page is a static file on a public URL, so anyone
+     determined can read the HTML whatever this does. What it actually buys: a stranger who
+     follows the link cannot use the app, and cannot see that a shared library exists. The
+     recordings themselves are protected properly, by the row-level-security rules in
+     docs/supabase-tapes-members.sql — that is the part that would still hold if someone
+     bypassed everything here. -->
+<div class="jg" id="jamGate" hidden>
+  <div class="jg-card">
+    <div class="jg-eyebrow">HMX</div>
+    <h1>Jam Session</h1>
+    <p class="jg-msg" id="jgMsg">Sign in with the Google account you use for work.</p>
+    <button class="jg-btn" id="jgIn">Sign in with Google</button>
+    <button class="jg-btn jg-quiet" id="jgOut" hidden>Sign out</button>
+    <p class="jg-note" id="jgNote"></p>
+  </div>
+</div>

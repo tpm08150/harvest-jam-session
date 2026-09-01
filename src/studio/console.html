@@ -1,0 +1,41 @@
+
+<!-- The console. Channel strips are built in console.js from the same instrument list the
+     scene launcher uses, so a new instrument gets a channel without anyone remembering to
+     add one here. -->
+<div class="st-mix" id="mxWrap" hidden>
+<div class="mx-desk" id="mxDesk">
+  <!-- The meter bridge. Eight channel meters and a stereo pair, exactly where the 388 puts
+       them — and driven from the real signal, with proper slow VU ballistics rather than a
+       bar that twitches on every transient. -->
+  <div class="mx-bridge">
+    <div class="mx-meters" id="mxMeters"></div>
+    <div class="mx-master-meters" id="mxMasterMeters"></div>
+  </div>
+
+  <div class="mx-head">
+    <span class="mx-badge">MX&middot;8</span>
+    <span class="mx-title">Console &mdash; mixing down to two tracks</span>
+    <button class="st-xport mx-play" id="mxPlay">&#9654; Play all</button>
+    <span class="mx-bpm"><button id="mxDown" aria-label="Slower">&minus;</button><b id="mxBpm">120</b><button id="mxUp" aria-label="Faster">+</button></span>
+    <button class="st-xport" id="mxFlat" title="Every channel back to flat, centred, no sends">Zero the desk</button>
+  </div>
+
+  <div class="mx-strips" id="mxStrips"></div>
+
+  <!-- The two effects the whole desk shares, and where they come back in. On a real board
+       these are the aux returns; here they are the only stereo things in the signal path
+       besides the pan. -->
+  <div class="mx-master" id="mxMaster">
+    <span class="mx-master-lab">Returns</span>
+    <div class="mx-master-row" id="mxMasterKnobs"></div>
+    <!-- the stereo master, where the headroom gets spent -->
+    <div class="mx-masterfader">
+      <span class="mx-master-lab">Master</span>
+      <div class="mx-faderwrap mx-mf">
+        <input type="range" id="mxMasterFader" class="mx-fader" min="0" max="130" step="1" />
+        <span class="mx-faderval" id="mxMasterVal">50</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>

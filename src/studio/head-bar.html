@@ -4,6 +4,11 @@
   <div class="st-seg" id="stView" role="group" aria-label="View">
     <button data-v="studio" class="st-sel">Studio</button>
     <button data-v="live">Live</button>
+    <!-- ⚠️ The light is on the TAB, not on the deck. You press record and then switch away
+         to actually play something, which is the whole point of the machine — so the one
+         place the state has to be visible is the view you are leaving it from. -->
+    <button data-v="tape">Tape<i class="tp-dot" id="tpDot" hidden></i></button>
+    <button data-v="lib">Library</button>
   </div>
   <span class="st-hint">click a panel to give it the keyboard</span>
   <!-- A jam is a room name. Anyone on the same one plays the same grid — see
@@ -15,9 +20,5 @@
     <span class="st-jam-who" id="stJamWho"></span>
     <!-- What is actually running, so a jam can be picked rather than named from memory. -->
     <div class="st-jam-list" id="stJamList" hidden></div>
-  </div>
-  <div class="st-seg" id="stFaces" role="group" aria-label="How much of each instrument to show">
-    <button data-f="face" class="st-sel">Faces</button>
-    <button data-f="panel">Full panels</button>
   </div>
 </div>

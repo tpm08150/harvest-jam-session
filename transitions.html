@@ -589,7 +589,8 @@ return {instrument, onKey, focus,
 Patchwork.audio = (() => {
 "use strict";
 
-let ctx = null, master = null;
+const MASTER_DEFAULT = .4;
+let ctx = null, master = null, end = null;
 const strips = new Map();   // id -> {in, out}
 const levels = new Map();   // id -> fader gain, remembered even before the strip exists
 const mutes = new Set();    // ids held silent
@@ -600,8 +601,25 @@ function context(){
   if (!ctx){
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     master = ctx.createGain();
-    master.gain.value = 1;
-    master.connect(ctx.destination);
+    /* ⚠️ THE MASTER STARTS DOWN, and this was measured rather than guessed. Seven channels
+       summing at unity peaks around +5 dBFS on the default pattern — 91 samples past full
+       scale in a four-second measurement — so the mix clipped before it ever reached the
+       tape, and the recorder's clamp was the only thing standing between a take and audible
+       distortion.
+
+       0.4 is 8 dB down, which lands the same pattern at about -2.7 dBFS. Half only reached
+       -0.8 — clean, but one more instrument away from clipping again, and a default that
+       survives only the exact material it was measured on is not a default. The console's
+       master fader is where the headroom gets spent. */
+    master.gain.value = MASTER_DEFAULT;
+    /* ⚠️ ONE NODE EVERYTHING PASSES THROUGH ON ITS WAY OUT, whether or not anything is
+       spliced in behind it. Without it, "what the speakers are getting" is master before a
+       punch rack exists and the rack's output afterwards — two different nodes depending on
+       when you asked, which is not something a recorder can be built on. */
+    end = ctx.createGain();
+    end.gain.value = 1;
+    master.connect(end);
+    end.connect(ctx.destination);
   }
   return ctx;
 }
@@ -620,6 +638,69 @@ function context(){
    drums in it and no way to know why. Worse with per-instrument sources, where your own
    mix would silently rewrite a take of somebody ELSE's instrument. A monitor balance is
    not supposed to leave your headphones. */
+/* ---- the channel strip ----
+   A console channel, in the order a console has them:
+
+     in → low → mid → high → comp → makeup → FADER → pan → master
+                                              └→ reverb send ─┐
+                                              └→ delay send  ─┴→ back into master
+
+   ⚠️ THE PROCESSING GOES BEFORE `out`, NOT AROUND IT. `out` is the fader that setLevel,
+   mute, solo and every saved scene already write to; splicing the EQ in ahead of it means
+   none of that has to know this exists. Put it after and every one of those would be
+   adjusting the wrong node.
+
+   ⚠️ THE SENDS ARE POST-FADER, tapped off `out`. That is what an engineer expects: pull a
+   channel down and its reverb goes with it. Pre-fader sends leave a ghost of a muted
+   channel hanging in the room, which reads as a bug even though some desks do it on
+   purpose. */
+function buildChannel(into, out){
+  const lo = ctx.createBiquadFilter();
+  lo.type = "lowshelf"; lo.frequency.value = 120; lo.gain.value = 0;
+  const mid = ctx.createBiquadFilter();
+  /* the sweepable one — a semi-parametric mid is the band worth having if you only get one,
+     because it is where instruments actually collide with each other */
+  mid.type = "peaking"; mid.frequency.value = 900; mid.Q.value = 1.1; mid.gain.value = 0;
+  const hi = ctx.createBiquadFilter();
+  hi.type = "highshelf"; hi.frequency.value = 6000; hi.gain.value = 0;
+
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = 0; comp.ratio.value = 1;      // transparent until asked
+  comp.knee.value = 12; comp.attack.value = .006; comp.release.value = .18;
+  const makeup = ctx.createGain(); makeup.gain.value = 1;
+
+  /* ⚠️ NOT StereoPannerNode, and this was measured rather than assumed.
+     DynamicsCompressorNode is spec'd channelCount 2 / mode "explicit", so it upmixes this
+     mono channel to stereo. StereoPannerNode then stops using its mono equal-power law and
+     switches to the STEREO one, which at hard left computes outL = L + R — and for a
+     mono-derived signal where L equals R that is +6 dB. Panning a track hard made it
+     audibly jump in level, which is useless on a desk.
+
+     So the balance is built by hand: force stereo at the fader, split, apply equal power to
+     each side, merge. Constant power at every position for mono sources, and a real balance
+     control for anything genuinely stereo instead of folding it down. */
+  out.channelCount = 2;
+  out.channelCountMode = "explicit";
+  out.channelInterpretation = "speakers";
+  const split = ctx.createChannelSplitter(2);
+  const panL = ctx.createGain(), panR = ctx.createGain();
+  const merge = ctx.createChannelMerger(2);
+  panL.gain.value = Math.SQRT1_2; panR.gain.value = Math.SQRT1_2;
+
+  const revSend = ctx.createGain(); revSend.gain.value = 0;
+  const dlySend = ctx.createGain(); dlySend.gain.value = 0;
+
+  into.connect(lo); lo.connect(mid); mid.connect(hi);
+  hi.connect(comp); comp.connect(makeup); makeup.connect(out);
+  out.connect(split);
+  split.connect(panL, 0); split.connect(panR, 1);
+  panL.connect(merge, 0, 0); panR.connect(merge, 0, 1);
+  merge.connect(master);
+  out.connect(revSend); revSend.connect(reverbIn());
+  out.connect(dlySend); dlySend.connect(delayIn());
+  return {lo, mid, hi, comp, makeup, panL, panR, revSend, dlySend};
+}
+
 function strip(id){
   context();
   if (!strips.has(id)){
@@ -627,12 +708,60 @@ function strip(id){
     into.gain.value = 1;
     out.gain.value = gainFor(id);
     applied.set(id, out.gain.value);
-    into.connect(out);
-    out.connect(master);
-    strips.set(id, {in: into, out});
+    const ch = buildChannel(into, out);
+    /* the meter bridge listens here — post-fader, so a meter follows its own fader the way
+       the one on a desk does */
+    ch.out = out; ch.in = into;
+    strips.set(id, {in: into, out, ch});
     taps.forEach(wireTap);          // an instrument built after a tap still reaches it
   }
   return strips.get(id).in;
+}
+
+/* ---- the two effects the whole desk shares ----
+   Built on first use rather than at startup: a page that never opens the console never
+   pays for a convolver. */
+let revBus = null, dlyBus = null, revReturn = null, dlyReturn = null, dlyNode = null, dlyFb = null;
+function reverbIn(){
+  if (revBus) return revBus;
+  revBus = ctx.createGain();
+  const conv = ctx.createConvolver();
+  conv.buffer = makeIR(1.9, 2.6);
+  revReturn = ctx.createGain(); revReturn.gain.value = .8;
+  /* a little top off the tail — a bright plate on everything at once turns to hiss */
+  const damp = ctx.createBiquadFilter();
+  damp.type = "lowpass"; damp.frequency.value = 5200;
+  revBus.connect(conv); conv.connect(damp); damp.connect(revReturn); revReturn.connect(master);
+  return revBus;
+}
+function delayIn(){
+  if (dlyBus) return dlyBus;
+  dlyBus = ctx.createGain();
+  dlyNode = ctx.createDelay(2.0);
+  dlyNode.delayTime.value = .375;                      // a dotted eighth at 120
+  dlyFb = ctx.createGain(); dlyFb.gain.value = .34;
+  /* ⚠️ The repeats get darker each pass. Feedback through a flat delay stacks the same
+     bright transient over and over and the tail turns to a rattle — one filter inside the
+     loop is the difference between an echo and a machine gun. */
+  const dark = ctx.createBiquadFilter();
+  dark.type = "lowpass"; dark.frequency.value = 3200;
+  dlyReturn = ctx.createGain(); dlyReturn.gain.value = .8;
+  dlyBus.connect(dlyNode);
+  dlyNode.connect(dark); dark.connect(dlyFb); dlyFb.connect(dlyNode);
+  dlyNode.connect(dlyReturn); dlyReturn.connect(master);
+  return dlyBus;
+}
+/* Exponential-decay noise: cheap, and for a send reverb behind seven instruments it is
+   indistinguishable from something cleverer. */
+function makeIR(seconds, decay){
+  const n = Math.floor(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(2, n, ctx.sampleRate);
+  for (let c = 0; c < 2; c++){
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < n; i++)
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay);
+  }
+  return buf;
 }
 
 /* ---- the mix ----
@@ -814,11 +943,81 @@ function insert(input, output){
   if (inserted) return false;
   master.disconnect();
   master.connect(input);
-  output.connect(ctx.destination);
+  output.connect(end);
   inserted = {input, output};
   return true;
 }
 
+/* ---- the console ----
+   Everything the mixer page writes to. Values are the human ones — decibels, hertz, -1..1 —
+   and the mapping to node units lives here so the UI never has to know it. */
+function channel(id){
+  strip(id);
+  return strips.get(id).ch;
+}
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const eq = {
+  low(id, db){ channel(id).lo.gain.value = clamp(db, -18, 18); },
+  mid(id, db){ channel(id).mid.gain.value = clamp(db, -18, 18); },
+  midFreq(id, hz){ channel(id).mid.frequency.value = clamp(hz, 200, 6000); },
+  high(id, db){ channel(id).hi.gain.value = clamp(db, -18, 18); },
+};
+/* ⚠️ ONE KNOB, NOT FIVE. Threshold, ratio, knee, attack and release on seven channels is
+   thirty-five controls nobody will touch. This sweeps threshold down and ratio up together
+   along the curve an engineer would have walked anyway, and makes up the level it took —
+   so turning it up sounds like more compression rather than like less signal. */
+function compression(id, amount){
+  const a = clamp(amount, 0, 1), c = channel(id);
+  c.comp.threshold.value = -40 * a;
+  c.comp.ratio.value = 1 + 7 * a;
+  c.makeup.gain.value = Math.pow(10, (a * 9) / 20);
+}
+/* equal power: the two sides are cos and sin of the same angle, so their squares always
+   sum to one and the channel holds its loudness wherever it sits in the image */
+/* The stereo master. Ramped rather than set, because this is a fader somebody moves while
+   a take is running and a stepped gain change is a click on the tape. */
+function masterLevel(){ return master ? master.gain.value : MASTER_DEFAULT; }
+function setMasterLevel(v){
+  context();
+  const g = clamp(+v || 0, 0, 1.5);
+  master.gain.cancelScheduledValues(ctx.currentTime);
+  master.gain.setTargetAtTime(g, ctx.currentTime, .02);
+  return g;
+}
+
+function pan(id, v){
+  const c = channel(id), x = (clamp(v, -1, 1) + 1) / 2;
+  c.panL.gain.value = Math.cos(x * Math.PI / 2);
+  c.panR.gain.value = Math.sin(x * Math.PI / 2);
+}
+function send(id, which, v){
+  const c = channel(id);
+  (which === "delay" ? c.dlySend : c.revSend).gain.value = clamp(v, 0, 1.2);
+}
+const masterFx = {
+  reverbReturn(v){ reverbIn(); revReturn.gain.value = clamp(v, 0, 1.5); },
+  delayReturn(v){ delayIn(); dlyReturn.gain.value = clamp(v, 0, 1.5); },
+  delayTime(sec){ delayIn(); dlyNode.delayTime.linearRampToValueAtTime(
+      clamp(sec, .02, 2), ctx.currentTime + .08); },
+  delayFeedback(v){ delayIn(); dlyFb.gain.value = clamp(v, 0, .85); },
+};
+
+/* ---- what the room is hearing ----
+   A node carrying the finished signal: every instrument, the mix, and whatever the punch
+   rack is doing to it. This is what a master recorder has to listen to.
+
+   ⚠️ THE OPPOSITE END OF THE BUS FROM tap(). A tap listens to each instrument's input,
+   pre-fader and pre-everything, because a loop it prints has to be re-mixable afterwards.
+   This listens to the last node before the speakers, because a RECORD of a performance
+   that left out the filter sweep you played would not be a record of the performance.
+   Both are correct; they are answering different questions. */
+function monitor(){
+  context();
+  const g = ctx.createGain();
+  g.gain.value = 1;
+  end.connect(g);
+  return g;
+}
 /* iOS parks the context in "suspended" until a gesture and in "interrupted" after a
    call or an app switch, so anything other than "running" needs a resume — not just
    "suspended". Both instruments carried this comment; now one place does. */
@@ -831,7 +1030,11 @@ function resume(){
   return ctx.state;
 }
 
-return {context, strip, resume, tap, tapOnly, untap, insert, level, setLevel,
+return {context, strip, resume, tap, tapOnly, untap, insert, monitor,
+        channel, eq, compression, pan, send, masterFx,
+        masterLevel, setMasterLevel,
+        get masterDefault(){ return MASTER_DEFAULT; },
+        level, setLevel,
         setMute, setSolo, muted, soloed, audible,
         get anySolo(){ return solos.size > 0; },
         get ctx(){ return ctx; },

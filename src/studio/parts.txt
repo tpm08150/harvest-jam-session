@@ -30,6 +30,7 @@ lp1/panel.css
 lp1/_panel-close.css
 studio/page.css
 shell/page-open.html
+studio/gate.html
 studio/head-bar.html
 studio/rack-open.html
 studio/scenes.html
@@ -42,10 +43,18 @@ lp1/panel.html
 ts1/panel.html
 studio/rack-close.html
 studio/live.html
+studio/tape.html
+studio/console.html
+studio/library.html
 shell/script-open.html
 shell/host.js
 shell/bus.js
 shell/fx.js
+shell/tape.js
+shell/library.js
+shell/opus.js
+shell/cloud.js
+studio/gate.js
 shell/clock.js
 shell/click.js
 shell/midi.js
@@ -113,6 +122,9 @@ ts1/boot.js
 ts1/_close.js
 studio/scenes.js
 studio/live.js
+studio/console.js
+studio/tape.js
+studio/library.js
 studio/boot.js
 shell/boot.js
 shell/tail.html

@@ -10,6 +10,11 @@
 const live = document.querySelector("#stLive");
 const rack = document.querySelector(".st-rack");
 const scenes = document.querySelector(".st-scenes");
+const tape = document.querySelector("#stTape");
+const lib = document.querySelector("#stLib");
+/* the console sits above the deck on the Tape page and is a sibling of it, so it is hidden
+   with the view rather than by whatever happens to draw it */
+const mix = document.querySelector("#mxWrap");
 const grid = document.querySelector("#liveGrid");
 if (!live || !window.Patchwork || !Patchwork.record) return;
 
@@ -244,7 +249,14 @@ grid.addEventListener("click", e => {
 /* Master transport. Presses the instruments' own Play buttons rather than reaching into
    their transports, so whatever a panel does when you press Play — arm checks, autostart,
    painting — happens here too instead of being reimplemented and drifting. */
-document.querySelector("#livePlay").addEventListener("click", () => {
+/* ⚠️ Shared, because the console has a Play too. This is the ONE place that knows "play
+   all" means clicking each panel's own Play button — so the arm checks, autostart and
+   painting each panel does happen, instead of being reimplemented twice and drifting. */
+Patchwork.transport = {
+  get anyPlaying(){ return Patchwork.scenes.instruments.some(i => Patchwork.scenes.playing(i.id)); },
+  toggleAll,
+};
+function toggleAll(){
   const anyPlaying = Patchwork.scenes.instruments.some(i => Patchwork.scenes.playing(i.id));
   Patchwork.roots.forEach(r => {
     const id = r.dataset.instrument;
@@ -254,6 +266,9 @@ document.querySelector("#livePlay").addEventListener("click", () => {
     if (!isSeq) return;                     // the looper is not part of "play all"
     if (Patchwork.scenes.playing(id) === anyPlaying) btn.click();
   });
+}
+document.querySelector("#livePlay").addEventListener("click", () => {
+  toggleAll();
   setTimeout(paint, 60);
 });
 /* When a fired row lands. "Pattern" is CS·1's progression coming round — the harmony is
@@ -269,18 +284,40 @@ document.querySelector("#liveDown").addEventListener("click", () => Patchwork.cl
 
 /* ---- the view switch ---- */
 const seg = document.querySelector("#stView");
+/* ⚠️ Three views now, so this asks which one is wanted rather than whether it is the live
+   one. Written as `rack.hidden = isLive` this breaks the moment a third view exists: the
+   rack stays on screen underneath the tape deck, because "not live" stopped meaning
+   "studio". Deriving isStudio from the others is what keeps that impossible. */
 function show(which){
-  const isLive = which === "live";
+  const isLive = which === "live", isTape = which === "tape", isLib = which === "lib";
+  const isStudio = !isLive && !isTape && !isLib;
   live.hidden = !isLive;
-  rack.hidden = isLive;
-  scenes.hidden = isLive;
+  if (tape) tape.hidden = !isTape;
+  if (lib) lib.hidden = !isLib;
+  if (mix) mix.hidden = !isTape;
+  rack.hidden = !isStudio;
+  scenes.hidden = !isStudio;
   document.body.classList.toggle("living", isLive);
+  document.body.classList.toggle("taping", isTape);
+  document.body.classList.toggle("shelving", isLib);
   seg.querySelectorAll("button").forEach(b => b.classList.toggle("st-sel", b.dataset.v === which));
   if (isLive){
     paint();
     /* the punch rack's reverse is a worklet and loads asynchronously — built here so it is
        ready by the time a pad is pressed rather than a beat after */
     if (Patchwork.fx) try{ Patchwork.fx.prime(); }catch(e){}
+  }
+  /* The deck's paint loop is started and stopped here rather than left running: the reels
+     are a requestAnimationFrame every frame for as long as the page is open, and nobody is
+     watching them from the Studio view. Same reason the punch rack primes above. */
+  if (Patchwork.tapeUI){
+    if (isTape) Patchwork.tapeUI.show(); else Patchwork.tapeUI.hide();
+  }
+  if (Patchwork.libraryUI){
+    if (isLib) Patchwork.libraryUI.show(); else Patchwork.libraryUI.hide();
+  }
+  if (Patchwork.consoleUI){
+    if (isTape) Patchwork.consoleUI.show(); else Patchwork.consoleUI.hide();
   }
 }
 seg.addEventListener("click", e => {
