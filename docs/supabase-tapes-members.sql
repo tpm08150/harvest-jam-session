@@ -28,7 +28,7 @@
 --    first:
 --
 --      insert into public.jam_members (email, note)
---      values ('tylermorton670@gmail.com', 'me')
+--      values ('you@your-domain.com', 'me')
 --      on conflict (email) do nothing;
 --
 --    Lower-case: jam_allowed() lower-cases the address from the token before comparing.
@@ -95,9 +95,15 @@ create policy "jam: delete own tapes"
   using (bucket_id = 'tapes' and public.jam_allowed()
          and (storage.foldername(name))[1] = auth.uid()::text);
 
--- ---- the first entry, so this file is safe to run as it stands ----
+-- ---- the first entry ----
+-- ⚠️ PUT YOUR OWN ADDRESS HERE BEFORE RUNNING THIS FILE. The policies above start requiring
+--    membership the moment they exist, and this table starts empty — so whoever runs this
+--    without editing the line below is the first person locked out.
+--
+--    Deliberately a placeholder rather than a real address: this repo is public, and a
+--    committed email is a committed email forever.
 insert into public.jam_members (email, note)
-values ('tylermorton670@gmail.com', 'set up the jam')
+values ('you@your-domain.com', 'set up the jam')
 on conflict (email) do nothing;
 
 -- ---- adding everybody else ----
