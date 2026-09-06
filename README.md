@@ -391,6 +391,21 @@ acoustic — in the room, not in the monitor mix and not on the take. The bus re
 own end, so routing this through a strip or the master would bake it into the very recording
 you were winding through.
 
+⚠️ **The pitch is the point.** The first version was filtered noise that got brighter with
+speed, which is what *wind* sounds like — a tape rewind is a **motor**, and a motor has a
+note. What you recognise is a whirr that glides up as it spools and back down as it stops,
+with the reels chattering over it. Three layers, each doing a different job: a sawtooth
+through a lowpass whose pitch rides the speed (the whirr), amplitude modulation at a few
+dozen hertz that also rides the speed (the chatter, which is what stops the whirr sounding
+like a synth), and a little band-passed noise on top (the tape against the heads). Plus a
+thunk when it stops, because every tape machine ends a wind with one and its absence is what
+makes a stopped transport feel unfinished.
+
+**`>`, the button above Func, is return to zero** — instant, and it stops the deck first.
+The deck's own Rewind spools back at fourteen times and is a picture of a machine doing
+something; this is the button you press to get to the top of a take and play it again, and
+waiting through the animation to do that is the whole reason real decks have both.
+
 ⚠️ **The desk owns no audio and neither does this.** Every value is read and written through
 the knobs and faders already on screen, so a move from the encoders is the same move a hand
 would have made — persisted, painted, and recalled by a scene exactly as if you had dragged

@@ -8265,6 +8265,16 @@ const rig = {
     if (!f || typeof f.spec.play !== "function") return false;
     try{ f.spec.play(); return true; }catch(e){ return false; }
   },
+  /* Back to the start of whatever this page is playing. */
+  get canHome(){
+    const f = rig.focus;
+    return !!(f && typeof f.spec.home === "function");
+  },
+  home(){
+    const f = rig.focus;
+    if (!f || typeof f.spec.home !== "function") return false;
+    try{ f.spec.home(); return true; }catch(e){ return false; }
+  },
   /* Held rather than pressed: a scrub runs while a finger is down and stops when it lifts,
      so a profile passes both edges and the page decides what "moving" means. `speed` is a
      word rather than a number — how fast "fast" is belongs to the thing being scrubbed, not
@@ -8797,7 +8807,7 @@ const B_PLAY = 115, B_STOP = 116, B_REC = 117, B_LOOP = 118,
          Three of this file's numbers have now been settled by the traffic log rather than
          by the PDF; when they disagree, the log wins. */
       B_ENC_UP = 51, B_ENC_DN = 52,          // ∧ ∨, right of the encoders
-      B_SCENE = 104,                          // ">", right of the pads — unassigned
+      B_SCENE = 104,                          // ">", right of the pads — return to zero
       B_FUNC = 105,                           // "Func", right of the pads
       B_SHIFT = 63;
 
@@ -9193,6 +9203,11 @@ function message(io, d, rig){
        reinvented, and it reaches the same place Func and the arrows do. */
     case B_TRACK_PREV: rig.step(-1); break;
     case B_TRACK_NEXT: rig.step(1); break;
+    /* ⚠️ INSTANT, NOT A WIND. The deck's own Rewind spools back at fourteen times and is a
+       picture of a machine doing something; this is the button you press to get to the top
+       of the take and start again, and waiting through the animation to do that is the
+       whole reason return-to-zero exists as a separate control on real decks. */
+    case B_SCENE: rig.home(); break;
     /* ⚠️ AND THE ARROWS BESIDE THE ENCODERS BELONG TO THE ENCODERS — the same rule as the
        pair beside the pads, applied to the other half of the surface. They move which eight
        the encoders point at, which on DR·1 means which drum and on PM·1 means which group
@@ -9274,7 +9289,7 @@ function paintButtons(io, rig){
   /* Function lights while it is held, so a modifier you cannot see on the key cap is at
      least visible on it. ">" has no job yet and stays dark rather than inviting a press. */
   want[B_FUNC] = io.state.fn ? PAL.white : dim(PAL.white);
-  want[B_SCENE] = 0;
+  want[B_SCENE] = rig.canHome ? dim(PAL.sky) : 0;
   Object.keys(want).forEach(cc => {
     if (s.btns[cc] === want[cc]) return;
     s.btns[cc] = want[cc];
@@ -25498,6 +25513,14 @@ if (window.Patchwork && Patchwork.surface){
       const b = document.getElementById(id);
       if (b) b.click();
     },
+    /* ⚠️ Instant, and it stops first — "back to the top" is a thing you do in order to play
+       from there, and arriving still rolling means arriving somewhere else. */
+    home: () => {
+      const T = Patchwork.tape;
+      if (!T) return;
+      if (T.state === "play" || T.state === "rec") T.stop();
+      T.seek(0);
+    },
     /* ⚠️ SCRUB IS A SEEK, NOT THE DECK'S REWIND. `rewind()` means "wind back to the start"
        and is animated to zero by the panel; this is a position you hold and let go of, in
        both directions, so it moves the head and nothing else. Playback stops first, because
@@ -25682,44 +25705,102 @@ let raf = 0, open = false, lastPos = 0;
    `end`, so anything routed through a strip or the master would end up baked into the very
    recording you were winding through, which is a joke played once.
 
-   Noise through a bandpass that opens as the tape goes faster, which is what winding
-   sounds like: a hiss at playing speed, a rising rush as it spools. Built on first use and
-   left in place at zero gain, because building it per scrub means a click at the start of
-   every one. */
-let windNoise = null, windBand = null, windGain = null;
+   ⚠️ THE PITCH IS THE POINT, and the first attempt at this missed it entirely. Filtered
+   noise that got brighter with speed is what wind sounds like; a tape rewind is a MOTOR,
+   and a motor has a note. What you recognise in the sound is a whirr that glides up as it
+   spools and back down as it stops, with the reels chattering over the top of it. Noise
+   alone reads as air, not as a machine.
+
+   So there are three layers and each one is doing a different job:
+
+     motor    a sawtooth through a lowpass, its pitch riding the speed — the whirr
+     flutter  amplitude modulation at a few dozen hertz, also riding the speed — the
+              chatter of the reel, which is what stops the whirr sounding like a synth
+     hiss     a little band-passed noise on top — the tape itself against the heads
+
+   And a thunk when it stops, because every tape machine ends a wind with one and its
+   absence is the thing that makes a stopped transport feel unfinished. */
+let wnd = null;
 function buildWind(){
   const A = window.Patchwork && Patchwork.audio;
   const ctx = A && A.ctx;
-  if (!ctx || windNoise) return !!windNoise;
+  if (!ctx || wnd) return !!wnd;
+
+  const out = ctx.createGain(); out.gain.value = 0;
+  out.connect(ctx.destination);
+
+  /* the whirr */
+  const motor = ctx.createOscillator();
+  motor.type = "sawtooth"; motor.frequency.value = 200;
+  const motorLP = ctx.createBiquadFilter();
+  motorLP.type = "lowpass"; motorLP.frequency.value = 1400; motorLP.Q.value = 3;
+  const motorGain = ctx.createGain(); motorGain.gain.value = .5;
+  motor.connect(motorLP); motorLP.connect(motorGain); motorGain.connect(out);
+
+  /* the chatter — an LFO ADDED to the output gain, so it modulates everything above it */
+  const flutter = ctx.createOscillator();
+  flutter.type = "square"; flutter.frequency.value = 30;
+  const flutterAmt = ctx.createGain(); flutterAmt.gain.value = 0;
+  flutter.connect(flutterAmt); flutterAmt.connect(out.gain);
+
+  /* the hiss */
   const len = Math.floor(ctx.sampleRate * 2);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-  windNoise = ctx.createBufferSource();
-  windNoise.buffer = buf; windNoise.loop = true;
-  windBand = ctx.createBiquadFilter();
-  windBand.type = "bandpass"; windBand.frequency.value = 800; windBand.Q.value = .9;
-  windGain = ctx.createGain();
-  windGain.gain.value = 0;
-  windNoise.connect(windBand); windBand.connect(windGain);
-  windGain.connect(ctx.destination);
-  try{ windNoise.start(); }catch(e){}
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf; noise.loop = true;
+  const band = ctx.createBiquadFilter();
+  band.type = "bandpass"; band.frequency.value = 2600; band.Q.value = .8;
+  const noiseGain = ctx.createGain(); noiseGain.gain.value = .35;
+  noise.connect(band); band.connect(noiseGain); noiseGain.connect(out);
+
+  try{ motor.start(); flutter.start(); noise.start(); }catch(e){}
+  wnd = {ctx, out, motor, motorLP, flutter, flutterAmt, band, was: 0};
   return true;
 }
+
+/* One short filtered knock, for the moment the reels stop. */
+function thunk(){
+  if (!wnd) return;
+  const ctx = wnd.ctx, t = ctx.currentTime;
+  const o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+  o.type = "triangle";
+  o.frequency.setValueAtTime(160, t);
+  o.frequency.exponentialRampToValueAtTime(52, t + .09);
+  lp.type = "lowpass"; lp.frequency.value = 900;
+  g.gain.setValueAtTime(.14, t);
+  g.gain.exponentialRampToValueAtTime(.0008, t + .13);
+  o.connect(lp); lp.connect(g); g.connect(ctx.destination);
+  o.start(t); o.stop(t + .15);
+}
+
 function wind(rate){
   const speed = Math.abs(rate);
-  /* Playing and recording are silent: the deck is quiet at 1x and it is the SPOOLING that
-     you hear. Anything faster than about twice speed is winding. */
-  const want = speed > 2 ? Math.min(.09, .012 * speed) : 0;
-  if (!want && !windGain) return;               // never built, nothing to fade
+  /* Playing and recording are silent: the deck is quiet at 1x and it is the SPOOLING you
+     hear. Anything past about twice speed is winding. */
+  const on = speed > 2;
+  if (!on && !wnd) return;                      // never built, nothing to fade
   if (!buildWind()) return;
-  const ctx = Patchwork.audio.ctx, t = ctx.currentTime;
-  windGain.gain.setTargetAtTime(want, t, .04);
-  /* The band rides the speed, so slow scrubbing is a low rumble and a fast wind is a rush.
-     Fixed, it sounded like the same noise turned up. */
-  windBand.frequency.setTargetAtTime(500 + speed * 340, t, .05);
-  windBand.Q.setTargetAtTime(speed > 10 ? 1.6 : .9, t, .05);
+  const t = wnd.ctx.currentTime;
+  const want = on ? Math.min(.10, .014 * speed) : 0;
+
+  /* ⚠️ The glide is not decoration. Ramping the pitch rather than stepping it is what makes
+     a start sound like a motor picking up instead of a note being played, and 80 ms is long
+     enough to hear it happen without lagging the button. */
+  wnd.out.gain.setTargetAtTime(want, t, .05);
+  wnd.motor.frequency.setTargetAtTime(150 + speed * 52, t, .08);
+  wnd.motorLP.frequency.setTargetAtTime(700 + speed * 190, t, .08);
+  /* Chatter climbs with the reel: a countable flutter when you are inching, a buzz at
+     winding speed. Held at 45% of the level so it bites without gating the sound off. */
+  wnd.flutter.frequency.setTargetAtTime(Math.max(6, speed * 5.5), t, .08);
+  wnd.flutterAmt.gain.setTargetAtTime(want * .45, t, .05);
+  wnd.band.frequency.setTargetAtTime(1800 + speed * 260, t, .08);
+
+  if (wnd.was > 2 && !on) thunk();
+  wnd.was = speed;
 }
+
 function frame(now){
   if (!open){ raf = 0; return; }
   raf = requestAnimationFrame(frame);
@@ -25890,7 +25971,11 @@ Patchwork.tapeUI = {
     /* ⚠️ The frame loop is what fades this, and leaving the view stops the frame loop — so
        without saying so here, walking away mid-scrub leaves a deck spooling in an empty
        room forever. */
-    if (windGain) windGain.gain.setTargetAtTime(0, Patchwork.audio.ctx.currentTime, .05);
+    if (wnd){
+      wnd.out.gain.setTargetAtTime(0, wnd.ctx.currentTime, .05);
+      wnd.flutterAmt.gain.setTargetAtTime(0, wnd.ctx.currentTime, .05);
+      wnd.was = 0;
+    }
   }
 };
 })();

@@ -137,6 +137,16 @@ const rig = {
     if (!f || typeof f.spec.play !== "function") return false;
     try{ f.spec.play(); return true; }catch(e){ return false; }
   },
+  /* Back to the start of whatever this page is playing. */
+  get canHome(){
+    const f = rig.focus;
+    return !!(f && typeof f.spec.home === "function");
+  },
+  home(){
+    const f = rig.focus;
+    if (!f || typeof f.spec.home !== "function") return false;
+    try{ f.spec.home(); return true; }catch(e){ return false; }
+  },
   /* Held rather than pressed: a scrub runs while a finger is down and stops when it lifts,
      so a profile passes both edges and the page decides what "moving" means. `speed` is a
      word rather than a number — how fast "fast" is belongs to the thing being scrubbed, not

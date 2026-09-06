@@ -123,7 +123,7 @@ const B_PLAY = 115, B_STOP = 116, B_REC = 117, B_LOOP = 118,
          Three of this file's numbers have now been settled by the traffic log rather than
          by the PDF; when they disagree, the log wins. */
       B_ENC_UP = 51, B_ENC_DN = 52,          // ∧ ∨, right of the encoders
-      B_SCENE = 104,                          // ">", right of the pads — unassigned
+      B_SCENE = 104,                          // ">", right of the pads — return to zero
       B_FUNC = 105,                           // "Func", right of the pads
       B_SHIFT = 63;
 
@@ -519,6 +519,11 @@ function message(io, d, rig){
        reinvented, and it reaches the same place Func and the arrows do. */
     case B_TRACK_PREV: rig.step(-1); break;
     case B_TRACK_NEXT: rig.step(1); break;
+    /* ⚠️ INSTANT, NOT A WIND. The deck's own Rewind spools back at fourteen times and is a
+       picture of a machine doing something; this is the button you press to get to the top
+       of the take and start again, and waiting through the animation to do that is the
+       whole reason return-to-zero exists as a separate control on real decks. */
+    case B_SCENE: rig.home(); break;
     /* ⚠️ AND THE ARROWS BESIDE THE ENCODERS BELONG TO THE ENCODERS — the same rule as the
        pair beside the pads, applied to the other half of the surface. They move which eight
        the encoders point at, which on DR·1 means which drum and on PM·1 means which group
@@ -600,7 +605,7 @@ function paintButtons(io, rig){
   /* Function lights while it is held, so a modifier you cannot see on the key cap is at
      least visible on it. ">" has no job yet and stays dark rather than inviting a press. */
   want[B_FUNC] = io.state.fn ? PAL.white : dim(PAL.white);
-  want[B_SCENE] = 0;
+  want[B_SCENE] = rig.canHome ? dim(PAL.sky) : 0;
   Object.keys(want).forEach(cc => {
     if (s.btns[cc] === want[cc]) return;
     s.btns[cc] = want[cc];
