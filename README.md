@@ -320,6 +320,12 @@ Mixer is the only one that also retargets the encoders, because it is the only o
 four that is a thing to turn knobs at. A Custom mode is somebody else's and leaves the app
 where it is rather than guessing.
 
+⚠️ **The tab strip is in the Launchkey's order** — Studio, Tape, Live, Library — rather than
+the order the views were built in. The controller's four pads read Plug-in, Mixer, Sends,
+Transport left to right, and Shift and one of them is how you change view now; a tab strip in
+a different order means the second pad and the second tab are different places, and the hand
+learns one of them wrong.
+
 Nine controls per strip and eight encoders, so the banks are forced into a shape — and it is
 the right one. Volume is the control you want across *all* the channels at once, because that
 is what a mix is, so it gets a bank with every strip on it. The other eight are per-channel
