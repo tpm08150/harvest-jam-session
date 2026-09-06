@@ -63,6 +63,15 @@ const FEAT_ASK = 0xB7;
 const TIMEOUT_TENTHS = 5;
 const PAD_DRUM = 1, PAD_DAW = 2;
 const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends send the same CCs
+/* ⚠️ THE FOUR ENCODER MODES ARE THE FOUR VIEWS, which is a coincidence worth taking. Shift
+   and a pad is already how a Launchkey chooses what its knobs are for, and the app already
+   has four screens; wiring one to the other means the surface has no navigation of its own
+   to learn and no button to spend on it. Mixer is the only one that also retargets the
+   encoders, because it is the only one of the four that is a thing to turn knobs at. */
+const ENC_VIEW = {1: {view: "tape",   page: "mixer"},
+                  2: {view: "studio", page: ""},
+                  4: {view: "live",   page: ""},
+                  5: {view: "lib",    page: ""}};
 
 /* Pads. DAW layout reports as notes on channel 1; Drum layout on channel 10 once the DAW
    has taken the rack. Guide, "DAW mode" and "Drum mode" pad index figures.
@@ -274,6 +283,7 @@ function start(io, rig){
   io.state = {
     padMode: PAD_DAW,
     fn: false,                         // Function held — the accent modifier
+    scrub: 0,                          // which arrow is scrubbing the tape, if either
     /* Pads currently down, newest last. A range gesture needs to know what a finger is
        still holding, and note-on/note-off is the only place that is knowable. */
     down: [],
@@ -361,7 +371,9 @@ function message(io, d, rig){
        already offers rather than growing a mode of its own that the device knows nothing
        about and cannot light. */
     if (d[1] === F_ENCS){
-      rig.setMode(d[2] === ENC_MIXER ? "mixer" : "");
+      const to = ENC_VIEW[d[2]];
+      /* A Custom mode is somebody else's; leave the app where it is rather than guessing. */
+      if (to){ rig.setMode(to.page); rig.goto(to.view); }
       return;
     }
     if (d[1] === F_SHIFT) return;         // observed, and nothing is built on it — see above
@@ -453,10 +465,32 @@ function message(io, d, rig){
      reads is a flag the next person has to work out is dead. */
   if (cc === B_SHIFT) return;
   if (cc === B_FUNC){ io.state.fn = v > 0; return; }
+
+  /* ---- scrubbing, which is the one gesture here that is HELD ----
+     ⚠️ THE RELEASE MATTERS, and the press-only guard below would eat it. A page that offers
+     a scrub gets both edges; one that does not never sees the press, and Func and the arrows
+     go on meaning "walk the rack". Which arrow is down is remembered rather than re-derived,
+     because Func can be let go before the arrow is and the tape must still stop. */
+  if (cc === B_ARROW_UP || cc === B_ARROW_DN){
+    const dir = cc === B_ARROW_UP ? -1 : 1;
+    if (v > 0 && io.state.fn && !io.state.scrub && rig.scrub(dir, true)){
+      io.state.scrub = dir;
+      return;
+    }
+    if (!v && io.state.scrub === dir){
+      io.state.scrub = 0;
+      rig.scrub(dir, false);
+      return;
+    }
+  }
   if (!v) return;                         // buttons report a release too; act on the press
 
   switch (cc){
-    case B_PLAY:  rig.toggle(); break;
+    /* ⚠️ Play is the RACK. Func-Play is the tape, because they are two transports and one
+       button, and the rack is the one you press a hundred times a session. An armed deck
+       rolls with the rack anyway — see toggleAll in studio/live.js — so Func-Play is for
+       listening back, which is the only time the two need telling apart. */
+    case B_PLAY:  if (io.state.fn) rig.play(); else rig.toggle(); break;
     case B_STOP:  if (rig.playing) rig.toggle(); break;
     /* ⚠️ Record belongs to the PAGE, and on a panel there is no page, so it still does
        nothing there. Capture into the armed scene row is what it would obviously mean and
@@ -472,8 +506,8 @@ function message(io, d, rig){
        be 64 steps and the grid shows 16. Func turns the same pair into "which panel" —
        one axis is inside a pattern, the other is across the rack, and they are the same
        up-and-down gesture at two scales. */
-    case B_ARROW_UP: if (io.state.fn) rig.step(-1); else rig.gridPageBy(-1); break;
-    case B_ARROW_DN: if (io.state.fn) rig.step(1); else rig.gridPageBy(1); break;
+    case B_ARROW_UP: if (!io.state.fn) rig.gridPageBy(-1); else if (!io.state.scrub) rig.step(-1); break;
+    case B_ARROW_DN: if (!io.state.fn) rig.gridPageBy(1); else if (!io.state.scrub) rig.step(1); break;
     /* The device's Track pair — what the same two arrows send under Shift. "Which track"
        is which panel here, so this is the Launchkey's own word for it honoured rather than
        reinvented, and it reaches the same place Func and the arrows do. */

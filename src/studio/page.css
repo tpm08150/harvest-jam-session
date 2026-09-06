@@ -591,6 +591,8 @@ body.soloing .st-head .st-hint::after{content:" — press Escape to go back"}
   animation:tp-blink 1.1s steps(1,end) infinite;
 }
 @media (prefers-reduced-motion:reduce){.tp-dot{animation:none}}
+/* The tab light follows the button: steady for armed, blinking once it is rolling. */
+.tp-dot.tp-dot-armed{animation:none;opacity:.75}
 
 
 /* the same column as the console below it — the two are one machine */
@@ -713,6 +715,15 @@ body.soloing .st-head .st-hint::after{content:" — press Escape to go back"}
 .tp-btn.tp-rec.tp-on{
   background:linear-gradient(180deg,#e2705c,#b8342a);color:#fff;
   animation:tp-blink 1.1s steps(1,end) infinite;
+}
+/* ⚠️ ARMED IS A RING, ROLLING IS FILLED AND BLINKING. Two states of one button, and the one
+   that decides whether the next take exists cannot be ambiguous — so armed is steady and
+   outlined, "loaded and waiting", while rolling keeps the filled blink it has always had.
+   Making armed blink too would have given the panel two blinking reds meaning
+   different things. */
+.tp-btn.tp-rec.tp-armed{
+  box-shadow:0 0 0 2px #b8342a inset, 0 1px 0 #14100c;
+  color:#e2705c;
 }
 @keyframes tp-blink{50%{filter:brightness(.72)}}
 @media (prefers-reduced-motion:reduce){.tp-btn.tp-rec.tp-on{animation:none}}

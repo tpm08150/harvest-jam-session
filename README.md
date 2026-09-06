@@ -304,11 +304,21 @@ a parameter group and another as a drum.
 
 ### The desk, on the controller
 
-**Shift + Mixer** on the Launchkey — the way that keyboard has always said "these knobs are
-the desk now" — points the surface at MX·8 instead of at a panel, and brings the Tape tab up
-with it. **Shift + Plug-in** goes back to following the focused panel. Nothing is invented:
-the surface honours a choice the hardware already offers rather than growing a mode the
-device knows nothing about.
+⚠️ **The four encoder modes are the four views**, which is a coincidence worth taking. Shift
+and a pad is already how a Launchkey chooses what its knobs are for, and the app already has
+four screens — so wiring one to the other means the surface has no navigation of its own to
+learn and no button spent on it.
+
+| | |
+| --- | --- |
+| **Shift + Plug-in** | Studio, and the encoders follow the focused panel |
+| **Shift + Mixer** | Tape, and the encoders become MX·8 |
+| **Shift + Sends** | Live |
+| **Shift + Transport** | Library |
+
+Mixer is the only one that also retargets the encoders, because it is the only one of the
+four that is a thing to turn knobs at. A Custom mode is somebody else's and leaves the app
+where it is rather than guessing.
 
 Nine controls per strip and eight encoders, so the banks are forced into a shape — and it is
 the right one. Volume is the control you want across *all* the channels at once, because that
@@ -326,10 +336,30 @@ them and the way this panel's own M and S buttons sit. Seven channels, so the ei
 each row is dark: the master has no channel, no EQ and no mute, and a pad that quietly did
 nothing would be worse than no pad.
 
-**Record rolls tape.** It does nothing on a panel, where it would obviously mean "capture into
-the armed scene row" and could not be undone — but a take is *added*, and Erase, the control
-that throws one away, is the deck's own and asks twice. Play stays the rack transport
-everywhere, so a take is Play then Record, which is the order you would work in anyway.
+⚠️ **Record arms, Play rolls** — on the deck itself as well as on the controller. Rolling on
+the press meant the first bar of every take was the sound of somebody reaching for play;
+arming lets the take and the music start on the same gesture. An armed deck rolls with the
+**rack** transport rather than with the tape's own Play, because "play" for a rack of
+instruments is that button, and a take that started somewhere else would be the one control
+on the page that meant something different from the others. The rack stopping ends the take.
+
+Armed is a steady ring on the record button and a steady light on the tab; rolling keeps the
+filled blink it has always had. Two states of one button, and the one that decides whether
+the next take exists cannot be ambiguous.
+
+Record still does nothing on a panel, where it would mean "capture into the armed scene row"
+and could not be undone. A tape take is *added*, and Erase — the control that throws one
+away — is the deck's own and asks twice.
+
+**Func + Play is the tape**, plain Play is the rack: two transports and one button, and the
+rack is the one you press a hundred times a session. It toggles, though the deck's own Play
+does not, because the deck has a Stop button beside it and the controller does not — a button
+that can start a thing and not stop it is one you have to leave the controller to undo.
+
+**Func + ∧ ∨ scrubs** the tape, up for rewind, at four times realtime while you hold it.
+⚠️ A seek rather than the deck's Rewind, which means "wind back to the start" and animates
+itself to zero. Playback stops first: a deck you can scrub while it plays is one whose
+counter and audio disagree.
 
 ⚠️ **The desk owns no audio and neither does this.** Every value is read and written through
 the knobs and faders already on screen, so a move from the encoders is the same move a hand

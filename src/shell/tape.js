@@ -159,8 +159,28 @@ function setRec(on){
 }
 
 /* ---- the transport ---- */
+/* ---- armed ----
+   ⚠️ RECORD ARMS, PLAY ROLLS, which is how every deck with a transport works and is the
+   only way to start a take and the music together. Pressing record and then reaching for
+   play meant the first bar of every take was the sound of somebody reaching for play.
+
+   The flag lives here rather than on the deck's panel because two things read it: the deck
+   itself, and the shared "play all" — the take has to start when the RACK starts, not when
+   the tape's own play button is pressed, or they are a reaction time apart. */
+let armed = false;
+function arm(on){
+  const want = on == null ? !armed : !!on;
+  if (want === armed) return armed;
+  /* Arming while already rolling is meaningless, and disarming mid-take must not stop it —
+     that is what Stop is for. */
+  armed = state === "rec" ? false : want;
+  notify();
+  return armed;
+}
+
 async function record(){
   if (state === "rec") return;
+  armed = false;                 // the arm is spent the moment it fires
   stopPlayback();
   await build();
   Patchwork.audio.resume();
@@ -236,6 +256,7 @@ function rewindDone(){
 }
 
 function erase(){
+  armed = false;
   stop();
   blocks = [];
   frames = 0;
@@ -313,7 +334,8 @@ function position(){
     return clamp(playFrom / rate + (ctx.currentTime - playAt), 0, frames / rate);
   return head / rate;
 }
-return {record, stop, play, rewind, rewindDone, erase, seek, wav, toBuffer,
+return {record, stop, play, rewind, rewindDone, erase, seek, wav, toBuffer, arm,
+        get armed(){ return armed; },
         get repro(){ return repro; },
         onChange: fn => subs.push(fn),
         prime: () => build(),

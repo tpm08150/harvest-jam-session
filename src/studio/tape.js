@@ -122,10 +122,19 @@ function meterWidth(v){
 function paintTransport(){
   const st = T.state;
   bRec.classList.toggle("tp-on", st === "rec");
+  /* Armed and rolling are different states and have to look different, or the one button
+     that decides whether the next take exists is ambiguous. Armed is a steady ring —
+     loaded and waiting; rolling keeps the filled blink it has always had. */
+  bRec.classList.toggle("tp-armed", T.armed);
   bPlay.classList.toggle("tp-on", st === "play");
   bRew.classList.toggle("tp-on", st === "rew");
   view.classList.toggle("tp-recording", st === "rec");
-  if (dot) dot.hidden = st !== "rec";
+  /* ⚠️ The tab light is on for ARMED as well as rolling. It exists because you press record
+     and then switch away to actually play something — which is now the normal way to start
+     a take rather than a thing you might do, so an armed deck you have navigated away from
+     is exactly the state it was put there for. */
+  if (dot) dot.hidden = st !== "rec" && !T.armed;
+  if (dot) dot.classList.toggle("tp-dot-armed", st !== "rec" && T.armed);
   if (clip) clip.hidden = !T.clipped;
   view.classList.toggle("tp-playing", st === "play");
   bRec.setAttribute("aria-pressed", st === "rec" ? "true" : "false");
@@ -133,7 +142,9 @@ function paintTransport(){
   bSave.disabled = !has || st === "rec";
   if (bKeep) bKeep.disabled = !has || st === "rec";
   bErase.disabled = !has || st === "rec";
-  bPlay.disabled = !has;
+  /* Play is how an armed deck starts recording, so it cannot be disabled for having
+     nothing on the tape yet — which is exactly when you are most likely to want it. */
+  bPlay.disabled = !has && !T.armed;
 }
 T.onChange(paintTransport);
 
@@ -192,11 +203,19 @@ function frame(now){
 }
 
 /* ---- buttons ---- */
+/* ⚠️ RECORD ARMS, IT DOES NOT ROLL. Rolling on the press meant the first bar of every take
+   was the sound of somebody reaching for play; arming lets the take and the music start on
+   the same gesture. Pressing it while rolling still stops, because that is the one meaning
+   a lit record button can have. */
 bRec.addEventListener("click", () => {
-  if (T.state === "rec") T.stop();
-  else { T.record().then(() => { meters(); }); }
+  if (T.state === "rec"){ T.stop(); return; }
+  T.arm();
 });
-bPlay.addEventListener("click", () => { T.play().then(() => meters()); });
+/* And play rolls whatever is armed. Nothing armed, it is playback. */
+bPlay.addEventListener("click", () => {
+  if (T.armed){ T.record().then(() => meters()); return; }
+  T.play().then(() => meters());
+});
 bStop.addEventListener("click", () => T.stop());
 bRew.addEventListener("click", () => {
   if (T.state === "rew"){ T.rewindDone(); return; }

@@ -2119,6 +2119,8 @@ body.soloing .st-head .st-hint::after{content:" — press Escape to go back"}
   animation:tp-blink 1.1s steps(1,end) infinite;
 }
 @media (prefers-reduced-motion:reduce){.tp-dot{animation:none}}
+/* The tab light follows the button: steady for armed, blinking once it is rolling. */
+.tp-dot.tp-dot-armed{animation:none;opacity:.75}
 
 
 /* the same column as the console below it — the two are one machine */
@@ -2241,6 +2243,15 @@ body.soloing .st-head .st-hint::after{content:" — press Escape to go back"}
 .tp-btn.tp-rec.tp-on{
   background:linear-gradient(180deg,#e2705c,#b8342a);color:#fff;
   animation:tp-blink 1.1s steps(1,end) infinite;
+}
+/* ⚠️ ARMED IS A RING, ROLLING IS FILLED AND BLINKING. Two states of one button, and the one
+   that decides whether the next take exists cannot be ambiguous — so armed is steady and
+   outlined, "loaded and waiting", while rolling keeps the filled blink it has always had.
+   Making armed blink too would have given the panel two blinking reds meaning
+   different things. */
+.tp-btn.tp-rec.tp-armed{
+  box-shadow:0 0 0 2px #b8342a inset, 0 1px 0 #14100c;
+  color:#e2705c;
 }
 @keyframes tp-blink{50%{filter:brightness(.72)}}
 @media (prefers-reduced-motion:reduce){.tp-btn.tp-rec.tp-on{animation:none}}
@@ -6532,8 +6543,28 @@ function setRec(on){
 }
 
 /* ---- the transport ---- */
+/* ---- armed ----
+   ⚠️ RECORD ARMS, PLAY ROLLS, which is how every deck with a transport works and is the
+   only way to start a take and the music together. Pressing record and then reaching for
+   play meant the first bar of every take was the sound of somebody reaching for play.
+
+   The flag lives here rather than on the deck's panel because two things read it: the deck
+   itself, and the shared "play all" — the take has to start when the RACK starts, not when
+   the tape's own play button is pressed, or they are a reaction time apart. */
+let armed = false;
+function arm(on){
+  const want = on == null ? !armed : !!on;
+  if (want === armed) return armed;
+  /* Arming while already rolling is meaningless, and disarming mid-take must not stop it —
+     that is what Stop is for. */
+  armed = state === "rec" ? false : want;
+  notify();
+  return armed;
+}
+
 async function record(){
   if (state === "rec") return;
+  armed = false;                 // the arm is spent the moment it fires
   stopPlayback();
   await build();
   Patchwork.audio.resume();
@@ -6609,6 +6640,7 @@ function rewindDone(){
 }
 
 function erase(){
+  armed = false;
   stop();
   blocks = [];
   frames = 0;
@@ -6686,7 +6718,8 @@ function position(){
     return clamp(playFrom / rate + (ctx.currentTime - playAt), 0, frames / rate);
   return head / rate;
 }
-return {record, stop, play, rewind, rewindDone, erase, seek, wav, toBuffer,
+return {record, stop, play, rewind, rewindDone, erase, seek, wav, toBuffer, arm,
+        get armed(){ return armed; },
         get repro(){ return repro; },
         onChange: fn => subs.push(fn),
         prime: () => build(),
@@ -8153,6 +8186,17 @@ function register(p){ profiles.push(p); notify(); }
 const pages = new Map();
 function mount(id, spec){ pages.set(id, spec); notify(); }
 
+/* ---- where the window is looking ----
+   A controller that changes what the encoders do without changing what is on the screen
+   leaves the two disagreeing about where you are. The shell has no idea what views exist —
+   that is the studio's business, and a standalone build has none — so whoever draws them
+   says how to reach one and the profile names the one it wants.
+
+     Patchwork.surface.onView(fn)   // the studio registers its tab switcher
+     rig.goto("tape")               // a profile asks for it */
+let viewer = null;
+function onView(fn){ viewer = fn; }
+
 /* "" is the ordinary state: whatever panel has the focus. Anything else is a mounted page. */
 let mode = "";
 
@@ -8198,12 +8242,30 @@ const rig = {
     }
     notify();
   },
+  /* Bring a view up, if the page this is running on has any. Silent on a standalone build,
+     which has one screen and nothing to switch. */
+  goto(view){
+    if (!viewer || !view) return false;
+    try{ viewer(view); return true; }catch(e){ return false; }
+  },
   /* The transport button, for a page that has one to offer. Silent everywhere else — a
      surface should not have to ask what it is aimed at before pressing a button. */
   record(){
     const f = rig.focus;
     if (!f || typeof f.spec.record !== "function") return false;
     try{ f.spec.record(); return true; }catch(e){ return false; }
+  },
+  play(){
+    const f = rig.focus;
+    if (!f || typeof f.spec.play !== "function") return false;
+    try{ f.spec.play(); return true; }catch(e){ return false; }
+  },
+  /* Held rather than pressed: a scrub runs while a finger is down and stops when it lifts,
+     so a profile passes both edges and the page decides what "moving" means. */
+  scrub(dir, on){
+    const f = rig.focus;
+    if (!f || typeof f.spec.scrub !== "function") return false;
+    try{ f.spec.scrub(dir, on); return true; }catch(e){ return false; }
   },
   get instruments(){ return Patchwork.midi.list().map(i => ({id: i.id, name: i.name})); },
 
@@ -8583,7 +8645,7 @@ Patchwork.midi.onChange(() => {
   if (!live) restore();
 });
 
-return {register, mount, connect, disconnect, restore, rig,
+return {register, mount, onView, connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
                                                        label: f.det.label || f.profile.name})); },
@@ -8664,6 +8726,15 @@ const FEAT_ASK = 0xB7;
 const TIMEOUT_TENTHS = 5;
 const PAD_DRUM = 1, PAD_DAW = 2;
 const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends send the same CCs
+/* ⚠️ THE FOUR ENCODER MODES ARE THE FOUR VIEWS, which is a coincidence worth taking. Shift
+   and a pad is already how a Launchkey chooses what its knobs are for, and the app already
+   has four screens; wiring one to the other means the surface has no navigation of its own
+   to learn and no button to spend on it. Mixer is the only one that also retargets the
+   encoders, because it is the only one of the four that is a thing to turn knobs at. */
+const ENC_VIEW = {1: {view: "tape",   page: "mixer"},
+                  2: {view: "studio", page: ""},
+                  4: {view: "live",   page: ""},
+                  5: {view: "lib",    page: ""}};
 
 /* Pads. DAW layout reports as notes on channel 1; Drum layout on channel 10 once the DAW
    has taken the rack. Guide, "DAW mode" and "Drum mode" pad index figures.
@@ -8875,6 +8946,7 @@ function start(io, rig){
   io.state = {
     padMode: PAD_DAW,
     fn: false,                         // Function held — the accent modifier
+    scrub: 0,                          // which arrow is scrubbing the tape, if either
     /* Pads currently down, newest last. A range gesture needs to know what a finger is
        still holding, and note-on/note-off is the only place that is knowable. */
     down: [],
@@ -8962,7 +9034,9 @@ function message(io, d, rig){
        already offers rather than growing a mode of its own that the device knows nothing
        about and cannot light. */
     if (d[1] === F_ENCS){
-      rig.setMode(d[2] === ENC_MIXER ? "mixer" : "");
+      const to = ENC_VIEW[d[2]];
+      /* A Custom mode is somebody else's; leave the app where it is rather than guessing. */
+      if (to){ rig.setMode(to.page); rig.goto(to.view); }
       return;
     }
     if (d[1] === F_SHIFT) return;         // observed, and nothing is built on it — see above
@@ -9054,10 +9128,32 @@ function message(io, d, rig){
      reads is a flag the next person has to work out is dead. */
   if (cc === B_SHIFT) return;
   if (cc === B_FUNC){ io.state.fn = v > 0; return; }
+
+  /* ---- scrubbing, which is the one gesture here that is HELD ----
+     ⚠️ THE RELEASE MATTERS, and the press-only guard below would eat it. A page that offers
+     a scrub gets both edges; one that does not never sees the press, and Func and the arrows
+     go on meaning "walk the rack". Which arrow is down is remembered rather than re-derived,
+     because Func can be let go before the arrow is and the tape must still stop. */
+  if (cc === B_ARROW_UP || cc === B_ARROW_DN){
+    const dir = cc === B_ARROW_UP ? -1 : 1;
+    if (v > 0 && io.state.fn && !io.state.scrub && rig.scrub(dir, true)){
+      io.state.scrub = dir;
+      return;
+    }
+    if (!v && io.state.scrub === dir){
+      io.state.scrub = 0;
+      rig.scrub(dir, false);
+      return;
+    }
+  }
   if (!v) return;                         // buttons report a release too; act on the press
 
   switch (cc){
-    case B_PLAY:  rig.toggle(); break;
+    /* ⚠️ Play is the RACK. Func-Play is the tape, because they are two transports and one
+       button, and the rack is the one you press a hundred times a session. An armed deck
+       rolls with the rack anyway — see toggleAll in studio/live.js — so Func-Play is for
+       listening back, which is the only time the two need telling apart. */
+    case B_PLAY:  if (io.state.fn) rig.play(); else rig.toggle(); break;
     case B_STOP:  if (rig.playing) rig.toggle(); break;
     /* ⚠️ Record belongs to the PAGE, and on a panel there is no page, so it still does
        nothing there. Capture into the armed scene row is what it would obviously mean and
@@ -9073,8 +9169,8 @@ function message(io, d, rig){
        be 64 steps and the grid shows 16. Func turns the same pair into "which panel" —
        one axis is inside a pattern, the other is across the rack, and they are the same
        up-and-down gesture at two scales. */
-    case B_ARROW_UP: if (io.state.fn) rig.step(-1); else rig.gridPageBy(-1); break;
-    case B_ARROW_DN: if (io.state.fn) rig.step(1); else rig.gridPageBy(1); break;
+    case B_ARROW_UP: if (!io.state.fn) rig.gridPageBy(-1); else if (!io.state.scrub) rig.step(-1); break;
+    case B_ARROW_DN: if (!io.state.fn) rig.gridPageBy(1); else if (!io.state.scrub) rig.step(1); break;
     /* The device's Track pair — what the same two arrows send under Shift. "Which track"
        is which panel here, so this is the Launchkey's own word for it honoured rather than
        reinvented, and it reaches the same place Func and the arrows do. */
@@ -24749,6 +24845,18 @@ function toggleAll(){
     if (!isSeq) return;                     // the looper is not part of "play all"
     if (Patchwork.scenes.playing(id) === anyPlaying) btn.click();
   });
+  /* ⚠️ AN ARMED DECK ROLLS WITH THE RACK, which is the whole reason Record arms rather than
+     rolling: the take has to start when the music does, not a reaction time later. Here
+     rather than on the deck's own play button because "play" for a rack of instruments is
+     THIS, and a take that started when you pressed the tape's play instead would be the one
+     button on the page that meant something different from the others.
+
+     Stopping is the mirror: the rack stopping ends the take. Leaving tape running over a
+     silent rack records the room going quiet, which nobody has ever wanted. */
+  const T = Patchwork.tape;
+  if (!T) return;
+  if (!anyPlaying && T.armed) T.record();
+  else if (anyPlaying && T.state === "rec") T.stop();
 }
 document.querySelector("#livePlay").addEventListener("click", () => {
   toggleAll();
@@ -24767,6 +24875,15 @@ document.querySelector("#liveDown").addEventListener("click", () => Patchwork.cl
 
 /* ---- the view switch ---- */
 const seg = document.querySelector("#stView");
+/* A control surface can ask for a view by name. Pressed through the same segmented control
+   a click uses, so whatever switching views does happens here too — see shell/surface.js,
+   which knows that views exist and nothing whatever about what they are. */
+if (window.Patchwork && Patchwork.surface){
+  Patchwork.surface.onView(name => {
+    const b = seg.querySelector('button[data-v="' + name + '"]');
+    if (b) b.click();
+  });
+}
 /* ⚠️ Three views now, so this asks which one is wanted rather than whether it is the live
    one. Written as `rack.hidden = isLive` this breaks the moment a third view exists: the
    rack stays on screen underneath the tape deck, because "not live" stopped meaning
@@ -25349,15 +25466,37 @@ if (window.Patchwork && Patchwork.surface){
        Erase is the deck's own control and asks twice. Pressed through the deck's button so
        the reels, the meters and the tab's record light all do what they already do. */
     record: () => { const b = document.getElementById("tpRec"); if (b) b.click(); },
-    /* Choosing Mixer on the controller brings the tab it lives on up, through the same
-       segmented control a click uses. A surface and a window disagreeing about where you
-       are is worse than either being wrong on its own. */
-    show: () => {
-      const b = document.querySelector('#stView button[data-v="tape"]');
+    /* Playback, as opposed to the rack's transport. ⚠️ IT TOGGLES, and the deck's own Play
+       button does not — because the deck has a Stop button next to it and the controller has
+       one button for the pair. A surface button that can start a thing and not stop it is a
+       button you have to leave the controller to undo. Both are the panel's own buttons, so
+       an armed deck rolls from here exactly as it would from a click. */
+    play: () => {
+      const T = Patchwork.tape;
+      const id = (T && (T.state === "play" || T.state === "rec")) ? "tpStop" : "tpPlay";
+      const b = document.getElementById(id);
       if (b) b.click();
+    },
+    /* ⚠️ SCRUB IS A SEEK, NOT THE DECK'S REWIND. `rewind()` means "wind back to the start"
+       and is animated to zero by the panel; this is a position you hold and let go of, in
+       both directions, so it moves the head and nothing else. Playback stops first, because
+       a deck you can scrub while it plays is one whose counter and audio disagree. */
+    scrub: (dir, on) => {
+      const T = Patchwork.tape;
+      if (!T) return;
+      clearInterval(scrubTimer);
+      if (!on) return;
+      if (T.state === "play" || T.state === "rec") T.stop();
+      /* Four times realtime: fast enough to cross a take, slow enough to land on a bar. */
+      const step = 0.2 * dir;
+      scrubTimer = setInterval(() => {
+        const at = T.position + step;
+        T.seek(Math.max(0, Math.min(T.recorded, at)) * T.sampleRate);
+      }, 50);
     }
   });
 }
+let scrubTimer = 0;
 
 })();
 
@@ -25484,10 +25623,19 @@ function meterWidth(v){
 function paintTransport(){
   const st = T.state;
   bRec.classList.toggle("tp-on", st === "rec");
+  /* Armed and rolling are different states and have to look different, or the one button
+     that decides whether the next take exists is ambiguous. Armed is a steady ring —
+     loaded and waiting; rolling keeps the filled blink it has always had. */
+  bRec.classList.toggle("tp-armed", T.armed);
   bPlay.classList.toggle("tp-on", st === "play");
   bRew.classList.toggle("tp-on", st === "rew");
   view.classList.toggle("tp-recording", st === "rec");
-  if (dot) dot.hidden = st !== "rec";
+  /* ⚠️ The tab light is on for ARMED as well as rolling. It exists because you press record
+     and then switch away to actually play something — which is now the normal way to start
+     a take rather than a thing you might do, so an armed deck you have navigated away from
+     is exactly the state it was put there for. */
+  if (dot) dot.hidden = st !== "rec" && !T.armed;
+  if (dot) dot.classList.toggle("tp-dot-armed", st !== "rec" && T.armed);
   if (clip) clip.hidden = !T.clipped;
   view.classList.toggle("tp-playing", st === "play");
   bRec.setAttribute("aria-pressed", st === "rec" ? "true" : "false");
@@ -25495,7 +25643,9 @@ function paintTransport(){
   bSave.disabled = !has || st === "rec";
   if (bKeep) bKeep.disabled = !has || st === "rec";
   bErase.disabled = !has || st === "rec";
-  bPlay.disabled = !has;
+  /* Play is how an armed deck starts recording, so it cannot be disabled for having
+     nothing on the tape yet — which is exactly when you are most likely to want it. */
+  bPlay.disabled = !has && !T.armed;
 }
 T.onChange(paintTransport);
 
@@ -25554,11 +25704,19 @@ function frame(now){
 }
 
 /* ---- buttons ---- */
+/* ⚠️ RECORD ARMS, IT DOES NOT ROLL. Rolling on the press meant the first bar of every take
+   was the sound of somebody reaching for play; arming lets the take and the music start on
+   the same gesture. Pressing it while rolling still stops, because that is the one meaning
+   a lit record button can have. */
 bRec.addEventListener("click", () => {
-  if (T.state === "rec") T.stop();
-  else { T.record().then(() => { meters(); }); }
+  if (T.state === "rec"){ T.stop(); return; }
+  T.arm();
 });
-bPlay.addEventListener("click", () => { T.play().then(() => meters()); });
+/* And play rolls whatever is armed. Nothing armed, it is playback. */
+bPlay.addEventListener("click", () => {
+  if (T.armed){ T.record().then(() => meters()); return; }
+  T.play().then(() => meters());
+});
 bStop.addEventListener("click", () => T.stop());
 bRew.addEventListener("click", () => {
   if (T.state === "rew"){ T.rewindDone(); return; }

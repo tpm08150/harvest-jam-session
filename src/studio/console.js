@@ -529,14 +529,36 @@ if (window.Patchwork && Patchwork.surface){
        Erase is the deck's own control and asks twice. Pressed through the deck's button so
        the reels, the meters and the tab's record light all do what they already do. */
     record: () => { const b = document.getElementById("tpRec"); if (b) b.click(); },
-    /* Choosing Mixer on the controller brings the tab it lives on up, through the same
-       segmented control a click uses. A surface and a window disagreeing about where you
-       are is worse than either being wrong on its own. */
-    show: () => {
-      const b = document.querySelector('#stView button[data-v="tape"]');
+    /* Playback, as opposed to the rack's transport. ⚠️ IT TOGGLES, and the deck's own Play
+       button does not — because the deck has a Stop button next to it and the controller has
+       one button for the pair. A surface button that can start a thing and not stop it is a
+       button you have to leave the controller to undo. Both are the panel's own buttons, so
+       an armed deck rolls from here exactly as it would from a click. */
+    play: () => {
+      const T = Patchwork.tape;
+      const id = (T && (T.state === "play" || T.state === "rec")) ? "tpStop" : "tpPlay";
+      const b = document.getElementById(id);
       if (b) b.click();
+    },
+    /* ⚠️ SCRUB IS A SEEK, NOT THE DECK'S REWIND. `rewind()` means "wind back to the start"
+       and is animated to zero by the panel; this is a position you hold and let go of, in
+       both directions, so it moves the head and nothing else. Playback stops first, because
+       a deck you can scrub while it plays is one whose counter and audio disagree. */
+    scrub: (dir, on) => {
+      const T = Patchwork.tape;
+      if (!T) return;
+      clearInterval(scrubTimer);
+      if (!on) return;
+      if (T.state === "play" || T.state === "rec") T.stop();
+      /* Four times realtime: fast enough to cross a take, slow enough to land on a bar. */
+      const step = 0.2 * dir;
+      scrubTimer = setInterval(() => {
+        const at = T.position + step;
+        T.seek(Math.max(0, Math.min(T.recorded, at)) * T.sampleRate);
+      }, 50);
     }
   });
 }
+let scrubTimer = 0;
 
 })();

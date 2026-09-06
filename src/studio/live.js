@@ -266,6 +266,18 @@ function toggleAll(){
     if (!isSeq) return;                     // the looper is not part of "play all"
     if (Patchwork.scenes.playing(id) === anyPlaying) btn.click();
   });
+  /* ⚠️ AN ARMED DECK ROLLS WITH THE RACK, which is the whole reason Record arms rather than
+     rolling: the take has to start when the music does, not a reaction time later. Here
+     rather than on the deck's own play button because "play" for a rack of instruments is
+     THIS, and a take that started when you pressed the tape's play instead would be the one
+     button on the page that meant something different from the others.
+
+     Stopping is the mirror: the rack stopping ends the take. Leaving tape running over a
+     silent rack records the room going quiet, which nobody has ever wanted. */
+  const T = Patchwork.tape;
+  if (!T) return;
+  if (!anyPlaying && T.armed) T.record();
+  else if (anyPlaying && T.state === "rec") T.stop();
 }
 document.querySelector("#livePlay").addEventListener("click", () => {
   toggleAll();
@@ -284,6 +296,15 @@ document.querySelector("#liveDown").addEventListener("click", () => Patchwork.cl
 
 /* ---- the view switch ---- */
 const seg = document.querySelector("#stView");
+/* A control surface can ask for a view by name. Pressed through the same segmented control
+   a click uses, so whatever switching views does happens here too — see shell/surface.js,
+   which knows that views exist and nothing whatever about what they are. */
+if (window.Patchwork && Patchwork.surface){
+  Patchwork.surface.onView(name => {
+    const b = seg.querySelector('button[data-v="' + name + '"]');
+    if (b) b.click();
+  });
+}
 /* ⚠️ Three views now, so this asks which one is wanted rather than whether it is the live
    one. Written as `rack.hidden = isLive` this breaks the moment a third view exists: the
    rack stays on screen underneath the tape deck, because "not live" stopped meaning

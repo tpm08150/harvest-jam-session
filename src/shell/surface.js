@@ -63,6 +63,17 @@ function register(p){ profiles.push(p); notify(); }
 const pages = new Map();
 function mount(id, spec){ pages.set(id, spec); notify(); }
 
+/* ---- where the window is looking ----
+   A controller that changes what the encoders do without changing what is on the screen
+   leaves the two disagreeing about where you are. The shell has no idea what views exist —
+   that is the studio's business, and a standalone build has none — so whoever draws them
+   says how to reach one and the profile names the one it wants.
+
+     Patchwork.surface.onView(fn)   // the studio registers its tab switcher
+     rig.goto("tape")               // a profile asks for it */
+let viewer = null;
+function onView(fn){ viewer = fn; }
+
 /* "" is the ordinary state: whatever panel has the focus. Anything else is a mounted page. */
 let mode = "";
 
@@ -108,12 +119,30 @@ const rig = {
     }
     notify();
   },
+  /* Bring a view up, if the page this is running on has any. Silent on a standalone build,
+     which has one screen and nothing to switch. */
+  goto(view){
+    if (!viewer || !view) return false;
+    try{ viewer(view); return true; }catch(e){ return false; }
+  },
   /* The transport button, for a page that has one to offer. Silent everywhere else — a
      surface should not have to ask what it is aimed at before pressing a button. */
   record(){
     const f = rig.focus;
     if (!f || typeof f.spec.record !== "function") return false;
     try{ f.spec.record(); return true; }catch(e){ return false; }
+  },
+  play(){
+    const f = rig.focus;
+    if (!f || typeof f.spec.play !== "function") return false;
+    try{ f.spec.play(); return true; }catch(e){ return false; }
+  },
+  /* Held rather than pressed: a scrub runs while a finger is down and stops when it lifts,
+     so a profile passes both edges and the page decides what "moving" means. */
+  scrub(dir, on){
+    const f = rig.focus;
+    if (!f || typeof f.spec.scrub !== "function") return false;
+    try{ f.spec.scrub(dir, on); return true; }catch(e){ return false; }
   },
   get instruments(){ return Patchwork.midi.list().map(i => ({id: i.id, name: i.name})); },
 
@@ -493,7 +522,7 @@ Patchwork.midi.onChange(() => {
   if (!live) restore();
 });
 
-return {register, mount, connect, disconnect, restore, rig,
+return {register, mount, onView, connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
                                                        label: f.det.label || f.profile.name})); },
