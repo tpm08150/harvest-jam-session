@@ -160,10 +160,29 @@ const rig = {
     const T = Patchwork.tape;
     if (T && (T.state === "play" || T.state === "rec")) T.stop();
   },
-  play(){
+  /* ---- what Play means here ----
+   ⚠️ THE PAGE DECIDES, because on the tape deck the answer depends on what you are about to
+   do. Armed, you are making a take and Play has to start the BAND — the deck rolls with it.
+   Not armed, you are listening back and Play has to start the TAPE. Both are "play the
+   obvious thing", and which one is obvious is a fact about the page rather than about the
+   button. A panel has no second transport, so it never has to answer.
+
+   `alt` is the modifier, and it always means the other one — so nothing is ever unreachable
+   and there is no state to be in the wrong half of. */
+  transport(alt){
     const f = rig.focus;
-    if (!f || typeof f.spec.play !== "function") return false;
-    try{ f.spec.play(); return true; }catch(e){ return false; }
+    if (f && typeof f.spec.transport === "function"){
+      try{ f.spec.transport(!!alt); return true; }catch(e){ return false; }
+    }
+    rig.toggle();
+    return true;
+  },
+  /* Is anything the Play button drives actually running? Broader than `playing`, which is
+     the rack alone and is what stopAll and the launcher mean by it. */
+  get rolling(){
+    const f = rig.focus;
+    if (f && f.spec && typeof f.spec.rolling === "boolean") return f.spec.rolling;
+    return rig.playing;
   },
   /* Back to the start of whatever this page is playing. */
   get canHome(){

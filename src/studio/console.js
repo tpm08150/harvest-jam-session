@@ -530,16 +530,40 @@ if (window.Patchwork && Patchwork.surface){
        the reels, the meters and the tab's record light all do what they already do. */
     record: () => { const b = document.getElementById("tpRec"); if (b) b.click(); },
     get armed(){ return !!(Patchwork.tape && Patchwork.tape.armed); },
-    /* Playback, as opposed to the rack's transport. ⚠️ IT TOGGLES, and the deck's own Play
-       button does not — because the deck has a Stop button next to it and the controller has
-       one button for the pair. A surface button that can start a thing and not stop it is a
-       button you have to leave the controller to undo. Both are the panel's own buttons, so
-       an armed deck rolls from here exactly as it would from a click. */
-    play: () => {
+    /* ⚠️ ARMED MEANS PLAY STARTS THE BAND; NOT ARMED MEANS IT STARTS THE TAPE. On this page
+       those are the two things Play could possibly mean, and which one you want is never
+       ambiguous — it is written on the record button. Armed, you are about to make a take
+       and the deck rolls with the rack anyway; not armed, you are listening back. `alt` is
+       Func and always means the other one, so neither is ever out of reach.
+
+       Both go through the panel's own buttons. ⚠️ Tape playback TOGGLES here although the
+       deck's Play does not, because the deck has a Stop beside it and the controller has one
+       button for the pair — a surface button that starts a thing and cannot stop it is one
+       you have to leave the controller to undo. */
+    transport: alt => {
       const T = Patchwork.tape;
-      const id = (T && (T.state === "play" || T.state === "rec")) ? "tpStop" : "tpPlay";
-      const b = document.getElementById(id);
-      if (b) b.click();
+      const wantTape = T ? (T.armed ? !!alt : !alt) : false;
+      if (!wantTape){
+        if (Patchwork.transport) Patchwork.transport.toggleAll();
+        return;
+      }
+      if (T.state === "play" || T.state === "rec"){
+        const b = document.getElementById("tpStop");
+        if (b) b.click();
+        return;
+      }
+      /* ⚠️ PLAYBACK, NEVER A TAKE — and this is the one place the deck's own Play button
+         cannot be used, because when the deck is armed that button ROLLS, and rolling
+         truncates the tape at the head. So Func-Play while armed, meaning "let me hear
+         that back", would have erased the very thing you asked to hear. T.play() is what
+         the button calls anyway once its arm branch is taken out, which is exactly the
+         branch being overridden here. */
+      T.play();
+    },
+    get rolling(){
+      const T = Patchwork.tape;
+      return !!((Patchwork.transport && Patchwork.transport.anyPlaying)
+                || (T && (T.state === "play" || T.state === "rec")));
     },
     /* ⚠️ Instant, and it stops first — "back to the top" is a thing you do in order to play
        from there, and arriving still rolling means arriving somewhere else. */

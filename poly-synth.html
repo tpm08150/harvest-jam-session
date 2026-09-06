@@ -2266,10 +2266,29 @@ const rig = {
     const T = Patchwork.tape;
     if (T && (T.state === "play" || T.state === "rec")) T.stop();
   },
-  play(){
+  /* ---- what Play means here ----
+   ⚠️ THE PAGE DECIDES, because on the tape deck the answer depends on what you are about to
+   do. Armed, you are making a take and Play has to start the BAND — the deck rolls with it.
+   Not armed, you are listening back and Play has to start the TAPE. Both are "play the
+   obvious thing", and which one is obvious is a fact about the page rather than about the
+   button. A panel has no second transport, so it never has to answer.
+
+   `alt` is the modifier, and it always means the other one — so nothing is ever unreachable
+   and there is no state to be in the wrong half of. */
+  transport(alt){
     const f = rig.focus;
-    if (!f || typeof f.spec.play !== "function") return false;
-    try{ f.spec.play(); return true; }catch(e){ return false; }
+    if (f && typeof f.spec.transport === "function"){
+      try{ f.spec.transport(!!alt); return true; }catch(e){ return false; }
+    }
+    rig.toggle();
+    return true;
+  },
+  /* Is anything the Play button drives actually running? Broader than `playing`, which is
+     the rack alone and is what stopAll and the launcher mean by it. */
+  get rolling(){
+    const f = rig.focus;
+    if (f && f.spec && typeof f.spec.rolling === "boolean") return f.spec.rolling;
+    return rig.playing;
   },
   /* Back to the start of whatever this page is playing. */
   get canHome(){
@@ -3189,11 +3208,10 @@ function message(io, d, rig){
   if (!v) return;                         // buttons report a release too; act on the press
 
   switch (cc){
-    /* ⚠️ Play is the RACK. Func-Play is the tape, because they are two transports and one
-       button, and the rack is the one you press a hundred times a session. An armed deck
-       rolls with the rack anyway — see toggleAll in studio/live.js — so Func-Play is for
-       listening back, which is the only time the two need telling apart. */
-    case B_PLAY:  if (io.state.fn) rig.play(); else rig.toggle(); break;
+    /* ⚠️ Play does the obvious thing and Func-Play does the other one — which of the two
+       transports is obvious being the page's business, not this file's. See transport() in
+       shell/surface.js. */
+    case B_PLAY:  rig.transport(io.state.fn); break;
     /* Shift-Play on this device is not a modifier and a key — it is the Stop button, which
        is why it arrives here rather than at B_PLAY. */
     case B_STOP:  rig.stopAll(); break;
@@ -3269,7 +3287,7 @@ function paintPads(io, rig){
 function paintButtons(io, rig){
   const s = io.state;
   const want = {};
-  want[B_PLAY] = rig.playing ? PAL.green : dim(PAL.green);
+  want[B_PLAY] = rig.rolling ? PAL.green : dim(PAL.green);
   /* Armed is the state you can forget you are in, and the one that decides whether the next
      thing you play is kept. Lit red for armed, dark for not — and never dim, because a
      record light that is only slightly on is a record light nobody trusts. */

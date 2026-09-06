@@ -499,11 +499,10 @@ function message(io, d, rig){
   if (!v) return;                         // buttons report a release too; act on the press
 
   switch (cc){
-    /* ⚠️ Play is the RACK. Func-Play is the tape, because they are two transports and one
-       button, and the rack is the one you press a hundred times a session. An armed deck
-       rolls with the rack anyway — see toggleAll in studio/live.js — so Func-Play is for
-       listening back, which is the only time the two need telling apart. */
-    case B_PLAY:  if (io.state.fn) rig.play(); else rig.toggle(); break;
+    /* ⚠️ Play does the obvious thing and Func-Play does the other one — which of the two
+       transports is obvious being the page's business, not this file's. See transport() in
+       shell/surface.js. */
+    case B_PLAY:  rig.transport(io.state.fn); break;
     /* Shift-Play on this device is not a modifier and a key — it is the Stop button, which
        is why it arrives here rather than at B_PLAY. */
     case B_STOP:  rig.stopAll(); break;
@@ -579,7 +578,7 @@ function paintPads(io, rig){
 function paintButtons(io, rig){
   const s = io.state;
   const want = {};
-  want[B_PLAY] = rig.playing ? PAL.green : dim(PAL.green);
+  want[B_PLAY] = rig.rolling ? PAL.green : dim(PAL.green);
   /* Armed is the state you can forget you are in, and the one that decides whether the next
      thing you play is kept. Lit red for armed, dark for not — and never dim, because a
      record light that is only slightly on is a record light nobody trusts. */

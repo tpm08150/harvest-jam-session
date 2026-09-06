@@ -372,10 +372,25 @@ something running is worse than none, because you press it, the room does not go
 now you are hunting. Distinct from Func + Record, which is panic and also chases stuck notes
 out of external gear.
 
-**Func + Play is the tape**, plain Play is the rack: two transports and one button, and the
-rack is the one you press a hundred times a session. It toggles, though the deck's own Play
-does not, because the deck has a Stop button beside it and the controller does not — a button
-that can start a thing and not stop it is one you have to leave the controller to undo.
+⚠️ **Play does the obvious thing, and which one is obvious is the page's business.** Two
+transports and one button:
+
+| where | Play | Func + Play |
+| --- | --- | --- |
+| **Studio, Live, Library** | the rack | — |
+| **Tape**, record armed | the rack, and the deck rolls with it | hear the tape back |
+| **Tape**, not armed | play the tape back | the rack |
+
+Armed you are making a take, so Play has to start the *band*; not armed you are listening
+back, so it has to start the *tape*. Which of those you want is never ambiguous — it is
+written on the record button. Func always means the other one, so neither is ever out of
+reach and there is no state to be in the wrong half of.
+
+Tape playback toggles here although the deck's own Play does not, because the deck has a Stop
+beside it and the controller has one button for the pair. ⚠️ And Func + Play is **playback,
+never a take** — it is the one place the deck's own Play button cannot be used, because when
+the deck is armed that button *rolls*, and rolling truncates the tape at the head. "Let me
+hear that back" would have erased the thing you asked to hear.
 
 **The arrows scrub the tape**, up for rewind, while you hold them — plain for fast, Func for
 slow. Eight times realtime crosses a three-minute reel in twenty seconds, which is finding a
