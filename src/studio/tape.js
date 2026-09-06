@@ -148,7 +148,53 @@ function paintTransport(){
 }
 T.onChange(paintTransport);
 
-let raf = 0, open = false;
+let raf = 0, open = false, lastPos = 0;
+
+/* ---- the sound of the tape moving ----
+   ⚠️ PAST THE MIXER, STRAIGHT TO THE OUTPUT, and therefore never on the tape. This is the
+   noise the MACHINE makes, not the noise on the reel: a real deck's spooling is acoustic —
+   it is in the room, not in the monitor mix and not on the take. The bus records from
+   `end`, so anything routed through a strip or the master would end up baked into the very
+   recording you were winding through, which is a joke played once.
+
+   Noise through a bandpass that opens as the tape goes faster, which is what winding
+   sounds like: a hiss at playing speed, a rising rush as it spools. Built on first use and
+   left in place at zero gain, because building it per scrub means a click at the start of
+   every one. */
+let windNoise = null, windBand = null, windGain = null;
+function buildWind(){
+  const A = window.Patchwork && Patchwork.audio;
+  const ctx = A && A.ctx;
+  if (!ctx || windNoise) return !!windNoise;
+  const len = Math.floor(ctx.sampleRate * 2);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  windNoise = ctx.createBufferSource();
+  windNoise.buffer = buf; windNoise.loop = true;
+  windBand = ctx.createBiquadFilter();
+  windBand.type = "bandpass"; windBand.frequency.value = 800; windBand.Q.value = .9;
+  windGain = ctx.createGain();
+  windGain.gain.value = 0;
+  windNoise.connect(windBand); windBand.connect(windGain);
+  windGain.connect(ctx.destination);
+  try{ windNoise.start(); }catch(e){}
+  return true;
+}
+function wind(rate){
+  const speed = Math.abs(rate);
+  /* Playing and recording are silent: the deck is quiet at 1x and it is the SPOOLING that
+     you hear. Anything faster than about twice speed is winding. */
+  const want = speed > 2 ? Math.min(.09, .012 * speed) : 0;
+  if (!want && !windGain) return;               // never built, nothing to fade
+  if (!buildWind()) return;
+  const ctx = Patchwork.audio.ctx, t = ctx.currentTime;
+  windGain.gain.setTargetAtTime(want, t, .04);
+  /* The band rides the speed, so slow scrubbing is a low rumble and a fast wind is a rush.
+     Fixed, it sounded like the same noise turned up. */
+  windBand.frequency.setTargetAtTime(500 + speed * 340, t, .05);
+  windBand.Q.setTargetAtTime(speed > 10 ? 1.6 : .9, t, .05);
+}
 function frame(now){
   if (!open){ raf = 0; return; }
   raf = requestAnimationFrame(frame);
@@ -175,7 +221,15 @@ function frame(now){
      radius. That is the whole reason a real deck looks alive: the two reels are visibly
      turning at different speeds and the difference reverses over the course of a take.
      Spinning both at one rate looks like a screensaver. */
-  const moving = st === "rec" || st === "play" ? 1 : (st === "rew" ? -REW : 0);
+  /* ⚠️ MEASURED, NOT DECLARED. This used to read the transport state and turn a rate out of
+     it — 1 for play, -14 for rewind, 0 otherwise — which meant the reels sat still while the
+     tape was being scrubbed, because scrubbing is a seek and leaves the state at "stop".
+     Every way of moving tape moves `pos`, so taking the rate from how far it actually went
+     covers all of them, including the next one. Clamped because a click on the scrub bar
+     jumps the position, and one frame of that arrives as a rate of several hundred. */
+  const moving = dt ? Math.max(-20, Math.min(20, (pos - lastPos) / dt)) : 0;
+  lastPos = pos;
+  wind(moving);
   if (moving && dt){
     angS += (SPEED * moving / rs) * dt * 180 / Math.PI;
     angT += (SPEED * moving / rt) * dt * 180 / Math.PI;
@@ -295,6 +349,10 @@ bSave.addEventListener("click", () => {
 Patchwork.tapeUI = {
   show(){
     open = true; last = 0;
+    /* ⚠️ And where the tape is NOW, not where it was when the view was last closed. The
+       reel rate is a difference between frames, so a stale one makes the first frame back
+       report every second of scrubbing you did while away as having happened at once. */
+    lastPos = T.position;
     /* ⚠️ Loading the worklet here rather than on the first press, exactly as the punch rack
        primes when the Live page opens: the first take is the one worth not losing to a
        module that had not finished loading. */
@@ -302,6 +360,12 @@ Patchwork.tapeUI = {
     paintTransport();
     if (!raf) raf = requestAnimationFrame(frame);
   },
-  hide(){ open = false; }
+  hide(){
+    open = false;
+    /* ⚠️ The frame loop is what fades this, and leaving the view stops the frame loop — so
+       without saying so here, walking away mid-scrub leaves a deck spooling in an empty
+       room forever. */
+    if (windGain) windGain.gain.setTargetAtTime(0, Patchwork.audio.ctx.currentTime, .05);
+  }
 };
 })();

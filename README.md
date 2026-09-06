@@ -379,6 +379,18 @@ warning that a familiar button is doing something else.
 itself to zero. Playback stops first: a deck you can scrub while it plays is one whose
 counter and audio disagree.
 
+**The reels turn and the deck spools audibly while you scrub.** ⚠️ The reel rate is
+*measured* rather than declared — it used to be read off the transport state, which meant
+the reels sat still through a scrub, because a scrub is a seek and leaves the state at
+"stop". Every way of moving tape moves the position, so taking the rate from how far it
+actually went covers all of them, including the next one.
+
+⚠️ The spooling noise goes **past the mixer, straight to the output, and is therefore never
+on the tape**. It is the sound of the *machine*, not of the reel: a real deck's winding is
+acoustic — in the room, not in the monitor mix and not on the take. The bus records from its
+own end, so routing this through a strip or the master would bake it into the very recording
+you were winding through.
+
 ⚠️ **The desk owns no audio and neither does this.** Every value is read and written through
 the knobs and faders already on screen, so a move from the encoders is the same move a hand
 would have made — persisted, painted, and recalled by a scene exactly as if you had dragged
