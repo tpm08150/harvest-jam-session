@@ -1430,28 +1430,93 @@ return {set, setLevel, toggle: () => set(!on), STRIP,
 Patchwork.midi = (() => {
 "use strict";
 
-let accessPromise = null, access = null, port = null;
+let accessPromise = null, access = null, port = null, sysex = false;
 const subs = [];                 // {id, onMidi, onPort, spec}
 const watchers = [];             // UI that wants to know when any of this changed
 function notify(){ watchers.forEach(fn => { try{ fn(); }catch(e){} }); }
 
+/* ---- claimed ports ----
+   A control surface is not an instrument on the page's input; it is a second cable, and
+   both ends of it are its own. A Launchkey puts its keys on one USB port and its pads,
+   pots and transport on another, so `port` (the page's performance input) and the DAW
+   port are two different devices as far as Web MIDI is concerned.
+
+   ⚠️ THE SHELL STILL OWNS EVERY `onmidimessage`. That property is the reason this module
+   exists — two assignments and the first one silently stops receiving. A claim is a way
+   to ask the shell to bind a port on your behalf, NOT a licence to bind it yourself. */
+const claims = new Map();        // portId -> handler
+
 /* One requestMIDIAccess for the page — two calls mean two permission paths and two
-   onstatechange owners racing to rebuild the same port lists. */
+   onstatechange owners racing to rebuild the same port lists.
+
+   ⚠️ SYSEX IS A DIFFERENT PERMISSION, and a scarier-sounding one: Chrome asks to "control
+   your MIDI devices" rather than to use them. Asking every visitor for it so that the one
+   with a Launchkey can have a screen readout is the wrong trade, so the default is off and
+   the answer is remembered. `upgrade()` below is what a deliberate click runs. */
+const SYSEX_KEY = "patchwork-midi-sysex";
+function wantSysex(){
+  try{ return localStorage.getItem(SYSEX_KEY) === "1"; }catch(e){ return false; }
+}
+function bindAccess(a, withSysex){
+  access = a; sysex = !!withSysex;
+  a.onstatechange = () => {
+    /* A port can vanish while bound — unplugging the interface. Drop the stale
+       reference before telling anyone, or every subscriber re-reads a dead port. */
+    if (port && !ports("inputs").some(p => p.id === port.id)) port = null;
+    /* A claimed port can vanish the same way, and its handler is the one thing that will
+       never hear about it from a subscriber callback. */
+    Array.from(claims.keys()).forEach(id => {
+      if (!ports("inputs").some(p => p.id === id)) claims.delete(id);
+    });
+    subs.forEach(s => { try{ s.onPort(port); }catch(e){} });
+    notify();
+  };
+  return a;
+}
 function open(){
   if (accessPromise) return accessPromise;
   if (!navigator.requestMIDIAccess)
     return accessPromise = Promise.reject(new Error("unavailable"));
-  accessPromise = navigator.requestMIDIAccess({sysex:false}).then(a => {
-    access = a;
-    a.onstatechange = () => {
-      /* A port can vanish while bound — unplugging the interface. Drop the stale
-         reference before telling anyone, or every subscriber re-reads a dead port. */
-      if (port && !ports("inputs").some(p => p.id === port.id)) port = null;
-      subs.forEach(s => { try{ s.onPort(port); }catch(e){} });
-    };
-    return a;
-  });
+  const ask = wantSysex();
+  accessPromise = navigator.requestMIDIAccess({sysex:ask})
+    .then(a => bindAccess(a, ask))
+    /* Remembering the answer means remembering a "yes" that has since been revoked in the
+       browser's own site settings. Fall back rather than leaving the page with no MIDI at
+       all — everything except the screen still works without it. */
+    .catch(err => {
+      if (!ask) throw err;
+      return navigator.requestMIDIAccess({sysex:false}).then(a => bindAccess(a, false));
+    });
   return accessPromise;
+}
+
+/* Ask for SysEx now, from a click. Resolves true if the page holds it afterwards.
+
+   ⚠️ A SECOND requestMIDIAccess RETURNS A DIFFERENT ACCESS OBJECT with a different set of
+   port objects, so every binding made against the old one is dead. Port *ids* are stable
+   per origin, which is what makes re-selecting the same input and re-claiming the same
+   surface port possible at all — so both are re-applied by id here rather than left for
+   the caller to notice going quiet. */
+function upgrade(){
+  if (sysex) return Promise.resolve(true);
+  if (!navigator.requestMIDIAccess) return Promise.resolve(false);
+  return navigator.requestMIDIAccess({sysex:true}).then(a => {
+    const keepPort = port ? port.id : "";
+    const keepClaims = Array.from(claims.entries());
+    if (port){ try{ port.onmidimessage = null; }catch(e){} }
+    keepClaims.forEach(([id]) => {
+      const old = ports("inputs").find(p => p.id === id);
+      if (old){ try{ old.onmidimessage = null; }catch(e){} }
+    });
+    claims.clear(); port = null;
+    bindAccess(a, true);
+    accessPromise = Promise.resolve(a);
+    try{ localStorage.setItem(SYSEX_KEY, "1"); }catch(e){}
+    if (keepPort) select(keepPort);
+    keepClaims.forEach(([id, fn]) => claim(id, fn));
+    notify();
+    return true;
+  }).catch(() => false);
 }
 
 function ports(kind){ return access ? Array.from(access[kind].values()) : []; }
@@ -1542,10 +1607,50 @@ function route(id, onMidi, onPort, spec){
 function select(portId){
   if (port){ try{ port.onmidimessage = null; }catch(e){} }
   port = portId ? (ports("inputs").find(p => p.id === portId) || null) : null;
+  /* ⚠️ A CLAIMED PORT IS NOT AVAILABLE AS THE PAGE INPUT. The surface holds the Launchkey's
+     DAW port, and selecting it here would overwrite its handler with fanout — the exact
+     single-property collision this module was written to stop, except now between the shell
+     and itself. Refuse it and leave the input where it was. */
+  if (port && claims.has(port.id)) port = null;
   if (port) port.onmidimessage = fanout;
   subs.forEach(s => { try{ s.onPort(port); }catch(e){} });
   notify();
   return port;
+}
+
+/* ---- a port of one's own ----
+   Bind `handler` to one input port for a control surface. Returns a release function; call
+   it when the surface disconnects, because a claim outlives the object that made it and a
+   port nobody is listening to is better than a port two things are.
+
+   Claiming the port that is currently the page input takes it: the surface's DAW port and
+   the page's performance input are different cables on the same device, and a boot that
+   happened to select the DAW port first must not leave the surface deaf. */
+function claim(portId, handler){
+  const pt = ports("inputs").find(p => p.id === portId);
+  if (!pt) return function(){};
+  if (port && port.id === portId){ try{ port.onmidimessage = null; }catch(e){} port = null; }
+  const prev = claims.get(portId);
+  if (prev){ try{ pt.onmidimessage = null; }catch(e){} }
+  claims.set(portId, handler);
+  pt.onmidimessage = ev => { try{ handler(ev); }catch(err){ console.error("surface handler failed", err); } };
+  subs.forEach(s => { try{ s.onPort(port); }catch(e){} });
+  notify();
+  return () => {
+    if (claims.get(portId) !== handler) return;   // someone else claimed it since
+    claims.delete(portId);
+    const still = ports("inputs").find(p => p.id === portId);
+    if (still){ try{ still.onmidimessage = null; }catch(e){} }
+    notify();
+  };
+}
+function claimed(portId){ return claims.has(portId); }
+
+/* Outputs have no shared-handler problem — sending is not listening — so this is a lookup
+   rather than an ownership question. It exists so a surface never has to reach for
+   `access` and hold a port object across a SysEx upgrade that invalidates it. */
+function output(portId){
+  return portId ? (ports("outputs").find(p => p.id === portId) || null) : null;
 }
 
 /* Everything registered, in the order it registered, for a page that wants to show the
@@ -1562,9 +1667,11 @@ function setFollow(on){
   notify();
 }
 
-return {open, ports, route, select, list, setFollow,
+return {open, upgrade, ports, route, select, list, setFollow,
+        claim, claimed, output,
         onChange: fn => watchers.push(fn),
         get follow(){ return follow; },
+        get sysex(){ return sysex; },
         get access(){ return access; },
         get port(){ return port; }};
 })();
