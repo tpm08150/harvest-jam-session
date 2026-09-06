@@ -544,14 +544,17 @@ if (window.Patchwork && Patchwork.surface){
        and is animated to zero by the panel; this is a position you hold and let go of, in
        both directions, so it moves the head and nothing else. Playback stops first, because
        a deck you can scrub while it plays is one whose counter and audio disagree. */
-    scrub: (dir, on) => {
+    scrub: (dir, on, speed) => {
       const T = Patchwork.tape;
       if (!T) return;
       clearInterval(scrubTimer);
       if (!on) return;
       if (T.state === "play" || T.state === "rec") T.stop();
-      /* Four times realtime: fast enough to cross a take, slow enough to land on a bar. */
-      const step = 0.2 * dir;
+      /* ⚠️ HOW FAST "FAST" IS BELONGS HERE, not to the controller that asked for it — it is
+         a fact about the length of a take. Eight times realtime crosses a three-minute reel
+         in twenty seconds, which is finding a section; one time is finding a bar within it.
+         A single speed made one of those two jobs annoying whichever number was picked. */
+      const step = (speed === "slow" ? 0.05 : 0.4) * dir;
       scrubTimer = setInterval(() => {
         const at = T.position + step;
         T.seek(Math.max(0, Math.min(T.recorded, at)) * T.sampleRate);

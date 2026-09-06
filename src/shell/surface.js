@@ -138,11 +138,17 @@ const rig = {
     try{ f.spec.play(); return true; }catch(e){ return false; }
   },
   /* Held rather than pressed: a scrub runs while a finger is down and stops when it lifts,
-     so a profile passes both edges and the page decides what "moving" means. */
-  scrub(dir, on){
+     so a profile passes both edges and the page decides what "moving" means. `speed` is a
+     word rather than a number — how fast "fast" is belongs to the thing being scrubbed, not
+     to the controller that asked. */
+  get canScrub(){
+    const f = rig.focus;
+    return !!(f && typeof f.spec.scrub === "function");
+  },
+  scrub(dir, on, speed){
     const f = rig.focus;
     if (!f || typeof f.spec.scrub !== "function") return false;
-    try{ f.spec.scrub(dir, on); return true; }catch(e){ return false; }
+    try{ f.spec.scrub(dir, on, speed || "fast"); return true; }catch(e){ return false; }
   },
   get instruments(){ return Patchwork.midi.list().map(i => ({id: i.id, name: i.name})); },
 

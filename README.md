@@ -362,7 +362,19 @@ rack is the one you press a hundred times a session. It toggles, though the deck
 does not, because the deck has a Stop button beside it and the controller does not — a button
 that can start a thing and not stop it is one you have to leave the controller to undo.
 
-**Func + ∧ ∨ scrubs** the tape, up for rewind, at four times realtime while you hold it.
+**The arrows scrub the tape**, up for rewind, while you hold them — plain for fast, Func for
+slow. Eight times realtime crosses a three-minute reel in twenty seconds, which is finding a
+section; one times is finding a bar within it, and a single speed made one of those two jobs
+annoying whichever number was picked. How fast "fast" is belongs to the tape rather than to
+the controller that asked, because it is a fact about the length of a take.
+
+⚠️ **The same two buttons, four meanings, and no mode.** Plain pages the grid — and where
+there is nowhere to page, scrubs fast. Func scrubs slow — and where there is nothing to
+scrub, walks the rack. A panel has pages and no tape; the mixer has a tape and one page, so
+whichever of the pair applies is the one that answers and neither button ever sits dead. The
+arrows go sky-blue when they are moving tape rather than pages, because a colour is the only
+warning that a familiar button is doing something else.
+
 ⚠️ A seek rather than the deck's Rewind, which means "wind back to the start" and animates
 itself to zero. Playback stops first: a deck you can scrub while it plays is one whose
 counter and audio disagree.

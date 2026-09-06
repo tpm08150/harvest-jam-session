@@ -1891,11 +1891,17 @@ const rig = {
     try{ f.spec.play(); return true; }catch(e){ return false; }
   },
   /* Held rather than pressed: a scrub runs while a finger is down and stops when it lifts,
-     so a profile passes both edges and the page decides what "moving" means. */
-  scrub(dir, on){
+     so a profile passes both edges and the page decides what "moving" means. `speed` is a
+     word rather than a number — how fast "fast" is belongs to the thing being scrubbed, not
+     to the controller that asked. */
+  get canScrub(){
+    const f = rig.focus;
+    return !!(f && typeof f.spec.scrub === "function");
+  },
+  scrub(dir, on, speed){
     const f = rig.focus;
     if (!f || typeof f.spec.scrub !== "function") return false;
-    try{ f.spec.scrub(dir, on); return true; }catch(e){ return false; }
+    try{ f.spec.scrub(dir, on, speed || "fast"); return true; }catch(e){ return false; }
   },
   get instruments(){ return Patchwork.midi.list().map(i => ({id: i.id, name: i.name})); },
 
@@ -2759,22 +2765,35 @@ function message(io, d, rig){
   if (cc === B_SHIFT) return;
   if (cc === B_FUNC){ io.state.fn = v > 0; return; }
 
-  /* ---- scrubbing, which is the one gesture here that is HELD ----
-     ⚠️ THE RELEASE MATTERS, and the press-only guard below would eat it. A page that offers
-     a scrub gets both edges; one that does not never sees the press, and Func and the arrows
-     go on meaning "walk the rack". Which arrow is down is remembered rather than re-derived,
-     because Func can be let go before the arrow is and the tape must still stop. */
+  /* ---- the arrows beside the pads ----
+     ⚠️ ALL OF IT LIVES HERE, above the press-only guard, because one of the four things
+     they do is HELD and the guard would eat its release. Which arrow is down is remembered
+     rather than re-derived: Func can be let go before the arrow is, and a tape that kept
+     winding because the modifier changed under it would be the worst bug on this surface.
+
+     Four meanings, and none of them overlap:
+
+       plain   page the grid — and where there is nowhere to page, scrub FAST
+       Func    scrub SLOW — and where there is nothing to scrub, walk the rack
+
+     ⚠️ THE FALLTHROUGHS ARE WHAT MAKE THAT ONE RULE RATHER THAN FOUR. A panel has pages
+     and no tape; the mixer has a tape and one page. Neither needs a mode, and neither
+     button ever sits dead: whichever of the pair applies is the one that answers. */
   if (cc === B_ARROW_UP || cc === B_ARROW_DN){
     const dir = cc === B_ARROW_UP ? -1 : 1;
-    if (v > 0 && io.state.fn && !io.state.scrub && rig.scrub(dir, true)){
-      io.state.scrub = dir;
+    if (!v){
+      if (io.state.scrub === dir){ io.state.scrub = 0; rig.scrub(dir, false); }
       return;
     }
-    if (!v && io.state.scrub === dir){
-      io.state.scrub = 0;
-      rig.scrub(dir, false);
+    if (io.state.scrub) return;              // one arrow at a time
+    if (io.state.fn){
+      if (rig.scrub(dir, true, "slow")) io.state.scrub = dir;
+      else rig.step(dir);
       return;
     }
+    if (rig.gridPageBy(dir)) return;
+    if (rig.scrub(dir, true, "fast")) io.state.scrub = dir;
+    return;
   }
   if (!v) return;                         // buttons report a release too; act on the press
 
@@ -2794,13 +2813,6 @@ function message(io, d, rig){
        reach for without looking. */
     case B_REC:   if (io.state.fn) rig.panic(); else rig.record(); break;
     case B_LOOP:  break;
-    /* ⚠️ THE ARROWS BESIDE THE PADS BELONG TO THE PADS. The two buttons a thumb finds
-       without looking are the ones next to the grid, so they move the grid: a pattern can
-       be 64 steps and the grid shows 16. Func turns the same pair into "which panel" —
-       one axis is inside a pattern, the other is across the rack, and they are the same
-       up-and-down gesture at two scales. */
-    case B_ARROW_UP: if (!io.state.fn) rig.gridPageBy(-1); else if (!io.state.scrub) rig.step(-1); break;
-    case B_ARROW_DN: if (!io.state.fn) rig.gridPageBy(1); else if (!io.state.scrub) rig.step(1); break;
     /* The device's Track pair — what the same two arrows send under Shift. "Which track"
        is which panel here, so this is the Launchkey's own word for it honoured rather than
        reinvented, and it reaches the same place Func and the arrows do. */
@@ -2865,7 +2877,11 @@ function paintButtons(io, rig){
      they now mean panels rather than pages. A modifier you cannot see on a key cap should
      at least be visible in what it has changed. */
   const page = rig.gridPage(), pages = rig.gridPages();
-  if (io.state.fn){
+  if (rig.canScrub && pages < 2){
+    /* Nothing to page, so both arrows are the tape — sky rather than cyan, because they
+       are moving something else now and a colour is the only warning of that. */
+    want[B_ARROW_UP] = PAL.sky; want[B_ARROW_DN] = PAL.sky;
+  } else if (io.state.fn){
     const many = rig.instruments.length > 1 ? PAL.white : 0;
     want[B_ARROW_UP] = many; want[B_ARROW_DN] = many;
   } else {
