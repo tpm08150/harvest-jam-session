@@ -539,10 +539,13 @@ Vrb Gat Swg Acc
 names and only the drum changes, so a legend without a title would be identical for the kick
 and the snare.
 
-⚠️ **Hold Shift and the encoders become a second eight**, where a panel offers one. Shift
-cannot be combined with another *button* — the device remaps those rather than passing a
-modifier — but an encoder is not a button: turning one while Shift is down still sends its
-own CC, and Shift itself is reported. So the one thing it can modify is the eight knobs.
+⚠️ **Hold Func — or Shift — and the encoders become a second eight**, where a panel offers
+one. Either key opens it, which is not indecision: they are two keys asking the same question,
+and accepting both costs a boolean and removes the only way this can be dead on arrival.
+Shift is *reported* by the device, so the display follows it — but this controller remaps
+rather than passes a modifier, and whether an encoder turned under Shift still sends its own
+CC is a fact about firmware rather than about the guide. Func is the profile's own modifier,
+is known to arrive, and means nothing else while a knob is moving.
 
 On **BS·1** that is the pattern's own settings — `Stp Rat Key Scl`: steps, rate, key and
 scale. ⚠️ Those are *lists, not ranges*, which is why they were never among the ordinary
@@ -551,9 +554,11 @@ knob landing between two of them means nothing. The encoder picks an **index** �
 divided by however many options there are — and goes through the panel's own menu, so the
 sequencer rebuilds its grid and re-spells its notes exactly as if you had used it.
 
-The legend retitles itself to `BS-1  Shift` while you hold it, because the eight names under
-it have just been replaced and a legend that did not say so would look like the bank had
-changed by itself. A panel with no second eight keeps its ordinary controls and its ordinary
+The legend retitles itself to `BS-1  Seq` while you hold it, because the eight names under it
+have just been replaced and a legend that did not say so would look like the bank had changed
+by itself. ⚠️ It names **what the second eight are, not which key reached them** — "Shift"
+was a guess about the hardware written into the part of the app furthest from it, and the
+wrong guess at that. A panel with no second eight keeps its ordinary controls and its ordinary
 title, so holding Shift never makes a familiar encoder do nothing.
 
 ⚠️ **Names are three characters, because the device packs rather than pads.** Four five-letter

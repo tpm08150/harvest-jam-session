@@ -117,7 +117,8 @@ function initMidi(){
      same setting and must never disagree about it. */
   Patchwork.midi.route("bs1", onMidi, pt => { fillPorts(); followInput(pt); describe(); }, {
     name: "BS\u00b71", panic: midiPanic,
-    controls: surfaceControls, shiftControls: surfaceShiftControls, grid: surfaceGrid,
+    controls: surfaceControls, shiftControls: surfaceShiftControls,
+    shiftName: "Seq", grid: surfaceGrid,
     inCh: {get: () => MIDI.inCh,
            set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
   });

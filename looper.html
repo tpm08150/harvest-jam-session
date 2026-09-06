@@ -1921,6 +1921,14 @@ const rig = {
     if (!f || typeof f.spec.shiftControls !== "function") return false;
     try{ return (f.spec.shiftControls() || []).length > 0; }catch(e){ return false; }
   },
+  /* ⚠️ WHAT THE SECOND EIGHT ARE, NOT WHICH KEY REACHES THEM. The legend used to say
+     "Shift", which was a guess about the hardware written into the part of the app furthest
+     from it — and the wrong guess, since the key that actually works may be Func. The names
+     under it already say what they are; the title should agree with them. */
+  altName(){
+    const f = rig.focus;
+    return (f && f.spec && f.spec.shiftName) || "Alt";
+  },
 
   /* ---- banks of eight ----
      Eight encoders and more than eight things worth turning, which is every synth here and
@@ -2474,6 +2482,17 @@ const dim = c => (c && c !== PAL.white) ? c + 2 : (c === PAL.white ? 1 : 0);
    the wrong colour is debuggable and a pad that is off is not. */
 function hue(name){ return PAL[name] == null ? PAL.white : PAL[name]; }
 
+/* ---- either modifier reaches the encoders' second eight ----
+   ⚠️ SHIFT MAY NOT SURVIVE THE TRIP. It is reported, so the display follows it — but this
+   device remaps rather than passes a modifier, and whether an encoder turned under Shift
+   still sends its own CC is a fact about firmware, not about the guide. Func is ours and is
+   known to arrive, and it means nothing else while a knob is moving.
+
+   So either one opens it. That is not indecision: they are two keys asking the same
+   question, and accepting both costs a boolean and removes the only way this feature can be
+   dead on arrival. */
+function altHeld(io){ return !!(io.state && (io.state.fn || io.state.shift)); }
+
 /* ---- the screen --------------------------------------------------------------
    Guide, "Controlling the screen". Configure a display once to say how many lines it has,
    then fill its fields with text. Both are SysEx, so both are silently skipped on a page
@@ -2763,7 +2782,7 @@ function message(io, d, rig){
   const cc = d[1], v = d[2];
 
   if (cc >= ENC_CC0 && cc < ENC_CC0 + ENC_N){
-    const list = rig.controls(io.state.shift);
+    const list = rig.controls(altHeld(io));
     const c = list[cc - ENC_CC0];
     if (!c || typeof c.set !== "function") return;
     try{ c.set(v / 127); }catch(e){}
@@ -2932,7 +2951,7 @@ function paintButtons(io, rig){
 
 function paintEncoders(io, rig){
   const s = io.state;
-  const list = rig.controls(s.shift);
+  const list = rig.controls(altHeld(io));
   for (let i = 0; i < ENC_N; i++){
     const c = list[i] || null;
     /* Position feedback. The guide's phrase for the absolute modes is "If the DAW sends
@@ -2969,8 +2988,8 @@ function paintScreen(io, rig){
      replaced and a legend that did not say so would look like the bank had changed by
      itself. Only where there IS a second eight — announcing one that does not exist would
      be worse than saying nothing. */
-  const alt = s.shift && rig.hasAlt();
-  const bankLabel = alt ? "Shift" : rig.controlBankName();
+  const alt = altHeld(io) && rig.hasAlt();
+  const bankLabel = alt ? rig.altName() : rig.controlBankName();
   const inst = f ? f.name : "no panel";
   const want = [inst + (bankLabel ? "  " + bankLabel : "")];
   const list = rig.controls(alt);

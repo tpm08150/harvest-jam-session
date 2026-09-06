@@ -235,6 +235,14 @@ const rig = {
     if (!f || typeof f.spec.shiftControls !== "function") return false;
     try{ return (f.spec.shiftControls() || []).length > 0; }catch(e){ return false; }
   },
+  /* ⚠️ WHAT THE SECOND EIGHT ARE, NOT WHICH KEY REACHES THEM. The legend used to say
+     "Shift", which was a guess about the hardware written into the part of the app furthest
+     from it — and the wrong guess, since the key that actually works may be Func. The names
+     under it already say what they are; the title should agree with them. */
+  altName(){
+    const f = rig.focus;
+    return (f && f.spec && f.spec.shiftName) || "Alt";
+  },
 
   /* ---- banks of eight ----
      Eight encoders and more than eight things worth turning, which is every synth here and
