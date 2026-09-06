@@ -235,12 +235,15 @@ function paintTransport(){
   const b = $("mxPlay");
   b.textContent = on ? "■ Stop all" : "▶ Play all";
   b.classList.toggle("st-on", on);
-  $("mxBpm").textContent = Patchwork.clock.bpm;
+  $("mxBpm").textContent = Patchwork.clock.shown;
 }
 /* ⚠️ Repaint immediately, not on the next poll. The half-second tick would catch up on its
    own, but a tempo readout that lags the button you just pressed reads as the button having
    missed — so you press it again, and now you are two BPM out. */
-function nudgeBpm(d){ Patchwork.clock.setBpm(Patchwork.clock.bpm + d); paintTransport(); }
+/* ⚠️ Nudged from the SHOWN tempo, not the exact one. Following a Launchkey's clock at
+   119.98, "+1" off the raw value lands on 120.98 and reads 121 — a button that says it
+   adds one and adds two. From the rounded figure it always lands where the readout says. */
+function nudgeBpm(d){ Patchwork.clock.setBpm(Patchwork.clock.shown + d); paintTransport(); }
 $("mxUp").addEventListener("click", () => nudgeBpm(1));
 $("mxDown").addEventListener("click", () => nudgeBpm(-1));
 /* the tempo can also change from the Live page or a jam partner, hence the poll as well */

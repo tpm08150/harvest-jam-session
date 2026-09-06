@@ -418,8 +418,8 @@ if (!up || !window.Patchwork || !Patchwork.clock) return;
 
 stop.addEventListener("click", () => { Patchwork.launch.stopAll(); setTimeout(paint, 60); });
 
-up.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm + 1));
-down.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm - 1));
+up.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.shown + 1));
+down.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.shown - 1));
 quant.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   Patchwork.scenes.setQuantum(b.dataset.q);
@@ -442,7 +442,7 @@ clickLvl.addEventListener("input", () => Patchwork.click.setLevel(clickLvl.value
 Patchwork.click.onChange(paint);
 
 function paint(){
-  out.textContent = Patchwork.clock.bpm;
+  out.textContent = Patchwork.clock.shown;
   const live = Patchwork.launch.anyPlaying();
   stop.classList.toggle("st-live", live);
   stop.disabled = !live;

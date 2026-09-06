@@ -225,7 +225,7 @@ function paint(){
   const pb = document.querySelector("#livePlay");
   pb.textContent = anyPlaying ? "■ Stop all" : "▶ Play all";
   pb.classList.toggle("st-on", anyPlaying);
-  document.querySelector("#liveBpm").textContent = Patchwork.clock.bpm;
+  document.querySelector("#liveBpm").textContent = Patchwork.clock.shown;
   quant.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", b.dataset.q === Patchwork.scenes.quantum));
   quant.querySelector('[data-q="pattern"]').title =
@@ -279,8 +279,8 @@ quant.addEventListener("click", e => {
   Patchwork.scenes.setQuantum(b.dataset.q);
 });
 
-document.querySelector("#liveUp").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm + 1));
-document.querySelector("#liveDown").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm - 1));
+document.querySelector("#liveUp").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.shown + 1));
+document.querySelector("#liveDown").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.shown - 1));
 
 /* ---- the view switch ---- */
 const seg = document.querySelector("#stView");

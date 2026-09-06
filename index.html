@@ -7725,6 +7725,15 @@ function onTempo(id, fn, initial){
 return {claim, pin, run, stop, setBpm, onTempo, beatSeconds, setRate, setOriginSource,
         get rate(){ return rate; },
         get bpm(){ return bpm; },
+        /* ⚠️ THE TEMPO AS A HUMAN READS IT, which is not the tempo the transport runs on.
+           An external clock is measured rather than declared — 24 pulses averaged into
+           60000/(perPulse*24) — so it arrives as 119.98765432098765 and every readout that
+           printed `bpm` straight out grew ten decimal places and shoved the layout around
+           on each pulse. The exact figure is what the scheduler needs and what a jam sends;
+           this is what a screen wants, and it lives here because three readouts rounding
+           for themselves is three chances to forget. CS·1 and PM·1 already kept the pair
+           apart internally and say so — this is the same rule, one level up. */
+        get shown(){ return bpm == null ? null : Math.round(bpm); },
         get origin(){ return origin; },
         get running(){ return running.size; },
         /* what is actually driving the tick, and how many it has done — diagnostics, but
@@ -24135,8 +24144,8 @@ if (!up || !window.Patchwork || !Patchwork.clock) return;
 
 stop.addEventListener("click", () => { Patchwork.launch.stopAll(); setTimeout(paint, 60); });
 
-up.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm + 1));
-down.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm - 1));
+up.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.shown + 1));
+down.addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.shown - 1));
 quant.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   Patchwork.scenes.setQuantum(b.dataset.q);
@@ -24159,7 +24168,7 @@ clickLvl.addEventListener("input", () => Patchwork.click.setLevel(clickLvl.value
 Patchwork.click.onChange(paint);
 
 function paint(){
-  out.textContent = Patchwork.clock.bpm;
+  out.textContent = Patchwork.clock.shown;
   const live = Patchwork.launch.anyPlaying();
   stop.classList.toggle("st-live", live);
   stop.disabled = !live;
@@ -24699,7 +24708,7 @@ function paint(){
   const pb = document.querySelector("#livePlay");
   pb.textContent = anyPlaying ? "■ Stop all" : "▶ Play all";
   pb.classList.toggle("st-on", anyPlaying);
-  document.querySelector("#liveBpm").textContent = Patchwork.clock.bpm;
+  document.querySelector("#liveBpm").textContent = Patchwork.clock.shown;
   quant.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", b.dataset.q === Patchwork.scenes.quantum));
   quant.querySelector('[data-q="pattern"]').title =
@@ -24753,8 +24762,8 @@ quant.addEventListener("click", e => {
   Patchwork.scenes.setQuantum(b.dataset.q);
 });
 
-document.querySelector("#liveUp").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm + 1));
-document.querySelector("#liveDown").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.bpm - 1));
+document.querySelector("#liveUp").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.shown + 1));
+document.querySelector("#liveDown").addEventListener("click", () => Patchwork.clock.setBpm(Patchwork.clock.shown - 1));
 
 /* ---- the view switch ---- */
 const seg = document.querySelector("#stView");
@@ -25046,12 +25055,15 @@ function paintTransport(){
   const b = $("mxPlay");
   b.textContent = on ? "■ Stop all" : "▶ Play all";
   b.classList.toggle("st-on", on);
-  $("mxBpm").textContent = Patchwork.clock.bpm;
+  $("mxBpm").textContent = Patchwork.clock.shown;
 }
 /* ⚠️ Repaint immediately, not on the next poll. The half-second tick would catch up on its
    own, but a tempo readout that lags the button you just pressed reads as the button having
    missed — so you press it again, and now you are two BPM out. */
-function nudgeBpm(d){ Patchwork.clock.setBpm(Patchwork.clock.bpm + d); paintTransport(); }
+/* ⚠️ Nudged from the SHOWN tempo, not the exact one. Following a Launchkey's clock at
+   119.98, "+1" off the raw value lands on 120.98 and reads 121 — a button that says it
+   adds one and adds two. From the rounded figure it always lands where the readout says. */
+function nudgeBpm(d){ Patchwork.clock.setBpm(Patchwork.clock.shown + d); paintTransport(); }
 $("mxUp").addEventListener("click", () => nudgeBpm(1));
 $("mxDown").addEventListener("click", () => nudgeBpm(-1));
 /* the tempo can also change from the Live page or a jam partner, hence the poll as well */

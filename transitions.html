@@ -1267,6 +1267,15 @@ function onTempo(id, fn, initial){
 return {claim, pin, run, stop, setBpm, onTempo, beatSeconds, setRate, setOriginSource,
         get rate(){ return rate; },
         get bpm(){ return bpm; },
+        /* ⚠️ THE TEMPO AS A HUMAN READS IT, which is not the tempo the transport runs on.
+           An external clock is measured rather than declared — 24 pulses averaged into
+           60000/(perPulse*24) — so it arrives as 119.98765432098765 and every readout that
+           printed `bpm` straight out grew ten decimal places and shoved the layout around
+           on each pulse. The exact figure is what the scheduler needs and what a jam sends;
+           this is what a screen wants, and it lives here because three readouts rounding
+           for themselves is three chances to forget. CS·1 and PM·1 already kept the pair
+           apart internally and say so — this is the same rule, one level up. */
+        get shown(){ return bpm == null ? null : Math.round(bpm); },
         get origin(){ return origin; },
         get running(){ return running.size; },
         /* what is actually driving the tick, and how many it has done — diagnostics, but
