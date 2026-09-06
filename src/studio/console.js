@@ -529,6 +529,7 @@ if (window.Patchwork && Patchwork.surface){
        Erase is the deck's own control and asks twice. Pressed through the deck's button so
        the reels, the meters and the tab's record light all do what they already do. */
     record: () => { const b = document.getElementById("tpRec"); if (b) b.click(); },
+    get armed(){ return !!(Patchwork.tape && Patchwork.tape.armed); },
     /* Playback, as opposed to the rack's transport. ⚠️ IT TOGGLES, and the deck's own Play
        button does not — because the deck has a Stop button next to it and the controller has
        one button for the pair. A surface button that can start a thing and not stop it is a

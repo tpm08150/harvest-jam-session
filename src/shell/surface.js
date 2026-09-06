@@ -125,12 +125,40 @@ const rig = {
     if (!viewer || !view) return false;
     try{ viewer(view); return true; }catch(e){ return false; }
   },
-  /* The transport button, for a page that has one to offer. Silent everywhere else — a
-     surface should not have to ask what it is aimed at before pressing a button. */
+  /* ---- record arms, play rolls ----
+   ⚠️ ONE RULE ACROSS THREE DIFFERENT RECORDERS, and it is the rule they already followed
+   separately. The deck arms and the rack rolls it. An instrument arms and firing a scene row
+   records it. The looper arms and a row takes real audio. None of that is new — every one of
+   those arms is a button already on the panel — so Record here presses the arm that is
+   already there rather than inventing a fourth meaning for a fourth recorder.
+
+   A page says how it arms itself; a panel does not have to, because they all arm the same
+   way and shell/record.js put the button on every plate that can take one. */
   record(){
     const f = rig.focus;
-    if (!f || typeof f.spec.record !== "function") return false;
-    try{ f.spec.record(); return true; }catch(e){ return false; }
+    if (f && typeof f.spec.record === "function"){
+      try{ f.spec.record(); return true; }catch(e){ return false; }
+    }
+    const r = Patchwork.focused;
+    const b = r && r.querySelector(".arm-toggle");
+    if (!b) return false;
+    b.click();
+    return true;
+  },
+  /* Whether the thing Record would arm is armed, for a button that should say so. */
+  get armed(){
+    const f = rig.focus;
+    if (f && f.spec && typeof f.spec.armed === "boolean") return f.spec.armed;
+    const id = focusedId();
+    return !!(id && Patchwork.record && Patchwork.record.isArmed(id));
+  },
+  /* ⚠️ EVERYTHING, because a Stop button that leaves something running is worse than none —
+     you press it, the room does not go quiet, and now you are hunting. Distinct from panic,
+     which also chases stuck notes out of external gear. */
+  stopAll(){
+    if (rig.playing) rig.toggle();
+    const T = Patchwork.tape;
+    if (T && (T.state === "play" || T.state === "rec")) T.stop();
   },
   play(){
     const f = rig.focus;

@@ -342,20 +342,35 @@ them and the way this panel's own M and S buttons sit. Seven channels, so the ei
 each row is dark: the master has no channel, no EQ and no mute, and a pad that quietly did
 nothing would be worse than no pad.
 
-⚠️ **Record arms, Play rolls** — on the deck itself as well as on the controller. Rolling on
-the press meant the first bar of every take was the sound of somebody reaching for play;
-arming lets the take and the music start on the same gesture. An armed deck rolls with the
-**rack** transport rather than with the tape's own Play, because "play" for a rack of
-instruments is that button, and a take that started somewhere else would be the one control
-on the page that meant something different from the others. The rack stopping ends the take.
+⚠️ **Record arms, Play rolls.** One rule across three different recorders, and it is the rule
+they already followed separately:
 
-Armed is a steady ring on the record button and a steady light on the tab; rolling keeps the
-filled blink it has always had. Two states of one button, and the one that decides whether
-the next take exists cannot be ambiguous.
+| where | Record arms | and then |
+| --- | --- | --- |
+| **Tape** | the deck | the rack transport rolls it |
+| **a panel** | that instrument for scene capture | firing a scene row records it |
+| **LP·1** | the looper | a row takes real audio |
 
-Record still does nothing on a panel, where it would mean "capture into the armed scene row"
-and could not be undone. A tape take is *added*, and Erase — the control that throws one
-away — is the deck's own and asks twice.
+None of that is invented. Every one of those arms is a button already on the panel — the
+deck's own Record, the arm toggle `shell/record.js` puts on every plate — so the controller
+presses the arm that is already there rather than growing a fourth meaning for a fourth
+recorder. The Record light is red when the thing you are pointed at is armed, and dark when
+it is not; never dim, because a record light that is only slightly on is one nobody trusts.
+
+Rolling on the press meant the first bar of every take was the sound of somebody reaching for
+play; arming lets the take and the music start on the same gesture. An armed deck rolls with
+the **rack** transport rather than the tape's own Play, because "play" for a rack of
+instruments is that button. The rack stopping ends the take.
+
+Armed is a steady ring on the deck's record button and a steady light on the tab; rolling
+keeps the filled blink it has always had. Two states of one button, and the one that decides
+whether the next take exists cannot be ambiguous.
+
+⚠️ **Shift + Play is not a modifier and a key — it is the device's Stop button**, which is
+why it stops rather than plays. It stops **everything**, rack and tape: a Stop that leaves
+something running is worse than none, because you press it, the room does not go quiet, and
+now you are hunting. Distinct from Func + Record, which is panic and also chases stuck notes
+out of external gear.
 
 **Func + Play is the tape**, plain Play is the rack: two transports and one button, and the
 rack is the one you press a hundred times a session. It toggles, though the deck's own Play

@@ -504,7 +504,9 @@ function message(io, d, rig){
        rolls with the rack anyway — see toggleAll in studio/live.js — so Func-Play is for
        listening back, which is the only time the two need telling apart. */
     case B_PLAY:  if (io.state.fn) rig.play(); else rig.toggle(); break;
-    case B_STOP:  if (rig.playing) rig.toggle(); break;
+    /* Shift-Play on this device is not a modifier and a key — it is the Stop button, which
+       is why it arrives here rather than at B_PLAY. */
+    case B_STOP:  rig.stopAll(); break;
     /* ⚠️ Record belongs to the PAGE, and on a panel there is no page, so it still does
        nothing there. Capture into the armed scene row is what it would obviously mean and
        cannot be undone; a controller that overwrites a take on a stray thumb is worse than
@@ -578,6 +580,10 @@ function paintButtons(io, rig){
   const s = io.state;
   const want = {};
   want[B_PLAY] = rig.playing ? PAL.green : dim(PAL.green);
+  /* Armed is the state you can forget you are in, and the one that decides whether the next
+     thing you play is kept. Lit red for armed, dark for not — and never dim, because a
+     record light that is only slightly on is a record light nobody trusts. */
+  want[B_REC] = rig.armed ? PAL.red : 0;
   /* The arrows say whether there is anywhere to go — a 16-step pattern leaves both dark and
      a 64-step one lights the way you can move — and they change colour under Func to say
      they now mean panels rather than pages. A modifier you cannot see on a key cap should
