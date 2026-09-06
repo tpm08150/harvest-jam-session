@@ -16331,6 +16331,14 @@ function padTick(){
 function padOn(n, vel){
   if (!state.prog) return;
   const i = padSlot(n); if (i < 0) return;
+  padDown(n, i, vel);
+}
+
+/* ⚠️ `n` IS A MAP KEY, NOT A NOTE, from here down. A control surface presses chord slot 4
+   directly — there is no note number involved and inventing one would collide with a real
+   key the moment the two were held together. padOff() already only ever used it as a key,
+   so a string works there unchanged; this split is what lets it work here too. */
+function padDown(n, i, vel){
   if (held.has(n)) padOff(n);
 
   const ch = state.prog.chords[i];
@@ -16774,6 +16782,75 @@ midiOutSel.addEventListener("change", bindOutput);
 midiChSel.addEventListener("change", () => { midiPanic(); MIDI.ch = parseInt(midiChSel.value, 10); });
 
 
+/* ---- control surface ----
+   What a Launchkey (or anything else in shell/surface.js) sees when this panel has the
+   focus. Two adapters, and neither knows what a Launchkey is: eight things you can turn,
+   and a sixteen-cell grid.
+
+   ⚠️ THE GRID IS READ, NOT PUSHED. shell/surface.js polls cells() and sends only the pads
+   that changed — so a chord arriving on the transport's own schedule lights its pad without
+   this file having to remember to announce it. Adding a new way for a slot to light up
+   (which has happened twice already: MIDI learn, then held pads) cannot leave the hardware
+   stale, because there is nothing here to forget to call. */
+/* ⚠️ `short` IS FOR A SCREEN FOUR NAMES WIDE. The Launchkey lays its eight encoder names out
+   2x4 across 128 pixels — its own Arp page fits "Swing" and "Rytm" and nothing longer — so a
+   label written for a panel with room for it gets cut in half there. Six characters, chosen
+   rather than truncated: "Releas" is a worse word than "Rel". */
+const SURFACE_CTL = [
+  {id: "tone", short: "Ton"}, {id: "attack", short: "Atk"}, {id: "release", short: "Rel"},
+  {id: "space", short: "Spc"}, {id: "spread", short: "Spr"}, {id: "level", short: "Lvl"},
+  {id: "bassSus", label: "Bass Sus", short: "Bas"}
+];
+const FADER_LAB = {};
+FADERS.forEach(f => { FADER_LAB[f.id] = f.lab; });
+function surfaceControls(){
+  return SURFACE_CTL.filter(c => faderCtl[c.id]).map(c => ({
+    id: c.id, label: c.label || FADER_LAB[c.id] || c.id, short: c.short,
+    get: () => P[c.id],
+    set: v => faderCtl[c.id].set(v)
+  }));
+}
+
+/* Which slot is sounding right now, from the same `marks` the on-screen playhead reads —
+   rather than from a second counter that could disagree with what you can hear. */
+function soundingSlot(){
+  if (!state.playing || !ctx) return -1;
+  const now = ctx.currentTime;
+  let cur = -1;
+  for (const m of marks) if (now >= m.t && now < m.end) cur = m.i;
+  return cur;
+}
+
+const surfaceGrid = {
+  /* The screen line, spelled by the same function the on-screen pad uses — a ♭VII that
+     reads B♭ in the panel and A♯ on the controller would be two answers to one question. */
+  label: () => {
+    const i = soundingSlot();
+    if (i < 0 || !state.prog) return "Chords";
+    return chordName(state.prog.chords[i], state.keyPc, state.prog.minor);
+  },
+  cells: () => {
+    const out = new Array(16).fill(null);
+    if (!state.prog) return out;
+    const n = Math.min(16, state.prog.chords.length);
+    const playing = soundingSlot();
+    for (let i = 0; i < n; i++){
+      const heldHere = litPads.has(i);
+      out[i] = {colour: "amber", on: heldHere || i === playing, hot: heldHere};
+    }
+    return out;
+  },
+  /* Velocity comes through as it arrived: the pads are velocity-sensitive and padDown
+     already scales the voicing by it, so a soft pad is a soft chord for the same reason a
+     soft key is. */
+  down: (i, vel) => {
+    if (!state.prog || i >= state.prog.chords.length) return;
+    ensureAudio();
+    padDown("s" + i, i, Math.max(1, vel || 96));
+  },
+  up: i => padOff("s" + i)
+};
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     /* Every iOS browser is WebKit underneath, so this is a platform limit rather than a
@@ -16797,6 +16874,8 @@ function initMidi(){
     fillPorts(); followInput(pt); bindOutput(); describe();
   }, {
     name: "CS\u00b71", panic: midiPanic,
+    controls: surfaceControls,
+    grid: surfaceGrid,
     inCh:  {get: () => MIDI.inCh,
             set: c => { MIDI.inCh = c; midiInChSel.value = String(c);
                         allPadsOff(); saveMap(); describe(); }},
