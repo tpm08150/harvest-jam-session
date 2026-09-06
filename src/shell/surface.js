@@ -44,6 +44,28 @@ function notify(){ watchers.forEach(fn => { try{ fn(); }catch(e){} }); }
    what makes "pick it from the list" enough to be playing. */
 function register(p){ profiles.push(p); notify(); }
 
+/* ---- pages ----
+   Not everything worth a controller's encoders is an instrument. The mixer is the obvious
+   one: it has no MIDI channel, registers nothing with Patchwork.midi.route(), and is not on
+   anybody's focus — and it is exactly the thing you want eight knobs and sixteen pads for.
+
+   A page answers the same adapter contract an instrument does (controls, banks, grid), so
+   everything downstream of rig.focus follows it without knowing the difference. What makes
+   it a page rather than a panel is only how it is reached: a mode, chosen deliberately,
+   rather than whichever panel was last clicked.
+
+     Patchwork.surface.mount("mixer", {name, controls, controlBanks, grid, record, show})
+
+   `show` is optional and is called when the mode is entered — the mixer uses it to bring
+   its own tab up, so choosing Mixer on the controller puts the mixer on the screen too.
+   Reaching for a page and finding the app still showing something else is the surface and
+   the window disagreeing about where you are. */
+const pages = new Map();
+function mount(id, spec){ pages.set(id, spec); notify(); }
+
+/* "" is the ordinary state: whatever panel has the focus. Anything else is a mounted page. */
+let mode = "";
+
 /* ---- what a profile is allowed to know about the rig ----
    Deliberately small, and deliberately expressed in the words the surface thinks in —
    "the focused instrument's controls", "the grid", "play" — rather than in the words the
@@ -63,9 +85,35 @@ const rig = {
      the computer keyboard and (in follow mode) incoming notes go, so the pads and encoders
      answering to the same click is one rule rather than a second one to learn. */
   get focus(){
+    /* ⚠️ A PAGE OUTRANKS THE FOCUS while its mode is on, and that is the whole mechanism:
+       nothing below this line knows whether it is talking to a panel or to the mixer. */
+    if (mode && pages.has(mode)){
+      const spec = pages.get(mode);
+      return {id: mode, name: spec.name || mode, spec};
+    }
     const id = focusedId(); if (!id) return null;
     const spec = specOf(id); if (!spec) return null;
     return {id, name: spec.name || id, spec};
+  },
+  get mode(){ return mode; },
+  /* Anything not mounted means "back to the focused panel", so a profile can pass whatever
+     its hardware just reported without first checking whether we have a page for it. */
+  setMode(id){
+    const want = (id && pages.has(id)) ? id : "";
+    if (want === mode) return;
+    mode = want;
+    if (want){
+      const spec = pages.get(want);
+      try{ if (spec.show) spec.show(); }catch(e){}
+    }
+    notify();
+  },
+  /* The transport button, for a page that has one to offer. Silent everywhere else — a
+     surface should not have to ask what it is aimed at before pressing a button. */
+  record(){
+    const f = rig.focus;
+    if (!f || typeof f.spec.record !== "function") return false;
+    try{ f.spec.record(); return true; }catch(e){ return false; }
   },
   get instruments(){ return Patchwork.midi.list().map(i => ({id: i.id, name: i.name})); },
 
@@ -445,7 +493,7 @@ Patchwork.midi.onChange(() => {
   if (!live) restore();
 });
 
-return {register, connect, disconnect, restore, rig,
+return {register, mount, connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
                                                        label: f.det.label || f.profile.name})); },

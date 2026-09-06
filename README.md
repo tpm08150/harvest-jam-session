@@ -302,6 +302,40 @@ One mechanism, two meanings, and that is the point rather than a compromise: the
 for the next bank and gets the next eight. It never learns that one instrument spells that as
 a parameter group and another as a drum.
 
+### The desk, on the controller
+
+**Shift + Mixer** on the Launchkey — the way that keyboard has always said "these knobs are
+the desk now" — points the surface at MX·8 instead of at a panel, and brings the Tape tab up
+with it. **Shift + Plug-in** goes back to following the focused panel. Nothing is invented:
+the surface honours a choice the hardware already offers rather than growing a mode the
+device knows nothing about.
+
+Nine controls per strip and eight encoders, so the banks are forced into a shape — and it is
+the right one. Volume is the control you want across *all* the channels at once, because that
+is what a mix is, so it gets a bank with every strip on it. The other eight are per-channel
+questions, so they get a bank each, which is also what a strip *is*.
+
+| bank | encoders |
+| --- | --- |
+| **Levels** | the seven instruments and the master |
+| **DR·1 … TS·1** | that strip's `Hi Mid Frq Low Cmp Rev Dly Pan` |
+| **Returns** | reverb and delay returns, delay time and feedback |
+
+**Pads are mute and solo** — mute on the bottom row, solo above it, the way every desk prints
+them and the way this panel's own M and S buttons sit. Seven channels, so the eighth pad in
+each row is dark: the master has no channel, no EQ and no mute, and a pad that quietly did
+nothing would be worse than no pad.
+
+**Record rolls tape.** It does nothing on a panel, where it would obviously mean "capture into
+the armed scene row" and could not be undone — but a take is *added*, and Erase, the control
+that throws one away, is the deck's own and asks twice. Play stays the rack transport
+everywhere, so a take is Play then Record, which is the order you would work in anyway.
+
+⚠️ **The desk owns no audio and neither does this.** Every value is read and written through
+the knobs and faders already on screen, so a move from the encoders is the same move a hand
+would have made — persisted, painted, and recalled by a scene exactly as if you had dragged
+it.
+
 What the sixteen pads mean follows the panel you clicked:
 
 - **CS·1** — the chord slots, filled bottom-up so pad 1 is bottom-left, exactly as they are

@@ -2141,6 +2141,28 @@ function notify(){ watchers.forEach(fn => { try{ fn(); }catch(e){} }); }
    what makes "pick it from the list" enough to be playing. */
 function register(p){ profiles.push(p); notify(); }
 
+/* ---- pages ----
+   Not everything worth a controller's encoders is an instrument. The mixer is the obvious
+   one: it has no MIDI channel, registers nothing with Patchwork.midi.route(), and is not on
+   anybody's focus — and it is exactly the thing you want eight knobs and sixteen pads for.
+
+   A page answers the same adapter contract an instrument does (controls, banks, grid), so
+   everything downstream of rig.focus follows it without knowing the difference. What makes
+   it a page rather than a panel is only how it is reached: a mode, chosen deliberately,
+   rather than whichever panel was last clicked.
+
+     Patchwork.surface.mount("mixer", {name, controls, controlBanks, grid, record, show})
+
+   `show` is optional and is called when the mode is entered — the mixer uses it to bring
+   its own tab up, so choosing Mixer on the controller puts the mixer on the screen too.
+   Reaching for a page and finding the app still showing something else is the surface and
+   the window disagreeing about where you are. */
+const pages = new Map();
+function mount(id, spec){ pages.set(id, spec); notify(); }
+
+/* "" is the ordinary state: whatever panel has the focus. Anything else is a mounted page. */
+let mode = "";
+
 /* ---- what a profile is allowed to know about the rig ----
    Deliberately small, and deliberately expressed in the words the surface thinks in —
    "the focused instrument's controls", "the grid", "play" — rather than in the words the
@@ -2160,9 +2182,35 @@ const rig = {
      the computer keyboard and (in follow mode) incoming notes go, so the pads and encoders
      answering to the same click is one rule rather than a second one to learn. */
   get focus(){
+    /* ⚠️ A PAGE OUTRANKS THE FOCUS while its mode is on, and that is the whole mechanism:
+       nothing below this line knows whether it is talking to a panel or to the mixer. */
+    if (mode && pages.has(mode)){
+      const spec = pages.get(mode);
+      return {id: mode, name: spec.name || mode, spec};
+    }
     const id = focusedId(); if (!id) return null;
     const spec = specOf(id); if (!spec) return null;
     return {id, name: spec.name || id, spec};
+  },
+  get mode(){ return mode; },
+  /* Anything not mounted means "back to the focused panel", so a profile can pass whatever
+     its hardware just reported without first checking whether we have a page for it. */
+  setMode(id){
+    const want = (id && pages.has(id)) ? id : "";
+    if (want === mode) return;
+    mode = want;
+    if (want){
+      const spec = pages.get(want);
+      try{ if (spec.show) spec.show(); }catch(e){}
+    }
+    notify();
+  },
+  /* The transport button, for a page that has one to offer. Silent everywhere else — a
+     surface should not have to ask what it is aimed at before pressing a button. */
+  record(){
+    const f = rig.focus;
+    if (!f || typeof f.spec.record !== "function") return false;
+    try{ f.spec.record(); return true; }catch(e){ return false; }
   },
   get instruments(){ return Patchwork.midi.list().map(i => ({id: i.id, name: i.name})); },
 
@@ -2542,7 +2590,7 @@ Patchwork.midi.onChange(() => {
   if (!live) restore();
 });
 
-return {register, connect, disconnect, restore, rig,
+return {register, mount, connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
                                                        label: f.det.label || f.profile.name})); },
@@ -2622,7 +2670,7 @@ const FEAT_ASK = 0xB7;
    and leaves it that way is a bad guest. */
 const TIMEOUT_TENTHS = 5;
 const PAD_DRUM = 1, PAD_DAW = 2;
-const ENC_PLUGIN = 2;     // absolute CC 21-28; Mixer and Sends send the same CCs
+const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends send the same CCs
 
 /* Pads. DAW layout reports as notes on channel 1; Drum layout on channel 10 once the DAW
    has taken the rack. Guide, "DAW mode" and "Drum mode" pad index figures.
@@ -2914,6 +2962,16 @@ function message(io, d, rig){
       io.state.down.length = 0;          // and nothing held under the old layout still is
       return;
     }
+    /* ⚠️ THE DEVICE'S OWN ENCODER MODE PICKS WHAT THE ENCODERS ARE FOR. Shift and the Mixer
+       pad is how a Launchkey has always said "these knobs are the desk now", so it says it
+       here too — and the app has a desk. Anything else means the ordinary state: whichever
+       panel has the focus. Nothing is invented; the surface honours a choice the hardware
+       already offers rather than growing a mode of its own that the device knows nothing
+       about and cannot light. */
+    if (d[1] === F_ENCS){
+      rig.setMode(d[2] === ENC_MIXER ? "mixer" : "");
+      return;
+    }
     if (d[1] === F_SHIFT) return;         // observed, and nothing is built on it — see above
     /* The answer to the query in start(). ⚠️ FIRST REPLY ONLY: the device may also confirm
        the value we then set, and capturing that would mean "restoring" our own setting and
@@ -3008,12 +3066,14 @@ function message(io, d, rig){
   switch (cc){
     case B_PLAY:  rig.toggle(); break;
     case B_STOP:  if (rig.playing) rig.toggle(); break;
-    /* ⚠️ Record does NOTHING on purpose. It is the one button on this surface whose
-       obvious meaning — capture into the armed scene row — cannot be undone, and a
-       controller that overwrites a take on a stray thumb is worse than one that ignores a
-       button. Shift-Record is panic instead, which is the thing you actually want to reach
-       for without looking. Wire capture here once the launcher grows an undo. */
-    case B_REC:   if (io.state.fn) rig.panic(); break;
+    /* ⚠️ Record belongs to the PAGE, and on a panel there is no page, so it still does
+       nothing there. Capture into the armed scene row is what it would obviously mean and
+       cannot be undone; a controller that overwrites a take on a stray thumb is worse than
+       one that ignores a button. The mixer offers it, because rolling tape adds a take
+       rather than replacing one — and Erase, the control that does throw a take away, is
+       the deck's own and asks twice. Func-Record is panic, which is the thing you want to
+       reach for without looking. */
+    case B_REC:   if (io.state.fn) rig.panic(); else rig.record(); break;
     case B_LOOP:  break;
     /* ⚠️ THE ARROWS BESIDE THE PADS BELONG TO THE PADS. The two buttons a thumb finds
        without looking are the ones next to the grid, so they move the grid: a pattern can

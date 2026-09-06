@@ -397,4 +397,143 @@ Patchwork.consoleUI = {
   },
   hide(){ clearInterval(poll); poll = 0; },
 };
+
+/* ---- the desk, on a controller ----
+   ⚠️ IT OWNS NO AUDIO EITHER, and for the same reason the rest of this file does not: every
+   value below is read and written through the knobs and faders already on screen, so a move
+   from the encoders is the same move a hand would have made — persisted, painted, and
+   recalled by a scene exactly as if you had dragged it.
+
+   Nine controls per strip and eight encoders, so the shape of the banks is forced. Volume
+   is the one control you want across ALL the channels at once — it is the mix — so it gets
+   a bank of its own with every strip on it. The other eight are per-channel questions, so
+   they get a bank per channel, which is also what a strip IS. Then the returns, which
+   belong to nobody's channel.
+
+   See shell/surface.js. The mixer is a `page` rather than a panel: it has no MIDI channel
+   and is on nobody's focus, and is reached by choosing Mixer on the controller. */
+const SHORT = {high:"Hi", mid:"Mid", freq:"Frq", low:"Low",
+               comp:"Cmp", rev:"Rev", dly:"Dly", pan:"Pan",
+               revRet:"Rev", dlyRet:"Dly", dlyT:"Tim", dlyFb:"Fbk"};
+/* "DR·1" is four characters and a middle dot; a legend three letters wide wants DR1. */
+const shortName = id => id.toUpperCase().slice(0, 3);
+
+function stripIds(){
+  return (Patchwork.roots || []).map(r => r.dataset.instrument).filter(Boolean);
+}
+
+/* ⚠️ MASTER IS NOT A STRIP. It has no channel, no EQ and no mute — it is the bus everything
+   lands on — so it appears on the volume bank and nowhere else, and the pads have no pad
+   for it. Giving it a mute button that quietly did nothing would be worse than not having
+   one.
+
+   ⚠️ 1.3, WHICH IS THE FADER'S RANGE AND NOT THE BUS'S. setMasterLevel accepts up to 1.5,
+   and scaling the encoder to that put full travel at 1.5 while the fader it drives stopped
+   at 1.3 — so the encoder read back 0.87 having been turned to the top, and would have
+   crept every time the surface pushed its position. The control on screen is the one with a
+   range; this follows it. */
+const MASTER_MAX = 1.3;
+
+let surfBank = 0;
+function surfBanks(){
+  return [{name: "Levels"}]
+    .concat(stripIds().map(id => ({name: niceName(id)})))
+    .concat([{name: "Returns"}]);
+}
+function surfBankNow(){ return Math.min(surfBank, surfBanks().length - 1); }
+
+function surfControls(){
+  const ids = stripIds(), i = surfBankNow();
+  if (i === 0){
+    return ids.map(id => ({
+      id: "lvl:" + id, label: niceName(id), short: shortName(id),
+      get: () => A.level(id),
+      set: v => setStripLevel(id, v)
+    })).concat([{
+      id: "lvl:master", label: "Master", short: "MST",
+      get: () => A.masterLevel() / MASTER_MAX,
+      set: v => setMasterFader(v * MASTER_MAX)
+    }]);
+  }
+  if (i <= ids.length){
+    const id = ids[i - 1], mine = knobs.get(id);
+    if (!mine) return [];
+    return CONTROLS.map(c => ({
+      id: id + ":" + c.k, label: c.lab, short: SHORT[c.k] || c.lab,
+      get: () => toNorm(c, mine[c.k].value),
+      set: v => mine[c.k].set(fromNorm(c, v))
+    }));
+  }
+  return MASTER.filter(c => masterKnobs[c.k]).map(c => ({
+    id: "ret:" + c.k, label: c.lab, short: SHORT[c.k] || c.lab,
+    get: () => toNorm(c, masterKnobs[c.k].value),
+    set: v => masterKnobs[c.k].set(fromNorm(c, v))
+  }));
+}
+
+/* The fader on screen is the thing that moves, not the bus underneath it — otherwise the
+   desk would show one level and play another until the next rebuild. */
+function setStripLevel(id, v){
+  const f = strips.querySelector('.mx-fader[data-inst="' + id + '"]');
+  if (!f) return A.setLevel(id, v);
+  f.value = String(Math.round(Math.max(0, Math.min(1, v)) * 100));
+  f.dispatchEvent(new Event("input", {bubbles: true}));
+}
+function setMasterFader(v){
+  const f = $("mxMasterFader");
+  if (!f) return A.setMasterLevel(v);
+  f.value = String(Math.round(v * 100));
+  f.dispatchEvent(new Event("input", {bubbles: true}));
+}
+
+/* ---- mute and solo, on the pads ----
+   ⚠️ MUTE ON THE BOTTOM ROW, SOLO ABOVE IT, which is the way round every desk on earth
+   prints them and the way round this panel's own M and S buttons sit. A grid that reversed
+   them would be right once and wrong every time somebody looked away and back.
+
+   Both rows are the same seven channels; the eighth pad in each is dark because there is no
+   eighth channel to mute. */
+const surfGrid = {
+  label: () => "Mute / Solo",
+  cells: () => {
+    const out = new Array(16).fill(null);
+    stripIds().slice(0, 8).forEach((id, i) => {
+      out[i] = {colour: "red", on: A.muted(id)};
+      out[i + 8] = {colour: "yellow", on: A.soloed(id)};
+    });
+    return out;
+  },
+  down: cell => {
+    const ids = stripIds();
+    const id = ids[cell % 8];
+    if (!id || cell % 8 >= ids.length) return;
+    /* The panel's own buttons, so whatever a click does happens here too. */
+    const col = strips.querySelector('.mx-strip[data-inst="' + id + '"]');
+    const b = col && col.querySelector(cell < 8 ? ".mx-m" : ".mx-s");
+    if (b) b.click();
+  }
+};
+
+if (window.Patchwork && Patchwork.surface){
+  Patchwork.surface.mount("mixer", {
+    name: "Mixer",
+    controls: surfControls,
+    controlBanks: surfBanks,
+    controlBank: surfBankNow,
+    setControlBank: i => { surfBank = Math.max(0, Math.min(surfBanks().length - 1, i)); },
+    grid: surfGrid,
+    /* ⚠️ ROLLING TAPE, NOT CAPTURING A SCENE. A take is added; nothing is overwritten, and
+       Erase is the deck's own control and asks twice. Pressed through the deck's button so
+       the reels, the meters and the tab's record light all do what they already do. */
+    record: () => { const b = document.getElementById("tpRec"); if (b) b.click(); },
+    /* Choosing Mixer on the controller brings the tab it lives on up, through the same
+       segmented control a click uses. A surface and a window disagreeing about where you
+       are is worse than either being wrong on its own. */
+    show: () => {
+      const b = document.querySelector('#stView button[data-v="tape"]');
+      if (b) b.click();
+    }
+  });
+}
+
 })();

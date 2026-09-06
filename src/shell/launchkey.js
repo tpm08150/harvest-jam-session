@@ -62,7 +62,7 @@ const FEAT_ASK = 0xB7;
    and leaves it that way is a bad guest. */
 const TIMEOUT_TENTHS = 5;
 const PAD_DRUM = 1, PAD_DAW = 2;
-const ENC_PLUGIN = 2;     // absolute CC 21-28; Mixer and Sends send the same CCs
+const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends send the same CCs
 
 /* Pads. DAW layout reports as notes on channel 1; Drum layout on channel 10 once the DAW
    has taken the rack. Guide, "DAW mode" and "Drum mode" pad index figures.
@@ -354,6 +354,16 @@ function message(io, d, rig){
       io.state.down.length = 0;          // and nothing held under the old layout still is
       return;
     }
+    /* ⚠️ THE DEVICE'S OWN ENCODER MODE PICKS WHAT THE ENCODERS ARE FOR. Shift and the Mixer
+       pad is how a Launchkey has always said "these knobs are the desk now", so it says it
+       here too — and the app has a desk. Anything else means the ordinary state: whichever
+       panel has the focus. Nothing is invented; the surface honours a choice the hardware
+       already offers rather than growing a mode of its own that the device knows nothing
+       about and cannot light. */
+    if (d[1] === F_ENCS){
+      rig.setMode(d[2] === ENC_MIXER ? "mixer" : "");
+      return;
+    }
     if (d[1] === F_SHIFT) return;         // observed, and nothing is built on it — see above
     /* The answer to the query in start(). ⚠️ FIRST REPLY ONLY: the device may also confirm
        the value we then set, and capturing that would mean "restoring" our own setting and
@@ -448,12 +458,14 @@ function message(io, d, rig){
   switch (cc){
     case B_PLAY:  rig.toggle(); break;
     case B_STOP:  if (rig.playing) rig.toggle(); break;
-    /* ⚠️ Record does NOTHING on purpose. It is the one button on this surface whose
-       obvious meaning — capture into the armed scene row — cannot be undone, and a
-       controller that overwrites a take on a stray thumb is worse than one that ignores a
-       button. Shift-Record is panic instead, which is the thing you actually want to reach
-       for without looking. Wire capture here once the launcher grows an undo. */
-    case B_REC:   if (io.state.fn) rig.panic(); break;
+    /* ⚠️ Record belongs to the PAGE, and on a panel there is no page, so it still does
+       nothing there. Capture into the armed scene row is what it would obviously mean and
+       cannot be undone; a controller that overwrites a take on a stray thumb is worse than
+       one that ignores a button. The mixer offers it, because rolling tape adds a take
+       rather than replacing one — and Erase, the control that does throw a take away, is
+       the deck's own and asks twice. Func-Record is panic, which is the thing you want to
+       reach for without looking. */
+    case B_REC:   if (io.state.fn) rig.panic(); else rig.record(); break;
     case B_LOOP:  break;
     /* ⚠️ THE ARROWS BESIDE THE PADS BELONG TO THE PADS. The two buttons a thumb finds
        without looking are the ones next to the grid, so they move the grid: a pattern can

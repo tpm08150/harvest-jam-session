@@ -8125,6 +8125,28 @@ function notify(){ watchers.forEach(fn => { try{ fn(); }catch(e){} }); }
    what makes "pick it from the list" enough to be playing. */
 function register(p){ profiles.push(p); notify(); }
 
+/* ---- pages ----
+   Not everything worth a controller's encoders is an instrument. The mixer is the obvious
+   one: it has no MIDI channel, registers nothing with Patchwork.midi.route(), and is not on
+   anybody's focus — and it is exactly the thing you want eight knobs and sixteen pads for.
+
+   A page answers the same adapter contract an instrument does (controls, banks, grid), so
+   everything downstream of rig.focus follows it without knowing the difference. What makes
+   it a page rather than a panel is only how it is reached: a mode, chosen deliberately,
+   rather than whichever panel was last clicked.
+
+     Patchwork.surface.mount("mixer", {name, controls, controlBanks, grid, record, show})
+
+   `show` is optional and is called when the mode is entered — the mixer uses it to bring
+   its own tab up, so choosing Mixer on the controller puts the mixer on the screen too.
+   Reaching for a page and finding the app still showing something else is the surface and
+   the window disagreeing about where you are. */
+const pages = new Map();
+function mount(id, spec){ pages.set(id, spec); notify(); }
+
+/* "" is the ordinary state: whatever panel has the focus. Anything else is a mounted page. */
+let mode = "";
+
 /* ---- what a profile is allowed to know about the rig ----
    Deliberately small, and deliberately expressed in the words the surface thinks in —
    "the focused instrument's controls", "the grid", "play" — rather than in the words the
@@ -8144,9 +8166,35 @@ const rig = {
      the computer keyboard and (in follow mode) incoming notes go, so the pads and encoders
      answering to the same click is one rule rather than a second one to learn. */
   get focus(){
+    /* ⚠️ A PAGE OUTRANKS THE FOCUS while its mode is on, and that is the whole mechanism:
+       nothing below this line knows whether it is talking to a panel or to the mixer. */
+    if (mode && pages.has(mode)){
+      const spec = pages.get(mode);
+      return {id: mode, name: spec.name || mode, spec};
+    }
     const id = focusedId(); if (!id) return null;
     const spec = specOf(id); if (!spec) return null;
     return {id, name: spec.name || id, spec};
+  },
+  get mode(){ return mode; },
+  /* Anything not mounted means "back to the focused panel", so a profile can pass whatever
+     its hardware just reported without first checking whether we have a page for it. */
+  setMode(id){
+    const want = (id && pages.has(id)) ? id : "";
+    if (want === mode) return;
+    mode = want;
+    if (want){
+      const spec = pages.get(want);
+      try{ if (spec.show) spec.show(); }catch(e){}
+    }
+    notify();
+  },
+  /* The transport button, for a page that has one to offer. Silent everywhere else — a
+     surface should not have to ask what it is aimed at before pressing a button. */
+  record(){
+    const f = rig.focus;
+    if (!f || typeof f.spec.record !== "function") return false;
+    try{ f.spec.record(); return true; }catch(e){ return false; }
   },
   get instruments(){ return Patchwork.midi.list().map(i => ({id: i.id, name: i.name})); },
 
@@ -8526,7 +8574,7 @@ Patchwork.midi.onChange(() => {
   if (!live) restore();
 });
 
-return {register, connect, disconnect, restore, rig,
+return {register, mount, connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
                                                        label: f.det.label || f.profile.name})); },
@@ -8606,7 +8654,7 @@ const FEAT_ASK = 0xB7;
    and leaves it that way is a bad guest. */
 const TIMEOUT_TENTHS = 5;
 const PAD_DRUM = 1, PAD_DAW = 2;
-const ENC_PLUGIN = 2;     // absolute CC 21-28; Mixer and Sends send the same CCs
+const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends send the same CCs
 
 /* Pads. DAW layout reports as notes on channel 1; Drum layout on channel 10 once the DAW
    has taken the rack. Guide, "DAW mode" and "Drum mode" pad index figures.
@@ -8898,6 +8946,16 @@ function message(io, d, rig){
       io.state.down.length = 0;          // and nothing held under the old layout still is
       return;
     }
+    /* ⚠️ THE DEVICE'S OWN ENCODER MODE PICKS WHAT THE ENCODERS ARE FOR. Shift and the Mixer
+       pad is how a Launchkey has always said "these knobs are the desk now", so it says it
+       here too — and the app has a desk. Anything else means the ordinary state: whichever
+       panel has the focus. Nothing is invented; the surface honours a choice the hardware
+       already offers rather than growing a mode of its own that the device knows nothing
+       about and cannot light. */
+    if (d[1] === F_ENCS){
+      rig.setMode(d[2] === ENC_MIXER ? "mixer" : "");
+      return;
+    }
     if (d[1] === F_SHIFT) return;         // observed, and nothing is built on it — see above
     /* The answer to the query in start(). ⚠️ FIRST REPLY ONLY: the device may also confirm
        the value we then set, and capturing that would mean "restoring" our own setting and
@@ -8992,12 +9050,14 @@ function message(io, d, rig){
   switch (cc){
     case B_PLAY:  rig.toggle(); break;
     case B_STOP:  if (rig.playing) rig.toggle(); break;
-    /* ⚠️ Record does NOTHING on purpose. It is the one button on this surface whose
-       obvious meaning — capture into the armed scene row — cannot be undone, and a
-       controller that overwrites a take on a stray thumb is worse than one that ignores a
-       button. Shift-Record is panic instead, which is the thing you actually want to reach
-       for without looking. Wire capture here once the launcher grows an undo. */
-    case B_REC:   if (io.state.fn) rig.panic(); break;
+    /* ⚠️ Record belongs to the PAGE, and on a panel there is no page, so it still does
+       nothing there. Capture into the armed scene row is what it would obviously mean and
+       cannot be undone; a controller that overwrites a take on a stray thumb is worse than
+       one that ignores a button. The mixer offers it, because rolling tape adds a take
+       rather than replacing one — and Erase, the control that does throw a take away, is
+       the deck's own and asks twice. Func-Record is panic, which is the thing you want to
+       reach for without looking. */
+    case B_REC:   if (io.state.fn) rig.panic(); else rig.record(); break;
     case B_LOOP:  break;
     /* ⚠️ THE ARROWS BESIDE THE PADS BELONG TO THE PADS. The two buttons a thumb finds
        without looking are the ones next to the grid, so they move the grid: a pattern can
@@ -25148,6 +25208,145 @@ Patchwork.consoleUI = {
   },
   hide(){ clearInterval(poll); poll = 0; },
 };
+
+/* ---- the desk, on a controller ----
+   ⚠️ IT OWNS NO AUDIO EITHER, and for the same reason the rest of this file does not: every
+   value below is read and written through the knobs and faders already on screen, so a move
+   from the encoders is the same move a hand would have made — persisted, painted, and
+   recalled by a scene exactly as if you had dragged it.
+
+   Nine controls per strip and eight encoders, so the shape of the banks is forced. Volume
+   is the one control you want across ALL the channels at once — it is the mix — so it gets
+   a bank of its own with every strip on it. The other eight are per-channel questions, so
+   they get a bank per channel, which is also what a strip IS. Then the returns, which
+   belong to nobody's channel.
+
+   See shell/surface.js. The mixer is a `page` rather than a panel: it has no MIDI channel
+   and is on nobody's focus, and is reached by choosing Mixer on the controller. */
+const SHORT = {high:"Hi", mid:"Mid", freq:"Frq", low:"Low",
+               comp:"Cmp", rev:"Rev", dly:"Dly", pan:"Pan",
+               revRet:"Rev", dlyRet:"Dly", dlyT:"Tim", dlyFb:"Fbk"};
+/* "DR·1" is four characters and a middle dot; a legend three letters wide wants DR1. */
+const shortName = id => id.toUpperCase().slice(0, 3);
+
+function stripIds(){
+  return (Patchwork.roots || []).map(r => r.dataset.instrument).filter(Boolean);
+}
+
+/* ⚠️ MASTER IS NOT A STRIP. It has no channel, no EQ and no mute — it is the bus everything
+   lands on — so it appears on the volume bank and nowhere else, and the pads have no pad
+   for it. Giving it a mute button that quietly did nothing would be worse than not having
+   one.
+
+   ⚠️ 1.3, WHICH IS THE FADER'S RANGE AND NOT THE BUS'S. setMasterLevel accepts up to 1.5,
+   and scaling the encoder to that put full travel at 1.5 while the fader it drives stopped
+   at 1.3 — so the encoder read back 0.87 having been turned to the top, and would have
+   crept every time the surface pushed its position. The control on screen is the one with a
+   range; this follows it. */
+const MASTER_MAX = 1.3;
+
+let surfBank = 0;
+function surfBanks(){
+  return [{name: "Levels"}]
+    .concat(stripIds().map(id => ({name: niceName(id)})))
+    .concat([{name: "Returns"}]);
+}
+function surfBankNow(){ return Math.min(surfBank, surfBanks().length - 1); }
+
+function surfControls(){
+  const ids = stripIds(), i = surfBankNow();
+  if (i === 0){
+    return ids.map(id => ({
+      id: "lvl:" + id, label: niceName(id), short: shortName(id),
+      get: () => A.level(id),
+      set: v => setStripLevel(id, v)
+    })).concat([{
+      id: "lvl:master", label: "Master", short: "MST",
+      get: () => A.masterLevel() / MASTER_MAX,
+      set: v => setMasterFader(v * MASTER_MAX)
+    }]);
+  }
+  if (i <= ids.length){
+    const id = ids[i - 1], mine = knobs.get(id);
+    if (!mine) return [];
+    return CONTROLS.map(c => ({
+      id: id + ":" + c.k, label: c.lab, short: SHORT[c.k] || c.lab,
+      get: () => toNorm(c, mine[c.k].value),
+      set: v => mine[c.k].set(fromNorm(c, v))
+    }));
+  }
+  return MASTER.filter(c => masterKnobs[c.k]).map(c => ({
+    id: "ret:" + c.k, label: c.lab, short: SHORT[c.k] || c.lab,
+    get: () => toNorm(c, masterKnobs[c.k].value),
+    set: v => masterKnobs[c.k].set(fromNorm(c, v))
+  }));
+}
+
+/* The fader on screen is the thing that moves, not the bus underneath it — otherwise the
+   desk would show one level and play another until the next rebuild. */
+function setStripLevel(id, v){
+  const f = strips.querySelector('.mx-fader[data-inst="' + id + '"]');
+  if (!f) return A.setLevel(id, v);
+  f.value = String(Math.round(Math.max(0, Math.min(1, v)) * 100));
+  f.dispatchEvent(new Event("input", {bubbles: true}));
+}
+function setMasterFader(v){
+  const f = $("mxMasterFader");
+  if (!f) return A.setMasterLevel(v);
+  f.value = String(Math.round(v * 100));
+  f.dispatchEvent(new Event("input", {bubbles: true}));
+}
+
+/* ---- mute and solo, on the pads ----
+   ⚠️ MUTE ON THE BOTTOM ROW, SOLO ABOVE IT, which is the way round every desk on earth
+   prints them and the way round this panel's own M and S buttons sit. A grid that reversed
+   them would be right once and wrong every time somebody looked away and back.
+
+   Both rows are the same seven channels; the eighth pad in each is dark because there is no
+   eighth channel to mute. */
+const surfGrid = {
+  label: () => "Mute / Solo",
+  cells: () => {
+    const out = new Array(16).fill(null);
+    stripIds().slice(0, 8).forEach((id, i) => {
+      out[i] = {colour: "red", on: A.muted(id)};
+      out[i + 8] = {colour: "yellow", on: A.soloed(id)};
+    });
+    return out;
+  },
+  down: cell => {
+    const ids = stripIds();
+    const id = ids[cell % 8];
+    if (!id || cell % 8 >= ids.length) return;
+    /* The panel's own buttons, so whatever a click does happens here too. */
+    const col = strips.querySelector('.mx-strip[data-inst="' + id + '"]');
+    const b = col && col.querySelector(cell < 8 ? ".mx-m" : ".mx-s");
+    if (b) b.click();
+  }
+};
+
+if (window.Patchwork && Patchwork.surface){
+  Patchwork.surface.mount("mixer", {
+    name: "Mixer",
+    controls: surfControls,
+    controlBanks: surfBanks,
+    controlBank: surfBankNow,
+    setControlBank: i => { surfBank = Math.max(0, Math.min(surfBanks().length - 1, i)); },
+    grid: surfGrid,
+    /* ⚠️ ROLLING TAPE, NOT CAPTURING A SCENE. A take is added; nothing is overwritten, and
+       Erase is the deck's own control and asks twice. Pressed through the deck's button so
+       the reels, the meters and the tab's record light all do what they already do. */
+    record: () => { const b = document.getElementById("tpRec"); if (b) b.click(); },
+    /* Choosing Mixer on the controller brings the tab it lives on up, through the same
+       segmented control a click uses. A surface and a window disagreeing about where you
+       are is worse than either being wrong on its own. */
+    show: () => {
+      const b = document.querySelector('#stView button[data-v="tape"]');
+      if (b) b.click();
+    }
+  });
+}
+
 })();
 
 /* ---- the deck ----
