@@ -248,9 +248,23 @@ function renderSteps(){
   paintSteps();
   seqHint.textContent = LANE_HINT[SEQ.lane] || "";
 }
+/* The first step of the sixteen a control surface is showing, or -1 when there is nothing
+   to show. ⚠️ Not drawn without a surface, and not on a pattern that fits on one — same
+   rule, same words, as bankShown() in dr1/ui.js and seq/step-seq.js. */
+/* A surface connecting or going away changes whether the band is drawn at all. */
+if (window.Patchwork && Patchwork.surface) Patchwork.surface.onChange(() => paintSteps());
+function bankShown(){
+  if (SEQ.len <= 16) return -1;
+  if (!window.Patchwork || !Patchwork.surface || !Patchwork.surface.connected) return -1;
+  return Math.min(SEQ.bank || 0, Math.ceil(SEQ.len / 16) - 1) * 16;
+}
+
 function paintSteps(){
+  const bank = bankShown();
   seqWrap.querySelectorAll(".step").forEach(b => {
     const st = SEQ.steps[+b.dataset.i];
+    const i = +b.dataset.i;
+    b.classList.toggle("bank", bank >= 0 && i >= bank && i < bank + 16);
     b.classList.toggle("on", !!st.on && !st.tie);
     b.classList.toggle("acc", !!st.accent && !!st.on);
     b.classList.toggle("sld", !!st.slide && !!st.on);
@@ -352,6 +366,31 @@ seqWrap.addEventListener("pointerdown", e => {
     selectStep(+b.dataset.i);        // first click selects; click again to edit the lane
     return;
   }
+  if (heldNotes.length){ pressStep(+b.dataset.i); paintSteps(); return; }
+  if (SEQ.lane === "pitch"){
+    b.setPointerCapture(e.pointerId);
+    b._y = e.clientY; b._p = st.pitch + 12*st.oct;
+    return;
+  }
+  pressStep(+b.dataset.i);
+  paintSteps();
+});
+
+/* ---- one press on one step ----
+   ⚠️ THE PADS AND THE PANEL RUN THIS SAME FUNCTION. It used to live inside the handler
+   above, which was fine while a mouse was the only thing that could reach a step; a control
+   surface arriving at the same steps by another road would have meant a second copy of
+   "what a press means", and the two would have disagreed the first time a lane was added.
+   seq/step-seq.js has the identical split, for the identical reason.
+
+   What stays in the handler is the mouse's own vocabulary: the pitch-lane drag, and the
+   first click that only moves the cursor. */
+/* `m` is what this press means beyond the lane showing — {accent} from a control surface's
+   Shift. See the same argument beside press() in seq/step-seq.js. */
+function pressStep(i, m){
+  const st = SEQ.steps[i];
+  if (!st) return;
+  m = m || {};
   if (heldNotes.length){
     /* ⚠️ The WHOLE held chord, lowest note as the root. It used to take
        heldNotes[heldNotes.length - 1] — the last key pressed — so holding a triad and
@@ -359,15 +398,18 @@ seqWrap.addEventListener("pointerdown", e => {
        fingers landed. Sorting means the same chord records the same way every time. */
     const ns = heldNotes.map(h => h.midi).sort((a, b) => a - b);
     writeStep(st, ns[0], ns.slice(1).map(m => m - ns[0]));
-    paintSteps();
     return;
   }
-  if (SEQ.lane === "pitch"){
-    b.setPointerCapture(e.pointerId);
-    b._y = e.clientY; b._p = st.pitch + 12*st.oct;
-    return;
+  if (m.accent || SEQ.lane === "accent"){
+    st.accent = st.accent ? 0 : 1;
+    /* An unpitched accented step is not a thing anyone means, so turning one on this way
+       takes the last played note exactly as a plain press would. */
+    if (st.accent && !st.on){
+      st.on = 1;
+      if (SEQ.lastNote != null) writeStep(st, SEQ.lastNote);
+    }
   }
-  if (SEQ.lane === "on"){
+  else if (SEQ.lane === "on"){
     const turningOn = !st.on;
     st.on = st.on ? 0 : 1;
     /* ⚠️ THE NOTE YOU LAST PLAYED, not whatever pitch the step was holding. A step switched
@@ -376,11 +418,9 @@ seqWrap.addEventListener("pointerdown", e => {
        want it. Holding a note still wins, above. */
     if (turningOn && SEQ.lastNote != null) writeStep(st, SEQ.lastNote);
   }
-  else if (SEQ.lane === "accent") st.accent = st.accent ? 0 : 1;
   else if (SEQ.lane === "slide")  st.slide  = st.slide ? 0 : 1;
   else if (SEQ.lane === "tie")    st.tie    = st.tie ? 0 : 1;
-  paintSteps();
-});
+}
 seqWrap.addEventListener("pointermove", e => {
   const b = e.target.closest(".step");
   if (!b || !b.hasPointerCapture || !b.hasPointerCapture(e.pointerId)) return;

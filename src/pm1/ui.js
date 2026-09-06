@@ -182,7 +182,10 @@ function makeKnob(host, d){
     e.preventDefault();
   });
   /* CC drives this too, so a hardware knob p-locks exactly like an on-screen one */
+  /* `get` is the same 0-1 the setter takes, so a control surface can put a hardware
+     encoder where this knob already is instead of jumping it on first touch. */
   ctlReg[d.id] = {set:v => { P[d.id] = fromNorm(d, v); render(); applyParam(d.id); lockKnob(d.id); },
+                  get:() => toNorm(d, P[d.id]), lab: d.lab,
                   render, el};
   render();
 }

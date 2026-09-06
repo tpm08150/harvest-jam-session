@@ -14,6 +14,10 @@ const SEQ = {
      and every knob you move is locked to that step. */
   mode:"play", sel:0,
   lane:"on",
+  /* Which sixteen a control surface is showing, when the pattern is longer than its grid.
+     View state like `sel` and `lane`. The same field, spelled the same way, as dr1/seq.js
+     and seq/step-seq.js — three sequencers, one word for it. */
+  bank:0,
   steps:[]
 };
 const MAX_STEPS = 64;

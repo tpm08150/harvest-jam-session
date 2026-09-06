@@ -304,6 +304,92 @@ $("#clearMap").addEventListener("click", () => {
   $$(".arm").forEach(x => x.classList.remove("arm"));
   say("Map cleared — knobs are mouse and keyboard only again.");
 });
+/* ---- control surface ----
+   Ninety-odd knobs and eight encoders, so they come in banks.
+
+   ⚠️ THE FIRST BANK IS NOT A GROUP, it is a hand. Filter and the two envelope shapes are
+   what you reach for while a part is playing, and they live in three different sections of
+   the panel — so bank one is assembled from all of them and the rest of the banks are the
+   panel's own groups, for when you are setting a sound up rather than playing it. Starting
+   at "Oscillator 1" because that is where the panel starts would put the least-touched
+   controls under your fingers by default.
+
+   Labels come from ctlReg, which took them from the knob definitions, so a knob renamed on
+   the panel is renamed on the controller's screen and cannot drift.
+
+   ⚠️ An entry may be [id, label, short] instead of an id, and the Perform bank needs it: the
+   panel's own name for `fd` is "Decay", which is unambiguous sitting inside a block headed
+   Filter Env and is not unambiguous at all next to the amp envelope's Decay. A row of eight
+   names with no sections around them has to carry the section in the name.
+
+   `short` is the name for the controller's own legend, which lays eight names out 2x4 across
+   128 pixels — six characters, chosen rather than truncated. See cs1/midi.js. */
+const SURFACE_BANKS = [
+  {name: "Perform", ids: [["fcut", null, "Cut"], ["fres", null, "Res"], ["fenv", null, "Env"],
+                          ["fd", "Flt dec", "FDc"], ["aa", "Amp att", "Atk"],
+                          ["ad", "Amp dec", "Dec"], ["as", "Amp sus", "Sus"],
+                          ["ar", "Amp rel", "Rel"]]},
+  {name: "Filter",  ids: [["fcut", null, "Cut"], ["fres", null, "Res"], ["fenv", null, "Env"],
+                          ["fkey", null, "Key"], ["velf", null, "Vel"],
+                          ["fdrive", null, "Drv"], ["fhpf", null, "HPF"]]},
+  {name: "Flt env", ids: [["fa", null, "Atk"], ["fd", null, "Dec"],
+                          ["fs", null, "Sus"], ["fr", null, "Rel"]]},
+  {name: "Amp env", ids: [["aa", null, "Atk"], ["ad", null, "Dec"],
+                          ["as", null, "Sus"], ["ar", null, "Rel"]]},
+  {name: "Osc",     ids: [["o1oct", null, "1Oc"], ["o1lvl", null, "1Lv"],
+                          ["o2oct", null, "2Oc"], ["o2semi", null, "2Sm"],
+                          ["o2det", null, "2Fn"], ["o2lvl", null, "2Lv"],
+                          ["sublvl", null, "Sub"], ["noiselvl", null, "Noi"]]},
+  {name: "Shape",   ids: [["pw", null, "Wid"], ["pwm", null, "PWM"], ["pwmrate", null, "PWR"],
+                          ["ring", null, "Rng"], ["fm", null, "FM"]]},
+  {name: "LFO",     ids: [["lfor", null, "Rat"], ["lfod", null, "Dly"], ["lfop", null, "Pit"],
+                          ["lfof", null, "Flt"], ["lfoa", null, "Amp"]]},
+  {name: "Keys",    ids: [["glide", null, "Gld"], ["unidet", null, "UDt"],
+                          ["unispread", null, "UWd"], ["bend", null, "Bnd"]]}
+];
+let ctlBank = 0;
+function bankNow(){ return Math.min(ctlBank, SURFACE_BANKS.length - 1); }
+function surfaceControls(){
+  return SURFACE_BANKS[bankNow()].ids
+    .map(e => (typeof e === "string" ? [e, null, null] : e))
+    .filter(e => ctlReg[e[0]] && ctlReg[e[0]].get)
+    .map(e => ({
+      id: e[0], label: e[1] || ctlReg[e[0]].lab || e[0], short: e[2],
+      get: () => ctlReg[e[0]].get(),
+      set: v => ctlReg[e[0]].set(v)
+    }));
+}
+function surfaceBanks(){ return SURFACE_BANKS.map(b => ({name: b.name})); }
+function setSurfaceBank(i){ ctlBank = Math.max(0, Math.min(SURFACE_BANKS.length - 1, i)); }
+
+/* ---- the steps, on a controller's pads ----
+   PM·1's sequencer predates seq/step-seq.js and is not going to be replaced by it — it
+   carries chords per step, which the shared one does not. But the two are the same IDEA,
+   and a control surface should not have to know that. So rather than a third copy of "one
+   bank of sixteen, paged", this hands the shared factory the five things it asks for.
+
+   ⚠️ THE SHIM IS NOT AN ADAPTER LAYER, it is five properties. The moment it needs a sixth
+   that has to be faked, the honest move is a copy — a shim that lies is worse than
+   duplication you can read. */
+const surfaceGrid = Patchwork.makeSeqSurface({
+  SEQ,
+  /* ⚠️ A GETTER, NOT THE ARRAY. Loading a patch can hand SEQ a fresh steps array rather
+     than refilling the one it had, and a reference captured at boot would then be editing
+     a pattern nobody can hear. */
+  get steps(){ return SEQ.steps; },
+  press: (i, held, m) => pressStep(i, m),
+  /* The step sounding right now, from the same `marks` the on-screen playhead reads —
+     rather than a second counter that could disagree with what you can hear. */
+  playingStep: () => {
+    if (!SEQ.playing || !ctx) return -1;
+    const now = ctx.currentTime;
+    let cur = -1;
+    for (const m of marks) if (now >= m.t && now < m.end) cur = m.i;
+    return cur;
+  },
+  get lastNote(){ return SEQ.lastNote; }
+}, {repaint: () => paintSteps()});
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     /* every iOS browser is WebKit underneath, so this is a platform limit rather than a
@@ -329,6 +415,8 @@ function initMidi(){
     fillPorts(); followInput(pt); bindOutput(); describe();
   }, {
     name: "PM\u00b71", panic: midiPanic,
+    controls: surfaceControls, grid: surfaceGrid,
+    controlBanks: surfaceBanks, controlBank: bankNow, setControlBank: setSurfaceBank,
     inCh:  {get: () => MIDI.synCh,
             set: c => { MIDI.synCh = c; synChSel.value = String(c);
                         allNotesOff(); paintRoute(); saveMap(); describe(); }},
