@@ -212,10 +212,28 @@ const rig = {
   /* Up to eight continuous controls for the focused instrument, in the order the
      instrument thinks matters. Missing adapter means an instrument that has not been
      taught this yet, which must read as "no controls" rather than as an error. */
-  controls(){
+  /* ⚠️ `alt` IS A SECOND EIGHT, NOT A SECOND BANK. Banks are the things you page between and
+     stay on; this is the handful you reach for while holding a key and let go of — the
+     pattern's own settings rather than its sound. A panel that offers none falls back to its
+     ordinary eight, so holding the key never makes a familiar encoder do nothing. */
+  controls(alt){
     const f = rig.focus;
-    if (!f || typeof f.spec.controls !== "function") return [];
+    if (!f) return [];
+    if (alt && typeof f.spec.shiftControls === "function"){
+      try{
+        const list = f.spec.shiftControls() || [];
+        if (list.length) return list.slice(0, 8);
+      }catch(e){}
+    }
+    if (typeof f.spec.controls !== "function") return [];
     try{ return (f.spec.controls() || []).slice(0, 8); }catch(e){ return []; }
+  },
+  /* Whether holding the key would actually change anything here, for a display that should
+     only announce a second eight when there is one. */
+  hasAlt(){
+    const f = rig.focus;
+    if (!f || typeof f.spec.shiftControls !== "function") return false;
+    try{ return (f.spec.shiftControls() || []).length > 0; }catch(e){ return false; }
   },
 
   /* ---- banks of eight ----

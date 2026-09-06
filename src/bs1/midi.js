@@ -73,6 +73,38 @@ function surfaceControls(){
   }));
 }
 
+/* ---- the pattern's own settings, on Shift ----
+   ⚠️ THESE ARE LISTS, NOT RANGES, and that is the whole reason they were not among the
+   eight. Cutoff has a value anywhere between two ends; Rate is one of seven names and Scale
+   is one of a dozen, and a knob that lands between two of them means nothing. So the encoder
+   picks an INDEX — its travel divided by however many options there are — which is the only
+   honest way to put a list under a continuous control.
+
+   And they go through the panel's own <select>, dispatching the change event a click would,
+   so the sequencer rebuilds its grid and re-spells its notes exactly as if the menu had been
+   used. Setting seq.SEQ.len from here would move the number and leave the panel drawing the
+   old one. */
+function optCtl(sel, label, short){
+  const el = $(sel);
+  if (!el) return null;
+  const last = () => Math.max(1, el.options.length - 1);
+  return {
+    id: sel.slice(1), label, short,
+    get: () => el.selectedIndex / last(),
+    set: v => {
+      const i = Math.max(0, Math.min(el.options.length - 1, Math.round(v * last())));
+      if (i === el.selectedIndex) return;
+      el.selectedIndex = i;
+      el.dispatchEvent(new Event("change", {bubbles: true}));
+    }
+  };
+}
+function surfaceShiftControls(){
+  return [optCtl("#seqLen", "Steps", "Stp"), optCtl("#seqRate", "Rate", "Rat"),
+          optCtl("#seqKey", "Key", "Key"), optCtl("#seqScale", "Scale", "Scl")]
+    .filter(Boolean);
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true); return;
@@ -85,7 +117,7 @@ function initMidi(){
      same setting and must never disagree about it. */
   Patchwork.midi.route("bs1", onMidi, pt => { fillPorts(); followInput(pt); describe(); }, {
     name: "BS\u00b71", panic: midiPanic,
-    controls: surfaceControls, grid: surfaceGrid,
+    controls: surfaceControls, shiftControls: surfaceShiftControls, grid: surfaceGrid,
     inCh: {get: () => MIDI.inCh,
            set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
   });

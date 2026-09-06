@@ -2227,10 +2227,28 @@ const rig = {
   /* Up to eight continuous controls for the focused instrument, in the order the
      instrument thinks matters. Missing adapter means an instrument that has not been
      taught this yet, which must read as "no controls" rather than as an error. */
-  controls(){
+  /* ⚠️ `alt` IS A SECOND EIGHT, NOT A SECOND BANK. Banks are the things you page between and
+     stay on; this is the handful you reach for while holding a key and let go of — the
+     pattern's own settings rather than its sound. A panel that offers none falls back to its
+     ordinary eight, so holding the key never makes a familiar encoder do nothing. */
+  controls(alt){
     const f = rig.focus;
-    if (!f || typeof f.spec.controls !== "function") return [];
+    if (!f) return [];
+    if (alt && typeof f.spec.shiftControls === "function"){
+      try{
+        const list = f.spec.shiftControls() || [];
+        if (list.length) return list.slice(0, 8);
+      }catch(e){}
+    }
+    if (typeof f.spec.controls !== "function") return [];
     try{ return (f.spec.controls() || []).slice(0, 8); }catch(e){ return []; }
+  },
+  /* Whether holding the key would actually change anything here, for a display that should
+     only announce a second eight when there is one. */
+  hasAlt(){
+    const f = rig.focus;
+    if (!f || typeof f.spec.shiftControls !== "function") return false;
+    try{ return (f.spec.shiftControls() || []).length > 0; }catch(e){ return false; }
   },
 
   /* ---- banks of eight ----
@@ -2901,6 +2919,7 @@ function start(io, rig){
   io.state = {
     padMode: PAD_DAW,
     fn: false,                         // Function held — the accent modifier
+    shift: false,                      // Shift held — the encoders' second eight
     scrub: 0,                          // which arrow is scrubbing the tape, if either
     /* Pads currently down, newest last. A range gesture needs to know what a finger is
        still holding, and note-on/note-off is the only place that is knowable. */
@@ -2994,7 +3013,12 @@ function message(io, d, rig){
       if (to){ rig.setMode(to.page); rig.goto(to.view); }
       return;
     }
-    if (d[1] === F_SHIFT) return;         // observed, and nothing is built on it — see above
+    /* ⚠️ SHIFT IS STATE AGAIN, and this time it earns it. It cannot be combined with another
+       BUTTON — the device remaps those rather than passing a modifier — but it is reported
+       here, and an ENCODER is not a button: turning one while Shift is down still sends its
+       own CC. So the one thing Shift can modify is the eight knobs, which is exactly where a
+       second handful of controls was wanted. */
+    if (d[1] === F_SHIFT){ io.state.shift = d[2] > 0; return; }
     /* The answer to the query in start(). ⚠️ FIRST REPLY ONLY: the device may also confirm
        the value we then set, and capturing that would mean "restoring" our own setting and
        losing theirs for good. MIDI is ordered, so the first answer is the one we asked for. */
@@ -3068,7 +3092,7 @@ function message(io, d, rig){
   const cc = d[1], v = d[2];
 
   if (cc >= ENC_CC0 && cc < ENC_CC0 + ENC_N){
-    const list = rig.controls();
+    const list = rig.controls(io.state.shift);
     const c = list[cc - ENC_CC0];
     if (!c || typeof c.set !== "function") return;
     try{ c.set(v / 127); }catch(e){}
@@ -3078,10 +3102,9 @@ function message(io, d, rig){
     return;
   }
 
-  /* Func is state, so it needs the release as well as the press. Shift is swallowed here
-     without being recorded: it is not a modifier this profile can use, and a flag nothing
-     reads is a flag the next person has to work out is dead. */
-  if (cc === B_SHIFT) return;
+  /* Both are state, so both need the release as well as the press. Shift arrives twice —
+     here and on the feature channel above — and either road sets the same flag. */
+  if (cc === B_SHIFT){ io.state.shift = v > 0; return; }
   if (cc === B_FUNC){ io.state.fn = v > 0; return; }
 
   /* ---- the arrows beside the pads ----
@@ -3238,7 +3261,7 @@ function paintButtons(io, rig){
 
 function paintEncoders(io, rig){
   const s = io.state;
-  const list = rig.controls();
+  const list = rig.controls(s.shift);
   for (let i = 0; i < ENC_N; i++){
     const c = list[i] || null;
     /* Position feedback. The guide's phrase for the absolute modes is "If the DAW sends
@@ -3271,10 +3294,15 @@ function paintScreen(io, rig){
      Cutoff and Reso say "Filter" between them — but on DR·1 every bank has the SAME eight
      names and only the drum changes, so a legend with no title would be identical for the
      kick and the snare. */
-  const bankLabel = rig.controlBankName();
+  /* Holding Shift retitles the legend, because the eight names under it have just been
+     replaced and a legend that did not say so would look like the bank had changed by
+     itself. Only where there IS a second eight — announcing one that does not exist would
+     be worse than saying nothing. */
+  const alt = s.shift && rig.hasAlt();
+  const bankLabel = alt ? "Shift" : rig.controlBankName();
   const inst = f ? f.name : "no panel";
   const want = [inst + (bankLabel ? "  " + bankLabel : "")];
-  const list = rig.controls();
+  const list = rig.controls(alt);
   for (let i = 0; i < 8; i++){
     const c = list[i];
     want.push(c ? (c.short || c.label || c.id || "") : "");
