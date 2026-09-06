@@ -45,6 +45,7 @@ function paintPads(){
      slivers. 64 steps is four rows per lane, which is what 64 steps looks like. */
   const cols = Math.min(16, SEQ.len);
   $$(".pads").forEach(p => p.style.setProperty("--steps", cols));
+  const bank = bankShown();
   $$(".pad").forEach(b => {
     const id = b.dataset.v, i = +b.dataset.i;
     b.hidden = i >= SEQ.len;
@@ -52,7 +53,22 @@ function paintPads(){
     b.classList.toggle("on", v > 0);
     b.classList.toggle("acc", v === 2);
     b.classList.toggle("beat", i % 4 === 0);
+    b.classList.toggle("bank", bank >= 0 && i >= bank && i < bank + 16);
   });
+}
+
+/* The first step of the sixteen a control surface is showing, or -1 when there is nothing
+   to show. A hardware grid is sixteen pads and a pattern can be four times that, so the
+   band says which quarter of it the pads are on — and since the panel's own grid already
+   wraps at sixteen, a band here is exactly one row there.
+
+   ⚠️ NOT SHOWN WITHOUT A SURFACE, and not shown on a pattern that fits. A permanent
+   highlight over steps 1-16 would be a mouse user wondering what is special about the
+   first bar of a sixteen-step pattern, which is nothing. */
+function bankShown(){
+  if (SEQ.len <= 16) return -1;
+  if (!window.Patchwork || !Patchwork.surface || !Patchwork.surface.connected) return -1;
+  return Math.min(SEQ.bank, Math.ceil(SEQ.len / 16) - 1) * 16;
 }
 
 /* Sounding a voice on demand, with no transport running. "Which one is LT again?" is the
@@ -288,7 +304,16 @@ function makeFader(sel, get, set, fmt, min, max, param){
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   });
-  faderCtl[sel] = paintF;
+  /* Registered with its RANGE, not just its repaint. A control surface needs to put a
+     0-1 encoder onto a fader whose ends move with the selected lane — Tune is 28-90 Hz on
+     the kick and 900-2600 on the rimshot — and the only place that mapping is correct is
+     here, beside the pointer handler that already does it. A second copy of TUNE_RANGE
+     somewhere else is a second copy to get wrong the next time a voice is retuned. */
+  faderCtl[sel] = {
+    paint: paintF,
+    get(){ const a = lo(), b = hi(); return b === a ? 0 : clampf((get() - a) / (b - a), 0, 1); },
+    set(v){ const a = lo(), b = hi(); set(a + clampf(v, 0, 1) * (b - a)); paintF(); }
+  };
   paintF();
   return paintF;
 }
@@ -307,7 +332,7 @@ function syncVoice(){
   $("#voiceTag").textContent = v.name;
   $("#voiceMeta").textContent = v.full;
   ["#tuneF", "#toneF", "#decayF", "#levelF", "#verbF", "#gateF"]
-    .forEach(k => faderCtl[k] && faderCtl[k]());
+    .forEach(k => faderCtl[k] && faderCtl[k].paint());
 }
 
 makeFader("#tuneF",  () => cur().tune,  v => { cur().tune = v; },
@@ -403,6 +428,9 @@ $("#bpmDown").addEventListener("click", () => setBpm(Patchwork.clock.bpm - 1));
 
 $("#rate").addEventListener("change", e => { SEQ.rate = e.target.value; });
 $("#len").addEventListener("change", e => { SEQ.len = +e.target.value; paintPads(); });
+/* A surface connecting or going away changes whether the band is drawn at all, and neither
+   is something this panel would otherwise hear about. */
+if (window.Patchwork && Patchwork.surface) Patchwork.surface.onChange(paintPads);
 
 /* Space plays, and only when this panel owns the keyboard — see shell/host.js. */
 onKey("keydown", e => {

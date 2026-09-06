@@ -15,6 +15,12 @@ const SEQ = {
      their note-entry mode would promise a gesture this instrument does not have. */
   mode: "play",            // play | plock — see the locks below
   sel: 0,                  // the step a lock is written to, in p-lock mode
+  /* Which sixteen of a longer pattern a control surface is showing. View state like `lane`
+     and `sel` rather than part of the pattern, and here rather than in midi.js for one
+     mechanical reason: paintPads() reads it while drawing, and ui.js is concatenated
+     before midi.js — a `let` over there is still in its temporal dead zone when the lanes
+     are first built. */
+  bank: 0,
   /* What a press writes. It used to be a three-state cycle on one control — off, on,
      accent, off — which reads well until you want a step GONE and the only way there is
      through accenting it first. Two clicks to undo one is the wrong shape for the thing

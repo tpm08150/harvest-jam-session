@@ -82,6 +82,13 @@
   width:2px;height:2px;border-radius:50%;background:rgba(255,255,255,.45)}
 .pad.now{outline:2px solid var(--mint);outline-offset:1px;z-index:2}
 .pad.past{opacity:.35}
+/* The band of sixteen a control surface is editing, on a pattern longer than its grid.
+   ⚠️ A WASH RATHER THAN AN OUTLINE, on purpose: `now`, `sel` and `acc` are all outlines or
+   inset rings already, and a fourth ring on the same pad reads as a box inside a box
+   inside a box. This says "these sixteen" by tinting the ground they sit on, which is the
+   one visual channel the pad was not already using. */
+.pad.bank{border-color:var(--dr-accent-lo)}
+.pad.bank:not(.on){background:rgba(139,116,214,.17)}
 
 /* Horizontal faders. CS·1's and MS·1's versions had drifted apart by Phase 2, so these
    were not among the 38 rules the shell could share — this is DR·1's own take, sized to
