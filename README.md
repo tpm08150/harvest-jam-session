@@ -249,6 +249,159 @@ A single instrument opens as its whole self. The studio opens on faces, because 
 panels is a wall rather than an instrument. The switch in the header moves all three at
 once; the button on a panel moves just that one.
 
+## Controllers
+
+Under **MIDI** in the studio there is a **Controller** menu. It lists the controllers the
+app has a profile for *and can currently see* — an empty list means nothing it knows about
+is plugged in, rather than a menu of things that would do nothing if picked. Pick one and
+it maps itself; the choice is remembered and comes back on the next load, and survives
+unplugging the cable to move a desk.
+
+Profiles do the thing MIDI learn cannot. Learn is still there and still right for a knob
+box nobody has ever seen, but a controller with a published specification does not need to
+be taught which pad is which, and a learned map can never light an LED back.
+
+### Novation Launchkey MK4
+
+Encoded from Novation's Programmer's Reference Guide v2.0, for the Mini and full-size SKUs.
+The Launchkey shows up as two USB ports and the app uses both: the keys stay on the ordinary
+MIDI port and reach the instruments through the usual router, while the pads, encoders,
+transport and LEDs run over the DAW port, which the surface takes for itself.
+
+| | |
+| --- | --- |
+| **Keys** | play whichever panel has the focus — turn on *Plays the selected panel* |
+| **Pads, DAW layout** | the focused panel's grid — see below |
+| **Pads, Drum layout** | DR·1's kit, wherever the focus is, one lane per pad in the order the panel lists them |
+| **Encoders** | the focused panel's eight main controls, named on the screen as you turn them |
+| **∧ ∨ right of the encoders** | which eight — the drum lane on DR·1, a parameter bank on PM·1 |
+| **▶ / ■** | the rack transport, the same button the launcher's Play is |
+| **∧ ∨ left of the pads** | page the grid — see the sequencers below |
+| **Shift + ∧ ∨**, or **Func + ∧ ∨** | move the focus to the previous / next panel |
+| **Func + a pad** | the accent |
+| **Hold a pad, press another** | tie the steps between them into one held note |
+| **Func + Record** | panic |
+| **Screen** | which panel, which bank, and what all eight encoders are |
+
+Eight encoders and more than eight things worth turning — every synth here, and PM·1 by a
+factor of ten — so the arrows beside the encoders move **which eight they point at**. The
+instrument decides what a bank is:
+
+- **DR·1** — a bank is a **drum**. Six of its eight faders already edit whichever lane is
+  selected, so choosing the lane *is* choosing the eight; Swing and Accent are the pattern's
+  and sit still across all of them. The pads follow too, since the step grid shows the
+  selected lane — one button and the whole surface moves to the next drum.
+- **PM·1** — a bank is a group of parameters: **Perform, Filter, Flt env, Amp env, Osc,
+  Shape, LFO, Keys**. ⚠️ The first is not a group but a *hand* — cutoff, resonance, envelope
+  amount and the amp envelope, gathered from three different sections of the panel, because
+  those are what you reach for while a part is playing. Starting at Oscillator 1 because that
+  is where the panel starts would put the least-touched knobs under your fingers by default.
+- **Everything else** has eight controls or fewer, one bank, and the arrows stay dark.
+
+One mechanism, two meanings, and that is the point rather than a compromise: the surface asks
+for the next bank and gets the next eight. It never learns that one instrument spells that as
+a parameter group and another as a drum.
+
+What the sixteen pads mean follows the panel you clicked:
+
+- **CS·1** — the chord slots, filled bottom-up so pad 1 is bottom-left, exactly as they are
+  laid out on screen. A held pad pulses; the slot the transport is playing is lit. CS·1 is
+  the one panel whose pads are not steps, because its pattern is a progression rather than a
+  line of notes.
+- **DR·1** — the steps of the selected lane, read from the top left. Accented steps are red,
+  the playhead is white. A pattern can be 64 steps and the grid is 16, so the arrows to the
+  left of the pads page through it in banks of sixteen — 1–16, 17–32, 33–48, 49–64 — and
+  they light only while there is somewhere to go. A page here is one row of the panel's own
+  grid, which already wraps at sixteen, so the two views agree.
+
+  Where you are is said in three places, because a page you have to keep count of is a page
+  you will lose — and this is true of every sequencer here, not just DR·1: the controller's
+  screen shows the range on its resting display (`BD 33-48`,
+  always, so a pattern with only one page says so rather than looking identical to one parked
+  on its first bank), a press raises a temporary display over it so the answer arrives while
+  your finger is still on the button, and the panel tints the sixteen steps being edited —
+  one row of its own grid, which already wraps at sixteen. The tint appears only while a
+  surface is connected and the pattern is longer than one page.
+
+  In Drum layout, **hitting a pad selects that lane** as well as sounding it — the same
+  thing clicking a lane name on the panel does. It is what makes the step grid and the eight
+  encoders reachable without going back to the mouse.
+- **PM·1, BS·1, VC·1** — their step sequencers, same grid and same paging. ⚠️ **A step you
+  switch on takes the note you last played**, so writing a line is playing the pitch once
+  and tapping the steps that want it, rather than turning steps on and then correcting every
+  one. Hold a key while you tap and that note wins instead — a key under a finger is a more
+  specific statement than one you let go of, and on PM·1 a held chord records as a chord.
+  The controller's screen shows which note is queued (`17-32  G2`), because it is the one
+  fact you cannot see from the pads. Accented steps are red, ties and slides amber.
+
+  **Holding one pad and pressing another ties everything between them** into one held note —
+  which is how you write a note longer than a step without leaving the controller. Holding,
+  rather than two presses in a row: sequential presses cannot be told apart from two ordinary
+  edits, so every second press would silently become a tie. The gesture is idempotent rather
+  than a toggle — the anchor pad's own press has already run by the time the second pad
+  arrives, so an "undo" would depend on what the step happened to be before you touched it.
+  Clearing a held note is pressing its steps, which is what a press has always meant.
+
+  This is the panel's own gesture, not a second one: the pads and the on-screen grid run the
+  same `press()`, so a lane or a modifier added to one is in the other by construction.
+
+- **LP·1, TS·1** — no sequencer of their own, so the pads fall through to the scene launcher.
+
+- **The scene launcher** — sixteen rows on sixteen pads, amber for a stored row, pulsing for
+  one that is armed, green for one that is sounding.
+
+The pads are lit from what is actually true rather than from anything an instrument
+remembers to announce, so a chord arriving on the transport's own schedule lights its pad
+without CS·1 knowing a Launchkey exists.
+
+If a control seems to do nothing, ask the device rather than guessing. Every message the
+surface port delivers is kept sixty-four deep and readable from the console while it is
+plugged in — `Patchwork.surface.traffic`, newest last, as hex. An empty list means the
+control sends nothing at all, which is a different problem from one that is sending
+something unexpected.
+
+The resting display is the encoder legend, in the same layout the Launchkey uses for its own
+Arp page — a title over a 2x4 grid of names:
+
+```
+        DR-1  HT
+Tun Ton Dec Lvl
+Vrb Gat Swg Acc
+```
+
+⚠️ **The title carries the bank, because the eight names below cannot.** On PM·1 they can —
+`Cutof` and `Reso` say "Filter" between them — but on DR·1 every bank has the *same* eight
+names and only the drum changes, so a legend without a title would be identical for the kick
+and the snare.
+
+⚠️ **Names are three characters, because the device packs rather than pads.** Four five-letter
+names came out as `CutofResoEnvAmKeyTk` — one unbroken word with no way to see where each
+began. The row is about twenty characters wide whatever goes in it, so three letters each is
+what leaves gaps between them. Chosen rather than truncated: `Rel` is a better word than
+`Releas`. A control carries a `short` for this and falls back to its panel label, which will
+be cut.
+
+Turning an encoder raises its own name and value over the top; paging the steps flashes the
+new range. The resting display is for what is *true*, the temporary one for what just
+*happened* — and a temporary display sits on top of the legend while it lasts, so it has to
+earn its place. ⚠️ **Changing encoder bank raises nothing**, because it rewrites the legend
+itself: title and all eight names, in more detail than two temporary lines could give.
+Flashing over that hid the very thing that had just become correct. Paging keeps its flash
+because the step range is *not* in the legend, so without it nothing says which sixteen.
+
+The timeout is set to **half a second**, down from the four or five the device ships with.
+⚠️ That setting is **non-volatile** — it survives a power cycle — so it is read before it is
+written and put back when the controller is disconnected. An app that quietly re-tunes
+somebody's hardware and leaves it that way is a bad guest. (If the browser is killed outright
+the restore cannot run; the Launchkey's own Settings will put it back.)
+
+**SysEx** is asked for only when you pick a profile that wants it, because Chrome's prompt
+for it is a different and more alarming one than plain MIDI's. Refusing costs the screen and
+nothing else. The answer is remembered.
+
+⚠️ **Record does nothing on purpose.** It is the one button whose obvious meaning — capture
+into the armed scene row — cannot be undone, and a stray thumb should not overwrite a take.
+
 ## Running it
 
 Web MIDI requires a secure context, so `file://` will not work — it needs `localhost` or
@@ -350,6 +503,47 @@ unavailable.
 Built against a Teenage Engineering EP-133. It enumerates as a class-compliant USB audio
 device (2 in / 2 out at 44.1 kHz) and a USB MIDI device, so macOS picks it up with no driver
 and the browser can reach both directly.
+
+⚠️ **Where the Programmer's Reference and the hardware disagree, the hardware wins.** The
+profile is verified against `tools/build-surface-harness.py`, which fakes both of the
+device's USB ports and checks the bytes in each direction — the handshake, the pad decode,
+the LED colours, the screen text, the teardown. That catches a wrong decode and cannot catch
+a wrong *number*, and three of the numbers in `shell/launchkey.js` turned out to be wrong:
+
+- The **encoder arrows** are CC 51 and 52 on channel 1. The Mini's own figure in the guide
+  prints 55 and 56; the full-size figure prints 51 and 52 for the same pair, and that is what
+  a Launchkey Mini MK4 37 actually sends.
+- The **DAW-mode button channel** is not stated anywhere in the guide — it was read across
+  from the standalone section, wrongly. The profile matches on the CC number and ignores the
+  channel, which is safe on a port carrying nothing but this device's surface.
+- **Shift** cannot be combined with anything: the device remaps the keys instead of passing
+  a modifier, so "Shift + arrow" is not a thing to listen for — 103 and 102 are. Two wrong
+  guesses came from assuming otherwise.
+
+`Patchwork.surface.traffic` is what settled each of those: the last 64 messages from the
+surface port, as hex, readable from the console while the thing is plugged in. Reach for it
+before changing a constant, not after.
+
+One still unsettled: the guide gives the Drum-layout status byte as `9Ah` while calling it
+Channel 10, and those disagree. Both are accepted on the way in, but the colours go out on
+channel 10 (`99h`) — if the drum pads respond but stay unlit, that is the constant to flip.
+
+⚠️ **Shift does not pass a modifier, it remaps the key.** This cost two wrong guesses. Shift
+is reported — it arrives on channel 7 — but it can never be combined with anything, because
+the Launchkey does the combining itself: hold Shift and the arrows beside the pads stop
+sending 106/107 and send 103/102, the device's own *Track* pair printed above them. Shift and
+a pad go further and never arrive at all, being how its pad-mode menu is driven.
+
+So nothing is built on Shift and it is not even recorded. What it produces are simply *other
+buttons*, bound like any other — which is why Shift + ∧∨ changes panel: not because a
+modifier was read, but because Track is a different button that means "which track". **Func**
+is the one modifier this profile holds, and the only one it needs.
+
+⚠️ **The arrows beside the pads do not do what the unit is printed with.** They read *Track*
+and they page the grid; *Func* and the same pair walks the rack, and they turn white under
+Func to say so. The rule is that the two buttons a thumb finds without looking are the ones
+next to the grid, so they move the grid — one axis inside a pattern, the other across the
+rack, the same gesture at two scales. `>` is unassigned and stays dark.
 
 Latency is the one real limitation of staying in the browser: Chrome's output latency runs
 roughly 15–40 ms and is not tunable. Fine for sequencing and recording, less so for tight
