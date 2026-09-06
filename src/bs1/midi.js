@@ -58,6 +58,21 @@ function describe(){
                      : "listening on <b>channel " + (MIDI.inCh + 1) + "</b> only."));
 }
 
+/* ---- control surface ----
+   The eight faders this panel already has, as the eight things a hardware encoder row can
+   turn. Order is the panel's own left-to-right, so encoder 3 is the third fader down the
+   strip and there is nothing to look up. See shell/surface.js. */
+const SURFACE_CTL = [["cut","Cutoff","Cut"], ["res","Reso","Res"], ["env","Env","Env"],
+                     ["dec","Decay","Dec"], ["sub","Sub","Sub"], ["level","Level","Lvl"],
+                     ["glide","Glide","Gld"]];
+function surfaceControls(){
+  return SURFACE_CTL.filter(c => faderReg[c[0]] && faderReg[c[0]].get).map(c => ({
+    id: c[0], label: c[1], short: c[2],
+    get: () => faderReg[c[0]].get(),
+    set: v => faderReg[c[0]].set(v)
+  }));
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true); return;
@@ -70,6 +85,7 @@ function initMidi(){
      same setting and must never disagree about it. */
   Patchwork.midi.route("bs1", onMidi, pt => { fillPorts(); followInput(pt); describe(); }, {
     name: "BS\u00b71", panic: midiPanic,
+    controls: surfaceControls, grid: surfaceGrid,
     inCh: {get: () => MIDI.inCh,
            set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
   });

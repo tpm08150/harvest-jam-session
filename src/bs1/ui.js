@@ -66,6 +66,13 @@ const grid = Patchwork.mountSeqGrid($("#seqWrap"), seq, {
   onSelect: () => paintLocked()
 });
 
+/* The same steps on a controller's pads. It runs seq.press(), which is the function the
+   grid above runs, so the two cannot mean different things by a press. */
+const surfaceGrid = Patchwork.makeSeqSurface(seq, {
+  held: heldNote,
+  repaint: () => grid.paint()
+});
+
 /* Does the next SOUNDING step glide into this one? Ties are skipped, because a tie extends
    the note before it rather than sounding on its own — the same rule stepEvent() uses when
    it works out how long a note is held. */
@@ -234,7 +241,14 @@ function fader(sel, get, set, fmt, min, max, id){
   el.addEventListener("dblclick", () => {
     if (id && seq.SEQ.mode !== "play" && seq.unlock(id)){ paintSeqEdit(); return; }
   });
-  if (id) faderReg[id].paint = paintF;
+  if (id){
+    faderReg[id].paint = paintF;
+    /* The 0-1 view of this fader, for a control surface. Registered here rather than
+       rebuilt elsewhere because `min` and `max` are closed over — a second copy of the
+       cutoff range somewhere else is a second thing to forget when it moves. */
+    faderReg[id].get = () => clampf((get() - min) / (max - min), 0, 1);
+    faderReg[id].set = v => { set(min + clampf(v, 0, 1) * (max - min)); applyLive(); paintF(); };
+  }
   paintF();
 }
 /* cutoff is exponential — a linear Hz fader spends most of its travel above where a bass

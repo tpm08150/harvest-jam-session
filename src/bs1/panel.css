@@ -75,6 +75,12 @@
   border-radius:1px;background:var(--stripe-mod)}
 .step.tie{background:linear-gradient(180deg,#5a6a76,#43505a);color:#cfd8de}
 .step.now{outline:2px solid var(--mint);outline-offset:1px;z-index:2}
+/* The band of sixteen a control surface is editing, on a pattern longer than its
+   grid. ⚠️ A wash rather than an outline: `now`, `sel` and `acc` are outlines or
+   inset rings already, and a fourth ring on the same step reads as a box inside a
+   box. Matches dr1/panel.css, which says the same thing about its pads. */
+.step.bank{border-color:var(--bs-accent-lo)}
+.step.bank:not(.on):not(.tie){background:rgba(176,106,51,.20)}
 /* the step Program mode is pointed at */
 .step.sel{outline:2px solid var(--cap-yellow);outline-offset:1px;z-index:3}
 /* carries parameter locks — a corner flag, so it reads even on a lit step */

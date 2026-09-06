@@ -49,6 +49,13 @@ const grid = Patchwork.mountSeqGrid($("#seqWrap"), seq, {
   onSelect: () => paintLocked()
 });
 
+/* The same steps on a controller's pads. It runs seq.press(), which is the function the
+   grid above runs, so the two cannot mean different things by a press. */
+const surfaceGrid = Patchwork.makeSeqSurface(seq, {
+  held: heldNote,
+  repaint: () => grid.paint()
+});
+
 const lenSel = $("#seqLen"), rateSel = $("#seqRate"), keySel = $("#seqKey"), scaleSel = $("#seqScale");
 [8,12,16,24,32,48,64].forEach(n => lenSel.appendChild(Object.assign(
   document.createElement("option"), {value:String(n), textContent:n + " steps"})));
@@ -215,7 +222,12 @@ function fader(sel, get, set, fmt, min, max, id){
   el.addEventListener("dblclick", () => {
     if (id && seq.SEQ.mode !== "play" && seq.unlock(id)) paintSeqEdit();
   });
-  if (id) faderReg[id].paint = paintF;
+  if (id){
+    faderReg[id].paint = paintF;
+    /* The 0-1 view of this fader, for a control surface — see the same lines in bs1/ui.js. */
+    faderReg[id].get = () => clampf((get() - min) / (max - min), 0, 1);
+    faderReg[id].set = v => { set(min + clampf(v, 0, 1) * (max - min)); applyVocoder(); paintF(); };
+  }
   paintF();
 }
 fader("#qF",    () => P.q,       v => { P.q = v; },       v => v.toFixed(1), .5, 12, "q");

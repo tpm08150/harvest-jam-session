@@ -5228,7 +5228,11 @@ const SEQ = {
      it moves on. Playing first is fine too — the left arrow puts you back on what you just
      wrote. */
   mode: "play", sel: 0,
-  lane: "on"                    // on | pitch | accent | slide | tie
+  lane: "on",                   // on | pitch | accent | slide | tie
+  /* Which sixteen a control surface is showing, when the pattern is longer than its grid.
+     View state like `sel` and `lane`, not part of the pattern — see the same field in
+     dr1/seq.js, which this deliberately matches. */
+  bank: 0
 };
 
 /* ⚠️ THE LAST NOTE A HUMAN PLAYED, and only a human — see played(). It is what a step you
@@ -5445,6 +5449,54 @@ function clearLocks(all){
   else { const st = steps[SEQ.sel]; if (st) delete st.locks; }
 }
 
+/* ---- one press on one step ----
+   ⚠️ THE PADS AND THE PANEL RUN THIS SAME FUNCTION. The gesture used to live inside the
+   grid's click handler, which was fine while a mouse was the only thing that could reach a
+   step. A control surface reaching the same steps by another road would have meant a second
+   copy of "what a press means", and the two would have disagreed the first time a lane was
+   added — the hardware quietly still doing what the panel did last year.
+
+   What it does NOT cover is the mouse's own vocabulary: shift and alt, and the first click
+   that only moves the cursor. Those are mouse facts and they stay in the handler. */
+/* `m` is what this particular press means, over and above the lane the panel is showing:
+
+     {accent} {tie} {slide}  — this press is that flag, whatever lane is up. The mouse's
+                               shift and alt say tie and slide; a surface's Shift says accent
+     {cycle:false}           — the Gate lane is on/off rather than off-on-accent-off
+
+   ⚠️ `cycle` EXISTS BECAUSE A PAD IS NOT A MOUSE. Three states on one control reads well
+   with a pointer and badly under a finger: clearing a step is the thing you do most while a
+   pattern is running, and reaching it through accent is two presses to undo one. DR·1 threw
+   the three-state cycle out for exactly that reason years before there was a controller —
+   the note is still in dr1/seq.js — so the pads take the same view and the mouse keeps the
+   cycle it has always had. */
+function press(i, held, m){
+  const st = steps[((i % SEQ.len) + SEQ.len) % SEQ.len];
+  if (!st) return;
+  m = m || {};
+  /* Holding a note and pressing a step writes it, whatever lane is showing. Reaching for a
+     key is already an unambiguous statement about what that step should be. */
+  if (held != null){ setStepNote(i, held, 100); return; }
+  const lane = SEQ.lane || "on";
+  /* A flag on a step that was off turns it on, and an unpitched accented step is not a
+     thing anyone means — so it takes the last played note exactly as a plain press would. */
+  const fill = () => { if (!st.on){ st.on = 1; if (lastNote != null) setStepNote(i, lastNote); } };
+  if (m.accent || lane === "accent"){ st.accent = st.accent ? 0 : 1; if (st.accent) fill(); }
+  else if (m.slide || lane === "slide"){ st.slide = st.slide ? 0 : 1; if (st.slide) fill(); }
+  else if (m.tie || lane === "tie"){ st.tie = st.tie ? 0 : 1; if (st.tie) st.on = 1; }
+  else if (lane === "pitch"){ st.on = 1; }     /* the drag is the edit; this arms it */
+  else if (!st.on){
+    st.on = 1; st.accent = 0;
+    /* ⚠️ THE NOTE YOU LAST PLAYED, not the root. A step switched on used to land on whatever
+       pitch it happened to be holding — the root, for a step never touched — so writing a
+       line meant turning steps on and then dragging every one of them to the right height.
+       Play the pitch once and tap the steps that want it. */
+    if (lastNote != null) setStepNote(i, lastNote);
+  }
+  else if (m.cycle === false || st.accent){ st.on = 0; st.accent = 0; st.tie = 0; st.slide = 0; }
+  else st.accent = 1;
+}
+
 function recordAt(midi, vel, when){
   const ctx = Patchwork.audio.ctx;
   if (!ctx || !SEQ.playing || !marks.length) return -1;
@@ -5461,7 +5513,7 @@ function recordAt(midi, vel, when){
 }
 
 return {
-  SEQ, steps, stepNote, stepEvent, start, stop, tick, playingStep, recordAt,
+  SEQ, steps, stepNote, stepEvent, start, stop, tick, playingStep, recordAt, press,
   setStepNote, selectStep, played, eraseAt, lock, unlock, isLocked, clearLocks, withLocks,
   get lastNote(){ return lastNote; },
   RATES, SCALES,
@@ -5533,10 +5585,24 @@ function render(){
   paint();
 }
 
+/* The first step of the sixteen a control surface is showing, or -1 when there is nothing
+   to show. ⚠️ NOT DRAWN WITHOUT A SURFACE, and not on a pattern that fits on one: a
+   permanent highlight over steps 1-16 of a sixteen-step pattern would be a mouse user
+   wondering what is special about them, which is nothing. Same rule, same words, as
+   bankShown() in dr1/ui.js. */
+function bankShown(){
+  if (seq.SEQ.len <= 16) return -1;
+  if (!window.Patchwork || !Patchwork.surface || !Patchwork.surface.connected) return -1;
+  return Math.min(seq.SEQ.bank || 0, Math.ceil(seq.SEQ.len / 16) - 1) * 16;
+}
+
 function paint(){
   const cur = seq.playingStep();
+  const bank = bankShown();
   el.querySelectorAll(".step").forEach(b => {
     const st = seq.steps[+b.dataset.i];
+    const i = +b.dataset.i;
+    b.classList.toggle("bank", bank >= 0 && i >= bank && i < bank + 16);
     b.classList.toggle("on", !!st.on && !st.tie);
     b.classList.toggle("acc", !!st.accent && !!st.on);
     b.classList.toggle("sld", !!st.slide && !!st.on);
@@ -5548,6 +5614,10 @@ function paint(){
     b.textContent = (!st.on || st.tie) ? "" : noteName(seq.stepNote(st));
   });
 }
+
+/* A surface connecting or going away changes whether the band is drawn at all, and neither
+   is something a panel would otherwise hear about. */
+if (window.Patchwork && Patchwork.surface) Patchwork.surface.onChange(paint);
 
 /* ---- walking the steps ----
    ⚠️ MOUNTED BEFORE shell/keys.js, and that is what makes it work. Left and right move an
@@ -5593,7 +5663,7 @@ el.addEventListener("click", e => {
      you are working on by writing to it. */
   const held = o.held && o.held();
   if (held != null){
-    seq.setStepNote(i, held, 100);
+    seq.press(i, held);
     if (seq.SEQ.mode !== "play"){ seq.selectStep(i); if (o.onSelect) o.onSelect(i); }
     paint();
     if (o.onEdit) o.onEdit();
@@ -5615,26 +5685,11 @@ el.addEventListener("click", e => {
     return;
   }
 
+  /* Modifiers only on the Gate lane — on a Slide lane a shift-click that set a tie would be
+     the grid ignoring the control you just chose. They are told to press() rather than done
+     out here, so a modifier and a lane cannot end up meaning two different things. */
   const lane = seq.SEQ.lane || "on";
-  /* Modifiers still work, and only on the Gate lane — on a Slide lane a shift-click that
-     set a tie would be the grid ignoring the control you just chose. */
-  if (lane === "on" && e.shiftKey){ st.tie = st.tie ? 0 : 1; if (st.tie) st.on = 1; }
-  else if (lane === "on" && e.altKey){ st.slide = st.slide ? 0 : 1; if (st.slide) st.on = 1; }
-  else if (lane === "accent"){ st.accent = st.accent ? 0 : 1; if (st.accent) st.on = 1; }
-  else if (lane === "slide"){ st.slide = st.slide ? 0 : 1; if (st.slide) st.on = 1; }
-  else if (lane === "tie"){ st.tie = st.tie ? 0 : 1; if (st.tie) st.on = 1; }
-  else if (lane === "pitch"){ st.on = 1; }     /* the drag below is the edit; this arms it */
-  else if (!st.on){
-    st.on = 1; st.accent = 0;
-    /* ⚠️ THE NOTE YOU LAST PLAYED, not the root. A step switched on used to land on whatever
-       pitch it happened to be holding — the root, for a step never touched — so writing a
-       line meant turning steps on and then dragging every one of them to the right height.
-       Play the pitch once and tap the steps that want it. Holding a note still wins, above,
-       because a key under a finger is a more specific statement than one you let go of. */
-    if (seq.lastNote != null) seq.setStepNote(i, seq.lastNote);
-  }
-  else if (!st.accent){ st.accent = 1; }
-  else { st.on = 0; st.accent = 0; st.tie = 0; st.slide = 0; }
+  seq.press(i, null, lane === "on" ? {tie: e.shiftKey, slide: e.altKey} : null);
   paint();
   if (o.onEdit) o.onEdit();
 });
@@ -5685,6 +5740,119 @@ return {render, paint};
    same mistake between them, so this is the one implementation. PM·1 keeps its own
    sequencer rather than this module's, which is why the state arrives through an adapter
    instead of a `seq`. */
+
+/* ---- the same steps, on a controller's pads ----
+   A hardware grid is sixteen pads and a pattern is up to sixty-four steps, so the pads show
+   one bank of sixteen and the surface's page buttons move between them. Written once here
+   because BS·1 and VC·1 already share this sequencer and PM·1's is the same idea with a
+   different spelling — PM·1 hands in a small shim rather than growing a third copy.
+
+   ⚠️ NOTHING IN HERE KNOWS WHAT A LAUNCHKEY IS. It answers the grid contract in
+   shell/surface.js: sixteen cells, a press, and a page. `seq` must offer SEQ (with len and
+   bank), steps, press(i, held), playingStep() and lastNote.
+
+     o.held    — the note under a finger right now, if any
+     o.repaint — redraw the panel, because a press from the pads changes what is on screen
+     o.label   — a word to put in front of the step range on the controller's display */
+Patchwork.makeSeqSurface = function(seq, o){
+"use strict";
+o = o || {};
+const PAGE = 16;
+const NOTES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const noteName = n => NOTES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
+
+function pages(){ return Math.max(1, Math.ceil(seq.SEQ.len / PAGE)); }
+function page(){ return Math.min(seq.SEQ.bank || 0, pages() - 1); }
+function base(){ return page() * PAGE; }
+
+/* ⚠️ READ TOP ROW FIRST. Cell 0 is bottom-left — that is the surface's contract — but a
+   sequencer is a line of time read left to right from the top, so step 1 is cell 8. The
+   same arithmetic as DR·1's grid, and deliberately the same, because two step grids that
+   ran in opposite directions would be a coin flip every time you looked down. */
+const cellStep = c => base() + (c < 8 ? c + 8 : c - 8);
+
+/* Hold one pad, press another: everything between them becomes one held note. A tie
+   extends the note before it rather than sounding on its own, so a run of them is exactly
+   what "this note lasts four steps" means to the engine.
+
+   ⚠️ IDEMPOTENT, NOT A TOGGLE, and that is forced rather than chosen. The anchor pad's own
+   press has already run by the time the second pad arrives — there is no way to know a
+   press is the start of a range until the range happens. So repeating the gesture would
+   undo a step the first press had just turned on and leave the ties behind it stranded,
+   and what you got back would depend on what the anchor happened to be before you touched
+   it. Doing the same thing twice does the same thing; clearing a held note is pressing its
+   steps, which is what a press has always meant. */
+function tieTo(from, cell){
+  let a = cellStep(from), b = cellStep(cell);
+  if (a === b) return false;
+  if (b < a){ const t = a; a = b; b = t; }
+  if (b >= seq.SEQ.len) b = seq.SEQ.len - 1;
+  const span = [];
+  for (let i = a + 1; i <= b; i++) if (seq.steps[i]) span.push(seq.steps[i]);
+  if (!span.length) return false;
+  /* The note being held has to exist before anything can extend it — including when the
+     anchor's own press is what just turned it off. press() is what knows how a step
+     switched on gets its pitch, so ask it rather than setting `on` here. */
+  if (!seq.steps[a].on) seq.press(a, o.held ? o.held() : null, {cycle: false});
+  /* An accent inside a held note is a hit that never happens — the tie is why. */
+  span.forEach(st => { st.on = 1; st.tie = 1; st.accent = 0; });
+  return true;
+}
+
+return {
+  /* The range, and what a step you switch on will become — which is the one fact you
+     cannot see from the pads and the whole reason the last-played note is worth having. */
+  label: () => {
+    const first = base() + 1, last = Math.min(seq.SEQ.len, base() + PAGE);
+    return (o.label ? o.label + "  " : "") + first + "-" + last
+         + (seq.lastNote != null ? "  " + noteName(seq.lastNote) : "");
+  },
+  pages, page,
+  setPage: p => {
+    seq.SEQ.bank = Math.max(0, Math.min(pages() - 1, p));
+    if (o.repaint) o.repaint();
+  },
+  cells: () => {
+    const out = new Array(16).fill(null);
+    const head = seq.playingStep ? seq.playingStep() : -1;
+    for (let k = 0; k < PAGE; k++){
+      const i = base() + k;
+      if (i >= seq.SEQ.len) continue;             // a shorter pattern leaves them dark
+      const st = seq.steps[i];
+      if (!st) continue;
+      const cell = k < 8 ? k + 8 : k - 8;
+      /* The playhead is a colour, not the device's pulse: pulsing is locked to the
+         controller's own beat clock, which this page never sends it. */
+      out[cell] = head === i
+        ? {colour: "white", on: true}
+        : {colour: st.accent ? "red" : ((st.tie || st.slide) ? "amber" : "cyan"),
+           on: !!st.on};
+    }
+    return out;
+  },
+  /* ⚠️ ONE PAD GESTURE ON EVERY PANEL: press is on/off, Shift-press is the accent. It is not
+     the mouse's gesture and does not try to be — the mouse has shift, alt and a row of lane
+     buttons, and a controller has one modifier. Spending it on the flag people actually
+     reach for beats mirroring a keyboard the hands are nowhere near. */
+  down: (cell, vel, mods) => {
+    const i = cellStep(cell);
+    if (i >= seq.SEQ.len) return;
+    /* ⚠️ HOLD THE FIRST PAD, PRESS THE SECOND — not two presses in a row. Sequential presses
+       cannot be told apart from two ordinary edits, so every second press would silently
+       become a tie and turning two steps on would be impossible. Holding says "these two
+       belong together" with no mode, no timer and nothing to arm, which is how every drum
+       machine with pads spells a range. */
+    if (mods && mods.from != null && tieTo(mods.from, cell)){
+      if (o.repaint) o.repaint();
+      return;
+    }
+    seq.press(i, o.held ? o.held() : null,
+              {accent: !!(mods && mods.accent), cycle: false});
+    if (o.repaint) o.repaint();
+  }
+};
+};
+
 Patchwork.mountClearLocks = function(btn, o){
 "use strict";
 if (!btn || !o) return {paint(){}};
