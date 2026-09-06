@@ -208,7 +208,14 @@ function stop(){
 async function play(){
   if (state === "play") return;
   if (state === "rec") stop();
-  if (!frames || head >= frames) return;
+  if (!frames) return;
+  /* ⚠️ PARKED AT THE END, PLAY MEANS PLAY FROM THE START. This used to return, which is
+     defensible — there is nothing after the head to play — and reads as a broken button.
+     It bit hardest straight after recording, which leaves the head at the end: you finish
+     a take, press play to hear it, and nothing happens at all. On screen you can at least
+     see the counter sitting at the end; on a controller there is no counter and a button
+     that silently does nothing is indistinguishable from one that is not wired up. */
+  if (head >= frames) head = 0;
   await build();
   Patchwork.audio.resume();
   const buf = toBuffer();

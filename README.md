@@ -378,11 +378,16 @@ transports and one button:
 | where | Play | Func + Play |
 | --- | --- | --- |
 | **Studio, Live, Library** | the rack | — |
-| **Tape**, record armed | the rack, and the deck rolls with it | hear the tape back |
+| **Tape**, armed *or rolling a take* | the rack, and the deck rolls with it | hear the tape back |
 | **Tape**, not armed | play the tape back | the rack |
 
 Armed you are making a take, so Play has to start the *band*; not armed you are listening
-back, so it has to start the *tape*. Which of those you want is never ambiguous — it is
+back, so it has to start the *tape*. ⚠️ **A take in progress still counts as armed** — the arm
+is spent the moment recording fires, and keying on it alone flipped Play's meaning underneath
+you: the press that *started* the take was the band, and the very next press was the tape,
+which stopped the tape, left the rack running, and offered nothing on that page to stop it
+with. What the rule is about is whether you are making a take, and you are for as long as it
+is rolling. Which of those you want is never ambiguous — it is
 written on the record button. Func always means the other one, so neither is ever out of
 reach and there is no state to be in the wrong half of.
 
@@ -404,6 +409,11 @@ scrub, walks the rack. A panel has pages and no tape; the mixer has a tape and o
 whichever of the pair applies is the one that answers and neither button ever sits dead. The
 arrows go sky-blue when they are moving tape rather than pages, because a colour is the only
 warning that a familiar button is doing something else.
+
+⚠️ **Parked at the end, Play means play from the start.** It used to do nothing, which is
+defensible — there is nothing after the head — and reads as a broken button, hardest right
+after a take, which leaves the head at the end: you finish, press play to hear it, nothing
+happens. On screen the counter at least shows you why; on a controller there is no counter.
 
 ⚠️ A seek rather than the deck's Rewind, which means "wind back to the start" and animates
 itself to zero. Playback stops first: a deck you can scrub while it plays is one whose

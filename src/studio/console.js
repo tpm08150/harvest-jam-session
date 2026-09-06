@@ -542,7 +542,17 @@ if (window.Patchwork && Patchwork.surface){
        you have to leave the controller to undo. */
     transport: alt => {
       const T = Patchwork.tape;
-      const wantTape = T ? (T.armed ? !!alt : !alt) : false;
+      /* ⚠️ A TAKE IN PROGRESS STILL COUNTS AS ARMED, and leaving that out was a trap you
+         fell into on the second press rather than the first. record() spends the arm the
+         moment it fires — it has to, or the next Play would start a second take — so keying
+         Play's meaning on `armed` alone flipped it underneath you: the press that STARTED
+         the take was the band, and the very next press was the tape. Which stopped the tape,
+         left the rack running, and offered nothing on this page that would stop it.
+
+         What the rule is really about is whether you are making a take, and you are making
+         one for as long as it is rolling. */
+      const taking = !!(T && (T.armed || T.state === "rec"));
+      const wantTape = T ? (taking ? !!alt : !alt) : false;
       if (!wantTape){
         if (Patchwork.transport) Patchwork.transport.toggleAll();
         return;
