@@ -391,15 +391,31 @@ acoustic — in the room, not in the monitor mix and not on the take. The bus re
 own end, so routing this through a strip or the master would bake it into the very recording
 you were winding through.
 
-⚠️ **The pitch is the point.** The first version was filtered noise that got brighter with
-speed, which is what *wind* sounds like — a tape rewind is a **motor**, and a motor has a
-note. What you recognise is a whirr that glides up as it spools and back down as it stops,
-with the reels chattering over it. Three layers, each doing a different job: a sawtooth
-through a lowpass whose pitch rides the speed (the whirr), amplitude modulation at a few
-dozen hertz that also rides the speed (the chatter, which is what stops the whirr sounding
-like a synth), and a little band-passed noise on top (the tape against the heads). Plus a
-thunk when it stops, because every tape machine ends a wind with one and its absence is what
-makes a stopped transport feel unfinished.
+⚠️ **Every number in it was fitted to two reference recordings, not chosen.** Reasoning about
+what a tape rewind "is" produced two wrong answers in a row — first filtered noise that got
+brighter with speed, then a pitched motor whirr on the grounds that a motor has a note. Both
+were plausible and neither matched. Measuring the references settled it in one pass:
+
+| | reference | synth |
+| --- | --- | --- |
+| spectral centroid | 5.3 / 6.6 kHz | 6.1 kHz |
+| median frequency | 4.3 / 5.4 kHz | 5.5 kHz |
+| 90th percentile | 11.4 / 13.9 kHz | 11.2 kHz |
+| energy above 5 kHz | 51 / 55 % | 55 % |
+| modulation rate | 4–9 Hz | 6.3 and 8.3 Hz |
+| modulation depth | 0.36–0.88 | 0.49 |
+| tonality (autocorrelation) | **0.20 / 0.09** | noise |
+
+That last row is the one that mattered: these are **barely pitched at all**. The motor whirr
+was audible reasoning rather than an audible machine. What is actually there is bright noise
+wobbling slowly and deeply, with a little rumble underneath — the references put only 1–4% of
+their energy below 200 Hz. Two LFOs at rates that do not divide into each other, because one
+is a tremolo and a machine is never that regular. ⚠️ The lowpass is not optional: white noise
+through a highpass keeps rising to Nyquist, and without it the fit measured 10 kHz against
+their 5–7.
+
+Plus a thunk when it stops, because every tape machine ends a wind with one and its absence
+is what makes a stopped transport feel unfinished.
 
 **`>`, the button above Func, is return to zero** — instant, and it stops the deck first.
 The deck's own Rewind spools back at fourteen times and is a picture of a machine doing

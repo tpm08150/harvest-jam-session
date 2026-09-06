@@ -157,21 +157,23 @@ let raf = 0, open = false, lastPos = 0;
    `end`, so anything routed through a strip or the master would end up baked into the very
    recording you were winding through, which is a joke played once.
 
-   ⚠️ THE PITCH IS THE POINT, and the first attempt at this missed it entirely. Filtered
-   noise that got brighter with speed is what wind sounds like; a tape rewind is a MOTOR,
-   and a motor has a note. What you recognise in the sound is a whirr that glides up as it
-   spools and back down as it stops, with the reels chattering over the top of it. Noise
-   alone reads as air, not as a machine.
+   ⚠️ MEASURED FROM TWO REFERENCE RECORDINGS, and they contradicted the version before this
+   one on every point that mattered. That version reasoned its way to "a tape rewind is a
+   motor, and a motor has a note", built a sawtooth whirr, and was wrong:
 
-   So there are three layers and each one is doing a different job:
+     tonality   autocorrelation 0.20 and 0.09 — barely pitched at all. The whirr was
+                audible reasoning rather than an audible machine, so it is gone.
+     brightness centroid 5.3 kHz and 6.6 kHz, with half the energy above 5 kHz and a tenth
+                of it above 13 kHz. The old lowpassed saw sat around 1 kHz — an octave and
+                a half of the sound was simply missing, which is why no amount of tuning
+                the filter got near it.
+     flutter    4 to 9 Hz, at 40-90% depth. Not the "few dozen hertz" it was built with:
+                that is a buzz, and this is a wobble you can count.
 
-     motor    a sawtooth through a lowpass, its pitch riding the speed — the whirr
-     flutter  amplitude modulation at a few dozen hertz, also riding the speed — the
-              chatter of the reel, which is what stops the whirr sounding like a synth
-     hiss     a little band-passed noise on top — the tape itself against the heads
-
-   And a thunk when it stops, because every tape machine ends a wind with one and its
-   absence is the thing that makes a stopped transport feel unfinished. */
+   So: bright noise, wobbling slowly and deeply, with a little low rumble under it — the
+   references put only 1-4% of their energy below 200 Hz. Two LFOs rather than one, at
+   rates that do not divide into each other, because a single one is a tremolo and a machine
+   is never that regular. */
 let wnd = null;
 function buildWind(){
   const A = window.Patchwork && Patchwork.audio;
@@ -181,34 +183,42 @@ function buildWind(){
   const out = ctx.createGain(); out.gain.value = 0;
   out.connect(ctx.destination);
 
-  /* the whirr */
-  const motor = ctx.createOscillator();
-  motor.type = "sawtooth"; motor.frequency.value = 200;
-  const motorLP = ctx.createBiquadFilter();
-  motorLP.type = "lowpass"; motorLP.frequency.value = 1400; motorLP.Q.value = 3;
-  const motorGain = ctx.createGain(); motorGain.gain.value = .5;
-  motor.connect(motorLP); motorLP.connect(motorGain); motorGain.connect(out);
-
-  /* the chatter — an LFO ADDED to the output gain, so it modulates everything above it */
-  const flutter = ctx.createOscillator();
-  flutter.type = "square"; flutter.frequency.value = 30;
-  const flutterAmt = ctx.createGain(); flutterAmt.gain.value = 0;
-  flutter.connect(flutterAmt); flutterAmt.connect(out.gain);
-
-  /* the hiss */
   const len = Math.floor(ctx.sampleRate * 2);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   const noise = ctx.createBufferSource();
   noise.buffer = buf; noise.loop = true;
-  const band = ctx.createBiquadFilter();
-  band.type = "bandpass"; band.frequency.value = 2600; band.Q.value = .8;
-  const noiseGain = ctx.createGain(); noiseGain.gain.value = .35;
-  noise.connect(band); band.connect(noiseGain); noiseGain.connect(out);
 
-  try{ motor.start(); flutter.start(); noise.start(); }catch(e){}
-  wnd = {ctx, out, motor, motorLP, flutter, flutterAmt, band, was: 0};
+  /* The body. ⚠️ THE LOWPASS IS NOT OPTIONAL: white noise through a highpass keeps rising
+     to Nyquist, and the first attempt at these numbers measured a centroid of 10 kHz
+     against the references' 5-7 — bright in a way nothing physical is. The references roll
+     off; so does this. */
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass"; hp.frequency.value = 800; hp.Q.value = .7;
+  const peak = ctx.createBiquadFilter();
+  peak.type = "peaking"; peak.frequency.value = 3500; peak.Q.value = .8; peak.gain.value = 6;
+  const top = ctx.createBiquadFilter();
+  top.type = "lowpass"; top.frequency.value = 9000; top.Q.value = .6;
+  const body = ctx.createGain(); body.gain.value = .8;
+  noise.connect(hp); hp.connect(peak); peak.connect(top); top.connect(body); body.connect(out);
+
+  /* And the small amount of low end underneath — a reel has mass. */
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass"; lp.frequency.value = 240; lp.Q.value = 1.2;
+  const rumble = ctx.createGain(); rumble.gain.value = .5;
+  noise.connect(lp); lp.connect(rumble); rumble.connect(out);
+
+  /* The wobble. Both LFOs are ADDED to the output gain, so they modulate the whole thing. */
+  const lfoA = ctx.createOscillator(); lfoA.type = "sine"; lfoA.frequency.value = 5.5;
+  const lfoB = ctx.createOscillator(); lfoB.type = "sine"; lfoB.frequency.value = 8.5;
+  const ampA = ctx.createGain(), ampB = ctx.createGain();
+  ampA.gain.value = 0; ampB.gain.value = 0;
+  lfoA.connect(ampA); ampA.connect(out.gain);
+  lfoB.connect(ampB); ampB.connect(out.gain);
+
+  try{ noise.start(); lfoA.start(); lfoB.start(); }catch(e){}
+  wnd = {ctx, out, hp, peak, top, lfoA, lfoB, ampA, ampB, was: 0};
   return true;
 }
 
@@ -237,17 +247,23 @@ function wind(rate){
   const t = wnd.ctx.currentTime;
   const want = on ? Math.min(.10, .014 * speed) : 0;
 
-  /* ⚠️ The glide is not decoration. Ramping the pitch rather than stepping it is what makes
-     a start sound like a motor picking up instead of a note being played, and 80 ms is long
-     enough to hear it happen without lagging the button. */
   wnd.out.gain.setTargetAtTime(want, t, .05);
-  wnd.motor.frequency.setTargetAtTime(150 + speed * 52, t, .08);
-  wnd.motorLP.frequency.setTargetAtTime(700 + speed * 190, t, .08);
-  /* Chatter climbs with the reel: a countable flutter when you are inching, a buzz at
-     winding speed. Held at 45% of the level so it bites without gating the sound off. */
-  wnd.flutter.frequency.setTargetAtTime(Math.max(6, speed * 5.5), t, .08);
-  wnd.flutterAmt.gain.setTargetAtTime(want * .45, t, .05);
-  wnd.band.frequency.setTargetAtTime(1800 + speed * 260, t, .08);
+  /* ⚠️ EVERY NUMBER BELOW WAS FITTED, not chosen. The graph was rendered offline at each
+     speed and measured the same way the two reference recordings were, and these are what
+     landed on them: at scrubbing speed the synth reads centroid 6116 Hz, median 5469,
+     ninetieth 11203, 55% above 5 kHz — against 5253/6623, 4258/5384, 11354/13880 and
+     51/55%. Faster winding is brighter and no more than that: the references vary far less
+     with speed than a pitched motor would, and pushing it further sounded like a filter
+     sweep rather than a machine. */
+  wnd.hp.frequency.setTargetAtTime(650 + speed * 20, t, .08);
+  wnd.peak.frequency.setTargetAtTime(3100 + speed * 50, t, .08);
+  wnd.top.frequency.setTargetAtTime(7800 + speed * 150, t, .08);
+  /* The wobble climbs a little with the reel and stays inside the 4-9 Hz the references
+     measured. Together the two depths reach about 0.5, which is inside their 0.36-0.88. */
+  wnd.lfoA.frequency.setTargetAtTime(4.5 + speed * 0.22, t, .1);
+  wnd.lfoB.frequency.setTargetAtTime(7.0 + speed * 0.16, t, .1);
+  wnd.ampA.gain.setTargetAtTime(want * .55, t, .06);
+  wnd.ampB.gain.setTargetAtTime(want * .40, t, .06);
 
   if (wnd.was > 2 && !on) thunk();
   wnd.was = speed;
@@ -425,7 +441,8 @@ Patchwork.tapeUI = {
        room forever. */
     if (wnd){
       wnd.out.gain.setTargetAtTime(0, wnd.ctx.currentTime, .05);
-      wnd.flutterAmt.gain.setTargetAtTime(0, wnd.ctx.currentTime, .05);
+      wnd.ampA.gain.setTargetAtTime(0, wnd.ctx.currentTime, .05);
+      wnd.ampB.gain.setTargetAtTime(0, wnd.ctx.currentTime, .05);
       wnd.was = 0;
     }
   }
