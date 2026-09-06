@@ -62,6 +62,14 @@
         <label class="st-lab" for="stMidiIn">Input</label>
         <select id="stMidiIn"><option value="">&mdash; none &mdash;</option></select>
       </div>
+      <!-- A controller you pick rather than teach. The list holds every profile in
+           shell/surface.js that can see its hardware on this machine right now, so an
+           empty list is an honest "nothing I know about is plugged in" rather than a
+           menu of things that will not work. -->
+      <div class="st-midi-port">
+        <label class="st-lab" for="stSurface">Controller</label>
+        <select id="stSurface"><option value="">&mdash; none &mdash;</option></select>
+      </div>
       <label class="st-follow" for="stMidiFollow"
              title="Incoming notes play whichever panel has the keyboard, whatever channel they arrive on">
         <input type="checkbox" id="stMidiFollow">
@@ -70,5 +78,6 @@
     </div>
     <div class="st-midi-rows" id="stMidiRows"></div>
     <p class="st-midi-note" id="stMidiNote"></p>
+    <p class="st-midi-note" id="stSurfaceNote" hidden></p>
   </div>
 </div>

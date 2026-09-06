@@ -27,4 +27,11 @@ if (Patchwork.roots.length > 1) Patchwork.faces.setAll(true);
    its own tempo control, because there is nothing else on that page to own it. */
 if (Patchwork.roots.length > 1)
   Patchwork.roots.forEach(r => r.classList.add("hosted"));
+
+/* A controller chosen before comes back on its own, once the ports are known. Here rather
+   than inside surface.js because it has to happen after every instrument has registered
+   its adapters — a surface that connected first would paint sixteen dark pads and light
+   them one panel at a time as the rack finished booting. */
+if (Patchwork.surface && Patchwork.midi)
+  Patchwork.midi.open().then(() => Patchwork.surface.restore()).catch(() => {});
 })();

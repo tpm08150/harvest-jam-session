@@ -708,4 +708,50 @@ Patchwork.midi.onChange(() => { fillPorts(); paint(); });
 fillPorts(); paint();
 /* The instruments register during their own boot, which may be after this file runs. */
 setTimeout(() => { fillPorts(); paint(); }, 0);
+
+/* ---- the controller ----
+   Sits under the channel rows because it is the answer to the same question one level up:
+   the rows say which instrument answers to what, and this says what is doing the asking.
+
+   ⚠️ IT LISTS WHAT IT CAN SEE, not what it knows about. A profile whose hardware is not
+   plugged in is not an option — offering "Novation Launchkey MK4" to somebody who does not
+   own one, and having it silently do nothing when picked, is worse than an empty list. */
+const surfSel = box.querySelector("#stSurface"),
+      surfNote = box.querySelector("#stSurfaceNote");
+if (surfSel && window.Patchwork && Patchwork.surface){
+  const fillSurfaces = () => {
+    const found = Patchwork.surface.available;
+    const cur = Patchwork.surface.connected;
+    /* Rebuilt only when the set of options actually changed — a <select> being rebuilt
+       under an open menu closes it, and this repaints on every port change. */
+    const want = found.map(f => f.id + "\u0000" + f.label).join("\u0001");
+    if (surfSel.dataset.built !== want){
+      surfSel.dataset.built = want;
+      surfSel.textContent = "";
+      surfSel.appendChild(Object.assign(document.createElement("option"),
+        {value: "", textContent: found.length ? "\u2014 none \u2014" : "\u2014 none found \u2014"}));
+      found.forEach(f => surfSel.appendChild(Object.assign(document.createElement("option"),
+        {value: f.id, textContent: f.label})));
+    }
+    if (surfSel.value !== cur) surfSel.value = cur;
+    surfSel.disabled = !found.length;
+
+    const st = Patchwork.surface.status;
+    surfNote.hidden = !st;
+    if (st){
+      surfNote.innerHTML = "<b>" + st + "</b> is driving the rack \u2014 pads follow the "
+        + "selected panel, the eight encoders are its controls, and Play is the transport."
+        + (Patchwork.midi.sysex ? "" : " Its screen needs SysEx permission, which this page "
+          + "does not have; everything else works without it.");
+    }
+  };
+  surfSel.addEventListener("change", () => {
+    if (!surfSel.value){ Patchwork.surface.disconnect(); return; }
+    Patchwork.surface.connect(surfSel.value);
+  });
+  Patchwork.surface.onChange(fillSurfaces);
+  Patchwork.midi.onChange(fillSurfaces);
+  fillSurfaces();
+  setTimeout(fillSurfaces, 0);
+}
 })();
