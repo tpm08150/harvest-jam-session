@@ -2011,6 +2011,16 @@ const rig = {
     return !!(f && typeof f.spec.action === "function");
   },
   act(){ return said(rig.focus, "action", "actionName", []); },
+  /* ⚠️ FUNC TAPPED, WHICH IS THE SAME BARGAIN ">" ALREADY MAKES: held it is a modifier, let
+     go having modified nothing it is a button. A panel with two FACES needs one — CS·1 has a
+     chord voice and a bass voice and the encoders and pads can only be pointed at one of
+     them — and a modifier that has to be held through a whole programming pass is not a
+     modifier anyone can use for that. */
+  get canFace(){
+    const f = rig.focus;
+    return !!(f && typeof f.spec.face === "function");
+  },
+  face(){ return said(rig.focus, "face", "faceName", []); },
   get canBump(){
     const f = rig.focus;
     return !!(f && typeof f.spec.bump === "function");
@@ -2123,7 +2133,12 @@ const rig = {
      scenes are the one thing every studio page has that is worth sixteen pads. */
   grid(){
     const f = rig.focus;
-    const g = f && f.spec.grid;
+    let g = f && f.spec.grid;
+    /* ⚠️ A FUNCTION IS ALLOWED, because a panel can have more than one grid and only knows
+       which when asked. CS·1 points the sixteen pads at its chord slots or at its bass
+       pattern depending on the face it is showing; a grid captured once at boot would be
+       whichever it happened to start on, forever. */
+    if (typeof g === "function"){ try{ g = g(); }catch(e){ g = null; } }
     if (g && typeof g.cells === "function") return g;
     return sceneGrid.available() ? sceneGrid : null;
   },
@@ -2881,6 +2896,7 @@ function start(io, rig){
   io.state = {
     padMode: PAD_DAW,
     fn: false,                         // Function held — the accent modifier
+    fnUsed: false,                     // ...and whether it was used as one
     shift: false,                      // Shift held — the encoders' second eight
     act: false,                        // ">" held — a modifier while it is down, a button when it is not
     actUsed: false,                    // ...and whether it was used as one
@@ -2958,6 +2974,14 @@ function message(io, d, rig){
   if (st >= 0xF0) return;
 
   const type = st & 0xF0, ch = st & 0x0F;
+
+  /* ⚠️ ONE PLACE, ABOVE EVERYTHING. Func is a modifier the moment anything else happens while
+     it is down — an encoder turned, a pad hit, an arrow pressed, Play — and every one of
+     those is a message that arrives here. Marking it at each of the handlers that read
+     io.state.fn is the same one-case patch to a class problem that let the encoder arrows
+     fall through the feature channel: the next thing to grow a Func gesture would forget,
+     and the symptom would be the panel quietly flipping face under it. */
+  if (io.state.fn && !(type === 0xB0 && d[1] === B_FUNC)) io.state.fnUsed = true;
 
   /* Mode reports: the user pressed a pad-mode button on the hardware. Following it rather
      than forcing our own back is the difference between a profile and a fight. */
@@ -3074,7 +3098,16 @@ function message(io, d, rig){
   /* Both are state, so both need the release as well as the press. Shift arrives twice —
      here and on the feature channel above — and either road sets the same flag. */
   if (cc === B_SHIFT){ io.state.shift = v > 0; return; }
-  if (cc === B_FUNC){ io.state.fn = v > 0; return; }
+  /* ⚠️ FUNC ACTS ON THE RELEASE, for the reason ">" does below: until then nobody knows it
+     was a press at all. Held with anything else it is the modifier it has always been; let go
+     having modified nothing and it turns the panel you are pointed at to its other face. A
+     panel with only one face never sees it, and Func there is exactly what it was. */
+  if (cc === B_FUNC){
+    if (v > 0){ io.state.fn = true; io.state.fnUsed = false; return; }
+    io.state.fn = false;
+    if (!io.state.fnUsed) said(io, rig.face());
+    return;
+  }
   /* ⚠️ ">" ACTS ON THE RELEASE, not the press, because until then nobody knows whether it was
      a press at all. Held with an encoder it is a layer; let go having moved nothing and it is
      the button it has always been. Acting on the press would fire the action every time you

@@ -211,6 +211,16 @@ const rig = {
     return !!(f && typeof f.spec.action === "function");
   },
   act(){ return said(rig.focus, "action", "actionName", []); },
+  /* ⚠️ FUNC TAPPED, WHICH IS THE SAME BARGAIN ">" ALREADY MAKES: held it is a modifier, let
+     go having modified nothing it is a button. A panel with two FACES needs one — CS·1 has a
+     chord voice and a bass voice and the encoders and pads can only be pointed at one of
+     them — and a modifier that has to be held through a whole programming pass is not a
+     modifier anyone can use for that. */
+  get canFace(){
+    const f = rig.focus;
+    return !!(f && typeof f.spec.face === "function");
+  },
+  face(){ return said(rig.focus, "face", "faceName", []); },
   get canBump(){
     const f = rig.focus;
     return !!(f && typeof f.spec.bump === "function");
@@ -323,7 +333,12 @@ const rig = {
      scenes are the one thing every studio page has that is worth sixteen pads. */
   grid(){
     const f = rig.focus;
-    const g = f && f.spec.grid;
+    let g = f && f.spec.grid;
+    /* ⚠️ A FUNCTION IS ALLOWED, because a panel can have more than one grid and only knows
+       which when asked. CS·1 points the sixteen pads at its chord slots or at its bass
+       pattern depending on the face it is showing; a grid captured once at boot would be
+       whichever it happened to start on, forever. */
+    if (typeof g === "function"){ try{ g = g(); }catch(e){ g = null; } }
     if (g && typeof g.cells === "function") return g;
     return sceneGrid.available() ? sceneGrid : null;
   },

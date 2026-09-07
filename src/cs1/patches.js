@@ -103,14 +103,18 @@ function restore(s){
   syncSeg("#arpOct", "o", String(ARP.octaves));
   arpRateSel.value = String(ARP.rate);
 
-  const steps = oneOf(s.pulse && s.pulse.steps, [4,6,8,12,16], 8);
+  /* ⚠️ THE WHOLE LIST THE PANEL OFFERS. This was [4,6,8,12,16] against a menu that goes to
+     64, so a 32-step pattern saved fine and came back as 8 — the pattern silently truncated
+     by the load rather than by anything you did. Spelled once, because two lists that have
+     to agree are two lists that will not. */
+  const steps = oneOf(s.pulse && s.pulse.steps, STEP_COUNTS, 8);
   PULSE.steps = steps;
   PULSE.on = Array.from({length:steps}, (_, i) =>
     (s.pulse && Array.isArray(s.pulse.on) && s.pulse.on[i]) ? 1 : 0);
   pulseStepsSel.value = String(steps);
   buildStepGrid();
 
-  const bSteps = oneOf(s.bassSeq && s.bassSeq.steps, [4,6,8,12,16], 8);
+  const bSteps = oneOf(s.bassSeq && s.bassSeq.steps, STEP_COUNTS, 8);
   BASSQ.steps = bSteps;
   BASSQ.on = Array.from({length:bSteps}, (_, i) =>
     (s.bassSeq && Array.isArray(s.bassSeq.on)) ? (s.bassSeq.on[i] ? 1 : 0)

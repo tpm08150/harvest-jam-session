@@ -462,8 +462,9 @@ const stepGrid = $("#stepGrid"), pulseStepsSel = $("#pulseSteps"),
       bassGrid = $("#bassGrid"), bassStepsSel = $("#bassSteps");
 
 /* Pulse and Bass are the same widget over different data */
+const STEP_COUNTS = [4,6,8,12,16,24,32,48,64];
 function fillStepCounts(sel, cfg){
-  [4,6,8,12,16,24,32,48,64].forEach(n => sel.appendChild(
+  STEP_COUNTS.forEach(n => sel.appendChild(
     Object.assign(document.createElement("option"), {value:String(n), textContent:n + " steps"})));
   sel.value = String(cfg.steps);
 }
@@ -486,13 +487,24 @@ function renderSteps(el, cfg){
     el.appendChild(b);
   }
 }
+/* ⚠️ THE PADS RUN THIS TOO, which is why it is a function rather than four lines inside the
+   click handler. A controller editing the bass pattern through its own copy of "flip a step"
+   is two things that have to be kept agreeing; there is one here, and the aria state comes
+   along with the class because a step is a toggle to a screen reader as well. */
+function toggleStep(cfg, el, s){
+  if (s < 0 || s >= cfg.steps) return 0;
+  cfg.on[s] = cfg.on[s] ? 0 : 1;
+  const b = el.children[s];
+  if (b){
+    b.classList.toggle("on", !!cfg.on[s]);
+    b.setAttribute("aria-pressed", cfg.on[s] ? "true" : "false");
+  }
+  return cfg.on[s];
+}
 function wireSteps(el, cfg){
   el.addEventListener("click", e => {
     const b = e.target.closest(".step"); if (!b) return;
-    const s = parseInt(b.dataset.s, 10);
-    cfg.on[s] = cfg.on[s] ? 0 : 1;
-    b.classList.toggle("on", !!cfg.on[s]);
-    b.setAttribute("aria-pressed", cfg.on[s] ? "true" : "false");
+    toggleStep(cfg, el, parseInt(b.dataset.s, 10));
   });
 }
 function setStepCount(cfg, el, n){

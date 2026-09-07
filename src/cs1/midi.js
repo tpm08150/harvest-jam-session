@@ -742,12 +742,76 @@ const SURFACE_CTL = [
 ];
 const FADER_LAB = {};
 FADERS.forEach(f => { FADER_LAB[f.id] = f.lab; });
-function surfaceControls(){
-  return SURFACE_CTL.filter(c => faderCtl[c.id]).map(c => ({
+function faderKnobs(list){
+  return list.filter(c => faderCtl[c.id]).map(c => ({
     id: c.id, label: c.label || FADER_LAB[c.id] || c.id, short: c.short,
     get: () => P[c.id],
     set: v => faderCtl[c.id].set(v)
   }));
+}
+
+/* ---- TWO FACES, and Func is which one ----
+   ⚠️ THIS PANEL HAS TWO INSTRUMENTS IN IT and the surface could only ever see one. The chord
+   voice and the root bass have their own sound, their own level and — the part that matters —
+   their own pattern: the bass is a step sequencer, and it was the one sequencer in the rack
+   with no way to program it from the pads. Sixteen pads cannot be chord slots and bass steps
+   at once, so Func says which, tapped rather than held, because programming a pattern with a
+   modifier down is not something a hand can do for sixteen presses.
+
+   The chord face keeps the pads it always had. It is where the panel starts and where a tap
+   always brings it back, so nothing is reachable only by remembering you left it somewhere. */
+let bassFace = false;
+
+/* ⚠️ BANKS, RATHER THAN THE SECOND EIGHT. A progression has more to say about itself than
+   eight knobs hold, and what it has to say is not a modifier's worth of afterthought — Key
+   and Mood and how many chords are the FIRST things you reach for, not the ones you hold a
+   button to get at. So the pair beside the encoders pages them, which is the same gesture
+   DR·1 and PM·1 already use for the same reason, and Func is free to mean the face. */
+const CHORD_BANKS = [
+  {name: "Voice", build: () => faderKnobs(SURFACE_CTL).concat(
+    /* ⚠️ ENCODER EIGHT, which was empty. Seven faders and a twelve-way sound selector that
+       you could reach from every surface except the one under your hands. */
+    [Patchwork.surface.segment($("#voice"), "Sound", "Snd")].filter(Boolean))},
+  {name: "Prog", build: () => [
+    Patchwork.surface.option($("#key"), "Key", "Key"),
+    Patchwork.surface.option($("#len"), "Chords", "Len"),
+    /* Mood and Mode are one letter apart on the panel and would be one letter apart in a
+       three-character legend, so Mode is spelled M/m — it is the major-or-minor switch, and
+       saying so beats a name you have to squint at. */
+    Patchwork.surface.option($("#mode"), "Mode", "M/m"),
+    Patchwork.surface.option($("#mood"), "Mood", "Mod"),
+    Patchwork.surface.segment($("#motion"), "Motion", "Mot"),
+    Patchwork.surface.option($("#arpRate"), "Arp rate", "Arp"),
+    Patchwork.surface.option($("#pulseSteps"), "Pulse", "Pls"),
+    Patchwork.surface.option($("#swing"), "Swing", "Swg")
+  ].filter(Boolean)}
+];
+/* Four, and no bank to page: everything the bass voice has fits in half a row. */
+const BASS_BANKS = [
+  {name: "Bass", build: () => [
+    Patchwork.surface.segment($("#bass"), "Bass", "Bas"),
+    Patchwork.surface.option($("#bassSteps"), "Steps", "Stp")
+  ].filter(Boolean).concat(faderKnobs([
+    {id: "bassSus", label: "Decay", short: "Dec"},
+    {id: "bassLvl", label: "Level", short: "Lvl"}
+  ])) }
+];
+const banksNow = () => (bassFace ? BASS_BANKS : CHORD_BANKS);
+let ctlBank = 0;
+function bankNow(){ return Math.min(ctlBank, banksNow().length - 1); }
+function surfaceControls(){ return banksNow()[bankNow()].build(); }
+function surfaceBanks(){ return banksNow().map(b => ({name: b.name})); }
+function setSurfaceBank(i){ ctlBank = Math.max(0, Math.min(banksNow().length - 1, i)); }
+
+function surfaceFace(){
+  bassFace = !bassFace;
+  /* ⚠️ BACK TO THE FIRST BANK. The faces have different numbers of banks and a bank index
+     carried across means landing on Prog's page number inside a face that has one bank —
+     which bankNow() clamps, so nothing breaks and you simply arrive somewhere you did not
+     ask for. Arriving at the front of a face is the only answer that is the same every
+     time. */
+  ctlBank = 0;
+  return bassFace ? "Bass" : "Chords";
 }
 
 /* Which slot is sounding right now, from the same `marks` the on-screen playhead reads —
@@ -790,20 +854,57 @@ const surfaceGrid = {
   up: i => padOff("s" + i)
 };
 
-/* ---- the pattern's own settings, on the modifier ----
-   A full eight, because a progression has more to say about itself than a line does.
-   ⚠️ Mood and Mode are one letter apart on the panel and would be one letter apart in a
-   three-character legend, so Mode is spelled M/m — it is the major-or-minor switch, and
-   saying so beats a name you have to squint at. They are lists rather than ranges, which is why they were never among the
-   ordinary eight — see option() in shell/surface.js, where the awkward parts of putting
-   a menu under a knob are handled once. */
-const SURFACE_ALT = [["#key", "Key", "Key"], ["#mood", "Mood", "Mod"],
-                     ["#len", "Chords", "Len"], ["#mode", "Mode", "M/m"],
-                     ["#arpRate", "Arp rate", "Arp"], ["#pulseSteps", "Pulse", "Pls"],
-                     ["#swing", "Swing", "Swg"], ["#bassSteps", "Bass", "Bas"]];
-function surfaceShiftControls(){
-  return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
-}
+/* ---- the bass pattern, on the same sixteen pads ----
+   ⚠️ NOT makeSeqSurface, and that is the shim rule applied honestly. The shared factory wants
+   steps that carry a pitch, an accent, a slide and a tie; a bass step here is a 1 or a 0 and
+   the note is whatever the chord's root happens to be. Faking six properties to reuse a
+   paging helper is the shim that lies — this is thirty lines that say what they do.
+
+   Paged in sixteens like every other grid here, read top row first, because a step grid you
+   read in a different order on one panel is a coin flip every time you look down. */
+const BASS_PAGE = 16;
+let bassPage = 0;
+const bassPages = () => Math.max(1, Math.ceil(BASSQ.steps / BASS_PAGE));
+const bassBase = () => Math.min(bassPage, bassPages() - 1) * BASS_PAGE;
+const bassCell = c => bassBase() + (c < 8 ? c + 8 : c - 8);
+
+const bassSurface = {
+  label: () => {
+    const first = bassBase() + 1, last = Math.min(BASSQ.steps, bassBase() + BASS_PAGE);
+    return "Bass  " + first + "-" + last;
+  },
+  pages: bassPages,
+  page: () => Math.min(bassPage, bassPages() - 1),
+  setPage: p => { bassPage = Math.max(0, Math.min(bassPages() - 1, p)); },
+  cells: () => {
+    const out = new Array(16).fill(null);
+    for (let k = 0; k < BASS_PAGE; k++){
+      const i = bassBase() + k;
+      if (i >= BASSQ.steps) continue;              // a shorter pattern leaves them dark
+      const cell = k < 8 ? k + 8 : k - 8;
+      /* ⚠️ THE PLAYHEAD IS READ OFF THE PANEL, not worked out again. Where the bass is in its
+         pattern depends on the sounding chord's length in bars, and that arithmetic lives in
+         paintSteps() — a second copy here would be a second answer to the same question, and
+         the one you could see would be the one that was wrong. */
+      const here = bassGrid.children[i];
+      const now = !!(here && here.classList.contains("now"));
+      out[cell] = now ? {colour: "white", on: true}
+                      : {colour: BASSQ.on[i] ? "amber" : "cyan", on: !!BASSQ.on[i]};
+    }
+    return out;
+  },
+  down: cell => {
+    const i = bassCell(cell);
+    if (i >= BASSQ.steps) return;
+    toggleStep(BASSQ, bassGrid, i);
+  }
+};
+
+/* ⚠️ THE SECOND EIGHT USED TO LIVE ON FUNC and every one of them is in the Prog bank above
+   instead. Nothing was lost and Func was: a panel with two faces needs a button that picks
+   one, the settings were the wrong thing to be holding a modifier for, and a page you reach
+   with the same pair as every other panel's pages is one fewer rule. */
+function surfaceGridNow(){ return bassFace ? bassSurface : surfaceGrid; }
 
 function initMidi(){
   if (!navigator.requestMIDIAccess){
@@ -828,9 +929,10 @@ function initMidi(){
     fillPorts(); followInput(pt); bindOutput(); describe();
   }, {
     name: "CS\u00b71", panic: midiPanic,
-    controls: surfaceControls, shiftControls: surfaceShiftControls,
-    shiftName: "Prog",
-    grid: surfaceGrid,
+    controls: surfaceControls,
+    controlBanks: surfaceBanks, controlBank: bankNow, setControlBank: setSurfaceBank,
+    face: surfaceFace, faceName: "Voice",
+    grid: surfaceGridNow,
     inCh:  {get: () => MIDI.inCh,
             set: c => { MIDI.inCh = c; midiInChSel.value = String(c);
                         allPadsOff(); saveMap(); describe(); }},

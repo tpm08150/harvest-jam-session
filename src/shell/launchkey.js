@@ -339,6 +339,7 @@ function start(io, rig){
   io.state = {
     padMode: PAD_DAW,
     fn: false,                         // Function held — the accent modifier
+    fnUsed: false,                     // ...and whether it was used as one
     shift: false,                      // Shift held — the encoders' second eight
     act: false,                        // ">" held — a modifier while it is down, a button when it is not
     actUsed: false,                    // ...and whether it was used as one
@@ -416,6 +417,14 @@ function message(io, d, rig){
   if (st >= 0xF0) return;
 
   const type = st & 0xF0, ch = st & 0x0F;
+
+  /* ⚠️ ONE PLACE, ABOVE EVERYTHING. Func is a modifier the moment anything else happens while
+     it is down — an encoder turned, a pad hit, an arrow pressed, Play — and every one of
+     those is a message that arrives here. Marking it at each of the handlers that read
+     io.state.fn is the same one-case patch to a class problem that let the encoder arrows
+     fall through the feature channel: the next thing to grow a Func gesture would forget,
+     and the symptom would be the panel quietly flipping face under it. */
+  if (io.state.fn && !(type === 0xB0 && d[1] === B_FUNC)) io.state.fnUsed = true;
 
   /* Mode reports: the user pressed a pad-mode button on the hardware. Following it rather
      than forcing our own back is the difference between a profile and a fight. */
@@ -532,7 +541,16 @@ function message(io, d, rig){
   /* Both are state, so both need the release as well as the press. Shift arrives twice —
      here and on the feature channel above — and either road sets the same flag. */
   if (cc === B_SHIFT){ io.state.shift = v > 0; return; }
-  if (cc === B_FUNC){ io.state.fn = v > 0; return; }
+  /* ⚠️ FUNC ACTS ON THE RELEASE, for the reason ">" does below: until then nobody knows it
+     was a press at all. Held with anything else it is the modifier it has always been; let go
+     having modified nothing and it turns the panel you are pointed at to its other face. A
+     panel with only one face never sees it, and Func there is exactly what it was. */
+  if (cc === B_FUNC){
+    if (v > 0){ io.state.fn = true; io.state.fnUsed = false; return; }
+    io.state.fn = false;
+    if (!io.state.fnUsed) said(io, rig.face());
+    return;
+  }
   /* ⚠️ ">" ACTS ON THE RELEASE, not the press, because until then nobody knows whether it was
      a press at all. Held with an encoder it is a layer; let go having moved nothing and it is
      the button it has always been. Acting on the press would fire the action every time you

@@ -337,6 +337,7 @@ transport and LEDs run over the DAW port, which the surface takes for itself.
 | **Encoders** | the focused panel's eight main controls, named on the screen as you turn them |
 | **∧ ∨ right of the encoders** | which eight — the drum lane on DR·1, a parameter bank on PM·1 |
 | **Hold a pad + ∧ ∨ right of the encoders** | that note's length, a step at a time |
+| **Func, tapped** | a panel's other face where it has one — on CS·1, the bass voice and its pattern |
 | **▶ / ■** | the rack transport, the same button the launcher's Play is |
 | **∧ ∨ left of the pads** | page the grid — see the sequencers below |
 | **Shift + ∧ ∨**, or **Func + ∧ ∨** | move the focus to the previous / next panel |
@@ -539,9 +540,22 @@ it.
 What the sixteen pads mean follows the panel you clicked:
 
 - **CS·1** — the chord slots, filled bottom-up so pad 1 is bottom-left, exactly as they are
-  laid out on screen. A held pad pulses; the slot the transport is playing is lit. CS·1 is
-  the one panel whose pads are not steps, because its pattern is a progression rather than a
-  line of notes.
+  laid out on screen. A held pad pulses; the slot the transport is playing is lit. Its pattern
+  is a progression rather than a line of notes, so these are the one set of pads here that are
+  not steps.
+
+  ⚠️ **Unless you tap Func**, which turns the panel to its other face. CS·1 has two
+  instruments in it — the chord voice and the root bass — and the bass is a step sequencer
+  that was the only one in the rack with no way to program it from the pads. Sixteen pads
+  cannot be chord slots and bass steps at once, so Func says which: tapped rather than held,
+  because programming a pattern with a modifier down is not something a hand can do for
+  sixteen presses. Held, Func is the modifier it has always been everywhere else. The panel
+  starts on Chords and a tap always brings it back.
+
+  The encoders follow the face. On Chords they page **Voice** (the seven faders, and the
+  twelve-way sound selector on the eighth, which was empty) and **Prog** (key, how many
+  chords, major/minor, mood, hold/strum/arp/pulse, arp rate, pulse, swing). On Bass they are
+  the bass's own: on/off, how many steps, decay, level.
 - **DR·1** — the steps of the selected lane, read from the top left. Accented steps are red,
   the playhead is white. A pattern can be 64 steps and the grid is 16, so the arrows to the
   left of the pads page through it in banks of sixteen — 1–16, 17–32, 33–48, 49–64 — and
