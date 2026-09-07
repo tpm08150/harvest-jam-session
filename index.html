@@ -1399,7 +1399,11 @@ input[type="text"]::placeholder{color:#5a646a}
    because it adds no specificity. */
 @scope (.unit.sq1) {
 :scope{
-  width:100%;max-width:860px;
+  /* ⚠️ WIDER THAN THE REST, and it earns it: sixteen tracks across the top and sixty-four
+     steps across the middle are both things you read left to right, and neither fits the
+     column width the voiced panels were drawn to. In the studio it spans the whole rack —
+     see .st-rack in studio/page.css, which is where a panel's place in the grid belongs. */
+  width:100%;max-width:1240px;
   background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
   border:1px solid var(--edge);
   border-radius:10px;
@@ -1416,6 +1420,19 @@ input[type="text"]::placeholder{color:#5a646a}
 .screws{flex:1}
 .grow{flex:1}
 .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+/* The block headings and hairlines every other panel here divides itself with, so a
+   sequencer reads as a sequencer whichever one you are looking at. */
+.rule{height:1px;margin:16px 0 12px;
+  background:linear-gradient(90deg,transparent,var(--sq),transparent);opacity:.35}
+.section{display:block;margin-bottom:9px;
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;font-size:10.5px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--silk-dim)}
+/* Steps, Rate, Key, Scale — the same four, in the same order, at the same widths BS·1 and
+   VC·1 put them. Labels above rather than beside, which is what makes four menus scan as a
+   row of settings rather than a sentence. */
+.seqhead .field{flex-direction:column;align-items:flex-start;gap:3px}
+.seqhead select{min-width:104px}
+.seqedit{gap:8px}
 .field{display:flex;align-items:center;gap:6px}
 .face{margin-bottom:12px}
 .hint{display:block;margin:8px 0 0;line-height:1.5;text-transform:none;letter-spacing:.02em}
@@ -1438,6 +1455,47 @@ input[type="text"]::placeholder{color:#5a646a}
 .trk.muted{opacity:.4}
 .trk.sel{box-shadow:0 0 0 2px var(--sq) inset;color:#fff}
 .trk:focus-visible{outline:2px solid var(--sq);outline-offset:1px}
+
+/* ---- the synth face ----
+   ⚠️ THE SAME GRID BS·1 AND VC·1 DRAW, so it is styled the same way. mountSeqGrid emits
+   .seqrow / .rlab / .steps / .step and nothing else — the classes are the shared component's
+   contract, and a panel that mounts it and does not style them gets a column of bare text,
+   which is exactly what this was. Copied deliberately rather than shared: every panel's grid
+   is its own colour, and one stylesheet imposing a hue on all of them is the thing @scope
+   exists to prevent. */
+.seqwrap{display:flex;flex-direction:column;gap:5px}
+.seqrow{display:flex;align-items:center;gap:9px}
+.rlab{flex:0 0 44px;font-family:"DM Mono",ui-monospace,monospace;font-size:9px;
+  letter-spacing:.04em;color:var(--read-dim);text-align:right}
+.steps{display:grid;grid-template-columns:repeat(var(--per,8),1fr);gap:4px;flex:1 1 auto;min-width:0}
+.step{
+  height:26px;border-radius:3px;padding:0;cursor:pointer;position:relative;
+  background:var(--slot);border:1px solid var(--groove);
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  font-family:"DM Mono",ui-monospace,monospace;font-size:9px;letter-spacing:-.02em;
+  color:var(--read-dim);
+}
+.step.on{background:linear-gradient(180deg,var(--sq-hi),var(--sq));
+  border-color:#4a7fb0;color:#0d1c2b;
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset}
+/* the beat marker, so sixteen steps read as four bars rather than sixteen boxes */
+.step.beat::before{content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);
+  width:2px;height:2px;border-radius:50%;background:rgba(255,255,255,.45)}
+/* An accent is a ring rather than a colour — the same rule the drum lanes below follow, and
+   the same one BS·1 states: a step has four flags and only one of them can be the fill. */
+.step.acc{box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 0 0 1px var(--cap-yellow) inset}
+.step.sld::after{content:"";position:absolute;bottom:2px;left:3px;right:3px;height:2px;
+  border-radius:1px;background:var(--stripe-mod)}
+.step.tie{background:linear-gradient(180deg,#5a6a76,#43505a);color:#cfd8de}
+.step.now{outline:2px solid var(--mint);outline-offset:1px;z-index:2}
+/* the band of sixteen a control surface is editing, on a pattern longer than its grid —
+   a wash rather than a fourth outline, matching bs1 and dr1 */
+.step.bank{border-color:#4a7fb0}
+.step.bank:not(.on):not(.tie){background:rgba(74,127,176,.20)}
+.step.sel{outline:2px solid var(--cap-yellow);outline-offset:1px;z-index:3}
+.step.lock::after{content:"";position:absolute;top:2px;right:2px;
+  border-top:5px solid var(--cap-yellow);border-left:5px solid transparent}
+.step:focus-visible{outline:2px solid var(--sq);outline-offset:1px}
 
 /* ---- the drum face ---- */
 .lanes{display:flex;flex-direction:column;gap:5px}
@@ -1653,6 +1711,10 @@ body{
    :has() rather than a class the shell has to remember to keep in sync. */
 .st-rack:has(> .unit:not(.face)){grid-template-columns:repeat(auto-fit,minmax(620px,1fr))}
 .st-rack > .unit{max-width:none;width:100%}
+/* ⚠️ THE SEQUENCER SPANS THE RACK. Sixteen tracks and sixty-four steps are both read left to
+   right, and a column drawn for a panel with a keyboard on it is the wrong shape for either.
+   It is also last in the rack, so a full-width row costs nothing above it. */
+.st-rack > .unit.sq1{grid-column:1 / -1}
 /* Sized off VC·1, which is the tallest face and fills the window at a laptop height.
    Clamped so it never dwarfs a short window (the Arcade's 620px floor) or grows silly on
    a tall one. */
@@ -4880,8 +4942,8 @@ body.gated{overflow:hidden}
        channels is not a coincidence to be arranged around — it is the whole model, so there
        is no second control asking which channel a track is on. A lit number has something
        in it; the ring is the one you are editing. -->
+  <span class="section">Track</span>
   <div data-face class="row">
-    <span class="silk">Track</span>
     <div class="tracks" id="sqTracks" role="group" aria-label="Track"></div>
   </div>
 
@@ -4894,44 +4956,60 @@ body.gated{overflow:hidden}
       <button data-m="on">Play</button>
       <button data-m="off">Mute</button>
     </div>
-    <!-- ⚠️ Per TRACK, not per rack: a twelve-step hat against a sixteen-step bass is the
-         reason this instrument exists. -->
+    <span class="grow"></span>
+    <span class="silk" id="sqNow">&mdash;</span>
+  </div>
+
+  <div class="rule"></div>
+  <span class="section">Sequence</span>
+
+  <!-- ⚠️ THE SAME ROW BS·1 AND VC·1 PUT ABOVE THEIR GRIDS, in the same order — steps, rate,
+       key, scale — because it is the same sequencer underneath and a rack where the four
+       menus above one grid are arranged differently from the four above another is a rack
+       you have to read rather than reach into. Per TRACK here rather than per panel, which
+       is the one thing about this instrument that is different and is said in words. -->
+  <div data-face class="row seqhead">
     <label class="field"><span class="silk">Steps</span>
       <select id="sqLen" aria-label="Steps in this track"></select></label>
     <label class="field"><span class="silk">Rate</span>
       <select id="sqRate" aria-label="Rate of this track"></select></label>
+    <label class="field" id="sqKeyField"><span class="silk">Key</span>
+      <select id="sqKey" aria-label="Key"></select></label>
+    <label class="field" id="sqScaleField"><span class="silk">Scale</span>
+      <select id="sqScale" aria-label="Scale"></select></label>
+  </div>
+
+  <div data-face class="row seqedit">
+    <div class="seg sm" id="sqMode" role="group" aria-label="What a click does">
+      <button data-p="play" class="on">Play</button>
+      <button data-p="step">Step programming</button>
+    </div>
+    <div class="seg sm" id="sqLane" role="group" aria-label="What a click edits">
+      <button data-l="on" class="on">Gate</button>
+      <button data-l="pitch">Pitch</button>
+      <button data-l="accent">Accent</button>
+      <button data-l="slide">Slide</button>
+      <button data-l="tie">Tie</button>
+    </div>
     <button class="btn ghost sm" id="sqClear"></button>
   </div>
 
   <!-- the synth face: the shared grid every other sequencer here draws -->
   <div data-face class="face" id="sqSynth">
-    <div class="row">
-      <div class="seg sm" id="sqLane" role="group" aria-label="What a click edits">
-        <button data-l="on" class="on">Gate</button>
-        <button data-l="pitch">Pitch</button>
-        <button data-l="accent">Accent</button>
-        <button data-l="slide">Slide</button>
-        <button data-l="tie">Tie</button>
-      </div>
-      <label class="field"><span class="silk">Key</span>
-        <select id="sqKey" aria-label="Key"></select></label>
-      <label class="field"><span class="silk">Scale</span>
-        <select id="sqScale" aria-label="Scale"></select></label>
-    </div>
     <div class="seqwrap" id="sqWrap"></div>
-    <p class="silk hint" id="sqHint"></p>
+    <p class="hint" id="sqHint"></p>
   </div>
 
   <!-- the drum face: eight lanes, and the note each one sends -->
   <div data-face class="face" id="sqDrum" hidden>
-    <p class="silk hint">click a step to turn it on &middot; again for accent &middot; again to clear
-      &middot; ⚠️ the note numbers are yours to set &mdash; the General MIDI map is only a start</p>
     <div class="lanes" id="sqLanes"></div>
+    <p class="hint">click a step to turn it on &middot; again for accent &middot; again to clear
+      &middot; ⚠️ the note numbers are yours to set &mdash; the General MIDI map is only a start</p>
   </div>
 
+  <div class="rule"></div>
   <div data-face class="row">
     <button class="btn play" id="sqPlay">&#9654; Play</button>
-    <span class="silk" id="sqNow">&mdash;</span>
     <span class="grow"></span>
     <button class="btn sm panic" id="sqPanic" title="All notes off on every channel">Panic</button>
   </div>
@@ -9391,9 +9469,24 @@ const rig = {
    down the page, so row 1 belongs on the top-left pad. Cell 0 is still bottom-left — that
    is the surface's contract, not a suggestion — so the arithmetic lives here. */
 const cellRow = c => (c < 8 ? c + 8 : c - 8);
+/* ⚠️ MORE ROWS THAN PADS NOW. This drew rows 1-16 and stopped, which was invisible while
+   there were exactly sixteen of them and is a third of the launcher missing at thirty-two.
+   Sixteen at a time, paged with the pair beside the pads like every other long grid here. */
+let scenePage = 0;
+const scenePages = () => Math.max(1, Math.ceil(
+  ((Patchwork.scenes && Patchwork.scenes.rows.length) || 16) / 16));
+const sceneBase = () => Math.min(scenePage, scenePages() - 1) * 16;
+
 const sceneGrid = {
   available(){ return !!(Patchwork.scenes && Patchwork.launch); },
-  label: () => "Scenes",
+  label: () => {
+    const n = (Patchwork.scenes && Patchwork.scenes.rows.length) || 16;
+    return n <= 16 ? "Scenes"
+                   : "Scenes  " + (sceneBase() + 1) + "-" + Math.min(n, sceneBase() + 16);
+  },
+  pages: scenePages,
+  page: () => Math.min(scenePage, scenePages() - 1),
+  setPage: p => { scenePage = Math.max(0, Math.min(scenePages() - 1, p)); },
   cells(){
     const out = new Array(16).fill(null);
     if (!Patchwork.scenes) return out;
@@ -9401,7 +9494,7 @@ const sceneGrid = {
     const insts = S.instruments;
     const queued = S.queued, onRow = S.onRow;
     S.rows.forEach((row, ri) => {
-      if (ri > 15) return;
+      if (ri < sceneBase() || ri >= sceneBase() + 16) return;
       const filled = insts.some(i => S.has(ri, i.id));
       if (!filled) return;                       // an empty row is not a pad you can press
       const armed = insts.some(i => queued.get(i.id) === ri);
@@ -9409,13 +9502,13 @@ const sceneGrid = {
       /* Armed pulses, playing is solid green, stored-but-idle is a dim amber you can aim
          at. The three states the launcher already paints on screen, in the three the
          hardware can show. */
-      out[cellRow(ri)] = armed ? {colour: "amber", on: true, hot: true}
+      out[cellRow(ri - sceneBase())] = armed ? {colour: "amber", on: true, hot: true}
                                : {colour: sounding ? "green" : "amber", on: sounding};
     });
     return out;
   },
   down(cell){
-    const ri = cellRow(cell);
+    const ri = cellRow(cell) + sceneBase();
     if (Patchwork.scenes && Patchwork.scenes.rows[ri]) rig.fireRow(ri);
   }
 };
@@ -10934,7 +11027,10 @@ function joinSeam(){
 /* Sixteen rows. The launcher, the live grid and LP·1's take strip all draw from this, so
    this is the one place the number lives — except the worklet's filled(), which cannot
    see it across the AudioWorklet boundary and says so. */
-const COUNT = 16;
+/* ⚠️ THIRTY-TWO, AND NOTHING ELSE MAY ASSUME IT. Sixteen was chosen because a controller has
+   sixteen pads, which made the number a coincidence two things quietly depended on. Anything
+   drawing rows reads rows.length; anything showing them on sixteen pads pages. */
+const COUNT = 32;
 for (let i = 0; i < COUNT; i++) rows.push({name: String(i + 1), cells: {}});
 
 /* ⚠️ A QUEUED CHANGE BELONGS TO A RUNNING TRANSPORT.
@@ -13727,20 +13823,26 @@ const noteName = n => {
   return N[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
 };
 
+/* ⚠️ EIGHT PER ROW UNLESS THE PANEL SAYS OTHERWISE. Eight is right for a panel that shares
+   its width with six others and wrong for one that spans the rack: sixty-four steps in eight
+   rows of eight is a wall, and in four rows of sixteen it is two bars you can read. The
+   default is the number every existing caller was built around, so nothing moves unasked. */
+const PER = Math.max(4, (o.perRow | 0) || 8);
 function render(){
   el.textContent = "";
-  const rows = Math.ceil(seq.SEQ.len / 8);
+  const rows = Math.ceil(seq.SEQ.len / PER);
   for (let r = 0; r < rows; r++){
     const row = document.createElement("div");
     row.className = "seqrow";
     const lab = document.createElement("span");
     lab.className = "rlab";
-    lab.textContent = (r*8 + 1) + "–" + Math.min(seq.SEQ.len, r*8 + 8);
+    lab.textContent = (r*PER + 1) + "–" + Math.min(seq.SEQ.len, r*PER + PER);
     row.appendChild(lab);
     const grid = document.createElement("div");
     grid.className = "steps";
-    for (let c = 0; c < 8; c++){
-      const i = r*8 + c;
+    grid.style.setProperty("--per", PER);
+    for (let c = 0; c < PER; c++){
+      const i = r*PER + c;
       if (i >= seq.SEQ.len) break;
       const b = document.createElement("button");
       b.className = "step"; b.type = "button"; b.dataset.i = i;
@@ -24747,7 +24849,11 @@ class LoopProcessor extends AudioWorkletProcessor {
      the count can go up without reserving ~100 MB for takes nobody has played. */
   filled(){
     const out = [];
-    for (let i = 0; i < 16; i++) if (this.slots[i]) out.push(i);
+    /* ⚠️ THE ARRAY, NOT SIXTEEN. This scanned a fixed sixteen because that was how many scene
+       rows there were — a number the worklet has no way to know and had no business copying.
+       A sparse array's length is the highest slot ever written, which is exactly the range
+       worth scanning and follows the launcher wherever it goes. */
+    for (let i = 0; i < this.slots.length; i++) if (this.slots[i]) out.push(i);
     return out;
   }
 
@@ -26953,8 +27059,13 @@ clearBtn.addEventListener("click", () => {});   // replaced by mountClearSeq bel
    sixteen of them — which is the one thing mountSeqGrid was never asked to do before. */
 let grid = null, clearSeqBtn = null;
 const keySel = $("#sqKey"), scaleSel = $("#sqScale"), laneSeg = $("#sqLane"), hintEl = $("#sqHint");
-for (let n = 0; n < 12; n++) keySel.appendChild(Object.assign(document.createElement("option"),
-  {value: String(36 + n), textContent: NOTES[n]}));
+/* ⚠️ THE WHOLE RANGE, NOT ONE OCTAVE, and it has to include the default. Twelve options from
+   C2 with a root of C3 meant the select matched nothing and rendered BLANK — a control that
+   looked broken because it was showing the truth about a value it could not offer. Two
+   octaves either side of middle, the same span BS·1 uses, named with their octave so C2 and
+   C3 are telling apart. */
+for (let n = 24; n <= 60; n++) keySel.appendChild(Object.assign(document.createElement("option"),
+  {value: String(n), textContent: noteName(n)}));
 
 function buildSynthFace(){
   const seq = cur().synth.seq;
@@ -26963,19 +27074,49 @@ function buildSynthFace(){
     Object.keys(seq.SCALES).forEach(k => scaleSel.appendChild(Object.assign(
       document.createElement("option"), {value: k, textContent: k})));
   grid = Patchwork.mountSeqGrid($("#sqWrap"), seq, {
+    /* This panel spans the rack, so sixteen across reads as two bars rather than one. */
+    perRow: 16,
     onSelect: () => paintHead(),
     after: () => { if (clearSeqBtn) clearSeqBtn.paint(); }
   });
   keySel.value = String(seq.SEQ.root);
   scaleSel.value = seq.SEQ.scale;
   $$("#sqLane button").forEach(b => b.classList.toggle("on", b.dataset.l === seq.SEQ.lane));
+  $$("#sqMode button").forEach(b => b.classList.toggle("on", b.dataset.p === seq.SEQ.mode));
+  paintHint();
 }
+/* ⚠️ THE SAME TWO MODES BS·1 AND PM·1 HAVE, and the same words: Play edits the grid, Step
+   programming lights one step and lands everything on it. The shared sequencer has carried
+   both all along and this panel simply had no control for either — so a track here behaved
+   subtly differently from the identical sequencer one panel over. */
+const modeSeg = $("#sqMode");
+const LANE_HINT = {
+  on: "click a step to turn it on \u00b7 shift-click ties \u00b7 alt-click slides",
+  pitch: "drag a step up or down to set its note",
+  accent: "click a step to accent it",
+  slide: "click a step to glide into it from the one before",
+  tie: "click a step to hold the note before it through this one"
+};
+function paintHint(){
+  const seq = cur().synth.seq;
+  hintEl.textContent = seq.SEQ.mode !== "play"
+    ? "everything lands on the lit step \u2014 a note writes it and moves on. \u2190 \u2192 walk, delete empties it"
+    : (LANE_HINT[seq.SEQ.lane] || "");
+}
+modeSeg.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  cur().synth.seq.SEQ.mode = b.dataset.p;
+  modeSeg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+  paintHint();
+  grid && grid.paint();
+});
 keySel.addEventListener("change", () => { cur().synth.seq.SEQ.root = +keySel.value; grid && grid.paint(); });
 scaleSel.addEventListener("change", () => { cur().synth.seq.SEQ.scale = scaleSel.value; grid && grid.paint(); });
 laneSeg.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   cur().synth.seq.SEQ.lane = b.dataset.l;
   $$("#sqLane button").forEach(x => x.classList.toggle("on", x === b));
+  paintHint();
   grid && grid.paint();
 });
 
@@ -27074,6 +27215,13 @@ function showTrack(){
   const drum = t.style === "drum";
   synthFace.hidden = drum;
   drumFace.hidden = !drum;
+  /* ⚠️ A DRUM TRACK HAS NO KEY, NO SCALE AND NO LANES, so those controls go rather than sit
+     there dead. Steps and Rate stay because both kinds have them, which is what keeps that
+     row in the same place whichever face you are looking at. */
+  $("#sqKeyField").hidden = drum;
+  $("#sqScaleField").hidden = drum;
+  modeSeg.hidden = drum;
+  $("#sqLane").hidden = drum;
   if (drum) buildDrumFace(); else buildSynthFace();
   mountClear();
   paintHead();

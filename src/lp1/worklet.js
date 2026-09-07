@@ -141,7 +141,11 @@ class LoopProcessor extends AudioWorkletProcessor {
      the count can go up without reserving ~100 MB for takes nobody has played. */
   filled(){
     const out = [];
-    for (let i = 0; i < 16; i++) if (this.slots[i]) out.push(i);
+    /* ⚠️ THE ARRAY, NOT SIXTEEN. This scanned a fixed sixteen because that was how many scene
+       rows there were — a number the worklet has no way to know and had no business copying.
+       A sparse array's length is the highest slot ever written, which is exactly the range
+       worth scanning and follows the launcher wherever it goes. */
+    for (let i = 0; i < this.slots.length; i++) if (this.slots[i]) out.push(i);
     return out;
   }
 

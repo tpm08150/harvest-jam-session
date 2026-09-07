@@ -284,6 +284,12 @@ two outputs.
 
 ## The launcher on the pads
 
+There are **thirty-two rows**. ⚠️ Sixteen was chosen because a controller has sixteen pads,
+which quietly made the number a coincidence two other things had come to depend on: the
+shell's fallback pad grid drew rows 1–16 and stopped, and the looper's worklet scanned a fixed
+sixteen slots for the takes it held. Both were invisible while the two numbers agreed. The
+grid pages now, and the worklet scans its own array.
+
 ⚠️ **The pads are the matrix, not the row list.** Sixteen pads and sixteen rows made this one
 pad per row — a tidy coincidence and the wrong picture. The launcher on screen is instruments
 *across* and rows *down*, and a grid flattened to a column of rows could tell you a row held
@@ -314,8 +320,8 @@ seven hues competing with the one distinction the grid exists to draw, which is 
 empty. Green stays reserved on the pads for the thing louder than either axis: this cell is
 playing right now.
 
-⚠️ **A cursor is not a page.** All sixteen rows are visible at once, so there is nowhere to
-page to — and still somewhere to point. The pair beside the pads walks the cursor and `>`
+⚠️ **A cursor is not a page.** The pads show two rows and the cursor walks all thirty-two,
+so paging them would be a second way to move through the same list. The pair beside the pads walks the cursor and `>`
 fires the row it is on, which is the whole gesture on a controller you are not looking at.
 **The screen shows where it is aimed** — a marker down the left edge of the row, in a colour
 of its own, because playing is already green here and queued is already amber and a cursor
@@ -866,7 +872,7 @@ What the sixteen pads mean follows the panel you clicked:
   reason: what you turn while it runs, then what you set before you arm it. `>` is Arm, because
   there is exactly one thing this instrument does.
 
-- **The scene launcher** — sixteen rows on sixteen pads, amber for a stored row, pulsing for
+- **The scene launcher** — thirty-two rows, sixteen pads at a time, amber for a stored row, pulsing for
   one that is armed, green for one that is sounding. It is the fallthrough for any panel with
   no grid of its own, and **Shift + Sends** aims at it deliberately: the Live view *is* the
   launcher, and pads that followed whichever panel was last clicked meant looking at a grid you

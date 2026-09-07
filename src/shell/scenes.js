@@ -91,7 +91,10 @@ function joinSeam(){
 /* Sixteen rows. The launcher, the live grid and LP·1's take strip all draw from this, so
    this is the one place the number lives — except the worklet's filled(), which cannot
    see it across the AudioWorklet boundary and says so. */
-const COUNT = 16;
+/* ⚠️ THIRTY-TWO, AND NOTHING ELSE MAY ASSUME IT. Sixteen was chosen because a controller has
+   sixteen pads, which made the number a coincidence two things quietly depended on. Anything
+   drawing rows reads rows.length; anything showing them on sixteen pads pages. */
+const COUNT = 32;
 for (let i = 0; i < COUNT; i++) rows.push({name: String(i + 1), cells: {}});
 
 /* ⚠️ A QUEUED CHANGE BELONGS TO A RUNNING TRANSPORT.

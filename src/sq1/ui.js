@@ -66,8 +66,13 @@ clearBtn.addEventListener("click", () => {});   // replaced by mountClearSeq bel
    sixteen of them — which is the one thing mountSeqGrid was never asked to do before. */
 let grid = null, clearSeqBtn = null;
 const keySel = $("#sqKey"), scaleSel = $("#sqScale"), laneSeg = $("#sqLane"), hintEl = $("#sqHint");
-for (let n = 0; n < 12; n++) keySel.appendChild(Object.assign(document.createElement("option"),
-  {value: String(36 + n), textContent: NOTES[n]}));
+/* ⚠️ THE WHOLE RANGE, NOT ONE OCTAVE, and it has to include the default. Twelve options from
+   C2 with a root of C3 meant the select matched nothing and rendered BLANK — a control that
+   looked broken because it was showing the truth about a value it could not offer. Two
+   octaves either side of middle, the same span BS·1 uses, named with their octave so C2 and
+   C3 are telling apart. */
+for (let n = 24; n <= 60; n++) keySel.appendChild(Object.assign(document.createElement("option"),
+  {value: String(n), textContent: noteName(n)}));
 
 function buildSynthFace(){
   const seq = cur().synth.seq;
@@ -76,19 +81,49 @@ function buildSynthFace(){
     Object.keys(seq.SCALES).forEach(k => scaleSel.appendChild(Object.assign(
       document.createElement("option"), {value: k, textContent: k})));
   grid = Patchwork.mountSeqGrid($("#sqWrap"), seq, {
+    /* This panel spans the rack, so sixteen across reads as two bars rather than one. */
+    perRow: 16,
     onSelect: () => paintHead(),
     after: () => { if (clearSeqBtn) clearSeqBtn.paint(); }
   });
   keySel.value = String(seq.SEQ.root);
   scaleSel.value = seq.SEQ.scale;
   $$("#sqLane button").forEach(b => b.classList.toggle("on", b.dataset.l === seq.SEQ.lane));
+  $$("#sqMode button").forEach(b => b.classList.toggle("on", b.dataset.p === seq.SEQ.mode));
+  paintHint();
 }
+/* ⚠️ THE SAME TWO MODES BS·1 AND PM·1 HAVE, and the same words: Play edits the grid, Step
+   programming lights one step and lands everything on it. The shared sequencer has carried
+   both all along and this panel simply had no control for either — so a track here behaved
+   subtly differently from the identical sequencer one panel over. */
+const modeSeg = $("#sqMode");
+const LANE_HINT = {
+  on: "click a step to turn it on \u00b7 shift-click ties \u00b7 alt-click slides",
+  pitch: "drag a step up or down to set its note",
+  accent: "click a step to accent it",
+  slide: "click a step to glide into it from the one before",
+  tie: "click a step to hold the note before it through this one"
+};
+function paintHint(){
+  const seq = cur().synth.seq;
+  hintEl.textContent = seq.SEQ.mode !== "play"
+    ? "everything lands on the lit step \u2014 a note writes it and moves on. \u2190 \u2192 walk, delete empties it"
+    : (LANE_HINT[seq.SEQ.lane] || "");
+}
+modeSeg.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  cur().synth.seq.SEQ.mode = b.dataset.p;
+  modeSeg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+  paintHint();
+  grid && grid.paint();
+});
 keySel.addEventListener("change", () => { cur().synth.seq.SEQ.root = +keySel.value; grid && grid.paint(); });
 scaleSel.addEventListener("change", () => { cur().synth.seq.SEQ.scale = scaleSel.value; grid && grid.paint(); });
 laneSeg.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   cur().synth.seq.SEQ.lane = b.dataset.l;
   $$("#sqLane button").forEach(x => x.classList.toggle("on", x === b));
+  paintHint();
   grid && grid.paint();
 });
 
@@ -187,6 +222,13 @@ function showTrack(){
   const drum = t.style === "drum";
   synthFace.hidden = drum;
   drumFace.hidden = !drum;
+  /* ⚠️ A DRUM TRACK HAS NO KEY, NO SCALE AND NO LANES, so those controls go rather than sit
+     there dead. Steps and Rate stay because both kinds have them, which is what keeps that
+     row in the same place whichever face you are looking at. */
+  $("#sqKeyField").hidden = drum;
+  $("#sqScaleField").hidden = drum;
+  modeSeg.hidden = drum;
+  $("#sqLane").hidden = drum;
   if (drum) buildDrumFace(); else buildSynthFace();
   mountClear();
   paintHead();

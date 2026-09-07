@@ -1,5 +1,9 @@
 :scope{
-  width:100%;max-width:860px;
+  /* ⚠️ WIDER THAN THE REST, and it earns it: sixteen tracks across the top and sixty-four
+     steps across the middle are both things you read left to right, and neither fits the
+     column width the voiced panels were drawn to. In the studio it spans the whole rack —
+     see .st-rack in studio/page.css, which is where a panel's place in the grid belongs. */
+  width:100%;max-width:1240px;
   background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
   border:1px solid var(--edge);
   border-radius:10px;
@@ -16,6 +20,19 @@
 .screws{flex:1}
 .grow{flex:1}
 .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+/* The block headings and hairlines every other panel here divides itself with, so a
+   sequencer reads as a sequencer whichever one you are looking at. */
+.rule{height:1px;margin:16px 0 12px;
+  background:linear-gradient(90deg,transparent,var(--sq),transparent);opacity:.35}
+.section{display:block;margin-bottom:9px;
+  font-family:"Saira Semi Condensed",system-ui,sans-serif;font-size:10.5px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--silk-dim)}
+/* Steps, Rate, Key, Scale — the same four, in the same order, at the same widths BS·1 and
+   VC·1 put them. Labels above rather than beside, which is what makes four menus scan as a
+   row of settings rather than a sentence. */
+.seqhead .field{flex-direction:column;align-items:flex-start;gap:3px}
+.seqhead select{min-width:104px}
+.seqedit{gap:8px}
 .field{display:flex;align-items:center;gap:6px}
 .face{margin-bottom:12px}
 .hint{display:block;margin:8px 0 0;line-height:1.5;text-transform:none;letter-spacing:.02em}
@@ -38,6 +55,47 @@
 .trk.muted{opacity:.4}
 .trk.sel{box-shadow:0 0 0 2px var(--sq) inset;color:#fff}
 .trk:focus-visible{outline:2px solid var(--sq);outline-offset:1px}
+
+/* ---- the synth face ----
+   ⚠️ THE SAME GRID BS·1 AND VC·1 DRAW, so it is styled the same way. mountSeqGrid emits
+   .seqrow / .rlab / .steps / .step and nothing else — the classes are the shared component's
+   contract, and a panel that mounts it and does not style them gets a column of bare text,
+   which is exactly what this was. Copied deliberately rather than shared: every panel's grid
+   is its own colour, and one stylesheet imposing a hue on all of them is the thing @scope
+   exists to prevent. */
+.seqwrap{display:flex;flex-direction:column;gap:5px}
+.seqrow{display:flex;align-items:center;gap:9px}
+.rlab{flex:0 0 44px;font-family:"DM Mono",ui-monospace,monospace;font-size:9px;
+  letter-spacing:.04em;color:var(--read-dim);text-align:right}
+.steps{display:grid;grid-template-columns:repeat(var(--per,8),1fr);gap:4px;flex:1 1 auto;min-width:0}
+.step{
+  height:26px;border-radius:3px;padding:0;cursor:pointer;position:relative;
+  background:var(--slot);border:1px solid var(--groove);
+  box-shadow:0 1px 2px rgba(0,0,0,.55) inset;
+  font-family:"DM Mono",ui-monospace,monospace;font-size:9px;letter-spacing:-.02em;
+  color:var(--read-dim);
+}
+.step.on{background:linear-gradient(180deg,var(--sq-hi),var(--sq));
+  border-color:#4a7fb0;color:#0d1c2b;
+  box-shadow:0 1px 0 rgba(255,255,255,.16) inset}
+/* the beat marker, so sixteen steps read as four bars rather than sixteen boxes */
+.step.beat::before{content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);
+  width:2px;height:2px;border-radius:50%;background:rgba(255,255,255,.45)}
+/* An accent is a ring rather than a colour — the same rule the drum lanes below follow, and
+   the same one BS·1 states: a step has four flags and only one of them can be the fill. */
+.step.acc{box-shadow:0 1px 0 rgba(255,255,255,.16) inset,0 0 0 1px var(--cap-yellow) inset}
+.step.sld::after{content:"";position:absolute;bottom:2px;left:3px;right:3px;height:2px;
+  border-radius:1px;background:var(--stripe-mod)}
+.step.tie{background:linear-gradient(180deg,#5a6a76,#43505a);color:#cfd8de}
+.step.now{outline:2px solid var(--mint);outline-offset:1px;z-index:2}
+/* the band of sixteen a control surface is editing, on a pattern longer than its grid —
+   a wash rather than a fourth outline, matching bs1 and dr1 */
+.step.bank{border-color:#4a7fb0}
+.step.bank:not(.on):not(.tie){background:rgba(74,127,176,.20)}
+.step.sel{outline:2px solid var(--cap-yellow);outline-offset:1px;z-index:3}
+.step.lock::after{content:"";position:absolute;top:2px;right:2px;
+  border-top:5px solid var(--cap-yellow);border-left:5px solid transparent}
+.step:focus-visible{outline:2px solid var(--sq);outline-offset:1px}
 
 /* ---- the drum face ---- */
 .lanes{display:flex;flex-direction:column;gap:5px}

@@ -436,20 +436,26 @@ const noteName = n => {
   return N[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
 };
 
+/* ⚠️ EIGHT PER ROW UNLESS THE PANEL SAYS OTHERWISE. Eight is right for a panel that shares
+   its width with six others and wrong for one that spans the rack: sixty-four steps in eight
+   rows of eight is a wall, and in four rows of sixteen it is two bars you can read. The
+   default is the number every existing caller was built around, so nothing moves unasked. */
+const PER = Math.max(4, (o.perRow | 0) || 8);
 function render(){
   el.textContent = "";
-  const rows = Math.ceil(seq.SEQ.len / 8);
+  const rows = Math.ceil(seq.SEQ.len / PER);
   for (let r = 0; r < rows; r++){
     const row = document.createElement("div");
     row.className = "seqrow";
     const lab = document.createElement("span");
     lab.className = "rlab";
-    lab.textContent = (r*8 + 1) + "–" + Math.min(seq.SEQ.len, r*8 + 8);
+    lab.textContent = (r*PER + 1) + "–" + Math.min(seq.SEQ.len, r*PER + PER);
     row.appendChild(lab);
     const grid = document.createElement("div");
     grid.className = "steps";
-    for (let c = 0; c < 8; c++){
-      const i = r*8 + c;
+    grid.style.setProperty("--per", PER);
+    for (let c = 0; c < PER; c++){
+      const i = r*PER + c;
       if (i >= seq.SEQ.len) break;
       const b = document.createElement("button");
       b.className = "step"; b.type = "button"; b.dataset.i = i;

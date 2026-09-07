@@ -2544,9 +2544,24 @@ const rig = {
    down the page, so row 1 belongs on the top-left pad. Cell 0 is still bottom-left — that
    is the surface's contract, not a suggestion — so the arithmetic lives here. */
 const cellRow = c => (c < 8 ? c + 8 : c - 8);
+/* ⚠️ MORE ROWS THAN PADS NOW. This drew rows 1-16 and stopped, which was invisible while
+   there were exactly sixteen of them and is a third of the launcher missing at thirty-two.
+   Sixteen at a time, paged with the pair beside the pads like every other long grid here. */
+let scenePage = 0;
+const scenePages = () => Math.max(1, Math.ceil(
+  ((Patchwork.scenes && Patchwork.scenes.rows.length) || 16) / 16));
+const sceneBase = () => Math.min(scenePage, scenePages() - 1) * 16;
+
 const sceneGrid = {
   available(){ return !!(Patchwork.scenes && Patchwork.launch); },
-  label: () => "Scenes",
+  label: () => {
+    const n = (Patchwork.scenes && Patchwork.scenes.rows.length) || 16;
+    return n <= 16 ? "Scenes"
+                   : "Scenes  " + (sceneBase() + 1) + "-" + Math.min(n, sceneBase() + 16);
+  },
+  pages: scenePages,
+  page: () => Math.min(scenePage, scenePages() - 1),
+  setPage: p => { scenePage = Math.max(0, Math.min(scenePages() - 1, p)); },
   cells(){
     const out = new Array(16).fill(null);
     if (!Patchwork.scenes) return out;
@@ -2554,7 +2569,7 @@ const sceneGrid = {
     const insts = S.instruments;
     const queued = S.queued, onRow = S.onRow;
     S.rows.forEach((row, ri) => {
-      if (ri > 15) return;
+      if (ri < sceneBase() || ri >= sceneBase() + 16) return;
       const filled = insts.some(i => S.has(ri, i.id));
       if (!filled) return;                       // an empty row is not a pad you can press
       const armed = insts.some(i => queued.get(i.id) === ri);
@@ -2562,13 +2577,13 @@ const sceneGrid = {
       /* Armed pulses, playing is solid green, stored-but-idle is a dim amber you can aim
          at. The three states the launcher already paints on screen, in the three the
          hardware can show. */
-      out[cellRow(ri)] = armed ? {colour: "amber", on: true, hot: true}
+      out[cellRow(ri - sceneBase())] = armed ? {colour: "amber", on: true, hot: true}
                                : {colour: sounding ? "green" : "amber", on: sounding};
     });
     return out;
   },
   down(cell){
-    const ri = cellRow(cell);
+    const ri = cellRow(cell) + sceneBase();
     if (Patchwork.scenes && Patchwork.scenes.rows[ri]) rig.fireRow(ri);
   }
 };
@@ -4087,7 +4102,10 @@ function joinSeam(){
 /* Sixteen rows. The launcher, the live grid and LP·1's take strip all draw from this, so
    this is the one place the number lives — except the worklet's filled(), which cannot
    see it across the AudioWorklet boundary and says so. */
-const COUNT = 16;
+/* ⚠️ THIRTY-TWO, AND NOTHING ELSE MAY ASSUME IT. Sixteen was chosen because a controller has
+   sixteen pads, which made the number a coincidence two things quietly depended on. Anything
+   drawing rows reads rows.length; anything showing them on sixteen pads pages. */
+const COUNT = 32;
 for (let i = 0; i < COUNT; i++) rows.push({name: String(i + 1), cells: {}});
 
 /* ⚠️ A QUEUED CHANGE BELONGS TO A RUNNING TRANSPORT.
@@ -6880,20 +6898,26 @@ const noteName = n => {
   return N[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
 };
 
+/* ⚠️ EIGHT PER ROW UNLESS THE PANEL SAYS OTHERWISE. Eight is right for a panel that shares
+   its width with six others and wrong for one that spans the rack: sixty-four steps in eight
+   rows of eight is a wall, and in four rows of sixteen it is two bars you can read. The
+   default is the number every existing caller was built around, so nothing moves unasked. */
+const PER = Math.max(4, (o.perRow | 0) || 8);
 function render(){
   el.textContent = "";
-  const rows = Math.ceil(seq.SEQ.len / 8);
+  const rows = Math.ceil(seq.SEQ.len / PER);
   for (let r = 0; r < rows; r++){
     const row = document.createElement("div");
     row.className = "seqrow";
     const lab = document.createElement("span");
     lab.className = "rlab";
-    lab.textContent = (r*8 + 1) + "–" + Math.min(seq.SEQ.len, r*8 + 8);
+    lab.textContent = (r*PER + 1) + "–" + Math.min(seq.SEQ.len, r*PER + PER);
     row.appendChild(lab);
     const grid = document.createElement("div");
     grid.className = "steps";
-    for (let c = 0; c < 8; c++){
-      const i = r*8 + c;
+    grid.style.setProperty("--per", PER);
+    for (let c = 0; c < PER; c++){
+      const i = r*PER + c;
       if (i >= seq.SEQ.len) break;
       const b = document.createElement("button");
       b.className = "step"; b.type = "button"; b.dataset.i = i;

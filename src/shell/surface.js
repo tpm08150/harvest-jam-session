@@ -491,9 +491,24 @@ const rig = {
    down the page, so row 1 belongs on the top-left pad. Cell 0 is still bottom-left — that
    is the surface's contract, not a suggestion — so the arithmetic lives here. */
 const cellRow = c => (c < 8 ? c + 8 : c - 8);
+/* ⚠️ MORE ROWS THAN PADS NOW. This drew rows 1-16 and stopped, which was invisible while
+   there were exactly sixteen of them and is a third of the launcher missing at thirty-two.
+   Sixteen at a time, paged with the pair beside the pads like every other long grid here. */
+let scenePage = 0;
+const scenePages = () => Math.max(1, Math.ceil(
+  ((Patchwork.scenes && Patchwork.scenes.rows.length) || 16) / 16));
+const sceneBase = () => Math.min(scenePage, scenePages() - 1) * 16;
+
 const sceneGrid = {
   available(){ return !!(Patchwork.scenes && Patchwork.launch); },
-  label: () => "Scenes",
+  label: () => {
+    const n = (Patchwork.scenes && Patchwork.scenes.rows.length) || 16;
+    return n <= 16 ? "Scenes"
+                   : "Scenes  " + (sceneBase() + 1) + "-" + Math.min(n, sceneBase() + 16);
+  },
+  pages: scenePages,
+  page: () => Math.min(scenePage, scenePages() - 1),
+  setPage: p => { scenePage = Math.max(0, Math.min(scenePages() - 1, p)); },
   cells(){
     const out = new Array(16).fill(null);
     if (!Patchwork.scenes) return out;
@@ -501,7 +516,7 @@ const sceneGrid = {
     const insts = S.instruments;
     const queued = S.queued, onRow = S.onRow;
     S.rows.forEach((row, ri) => {
-      if (ri > 15) return;
+      if (ri < sceneBase() || ri >= sceneBase() + 16) return;
       const filled = insts.some(i => S.has(ri, i.id));
       if (!filled) return;                       // an empty row is not a pad you can press
       const armed = insts.some(i => queued.get(i.id) === ri);
@@ -509,13 +524,13 @@ const sceneGrid = {
       /* Armed pulses, playing is solid green, stored-but-idle is a dim amber you can aim
          at. The three states the launcher already paints on screen, in the three the
          hardware can show. */
-      out[cellRow(ri)] = armed ? {colour: "amber", on: true, hot: true}
+      out[cellRow(ri - sceneBase())] = armed ? {colour: "amber", on: true, hot: true}
                                : {colour: sounding ? "green" : "amber", on: sounding};
     });
     return out;
   },
   down(cell){
-    const ri = cellRow(cell);
+    const ri = cellRow(cell) + sceneBase();
     if (Patchwork.scenes && Patchwork.scenes.rows[ri]) rig.fireRow(ri);
   }
 };

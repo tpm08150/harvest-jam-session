@@ -33,6 +33,10 @@ body{
    :has() rather than a class the shell has to remember to keep in sync. */
 .st-rack:has(> .unit:not(.face)){grid-template-columns:repeat(auto-fit,minmax(620px,1fr))}
 .st-rack > .unit{max-width:none;width:100%}
+/* ⚠️ THE SEQUENCER SPANS THE RACK. Sixteen tracks and sixty-four steps are both read left to
+   right, and a column drawn for a panel with a keyboard on it is the wrong shape for either.
+   It is also last in the rack, so a full-width row costs nothing above it. */
+.st-rack > .unit.sq1{grid-column:1 / -1}
 /* Sized off VC·1, which is the tallest face and fills the window at a laptop height.
    Clamped so it never dwarfs a short window (the Arcade's 620px floor) or grows silly on
    a tall one. */
