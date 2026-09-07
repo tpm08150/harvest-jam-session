@@ -34,6 +34,24 @@ const queued = new Map();         // id -> row index, for the UI to show what is
    are equal by value, so comparing the cell against what an instrument is playing would
    call them the same row. */
 const onRow = new Map();          // id -> row index it is playing
+/* id -> the audio time its first step lands on, for an instrument started by fire() that has
+   not been heard yet. Entries stop mattering on their own once the time passes; see the
+   `queued` getter, which is the only thing that reads them. */
+const starts = new Map();
+/* One timer per waiting instrument, replaced rather than stacked: firing the same row twice
+   while it waits would otherwise leave the first timer to fire into a state it no longer
+   describes. */
+const startTimers = new Map();
+function armAt(id, seam){
+  clearTimeout(startTimers.get(id));
+  const c = Patchwork.audio && Patchwork.audio.ctx;
+  const ms = Math.max(0, (seam - (c ? c.currentTime : 0)) * 1000) + 30;
+  startTimers.set(id, setTimeout(() => {
+    startTimers.delete(id);
+    starts.delete(id);
+    notify();
+  }, ms));
+}
 const subs = [];
 
 /* ---- when a fired row actually lands ----
@@ -293,6 +311,23 @@ function fire(row, id){
         queued.delete(it.id);
         onRow.set(it.id, row);
         it.start();
+        /* ⚠️ STARTED IS NOT YET SOUNDING, and the launcher was drawing it as though it were.
+           A stopped instrument is started HERE rather than at the seam — that is deliberate,
+           and the pin above makes its first step land on the same line everything else swaps
+           on — but isPlaying() goes true at the press, so its cell went solid green while
+           the cells beside it were still flashing. Same instant, two different pictures, and
+           the one that looked wrong was the one that was right.
+
+           So the moment it will actually be heard is written down, and the queued getter
+           reads it. Display only: nothing about the transport changes. */
+        if (seam != null){
+          starts.set(it.id, seam);
+          /* ⚠️ AND SOMETHING HAS TO SAY WHEN IT PASSES. The entry expires by comparing times,
+             which is enough for the pads — they repaint sixteen times a second — and not for
+             the screen, which repaints on events and would have sat on "armed" until the next
+             unrelated change. A timer at the seam is the event. */
+          armAt(it.id, seam);
+        } else starts.delete(it.id);
       }
     });
   } finally { if (seam != null) Patchwork.clock.pin(null); }
@@ -409,7 +444,24 @@ return {register, store, storeAll, clear, fire, take, onChange, playing, start, 
         get patternBars(){ return patternBars; },
         get rows(){ return rows; },
         get instruments(){ return insts.map(i => ({id: i.id, name: i.name})); },
-        get queued(){ return new Map(queued); },
+        /* ⚠️ WIDER THAN THE INTERNAL MAP, deliberately. This answers "what is a cell about to
+           become", which is what every caller draws — and an instrument started on a seam
+           that has not arrived is exactly as pending as one waiting to swap, however true
+           isPlaying() already is. The private `queued` stays narrow, because boundTo() and
+           take() are about the transport rather than about the picture. */
+        get queued(){
+          const out = new Map(queued);
+          const c = Patchwork.audio && Patchwork.audio.ctx;
+          const now = c ? c.currentTime : 0;
+          starts.forEach((at, id) => {
+            /* ⚠️ AND IT HAS TO STILL BE RUNNING. A seam far enough out — Pattern quantum on a
+               four-bar progression — outlives a Stop pressed before it arrives, and the entry
+               would keep the cell armed for a row nothing is heading to any more. */
+            if (at > now && !out.has(id) && onRow.has(id) && playing(id))
+              out.set(id, onRow.get(id));
+          });
+          return out;
+        },
         get onRow(){ return new Map(onRow); },
         live, restore, loadRows, livePattern, setLivePattern,
         /* Nothing here can see an instrument's own Play button. The transports are the

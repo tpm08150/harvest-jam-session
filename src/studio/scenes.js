@@ -92,9 +92,14 @@ function paintCell(b, ri, id, queued, onRow){
   }
   /* a slot track keeps its own transport, so what it is playing comes from the track
      rather than from the scene model, which has never heard of it */
-  b.classList.toggle("live", t ? !!(t.liveSlot && t.liveSlot() === ri)
-                               : (onRow.get(id) === ri && Patchwork.scenes.playing(id)));
-  b.classList.toggle("armed", queued.get(id) === ri);
+  /* ⚠️ ARMED OUTRANKS LIVE, and both were being set. An instrument started on a seam that has
+     not arrived is playing by isPlaying() and waiting by every other measure, so its cell wore
+     both rings at once — which is not a state anybody can read, and is the pads' answer too:
+     they check queued first and stop. */
+  const armed = queued.get(id) === ri;
+  b.classList.toggle("armed", armed);
+  b.classList.toggle("live", !armed && (t ? !!(t.liveSlot && t.liveSlot() === ri)
+                                          : (onRow.get(id) === ri && Patchwork.scenes.playing(id))));
 }
 
 /* One gesture table, so the two views cannot answer the same click differently.
