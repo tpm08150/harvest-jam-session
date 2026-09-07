@@ -642,6 +642,24 @@ What the sixteen pads mean follows the panel you clicked:
   so a looper used for layering does not need the same press before every take and one used for
   one-shot phrases never dubs by accident.
 
+  **Input is the eighth encoder**, hard against the arrows, because the arrows are what it puts
+  within reach. It offers the studio output, each instrument on its own, and **one** microphone
+  — the default one. ⚠️ Not the panel's own list: that carries every mic the browser will name,
+  six on a laptop with a headset and a webcam plugged in, and turning past all of them to reach
+  "Studio output" is not a knob but a penance. Choosing between microphones is a setup decision
+  and belongs on the page, where you can read them.
+
+  ⚠️ **Pick an instrument and the pair beside the encoders hops between the two panels**, from
+  either end — LP·1 knows what it is recording, but the panel you jumped *to* has no idea it is
+  half of anything, so the link is declared once by the end that knows and read in both
+  directions. Landing on DR·1 brings up the hardware's **Drum** layout, since the point of
+  hopping to the kit is to hit drums; landing anywhere else restores the DAW layout.
+
+  It answers *last*, only where nothing else wanted the gesture: banks page first, then the
+  panel's own bump, then this. DR·1 keeps its lanes and you fall out to LP·1 at the end of the
+  list — the same fallthrough rule the arrows beside the pads run on. With the input set to the
+  studio bus or a microphone there is nowhere to hop to, and the arrows do nothing.
+
   ⚠️ LP·1 takes no notes, so it never registered with the MIDI router — which was the only
   door the surface knew, so focusing it left the encoders blank. Claiming a MIDI channel just
   to be findable would be a lie about what the panel does, so `surface.panel()` is the other

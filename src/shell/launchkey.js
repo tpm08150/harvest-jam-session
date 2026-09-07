@@ -213,7 +213,33 @@ function encArrow(io, rig, dir){
   /* ⚠️ Func here is a SECOND PAIR, not the second eight. Holding it while TURNING a knob
      swaps what the eight are; holding it while PRESSING these two swaps what the pair does.
      Different gestures on different controls, and neither is in the other's way. */
-  said(io, rig.bump(dir, altHeld(io)));
+  const r = rig.bump(dir, altHeld(io));
+  if (r && r.value != null && r.value !== false){ said(io, r); return; }
+  /* ⚠️ LAST, and that is what makes it free. A linked pair — LP·1 and whatever it is
+     recording — is worth a one-press hop, and not worth taking these arrows off DR·1's lanes
+     or PM·1's banks to get it. So it answers only where nothing else did: LP·1 has one bank
+     and no bump of its own, and a banked panel falls out to it at the end of its list. The
+     same fallthrough rule the arrows beside the pads already run on. */
+  jump(io, rig);
+}
+/* Arriving somewhere changes what the pads are FOR, and the hardware has two layouts for
+   that. A kit wants the Drum layout — the whole point of hopping to DR·1 is to hit drums,
+   and landing on its step grid would mean a second press every time. Everything else wants
+   the DAW layout, which is where its own grid is drawn. */
+function jump(io, rig){
+  const r = rig.jump();
+  if (!r) return;
+  /* ⚠️ ASKED OF THE PANEL, not matched against "dr1". A panel that offers drum lanes IS the
+     kit — that is what the property means — and a second place in this file that knows the
+     kit's name is a second place to update when there are two kits. */
+  const f = rig.focus;
+  const want = (f && f.spec && typeof f.spec.drumLanes === "function") ? PAD_DRUM : PAD_DAW;
+  if (io.state.padMode !== want){
+    io.state.padMode = want;
+    io.state.pads.fill(-1);          // different note numbers; nothing cached applies
+    io.send([FEAT, F_PADS, want]);
+  }
+  said(io, r);
 }
 /* Put what just happened on the screen. A button whose effect you cannot see is one you
    press twice to check, which on a toggle puts it back where it started. */

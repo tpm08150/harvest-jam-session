@@ -103,6 +103,7 @@ function focusedId(){
   const r = Patchwork.focused;
   return r && r.dataset ? r.dataset.instrument : null;
 }
+const rootOf = id => (Patchwork.roots || []).find(r => r.dataset.instrument === id) || null;
 
 const rig = {
   /* The instrument the surface is aimed at. Focus is already how this page decides where
@@ -366,6 +367,47 @@ const rig = {
     const spec = specOf("dr1");
     if (!spec || typeof spec.drumCell !== "function") return null;
     try{ return spec.drumCell(i) || null; }catch(e){ return null; }
+  },
+
+  /* ---- two panels that belong together ----
+   ⚠️ FROM EITHER END, which is the whole of why this is here rather than as one panel's
+   `bump`. LP·1 knows what it is recording — pick DR·1 as its input and the two are a pair
+   you will be going back and forth between all night — but the panel you have jumped TO has
+   no idea it is half of anything. So the link is declared once, by the panel that knows, and
+   read in both directions.
+
+   Only where nothing else wants the gesture: see encArrow() in shell/launchkey.js, which
+   pages banks first and asks a panel for its own bump before it asks for this. A pair of
+   arrows that stole DR·1's lanes to be clever about the looper would be a bad trade. */
+  linkOf(id){
+    const spec = specOf(id);
+    if (!spec || typeof spec.link !== "function") return null;
+    try{ return spec.link() || null; }catch(e){ return null; }
+  },
+  /* The other end of the link from wherever the focus is, or null when there is not one. */
+  linked(){
+    const here = focusedId();
+    if (!here) return null;
+    const out = rig.linkOf(here);
+    if (out && rootOf(out)) return out;
+    const ids = [];
+    panels.forEach((_, id) => ids.push(id));
+    Patchwork.midi.list().forEach(x => { if (ids.indexOf(x.id) < 0) ids.push(x.id); });
+    for (let i = 0; i < ids.length; i++){
+      if (ids[i] !== here && rig.linkOf(ids[i]) === here && rootOf(ids[i])) return ids[i];
+    }
+    return null;
+  },
+  /* Jump to it, and say where you went — the display flashes it, because a button that moves
+     the focus off the panel you were looking at should say which panel it moved to. */
+  jump(){
+    const to = rig.linked();
+    if (!to) return null;
+    const root = rootOf(to);
+    if (!root) return null;
+    Patchwork.focus(root);
+    const spec = specOf(to);
+    return {name: "Go to", value: (spec && spec.name) || to};
   },
 
   /* ---- paging ----

@@ -1968,6 +1968,7 @@ function focusedId(){
   const r = Patchwork.focused;
   return r && r.dataset ? r.dataset.instrument : null;
 }
+const rootOf = id => (Patchwork.roots || []).find(r => r.dataset.instrument === id) || null;
 
 const rig = {
   /* The instrument the surface is aimed at. Focus is already how this page decides where
@@ -2231,6 +2232,47 @@ const rig = {
     const spec = specOf("dr1");
     if (!spec || typeof spec.drumCell !== "function") return null;
     try{ return spec.drumCell(i) || null; }catch(e){ return null; }
+  },
+
+  /* ---- two panels that belong together ----
+   ⚠️ FROM EITHER END, which is the whole of why this is here rather than as one panel's
+   `bump`. LP·1 knows what it is recording — pick DR·1 as its input and the two are a pair
+   you will be going back and forth between all night — but the panel you have jumped TO has
+   no idea it is half of anything. So the link is declared once, by the panel that knows, and
+   read in both directions.
+
+   Only where nothing else wants the gesture: see encArrow() in shell/launchkey.js, which
+   pages banks first and asks a panel for its own bump before it asks for this. A pair of
+   arrows that stole DR·1's lanes to be clever about the looper would be a bad trade. */
+  linkOf(id){
+    const spec = specOf(id);
+    if (!spec || typeof spec.link !== "function") return null;
+    try{ return spec.link() || null; }catch(e){ return null; }
+  },
+  /* The other end of the link from wherever the focus is, or null when there is not one. */
+  linked(){
+    const here = focusedId();
+    if (!here) return null;
+    const out = rig.linkOf(here);
+    if (out && rootOf(out)) return out;
+    const ids = [];
+    panels.forEach((_, id) => ids.push(id));
+    Patchwork.midi.list().forEach(x => { if (ids.indexOf(x.id) < 0) ids.push(x.id); });
+    for (let i = 0; i < ids.length; i++){
+      if (ids[i] !== here && rig.linkOf(ids[i]) === here && rootOf(ids[i])) return ids[i];
+    }
+    return null;
+  },
+  /* Jump to it, and say where you went — the display flashes it, because a button that moves
+     the focus off the panel you were looking at should say which panel it moved to. */
+  jump(){
+    const to = rig.linked();
+    if (!to) return null;
+    const root = rootOf(to);
+    if (!root) return null;
+    Patchwork.focus(root);
+    const spec = specOf(to);
+    return {name: "Go to", value: (spec && spec.name) || to};
   },
 
   /* ---- paging ----
@@ -2864,7 +2906,33 @@ function encArrow(io, rig, dir){
   /* ⚠️ Func here is a SECOND PAIR, not the second eight. Holding it while TURNING a knob
      swaps what the eight are; holding it while PRESSING these two swaps what the pair does.
      Different gestures on different controls, and neither is in the other's way. */
-  said(io, rig.bump(dir, altHeld(io)));
+  const r = rig.bump(dir, altHeld(io));
+  if (r && r.value != null && r.value !== false){ said(io, r); return; }
+  /* ⚠️ LAST, and that is what makes it free. A linked pair — LP·1 and whatever it is
+     recording — is worth a one-press hop, and not worth taking these arrows off DR·1's lanes
+     or PM·1's banks to get it. So it answers only where nothing else did: LP·1 has one bank
+     and no bump of its own, and a banked panel falls out to it at the end of its list. The
+     same fallthrough rule the arrows beside the pads already run on. */
+  jump(io, rig);
+}
+/* Arriving somewhere changes what the pads are FOR, and the hardware has two layouts for
+   that. A kit wants the Drum layout — the whole point of hopping to DR·1 is to hit drums,
+   and landing on its step grid would mean a second press every time. Everything else wants
+   the DAW layout, which is where its own grid is drawn. */
+function jump(io, rig){
+  const r = rig.jump();
+  if (!r) return;
+  /* ⚠️ ASKED OF THE PANEL, not matched against "dr1". A panel that offers drum lanes IS the
+     kit — that is what the property means — and a second place in this file that knows the
+     kit's name is a second place to update when there are two kits. */
+  const f = rig.focus;
+  const want = (f && f.spec && typeof f.spec.drumLanes === "function") ? PAD_DRUM : PAD_DAW;
+  if (io.state.padMode !== want){
+    io.state.padMode = want;
+    io.state.pads.fill(-1);          // different note numbers; nothing cached applies
+    io.send([FEAT, F_PADS, want]);
+  }
+  said(io, r);
 }
 /* Put what just happened on the screen. A button whose effect you cannot see is one you
    press twice to check, which on a toggle puts it back where it started. */
@@ -7938,7 +8006,56 @@ function surfaceControls(){
   const after = Patchwork.surface.segment($("#loopAfter"), "After", "Aft");
   const mon = Patchwork.surface.segment($("#mon"), "Monitor", "Mon");
   const click = Patchwork.surface.segment($("#click"), "Metronome", "Met");
-  return out.concat([bars, after, mon, click].filter(Boolean));
+  /* ⚠️ EIGHT, WITH A HOLE AT SEVEN. Input belongs beside the arrows because the arrows are
+     what it puts within reach — pick an instrument here and the pair hops to it — and a
+     control whose meaning is "the thing next to me" should not drift a position every time
+     this panel grows a knob. A missing control is a dark encoder and a blank name, which is
+     what an empty slot should look like. */
+  const list = out.concat([bars, after, mon, click].filter(Boolean));
+  while (list.length < 7) list.push(null);
+  list.length = 7;
+  list.push(inputControl());
+  return list;
+}
+
+/* ---- what the looper is listening to ----
+   ⚠️ NOT option(#inSel), which is the obvious thing and the wrong one. That select carries
+   every microphone the browser will name — six on a laptop with a headset and a webcam
+   plugged in — and turning past all of them to reach "Studio output" is not a knob, it is a
+   penance. Under an encoder the only mic worth offering is the default one: the machine
+   already has a notion of which input is yours, choosing between the others is a setup
+   decision, and setup decisions belong on the page where you can read them.
+
+   So this is the same list with the device rows collapsed to one, written THROUGH the select
+   so the panel's own change handler runs and the two views cannot disagree. */
+function inputChoices(){
+  const outs = [{v: BUS, t: "Studio out"}];
+  pageInstruments().forEach(i => outs.push({v: INST + i.id, t: i.name}));
+  /* "" is the default-microphone row buildInputs() already writes — see it there. */
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+    outs.push({v: "", t: "Mic"});
+  return outs;
+}
+function inputControl(){
+  const list = inputChoices();
+  const at = () => {
+    const i = list.findIndex(o => o.v === LP.input);
+    return i < 0 ? 0 : i;
+  };
+  const last = Math.max(1, list.length - 1);
+  const go = i => {
+    const o = list[Math.max(0, Math.min(list.length - 1, i))];
+    if (!o || o.v === LP.input) return;
+    inSel.value = o.v;
+    inSel.dispatchEvent(new Event("change", {bubbles: true}));
+  };
+  return {
+    id: "inSel", label: "Input", short: "In", stepped: true,
+    text: () => { const o = list[at()]; return o ? o.t : ""; },
+    get: () => at() / last,
+    set: v => go(Math.round(v * last)),
+    nudge: d => go(at() + (d > 0 ? 1 : -1))
+  };
 }
 
 /* ⚠️ SLOT 1 IS THE TOP-LEFT PAD, and it was the bottom-left one. Cell 0 is bottom-left —
@@ -7994,6 +8111,10 @@ if (window.Patchwork && Patchwork.surface){
        the latch, so the button says what it is about to do. */
     record: () => { setDub(!LP.dubOn); return true; },
     get armed(){ return LP.dubOn; },
+    /* ⚠️ THE PANEL THIS ONE IS RECORDING, when that is a panel at all. Declared here because
+       this is the only end that knows — see linked() in shell/surface.js, which reads it from
+       both. Null for the studio bus and for a microphone: there is nowhere to hop to. */
+    link: () => instOf(LP.input),
     /* The deck's own Play/Stop, so whatever it does when clicked happens here too. */
     actionName: "Loop",
     action: () => {

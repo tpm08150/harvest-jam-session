@@ -363,7 +363,56 @@ function surfaceControls(){
   const after = Patchwork.surface.segment($("#loopAfter"), "After", "Aft");
   const mon = Patchwork.surface.segment($("#mon"), "Monitor", "Mon");
   const click = Patchwork.surface.segment($("#click"), "Metronome", "Met");
-  return out.concat([bars, after, mon, click].filter(Boolean));
+  /* ⚠️ EIGHT, WITH A HOLE AT SEVEN. Input belongs beside the arrows because the arrows are
+     what it puts within reach — pick an instrument here and the pair hops to it — and a
+     control whose meaning is "the thing next to me" should not drift a position every time
+     this panel grows a knob. A missing control is a dark encoder and a blank name, which is
+     what an empty slot should look like. */
+  const list = out.concat([bars, after, mon, click].filter(Boolean));
+  while (list.length < 7) list.push(null);
+  list.length = 7;
+  list.push(inputControl());
+  return list;
+}
+
+/* ---- what the looper is listening to ----
+   ⚠️ NOT option(#inSel), which is the obvious thing and the wrong one. That select carries
+   every microphone the browser will name — six on a laptop with a headset and a webcam
+   plugged in — and turning past all of them to reach "Studio output" is not a knob, it is a
+   penance. Under an encoder the only mic worth offering is the default one: the machine
+   already has a notion of which input is yours, choosing between the others is a setup
+   decision, and setup decisions belong on the page where you can read them.
+
+   So this is the same list with the device rows collapsed to one, written THROUGH the select
+   so the panel's own change handler runs and the two views cannot disagree. */
+function inputChoices(){
+  const outs = [{v: BUS, t: "Studio out"}];
+  pageInstruments().forEach(i => outs.push({v: INST + i.id, t: i.name}));
+  /* "" is the default-microphone row buildInputs() already writes — see it there. */
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+    outs.push({v: "", t: "Mic"});
+  return outs;
+}
+function inputControl(){
+  const list = inputChoices();
+  const at = () => {
+    const i = list.findIndex(o => o.v === LP.input);
+    return i < 0 ? 0 : i;
+  };
+  const last = Math.max(1, list.length - 1);
+  const go = i => {
+    const o = list[Math.max(0, Math.min(list.length - 1, i))];
+    if (!o || o.v === LP.input) return;
+    inSel.value = o.v;
+    inSel.dispatchEvent(new Event("change", {bubbles: true}));
+  };
+  return {
+    id: "inSel", label: "Input", short: "In", stepped: true,
+    text: () => { const o = list[at()]; return o ? o.t : ""; },
+    get: () => at() / last,
+    set: v => go(Math.round(v * last)),
+    nudge: d => go(at() + (d > 0 ? 1 : -1))
+  };
 }
 
 /* ⚠️ SLOT 1 IS THE TOP-LEFT PAD, and it was the bottom-left one. Cell 0 is bottom-left —
@@ -419,6 +468,10 @@ if (window.Patchwork && Patchwork.surface){
        the latch, so the button says what it is about to do. */
     record: () => { setDub(!LP.dubOn); return true; },
     get armed(){ return LP.dubOn; },
+    /* ⚠️ THE PANEL THIS ONE IS RECORDING, when that is a panel at all. Declared here because
+       this is the only end that knows — see linked() in shell/surface.js, which reads it from
+       both. Null for the studio bus and for a microphone: there is nowhere to hop to. */
+    link: () => instOf(LP.input),
     /* The deck's own Play/Stop, so whatever it does when clicked happens here too. */
     actionName: "Loop",
     action: () => {
