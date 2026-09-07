@@ -542,6 +542,13 @@ input[type="text"]::placeholder{color:#5a646a}
         </div>
       </div>
       <div class="field" style="flex:0 0 auto">
+        <span class="silk">Sub</span>
+        <div class="seg sm" id="subOct" role="group" aria-label="Sub oscillator octave">
+          <button data-s="-1" class="on">&minus;1</button>
+          <button data-s="-2">&minus;2</button>
+        </div>
+      </div>
+      <div class="field" style="flex:0 0 auto">
         <span class="silk">Octave</span>
         <div class="seg sm" id="oct" role="group" aria-label="Octave">
           <button data-o="-2">−2</button>
@@ -1897,15 +1904,32 @@ const rig = {
     if (f && f.spec && typeof f.spec.rolling === "boolean") return f.spec.rolling;
     return rig.playing;
   },
-  /* Back to the start of whatever this page is playing. */
-  get canHome(){
+  /* ---- the two spare buttons ----
+   ⚠️ NAMED FOR THE GESTURE, NOT FOR THE MEANING, because the meaning is the panel's. `>` is
+   one press and `bump` is a pair that counts up and down, and what each does is whatever the
+   thing you are pointed at says: on the mixer `>` returns the tape to zero, on BS·1 it flips
+   saw to square. Same shape as the arrows beside the pads, which page a grid where there is
+   one and scrub a tape where there is not.
+
+   Both may return a string, which is what just happened in words — the display flashes it,
+   because a button whose effect you cannot see is a button you press twice. */
+  get canAct(){
     const f = rig.focus;
-    return !!(f && typeof f.spec.home === "function");
+    return !!(f && typeof f.spec.action === "function");
   },
-  home(){
+  act(){
     const f = rig.focus;
-    if (!f || typeof f.spec.home !== "function") return false;
-    try{ f.spec.home(); return true; }catch(e){ return false; }
+    if (!f || typeof f.spec.action !== "function") return null;
+    try{ return {name: f.spec.actionName || "", value: f.spec.action()}; }catch(e){ return null; }
+  },
+  get canBump(){
+    const f = rig.focus;
+    return !!(f && typeof f.spec.bump === "function");
+  },
+  bump(dir){
+    const f = rig.focus;
+    if (!f || typeof f.spec.bump !== "function") return null;
+    try{ return {name: f.spec.bumpName || "", value: f.spec.bump(dir)}; }catch(e){ return null; }
   },
   /* Held rather than pressed: a scrub runs while a finger is down and stops when it lifts,
      so a profile passes both edges and the page decides what "moving" means. `speed` is a
@@ -2354,7 +2378,38 @@ function option(el, label, short){
   };
 }
 
-return {register, mount, onView, option, connect, disconnect, restore, rig,
+/* ---- a segmented control as a control ----
+   The same bargain option() makes, for the other way a panel offers a short list: a row of
+   buttons with the current one wearing `on`. Addressed by index, marked `stepped`, and set
+   by clicking the button rather than writing anything — so whatever the panel does when the
+   row is used happens here too.
+
+   ⚠️ Unlike option(), the current value IS read from the class, because for a segmented
+   control that class is not a rendering of the state kept elsewhere — it is where the state
+   lives. There is no parameter behind it to prefer. */
+function segment(el, label, short){
+  if (!el) return null;
+  const btns = () => Array.prototype.slice.call(el.querySelectorAll("button"));
+  const at = () => {
+    const b = btns();
+    for (let i = 0; i < b.length; i++) if (b[i].classList.contains("on")) return i;
+    return 0;
+  };
+  const last = () => Math.max(1, btns().length - 1);
+  return {
+    id: el.id || label, label, short, stepped: true,
+    text: () => { const b = btns()[at()]; return b ? b.textContent.trim() : ""; },
+    get: () => at() / last(),
+    set: v => {
+      const b = btns();
+      const i = Math.max(0, Math.min(b.length - 1, Math.round(v * last())));
+      if (i === at() || !b[i]) return;
+      b[i].click();
+    }
+  };
+}
+
+return {register, mount, onView, option, segment, connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
                                                        label: f.det.label || f.profile.name})); },
@@ -2550,6 +2605,19 @@ function hue(name){ return PAL[name] == null ? PAL.white : PAL[name]; }
    dead on arrival. */
 function altHeld(io){ return !!(io.state && (io.state.fn || io.state.shift)); }
 
+/* The pair beside the encoders: pages the banks where there are banks, and where there are
+   not, does whatever the panel offers instead. The same fallthrough the pad arrows use. */
+function encArrow(io, rig, dir){
+  if (rig.controlBankBy(dir)) return;
+  said(io, rig.bump(dir));
+}
+/* Put what just happened on the screen. A button whose effect you cannot see is one you
+   press twice to check, which on a toggle puts it back where it started. */
+function said(io, r){
+  if (!r || r.value == null || r.value === false) return;
+  flash(io, r.name || "", String(r.value));
+}
+
 /* ---- the screen --------------------------------------------------------------
    Guide, "Controlling the screen". Configure a display once to say how many lines it has,
    then fill its fields with text. Both are SysEx, so both are silently skipped on a page
@@ -2582,6 +2650,10 @@ function ascii(s, max){
     else if (ch === "·") out.push(45);        // · in CS·1, PM·1 … → hyphen
     else if (ch === "♭") out.push(0x1D);      // ♭ → the device's own flat symbol
     else if (ch === "♯") out.push(35);        // ♯ → #
+    /* ⚠️ A TYPOGRAPHIC MINUS IS NOT A HYPHEN. Panels are set with U+2212 because it lines up
+       with digits; the screen has never heard of it, and "−2" arrived as " 2" — a value that
+       read as positive on a control that only goes down. */
+    else if (ch === "−" || ch === "–" || ch === "—") out.push(45);
     else out.push(32);
   });
   return out;
@@ -2911,17 +2983,17 @@ function message(io, d, rig){
        reinvented, and it reaches the same place Func and the arrows do. */
     case B_TRACK_PREV: rig.step(-1); break;
     case B_TRACK_NEXT: rig.step(1); break;
-    /* ⚠️ INSTANT, NOT A WIND. The deck's own Rewind spools back at fourteen times and is a
-       picture of a machine doing something; this is the button you press to get to the top
-       of the take and start again, and waiting through the animation to do that is the
-       whole reason return-to-zero exists as a separate control on real decks. */
-    case B_SCENE: rig.home(); break;
+    /* ">" is whatever the panel says it is — see act() in shell/surface.js. On the mixer it
+       is return to zero: ⚠️ instant, not a wind, because the deck's own Rewind spools back at
+       fourteen times and is a picture of a machine doing something, and waiting through the
+       animation to restart a take is the whole reason real decks have both. */
+    case B_SCENE: said(io, rig.act()); break;
     /* ⚠️ AND THE ARROWS BESIDE THE ENCODERS BELONG TO THE ENCODERS — the same rule as the
        pair beside the pads, applied to the other half of the surface. They move which eight
        the encoders point at, which on DR·1 means which drum and on PM·1 means which group
        of parameters. Neither fact is known here; see controlBanks() in shell/surface.js. */
-    case B_ENC_UP: rig.controlBankBy(-1); break;
-    case B_ENC_DN: rig.controlBankBy(1); break;
+    case B_ENC_UP: encArrow(io, rig, -1); break;
+    case B_ENC_DN: encArrow(io, rig, 1); break;
   }
 }
 
@@ -2993,15 +3065,21 @@ function paintButtons(io, rig){
   /* The encoder arrows, like the pad arrows, say whether there is anywhere to go. An
      instrument with eight controls or fewer has one bank and leaves them dark. */
   const bank = rig.controlBank(), banks = rig.controlBanks().length;
-  want[B_ENC_UP] = bank > 0 ? dim(PAL.orchid) : 0;
-  want[B_ENC_DN] = bank < banks - 1 ? dim(PAL.orchid) : 0;
+  if (banks < 2 && rig.canBump){
+    /* Nothing to page, so the pair is the panel's own pair — lit, and a different colour,
+       because a familiar button doing something else should say so. */
+    want[B_ENC_UP] = dim(PAL.spring); want[B_ENC_DN] = dim(PAL.spring);
+  } else {
+    want[B_ENC_UP] = bank > 0 ? dim(PAL.orchid) : 0;
+    want[B_ENC_DN] = bank < banks - 1 ? dim(PAL.orchid) : 0;
+  }
   /* ⚠️ Track shares its LEDs with the arrows on the hardware — they are the same two lamps —
      so writing a second colour to 102/103 would fight the page indicator for the same
      bulbs. Left alone deliberately. */
   /* Function lights while it is held, so a modifier you cannot see on the key cap is at
      least visible on it. ">" has no job yet and stays dark rather than inviting a press. */
   want[B_FUNC] = io.state.fn ? PAL.white : dim(PAL.white);
-  want[B_SCENE] = rig.canHome ? dim(PAL.sky) : 0;
+  want[B_SCENE] = rig.canAct ? dim(PAL.sky) : 0;
   Object.keys(want).forEach(cc => {
     if (s.btns[cc] === want[cc]) return;
     s.btns[cc] = want[cc];
@@ -6217,9 +6295,15 @@ let ctx = null, out = null, bassOut = null, comp = null;
 /* One flat object IS the patch — MS·1's rule, and for the same reason: a patch that omits
    a parameter must RESET it, not inherit whatever was dialled in before the load. */
 const DEFAULT = {
-  wave:"saw", oct:-1, level:.85, sub:.6,
+  wave:"saw", oct:-1, level:.85, sub:.6, subOct:-1,
   cut:420, res:5, env:2.4, dec:.35, glide:0, tone:.5
 };
+/* ⚠️ HOW FAR BELOW THE SUB SITS, and it used to be nowhere: the square was hard-wired to
+   f0/2 in three places. One octave down is the classic bass sub and stays the default; two
+   is the one you reach for when the line is already low and you want weight rather than
+   another note. A divisor rather than a ratio, so the arithmetic reads the same way at all
+   three sites it appears. */
+const subDiv = () => Math.pow(2, -P.subOct);
 const P = Object.assign({}, DEFAULT);
 
 const UNITY = 0.27;          // measured trim, as in MS·1
@@ -6251,7 +6335,7 @@ function buildVoice(midi, vel, t){
   o.connect(og); og.connect(mix); o.start(t);
 
   const sub = ctx.createOscillator();
-  sub.type = "square"; sub.frequency.value = f0 / 2;
+  sub.type = "square"; sub.frequency.value = f0 / subDiv();
   const sg = ctx.createGain(); sg.gain.value = UNITY * P.sub;
   sub.connect(sg); sg.connect(mix); sub.start(t);
 
@@ -6296,12 +6380,12 @@ function buildVoice(midi, vel, t){
     v.midi = m;
     const f = mtof(m) * Math.pow(2, P.oct);
     if (glideT > 0){
-      [[o, f], [sub, f / 2]].forEach(([node, target]) => {
+      [[o, f], [sub, f / subDiv()]].forEach(([node, target]) => {
         node.frequency.cancelScheduledValues(t2);
         node.frequency.setValueAtTime(Math.max(1e-4, node.frequency.value), t2);
         node.frequency.exponentialRampToValueAtTime(Math.max(1e-4, target), t2 + glideT);
       });
-    } else { o.frequency.setValueAtTime(f, t2); sub.frequency.setValueAtTime(f / 2, t2); }
+    } else { o.frequency.setValueAtTime(f, t2); sub.frequency.setValueAtTime(f / subDiv(), t2); }
   };
   v.retrigger = function(t2, m, vel2, glideT){
     v.setPitch(t2, m, glideT);
@@ -6392,6 +6476,10 @@ function applyLive(){
     v.fAmt.gain.setTargetAtTime(P.env * 1200, t, .01);
     v.pk.gain.setTargetAtTime(P.level * .85, t, .01);
     v.sg.gain.setTargetAtTime(UNITY * P.sub, t, .01);
+    /* The sub retunes under a held pedal like everything else here. Dropping it an octave
+       and hearing nothing until the next note would read as the switch not working. */
+    if (v.midi != null)
+      v.sub.frequency.setTargetAtTime(mtof(v.midi) * Math.pow(2, P.oct) / subDiv(), t, .01);
     /* Resonance is structural — it sets both biquads' Q at build time — so it is the one
        control here that waits for the next note. Everything else moves under a held pedal. */
   });
@@ -6669,6 +6757,18 @@ $("#wave").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   setWave(b.dataset.w);
 });
+
+/* How far below the main oscillator the square sub sits. Live under a held pedal — see
+   applyLive() in engine.js. */
+function setSubOct(v){
+  P.subOct = +v === -2 ? -2 : -1;
+  $$("#subOct button").forEach(x => x.classList.toggle("on", +x.dataset.s === P.subOct));
+  applyLive();
+}
+$("#subOct").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  setSubOct(b.dataset.s);
+});
 const OCTS = [-2, -1, 0];
 function setOct(v){
   P.oct = OCTS.indexOf(v) < 0 ? 0 : v;
@@ -6775,6 +6875,7 @@ paintNow();
 function refreshAllControls(){
   Object.keys(faderReg).forEach(id => { const f = faderReg[id]; if (f && f.paint) f.paint(); });
   setWave(P.wave);
+  setSubOct(P.subOct);
   setOct(P.oct);
   applyLive();
 }
@@ -6930,6 +7031,35 @@ function surfaceShiftControls(){
   return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
 }
 
+/* ---- the two spare buttons ----
+   BS·1 has one bank of encoders and no tape, so the pair beside the encoders and the ">"
+   beside the pads are both free — and the two switches on this panel that a hand reaches
+   for mid-line are exactly two. Both go through the panel's own segmented controls, so
+   what the click does happens here too, and both answer with a word for the display. */
+function surfaceBump(dir){
+  /* ⚠️ UP IS UP, and the arrow the hand pressed has to agree with the ear: down goes to the
+     lower octave whatever order the buttons happen to sit in.
+
+     ⚠️ AND THE CURRENT VALUE COMES FROM THE PARAMETER, not from which button is wearing the
+     `on` class. The parameter is the truth here — a patch load writes it and the class
+     follows — so reading the class would put this one step behind any change that did not
+     come through a click. */
+  const want = Math.max(-2, Math.min(-1, P.subOct + (dir > 0 ? -1 : 1)));
+  if (want === P.subOct) return null;
+  const b = Array.prototype.find.call($$("#subOct button"), x => +x.dataset.s === want);
+  if (!b) return null;
+  b.click();                          // the panel's own control, so the class follows too
+  return P.subOct + " oct";
+}
+function surfaceAction(){
+  const b = $$("#wave button");
+  const at = Array.prototype.findIndex.call(b, x => x.classList.contains("on"));
+  const to = b[(at + 1) % b.length];
+  if (!to) return null;
+  to.click();
+  return to.textContent.trim();
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true); return;
@@ -6944,6 +7074,8 @@ function initMidi(){
     name: "BS\u00b71", panic: midiPanic,
     controls: surfaceControls, shiftControls: surfaceShiftControls,
     shiftName: "Seq", grid: surfaceGrid,
+    bump: surfaceBump, bumpName: "Sub",
+    action: surfaceAction, actionName: "Wave",
     inCh: {get: () => MIDI.inCh,
            set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
   });

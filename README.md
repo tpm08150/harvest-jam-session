@@ -291,11 +291,14 @@ instrument decides what a bank is:
   selected, so choosing the lane *is* choosing the eight; Swing and Accent are the pattern's
   and sit still across all of them. The pads follow too, since the step grid shows the
   selected lane — one button and the whole surface moves to the next drum.
-- **PM·1** — a bank is a group of parameters: **Perform, Filter, Flt env, Amp env, Osc,
-  Shape, LFO, Keys**. ⚠️ The first is not a group but a *hand* — cutoff, resonance, envelope
-  amount and the amp envelope, gathered from three different sections of the panel, because
-  those are what you reach for while a part is playing. Starting at Oscillator 1 because that
-  is where the panel starts would put the least-touched knobs under your fingers by default.
+- **PM·1** — a bank is a group of parameters: **Key, Perform, Filter, Flt env, Amp env, Osc,
+  Shape, LFO**. The first is the panel's key-assign row — `Key Gld Pri Tim Det Wid Bnd`: how
+  the voice is allocated, whether it glides, which note wins, and the four knobs beside them.
+  ⚠️ Three of those are *segmented rows* rather than knobs, which is why they were unreachable
+  before — a list under a continuous control needs the index treatment, and `segment()` in
+  `shell/surface.js` does it once for every panel that has one. Perform is second, and is not
+  a group but a *hand*: cutoff, resonance, envelope amount and the amp envelope, gathered from
+  three different sections because those are what you reach for mid-part.
 - **Everything else** has eight controls or fewer, one bank, and the arrows stay dark.
 
 One mechanism, two meanings, and that is the point rather than a compromise: the surface asks
@@ -555,6 +558,18 @@ rather than its sound:
 | **CS·1** | `Key Mod Len M/m Arp Pls Swg Bas` — key, mood, chord count, major/minor, arp rate, pulse, swing, bass |
 | **PM·1, BS·1, VC·1** | `Stp Rat Key Scl` — steps, rate, key, scale |
 | **DR·1** | `Stp Rat` — a drum pattern has no key and no scale |
+
+**BS·1 also uses the two spare buttons.** It has one encoder bank and no tape, so the pair
+beside the encoders and the `>` beside the pads are both free — and the two switches a hand
+reaches for mid-line are exactly two: **∧ ∨ moves the sub oscillator's octave**, and **`>`
+flips saw to square**. Both flash what they did on the screen, because a button whose effect
+you cannot see is one you press twice, which on a toggle puts it back where it started.
+
+⚠️ The sub octave is **new**. BS·1's square sub was hard-wired one octave below in three
+places; it is now a parameter with its own switch on the panel, saved with the patch, and it
+retunes under a held pedal like everything else there. One octave down stays the default —
+two is the one you reach for when the line is already low and you want weight rather than
+another note.
 
 ⚠️ CS·1's Mood and Mode are one letter apart on the panel and would be one letter apart in a
 three-character legend, so Mode is spelled `M/m`: it is the major-or-minor switch, and saying

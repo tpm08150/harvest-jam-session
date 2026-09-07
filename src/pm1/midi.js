@@ -324,7 +324,21 @@ $("#clearMap").addEventListener("click", () => {
 
    `short` is the name for the controller's own legend, which lays eight names out 2x4 across
    128 pixels — six characters, chosen rather than truncated. See cs1/midi.js. */
+/* ⚠️ THE FIRST BANK IS THE KEY-ASSIGN ROW, not a group and not a hand. It is the panel's own
+   top block — how the voice is allocated, whether it glides, which note wins — and those are
+   the decisions you change while playing rather than while designing a sound. Three of them
+   are segmented rows rather than knobs, which is exactly why they were not reachable before:
+   a list under a continuous control needs the index treatment, and segment() in
+   shell/surface.js does it once for every panel that has one.
+
+   The rest of the banks are the panel's own groups, for when you are setting a sound up.
+   Perform stays second — cutoff, resonance, envelope amount and the amp envelope, gathered
+   from three different sections because those are what a hand reaches for mid-part. */
 const SURFACE_BANKS = [
+  {name: "Key", segs: [["voiceMode", "Key assign", "Key"], ["glideMode", "Glide", "Gld"],
+                       ["prio", "Priority", "Pri"]],
+   ids: [["glide", "Glide time", "Tim"], ["unidet", null, "Det"],
+         ["unispread", null, "Wid"], ["bend", null, "Bnd"]]},
   {name: "Perform", ids: [["fcut", null, "Cut"], ["fres", null, "Res"], ["fenv", null, "Env"],
                           ["fd", "Flt dec", "FDc"], ["aa", "Amp att", "Atk"],
                           ["ad", "Amp dec", "Dec"], ["as", "Amp sus", "Sus"],
@@ -343,14 +357,17 @@ const SURFACE_BANKS = [
   {name: "Shape",   ids: [["pw", null, "Wid"], ["pwm", null, "PWM"], ["pwmrate", null, "PWR"],
                           ["ring", null, "Rng"], ["fm", null, "FM"]]},
   {name: "LFO",     ids: [["lfor", null, "Rat"], ["lfod", null, "Dly"], ["lfop", null, "Pit"],
-                          ["lfof", null, "Flt"], ["lfoa", null, "Amp"]]},
-  {name: "Keys",    ids: [["glide", null, "Gld"], ["unidet", null, "UDt"],
-                          ["unispread", null, "UWd"], ["bend", null, "Bnd"]]}
+                          ["lfof", null, "Flt"], ["lfoa", null, "Amp"]]}
 ];
 let ctlBank = 0;
 function bankNow(){ return Math.min(ctlBank, SURFACE_BANKS.length - 1); }
 function surfaceControls(){
-  return SURFACE_BANKS[bankNow()].ids
+  const b = SURFACE_BANKS[bankNow()];
+  /* Segmented rows first, then knobs — the order the panel itself is laid out in. */
+  const segs = (b.segs || [])
+    .map(e => Patchwork.surface.segment($("#" + e[0]), e[1], e[2]))
+    .filter(Boolean);
+  const knobs = (b.ids || [])
     .map(e => (typeof e === "string" ? [e, null, null] : e))
     .filter(e => ctlReg[e[0]] && ctlReg[e[0]].get)
     .map(e => ({
@@ -358,6 +375,7 @@ function surfaceControls(){
       get: () => ctlReg[e[0]].get(),
       set: v => ctlReg[e[0]].set(v)
     }));
+  return segs.concat(knobs);
 }
 function surfaceBanks(){ return SURFACE_BANKS.map(b => ({name: b.name})); }
 function setSurfaceBank(i){ ctlBank = Math.max(0, Math.min(SURFACE_BANKS.length - 1, i)); }

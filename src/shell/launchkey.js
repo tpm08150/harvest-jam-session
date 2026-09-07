@@ -178,6 +178,19 @@ function hue(name){ return PAL[name] == null ? PAL.white : PAL[name]; }
    dead on arrival. */
 function altHeld(io){ return !!(io.state && (io.state.fn || io.state.shift)); }
 
+/* The pair beside the encoders: pages the banks where there are banks, and where there are
+   not, does whatever the panel offers instead. The same fallthrough the pad arrows use. */
+function encArrow(io, rig, dir){
+  if (rig.controlBankBy(dir)) return;
+  said(io, rig.bump(dir));
+}
+/* Put what just happened on the screen. A button whose effect you cannot see is one you
+   press twice to check, which on a toggle puts it back where it started. */
+function said(io, r){
+  if (!r || r.value == null || r.value === false) return;
+  flash(io, r.name || "", String(r.value));
+}
+
 /* ---- the screen --------------------------------------------------------------
    Guide, "Controlling the screen". Configure a display once to say how many lines it has,
    then fill its fields with text. Both are SysEx, so both are silently skipped on a page
@@ -210,6 +223,10 @@ function ascii(s, max){
     else if (ch === "·") out.push(45);        // · in CS·1, PM·1 … → hyphen
     else if (ch === "♭") out.push(0x1D);      // ♭ → the device's own flat symbol
     else if (ch === "♯") out.push(35);        // ♯ → #
+    /* ⚠️ A TYPOGRAPHIC MINUS IS NOT A HYPHEN. Panels are set with U+2212 because it lines up
+       with digits; the screen has never heard of it, and "−2" arrived as " 2" — a value that
+       read as positive on a control that only goes down. */
+    else if (ch === "−" || ch === "–" || ch === "—") out.push(45);
     else out.push(32);
   });
   return out;
@@ -539,17 +556,17 @@ function message(io, d, rig){
        reinvented, and it reaches the same place Func and the arrows do. */
     case B_TRACK_PREV: rig.step(-1); break;
     case B_TRACK_NEXT: rig.step(1); break;
-    /* ⚠️ INSTANT, NOT A WIND. The deck's own Rewind spools back at fourteen times and is a
-       picture of a machine doing something; this is the button you press to get to the top
-       of the take and start again, and waiting through the animation to do that is the
-       whole reason return-to-zero exists as a separate control on real decks. */
-    case B_SCENE: rig.home(); break;
+    /* ">" is whatever the panel says it is — see act() in shell/surface.js. On the mixer it
+       is return to zero: ⚠️ instant, not a wind, because the deck's own Rewind spools back at
+       fourteen times and is a picture of a machine doing something, and waiting through the
+       animation to restart a take is the whole reason real decks have both. */
+    case B_SCENE: said(io, rig.act()); break;
     /* ⚠️ AND THE ARROWS BESIDE THE ENCODERS BELONG TO THE ENCODERS — the same rule as the
        pair beside the pads, applied to the other half of the surface. They move which eight
        the encoders point at, which on DR·1 means which drum and on PM·1 means which group
        of parameters. Neither fact is known here; see controlBanks() in shell/surface.js. */
-    case B_ENC_UP: rig.controlBankBy(-1); break;
-    case B_ENC_DN: rig.controlBankBy(1); break;
+    case B_ENC_UP: encArrow(io, rig, -1); break;
+    case B_ENC_DN: encArrow(io, rig, 1); break;
   }
 }
 
@@ -621,15 +638,21 @@ function paintButtons(io, rig){
   /* The encoder arrows, like the pad arrows, say whether there is anywhere to go. An
      instrument with eight controls or fewer has one bank and leaves them dark. */
   const bank = rig.controlBank(), banks = rig.controlBanks().length;
-  want[B_ENC_UP] = bank > 0 ? dim(PAL.orchid) : 0;
-  want[B_ENC_DN] = bank < banks - 1 ? dim(PAL.orchid) : 0;
+  if (banks < 2 && rig.canBump){
+    /* Nothing to page, so the pair is the panel's own pair — lit, and a different colour,
+       because a familiar button doing something else should say so. */
+    want[B_ENC_UP] = dim(PAL.spring); want[B_ENC_DN] = dim(PAL.spring);
+  } else {
+    want[B_ENC_UP] = bank > 0 ? dim(PAL.orchid) : 0;
+    want[B_ENC_DN] = bank < banks - 1 ? dim(PAL.orchid) : 0;
+  }
   /* ⚠️ Track shares its LEDs with the arrows on the hardware — they are the same two lamps —
      so writing a second colour to 102/103 would fight the page indicator for the same
      bulbs. Left alone deliberately. */
   /* Function lights while it is held, so a modifier you cannot see on the key cap is at
      least visible on it. ">" has no job yet and stays dark rather than inviting a press. */
   want[B_FUNC] = io.state.fn ? PAL.white : dim(PAL.white);
-  want[B_SCENE] = rig.canHome ? dim(PAL.sky) : 0;
+  want[B_SCENE] = rig.canAct ? dim(PAL.sky) : 0;
   Object.keys(want).forEach(cc => {
     if (s.btns[cc] === want[cc]) return;
     s.btns[cc] = want[cc];

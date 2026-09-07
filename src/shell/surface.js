@@ -184,15 +184,32 @@ const rig = {
     if (f && f.spec && typeof f.spec.rolling === "boolean") return f.spec.rolling;
     return rig.playing;
   },
-  /* Back to the start of whatever this page is playing. */
-  get canHome(){
+  /* ---- the two spare buttons ----
+   ⚠️ NAMED FOR THE GESTURE, NOT FOR THE MEANING, because the meaning is the panel's. `>` is
+   one press and `bump` is a pair that counts up and down, and what each does is whatever the
+   thing you are pointed at says: on the mixer `>` returns the tape to zero, on BS·1 it flips
+   saw to square. Same shape as the arrows beside the pads, which page a grid where there is
+   one and scrub a tape where there is not.
+
+   Both may return a string, which is what just happened in words — the display flashes it,
+   because a button whose effect you cannot see is a button you press twice. */
+  get canAct(){
     const f = rig.focus;
-    return !!(f && typeof f.spec.home === "function");
+    return !!(f && typeof f.spec.action === "function");
   },
-  home(){
+  act(){
     const f = rig.focus;
-    if (!f || typeof f.spec.home !== "function") return false;
-    try{ f.spec.home(); return true; }catch(e){ return false; }
+    if (!f || typeof f.spec.action !== "function") return null;
+    try{ return {name: f.spec.actionName || "", value: f.spec.action()}; }catch(e){ return null; }
+  },
+  get canBump(){
+    const f = rig.focus;
+    return !!(f && typeof f.spec.bump === "function");
+  },
+  bump(dir){
+    const f = rig.focus;
+    if (!f || typeof f.spec.bump !== "function") return null;
+    try{ return {name: f.spec.bumpName || "", value: f.spec.bump(dir)}; }catch(e){ return null; }
   },
   /* Held rather than pressed: a scrub runs while a finger is down and stops when it lifts,
      so a profile passes both edges and the page decides what "moving" means. `speed` is a
@@ -641,7 +658,38 @@ function option(el, label, short){
   };
 }
 
-return {register, mount, onView, option, connect, disconnect, restore, rig,
+/* ---- a segmented control as a control ----
+   The same bargain option() makes, for the other way a panel offers a short list: a row of
+   buttons with the current one wearing `on`. Addressed by index, marked `stepped`, and set
+   by clicking the button rather than writing anything — so whatever the panel does when the
+   row is used happens here too.
+
+   ⚠️ Unlike option(), the current value IS read from the class, because for a segmented
+   control that class is not a rendering of the state kept elsewhere — it is where the state
+   lives. There is no parameter behind it to prefer. */
+function segment(el, label, short){
+  if (!el) return null;
+  const btns = () => Array.prototype.slice.call(el.querySelectorAll("button"));
+  const at = () => {
+    const b = btns();
+    for (let i = 0; i < b.length; i++) if (b[i].classList.contains("on")) return i;
+    return 0;
+  };
+  const last = () => Math.max(1, btns().length - 1);
+  return {
+    id: el.id || label, label, short, stepped: true,
+    text: () => { const b = btns()[at()]; return b ? b.textContent.trim() : ""; },
+    get: () => at() / last(),
+    set: v => {
+      const b = btns();
+      const i = Math.max(0, Math.min(b.length - 1, Math.round(v * last())));
+      if (i === at() || !b[i]) return;
+      b[i].click();
+    }
+  };
+}
+
+return {register, mount, onView, option, segment, connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
                                                        label: f.det.label || f.profile.name})); },

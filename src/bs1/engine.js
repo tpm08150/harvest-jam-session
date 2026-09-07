@@ -18,9 +18,15 @@ let ctx = null, out = null, bassOut = null, comp = null;
 /* One flat object IS the patch — MS·1's rule, and for the same reason: a patch that omits
    a parameter must RESET it, not inherit whatever was dialled in before the load. */
 const DEFAULT = {
-  wave:"saw", oct:-1, level:.85, sub:.6,
+  wave:"saw", oct:-1, level:.85, sub:.6, subOct:-1,
   cut:420, res:5, env:2.4, dec:.35, glide:0, tone:.5
 };
+/* ⚠️ HOW FAR BELOW THE SUB SITS, and it used to be nowhere: the square was hard-wired to
+   f0/2 in three places. One octave down is the classic bass sub and stays the default; two
+   is the one you reach for when the line is already low and you want weight rather than
+   another note. A divisor rather than a ratio, so the arithmetic reads the same way at all
+   three sites it appears. */
+const subDiv = () => Math.pow(2, -P.subOct);
 const P = Object.assign({}, DEFAULT);
 
 const UNITY = 0.27;          // measured trim, as in MS·1
@@ -52,7 +58,7 @@ function buildVoice(midi, vel, t){
   o.connect(og); og.connect(mix); o.start(t);
 
   const sub = ctx.createOscillator();
-  sub.type = "square"; sub.frequency.value = f0 / 2;
+  sub.type = "square"; sub.frequency.value = f0 / subDiv();
   const sg = ctx.createGain(); sg.gain.value = UNITY * P.sub;
   sub.connect(sg); sg.connect(mix); sub.start(t);
 
@@ -97,12 +103,12 @@ function buildVoice(midi, vel, t){
     v.midi = m;
     const f = mtof(m) * Math.pow(2, P.oct);
     if (glideT > 0){
-      [[o, f], [sub, f / 2]].forEach(([node, target]) => {
+      [[o, f], [sub, f / subDiv()]].forEach(([node, target]) => {
         node.frequency.cancelScheduledValues(t2);
         node.frequency.setValueAtTime(Math.max(1e-4, node.frequency.value), t2);
         node.frequency.exponentialRampToValueAtTime(Math.max(1e-4, target), t2 + glideT);
       });
-    } else { o.frequency.setValueAtTime(f, t2); sub.frequency.setValueAtTime(f / 2, t2); }
+    } else { o.frequency.setValueAtTime(f, t2); sub.frequency.setValueAtTime(f / subDiv(), t2); }
   };
   v.retrigger = function(t2, m, vel2, glideT){
     v.setPitch(t2, m, glideT);
@@ -193,6 +199,10 @@ function applyLive(){
     v.fAmt.gain.setTargetAtTime(P.env * 1200, t, .01);
     v.pk.gain.setTargetAtTime(P.level * .85, t, .01);
     v.sg.gain.setTargetAtTime(UNITY * P.sub, t, .01);
+    /* The sub retunes under a held pedal like everything else here. Dropping it an octave
+       and hearing nothing until the next note would read as the switch not working. */
+    if (v.midi != null)
+      v.sub.frequency.setTargetAtTime(mtof(v.midi) * Math.pow(2, P.oct) / subDiv(), t, .01);
     /* Resonance is structural — it sets both biquads' Q at build time — so it is the one
        control here that waits for the next note. Everything else moves under a held pedal. */
   });

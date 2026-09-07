@@ -84,6 +84,35 @@ function surfaceShiftControls(){
   return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
 }
 
+/* ---- the two spare buttons ----
+   BS·1 has one bank of encoders and no tape, so the pair beside the encoders and the ">"
+   beside the pads are both free — and the two switches on this panel that a hand reaches
+   for mid-line are exactly two. Both go through the panel's own segmented controls, so
+   what the click does happens here too, and both answer with a word for the display. */
+function surfaceBump(dir){
+  /* ⚠️ UP IS UP, and the arrow the hand pressed has to agree with the ear: down goes to the
+     lower octave whatever order the buttons happen to sit in.
+
+     ⚠️ AND THE CURRENT VALUE COMES FROM THE PARAMETER, not from which button is wearing the
+     `on` class. The parameter is the truth here — a patch load writes it and the class
+     follows — so reading the class would put this one step behind any change that did not
+     come through a click. */
+  const want = Math.max(-2, Math.min(-1, P.subOct + (dir > 0 ? -1 : 1)));
+  if (want === P.subOct) return null;
+  const b = Array.prototype.find.call($$("#subOct button"), x => +x.dataset.s === want);
+  if (!b) return null;
+  b.click();                          // the panel's own control, so the class follows too
+  return P.subOct + " oct";
+}
+function surfaceAction(){
+  const b = $$("#wave button");
+  const at = Array.prototype.findIndex.call(b, x => x.classList.contains("on"));
+  const to = b[(at + 1) % b.length];
+  if (!to) return null;
+  to.click();
+  return to.textContent.trim();
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true); return;
@@ -98,6 +127,8 @@ function initMidi(){
     name: "BS\u00b71", panic: midiPanic,
     controls: surfaceControls, shiftControls: surfaceShiftControls,
     shiftName: "Seq", grid: surfaceGrid,
+    bump: surfaceBump, bumpName: "Sub",
+    action: surfaceAction, actionName: "Wave",
     inCh: {get: () => MIDI.inCh,
            set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
   });

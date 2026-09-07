@@ -577,11 +577,13 @@ if (window.Patchwork && Patchwork.surface){
     },
     /* ⚠️ Instant, and it stops first — "back to the top" is a thing you do in order to play
        from there, and arriving still rolling means arriving somewhere else. */
-    home: () => {
+    actionName: "Tape",
+    action: () => {
       const T = Patchwork.tape;
-      if (!T) return;
+      if (!T) return null;
       if (T.state === "play" || T.state === "rec") T.stop();
       T.seek(0);
+      return "Start";
     },
     /* ⚠️ SCRUB IS A SEEK, NOT THE DECK'S REWIND. `rewind()` means "wind back to the start"
        and is animated to zero by the panel; this is a position you hold and let go of, in

@@ -271,6 +271,18 @@ $("#wave").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   setWave(b.dataset.w);
 });
+
+/* How far below the main oscillator the square sub sits. Live under a held pedal — see
+   applyLive() in engine.js. */
+function setSubOct(v){
+  P.subOct = +v === -2 ? -2 : -1;
+  $$("#subOct button").forEach(x => x.classList.toggle("on", +x.dataset.s === P.subOct));
+  applyLive();
+}
+$("#subOct").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  setSubOct(b.dataset.s);
+});
 const OCTS = [-2, -1, 0];
 function setOct(v){
   P.oct = OCTS.indexOf(v) < 0 ? 0 : v;
@@ -377,6 +389,7 @@ paintNow();
 function refreshAllControls(){
   Object.keys(faderReg).forEach(id => { const f = faderReg[id]; if (f && f.paint) f.paint(); });
   setWave(P.wave);
+  setSubOct(P.subOct);
   setOct(P.oct);
   applyLive();
 }
