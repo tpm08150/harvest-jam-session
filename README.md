@@ -310,13 +310,18 @@ sixteen on pads with no numbers is otherwise a guess every time you look down.
 again** — the same call clicking and shift-clicking the box makes, which is also why a slot
 track records a real audio take here without the pads knowing they did anything different.
 
-⚠️ **An empty cell sits at the dimmest shade the palette offers.** Each hue has four levels,
-and "nothing here" used to be the middle one — fine on a grid of one colour, and not on a
-launcher whose seven columns are seven colours: every pad lit in *something* makes the few
-holding a pattern hard to pick out, which is the one thing the grid is for. `DIM_STEP` in
-`shell/launchkey.js` is the single number to change if a dark room makes the empty ones
-vanish. Off is not an option: an empty cell you can still press must not look like a pad that
-does nothing.
+⚠️ **Colour means "there is something here."** It used to mean "this column is the bass" in
+every state, with brightness carrying whether the cell was full — so a grid of eight columns
+was lit in eight colours whether or not anything was in it, and the one question you actually
+ask it was answered by a brightness step you had to compare against neighbours to read. An
+empty cell is **white** and dim: white belongs to no instrument, so it reads as absence rather
+than as a ninth column. Only a cell with something in it wears a colour, and which colour
+still says whose it is.
+
+(Elsewhere, an empty pad sits at the dimmest shade of its own hue — each has four levels and
+"nothing here" used to be the middle one. `DIM_STEP` in `shell/launchkey.js` is the number to
+raise if a dark room makes them vanish. Off is not an option: an empty cell you can still
+press must not look like a pad that does nothing.)
 
 ⚠️ **A column is an instrument, so a *pad* has its colour** — and the boxes on screen do not.
 Tried both and took the second back out: on the hardware the columns are unlabelled and colour
