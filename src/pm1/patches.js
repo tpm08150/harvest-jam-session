@@ -23,7 +23,7 @@ function snapshot(){
     app:"patchwork-pm1", v:PATCH_VERSION,
     params:Object.assign({}, P),
     bpm:SEQ.bpmExact, octave:octave,
-    seq:{motion:SEQ.motion, len:SEQ.len, rate:SEQ.rate, gate:SEQ.gate, swing:SEQ.swing,
+    seq:{motion:SEQ.motion, keyTrig:SEQ.keyTrig, len:SEQ.len, rate:SEQ.rate, gate:SEQ.gate, swing:SEQ.swing,
          dir:SEQ.dir, octaves:SEQ.octaves, root:SEQ.root, scale:SEQ.scale, vel:SEQ.vel,
          accentAmt:SEQ.accentAmt,
          steps:SEQ.steps.map(s => [s.on,s.pitch,s.oct,s.gate,s.accent,s.slide,s.tie,
@@ -68,6 +68,9 @@ function restore(s){
   setOctave(numOr(s.octave, -3, 3, 0));
   const q = s.seq || {};
   SEQ.motion = oneOf(q.motion, ["off","arp","seq"], SEQ.motion);
+  /* Older patches predate the setting and have to land on the behaviour they were saved
+     under, which is the one this panel has always had: the keys start it. */
+  SEQ.keyTrig = q.keyTrig == null ? true : !!q.keyTrig;
   SEQ.len    = oneOf(q.len, [8,12,16,32], 16);
   SEQ.rate   = oneOf(q.rate, Object.keys(RATES), "1/16");
   SEQ.gate   = numOr(q.gate, .05, 1, .5);
@@ -104,7 +107,7 @@ function restore(s){
   seqRateSel.value = SEQ.rate;
   if (ctlReg.gate) ctlReg.gate.render();
   if (ctlReg.swing) ctlReg.swing.render();
-  segPaint.motion(); segPaint.arpDir(); segPaint.arpOct(); segPaint.seqMode();
+  segPaint.motion(); segPaint.keyTrig(); segPaint.arpDir(); segPaint.arpOct(); segPaint.seqMode();
   paintSeqKey(); paintLocks();
   if (typeof paintBassNote === "function") paintBassNote();
   if (typeof paintKeysNote === "function") paintKeysNote();

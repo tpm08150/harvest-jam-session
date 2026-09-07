@@ -709,6 +709,14 @@ input[type="text"]::placeholder{color:#5a646a}
         <button data-m="arp">Arp</button>
         <button data-m="seq">Seq</button>
       </div>
+      <!-- ⚠️ On, the keys own the transport: the first note starts the pattern and the last
+           release stops it, which is what makes the arp something you PLAY. Off, Play is the
+           only transport — because you cannot record a part over a pattern that stops the
+           moment your hands leave the keys. -->
+      <div class="seg sm" id="keyTrig" role="group" aria-label="Keys start and stop the pattern">
+        <button data-k="on" class="on">Key trig</button>
+        <button data-k="off">Free</button>
+      </div>
       <div class="seg sm" id="arpDir" data-arponly role="group" aria-label="Arp direction">
         <button data-d="up" class="on">Up</button>
         <button data-d="down">Down</button>
@@ -2480,32 +2488,40 @@ const rig = {
      stay on; this is the handful you reach for while holding a key and let go of — the
      pattern's own settings rather than its sound. A panel that offers none falls back to its
      ordinary eight, so holding the key never makes a familiar encoder do nothing. */
-  controls(alt){
+  /* ⚠️ `layer` NAMES A MODIFIER'S ROLE, NOT ITS KEY. "alt" is the general one and "act" is the
+     one that doubles as a button — which is a fact about how a surface is shaped rather than
+     about a Launchkey, and the profile decides which of its keys means which. A layer a panel
+     does not offer falls back to the ordinary eight, so a familiar encoder never goes dead
+     under a key that means nothing here. */
+  controls(layer){
     const f = rig.focus;
     if (!f) return [];
-    if (alt && typeof f.spec.shiftControls === "function"){
+    const key = layer === "act" ? "actControls" : layer === "alt" ? "shiftControls" : null;
+    if (key && typeof f.spec[key] === "function"){
       try{
-        const list = f.spec.shiftControls() || [];
+        const list = f.spec[key]() || [];
         if (list.length) return list.slice(0, 8);
       }catch(e){}
     }
     if (typeof f.spec.controls !== "function") return [];
     try{ return (f.spec.controls() || []).slice(0, 8); }catch(e){ return []; }
   },
-  /* Whether holding the key would actually change anything here, for a display that should
-     only announce a second eight when there is one. */
-  hasAlt(){
+  /* Whether holding that key would actually change anything here, for a display that should
+     only announce a layer when there is one. */
+  hasLayer(layer){
     const f = rig.focus;
-    if (!f || typeof f.spec.shiftControls !== "function") return false;
-    try{ return (f.spec.shiftControls() || []).length > 0; }catch(e){ return false; }
+    const key = layer === "act" ? "actControls" : layer === "alt" ? "shiftControls" : null;
+    if (!f || !key || typeof f.spec[key] !== "function") return false;
+    try{ return (f.spec[key]() || []).length > 0; }catch(e){ return false; }
   },
   /* ⚠️ WHAT THE SECOND EIGHT ARE, NOT WHICH KEY REACHES THEM. The legend used to say
      "Shift", which was a guess about the hardware written into the part of the app furthest
      from it — and the wrong guess, since the key that actually works may be Func. The names
      under it already say what they are; the title should agree with them. */
-  altName(){
+  layerName(layer){
     const f = rig.focus;
-    return (f && f.spec && f.spec.shiftName) || "Alt";
+    if (!f || !f.spec) return "Alt";
+    return (layer === "act" ? f.spec.actName : f.spec.shiftName) || "Alt";
   },
 
   /* ---- banks of eight ----
@@ -3144,6 +3160,16 @@ function hue(name){ return PAL[name] == null ? PAL.white : PAL[name]; }
    So either one opens it. That is not indecision: they are two keys asking the same
    question, and accepting both costs a boolean and removes the only way this feature can be
    dead on arrival. */
+/* ⚠️ WHICH LAYER THE HANDS ARE ASKING FOR. Func and Shift both open the general one — see
+   above for why both. ">" opens the other, and it is the one key here that is a BUTTON as
+   well: held with a knob it is a modifier, pressed and released on its own it is an action.
+   Which of the two it turned out to be is only knowable at the release, so `actUsed` records
+   whether anything happened in between. */
+function layerHeld(io){
+  if (!io.state) return "";
+  if (io.state.act) return "act";
+  return (io.state.fn || io.state.shift) ? "alt" : "";
+}
 function altHeld(io){ return !!(io.state && (io.state.fn || io.state.shift)); }
 
 /* The pair beside the encoders: pages the banks where there are banks, and where there are
@@ -3283,6 +3309,8 @@ function start(io, rig){
     padMode: PAD_DAW,
     fn: false,                         // Function held — the accent modifier
     shift: false,                      // Shift held — the encoders' second eight
+    act: false,                        // ">" held — a modifier while it is down, a button when it is not
+    actUsed: false,                    // ...and whether it was used as one
     scrub: 0,                          // which arrow is scrubbing the tape, if either
     /* Pads currently down, newest last. A range gesture needs to know what a finger is
        still holding, and note-on/note-off is the only place that is knowable. */
@@ -3458,7 +3486,9 @@ function message(io, d, rig){
   const cc = d[1], v = d[2];
 
   if (cc >= ENC_CC0 && cc < ENC_CC0 + ENC_N){
-    const list = rig.controls(altHeld(io));
+    /* Turning a knob while ">" is down is what makes it a modifier rather than a press. */
+    if (io.state.act) io.state.actUsed = true;
+    const list = rig.controls(layerHeld(io));
     const c = list[cc - ENC_CC0];
     if (!c || typeof c.set !== "function") return;
     try{ c.set(v / 127); }catch(e){}
@@ -3472,6 +3502,16 @@ function message(io, d, rig){
      here and on the feature channel above — and either road sets the same flag. */
   if (cc === B_SHIFT){ io.state.shift = v > 0; return; }
   if (cc === B_FUNC){ io.state.fn = v > 0; return; }
+  /* ⚠️ ">" ACTS ON THE RELEASE, not the press, because until then nobody knows whether it was
+     a press at all. Held with an encoder it is a layer; let go having moved nothing and it is
+     the button it has always been. Acting on the press would fire the action every time you
+     reached for the layer. */
+  if (cc === B_SCENE){
+    if (v > 0){ io.state.act = true; io.state.actUsed = false; return; }
+    io.state.act = false;
+    if (!io.state.actUsed) said(io, rig.act());
+    return;
+  }
 
   /* ---- the arrows beside the pads ----
      ⚠️ ALL OF IT LIVES HERE, above the press-only guard, because one of the four things
@@ -3527,11 +3567,6 @@ function message(io, d, rig){
        reinvented, and it reaches the same place Func and the arrows do. */
     case B_TRACK_PREV: rig.step(-1); break;
     case B_TRACK_NEXT: rig.step(1); break;
-    /* ">" is whatever the panel says it is — see act() in shell/surface.js. On the mixer it
-       is return to zero: ⚠️ instant, not a wind, because the deck's own Rewind spools back at
-       fourteen times and is a picture of a machine doing something, and waiting through the
-       animation to restart a take is the whole reason real decks have both. */
-    case B_SCENE: said(io, rig.act()); break;
     /* ⚠️ AND THE ARROWS BESIDE THE ENCODERS BELONG TO THE ENCODERS — the same rule as the
        pair beside the pads, applied to the other half of the surface. They move which eight
        the encoders point at, which on DR·1 means which drum and on PM·1 means which group
@@ -3633,7 +3668,7 @@ function paintButtons(io, rig){
 
 function paintEncoders(io, rig){
   const s = io.state;
-  const list = rig.controls(altHeld(io));
+  const list = rig.controls(layerHeld(io));
   for (let i = 0; i < ENC_N; i++){
     const c = list[i] || null;
     const id = c ? (c.id || "") : "";
@@ -3705,11 +3740,12 @@ function paintScreen(io, rig){
      replaced and a legend that did not say so would look like the bank had changed by
      itself. Only where there IS a second eight — announcing one that does not exist would
      be worse than saying nothing. */
-  const alt = altHeld(io) && rig.hasAlt();
-  const bankLabel = alt ? rig.altName() : rig.controlBankName();
+  const layer = layerHeld(io);
+  const showing = layer && rig.hasLayer(layer) ? layer : "";
+  const bankLabel = showing ? rig.layerName(showing) : rig.controlBankName();
   const inst = f ? f.name : "no panel";
   const want = [inst + (bankLabel ? "  " + bankLabel : "")];
-  const list = rig.controls(alt);
+  const list = rig.controls(showing);
   for (let i = 0; i < 8; i++){
     const c = list[i];
     want.push(c ? (c.short || c.label || c.id || "") : "");
@@ -8094,7 +8130,7 @@ function noteOn(midi, vel, when, forceSec){
          of single notes still walks along at one step each. */
       paintSteps();
     }
-  } else if (SEQ.motion !== "off" && !SEQ.playing && heldNotes.length === 1){
+  } else if (SEQ.keyTrig && SEQ.motion !== "off" && !SEQ.playing && heldNotes.length === 1){
     SEQ.autoStart = true;
     startPlay();
   }
@@ -8216,6 +8252,13 @@ const SEQ = {
   /* the last note a human played, which is what a step switched on becomes */
   lastNote: null,
   root:36, scale:"chromatic", vel:88, accentAmt:.8, autoStart:false,
+  /* ⚠️ WHETHER THE KEYS OWN THE TRANSPORT. On, which is how this panel has always behaved:
+     the first held note starts the pattern and letting go of the last one stops it, so the
+     arp is something you play rather than something you switch on. That is worth keeping and
+     it is the wrong default for a step sequencer you want to record into — you cannot play a
+     part over a pattern that stops the moment your hands leave the keys. Off, Play is the
+     only transport, exactly like every other sequencer here. */
+  keyTrig:true,
   /* play: keys start the pattern and steer it. program: keys WRITE to the selected step,
      and every knob you move is locked to that step. */
   mode:"play", sel:0,
@@ -9034,6 +9077,15 @@ function setMotion(v){
   paintMeta();
 }
 segPaint.motion = seg("#motion","m", () => SEQ.motion, setMotion);
+/* ⚠️ TURNING IT OFF ALSO DROPS THE CLAIM. autoStart is what the release handler checks to
+   decide whether the last key up should stop the pattern — so switching to Free while
+   holding the note that started it would leave a pattern nothing can stop from the keys,
+   and the next release would stop it anyway under a setting that says it will not. */
+segPaint.keyTrig = seg("#keyTrig","k", () => SEQ.keyTrig ? "on" : "off", v => {
+  SEQ.keyTrig = v === "on";
+  if (!SEQ.keyTrig) SEQ.autoStart = false;
+  paintMeta();
+});
 segPaint.seqMode = seg("#seqMode","p", () => SEQ.mode, v => {
   SEQ.mode = v;
   paintSteps(); paintLocks(); paintMeta();
@@ -9461,7 +9513,9 @@ function makeHFader(sel, get, set, fmt, id){
     else return;
     e.preventDefault();
   });
-  ctlReg[id] = {set:put, render, el};
+  /* Same shape the knobs register — see the note beside ctlReg in ui.js. Without `get` a
+     control surface filtered these out entirely and Gate and Swing were unreachable. */
+  ctlReg[id] = {set:put, get, lab: id, fmt: () => fmt(get()), step: 0, render, el};
   render();
 }
 makeHFader("#gateFader", () => SEQ.gate, v => SEQ.gate = clampf(v,.05,1),
@@ -9678,7 +9732,7 @@ function snapshot(){
     app:"patchwork-pm1", v:PATCH_VERSION,
     params:Object.assign({}, P),
     bpm:SEQ.bpmExact, octave:octave,
-    seq:{motion:SEQ.motion, len:SEQ.len, rate:SEQ.rate, gate:SEQ.gate, swing:SEQ.swing,
+    seq:{motion:SEQ.motion, keyTrig:SEQ.keyTrig, len:SEQ.len, rate:SEQ.rate, gate:SEQ.gate, swing:SEQ.swing,
          dir:SEQ.dir, octaves:SEQ.octaves, root:SEQ.root, scale:SEQ.scale, vel:SEQ.vel,
          accentAmt:SEQ.accentAmt,
          steps:SEQ.steps.map(s => [s.on,s.pitch,s.oct,s.gate,s.accent,s.slide,s.tie,
@@ -9723,6 +9777,9 @@ function restore(s){
   setOctave(numOr(s.octave, -3, 3, 0));
   const q = s.seq || {};
   SEQ.motion = oneOf(q.motion, ["off","arp","seq"], SEQ.motion);
+  /* Older patches predate the setting and have to land on the behaviour they were saved
+     under, which is the one this panel has always had: the keys start it. */
+  SEQ.keyTrig = q.keyTrig == null ? true : !!q.keyTrig;
   SEQ.len    = oneOf(q.len, [8,12,16,32], 16);
   SEQ.rate   = oneOf(q.rate, Object.keys(RATES), "1/16");
   SEQ.gate   = numOr(q.gate, .05, 1, .5);
@@ -9759,7 +9816,7 @@ function restore(s){
   seqRateSel.value = SEQ.rate;
   if (ctlReg.gate) ctlReg.gate.render();
   if (ctlReg.swing) ctlReg.swing.render();
-  segPaint.motion(); segPaint.arpDir(); segPaint.arpOct(); segPaint.seqMode();
+  segPaint.motion(); segPaint.keyTrig(); segPaint.arpDir(); segPaint.arpOct(); segPaint.seqMode();
   paintSeqKey(); paintLocks();
   if (typeof paintBassNote === "function") paintBassNote();
   if (typeof paintKeysNote === "function") paintKeysNote();
@@ -10253,6 +10310,46 @@ function surfaceControls(){
   return segs.concat(knobs);
 }
 function surfaceBanks(){ return SURFACE_BANKS.map(b => ({name: b.name})); }
+
+/* ---- the arp, on the action key ----
+   ⚠️ THE SAME KEY TOGGLES IT AND TUNES IT, which is not two meanings but one: hold it and
+   the encoders are the arpeggiator's, tap it and the arpeggiator is on or off. There is
+   nowhere else on this surface for a third handful, and an arp you can shape but not switch
+   on — or switch on but not shape — is half a control either way.
+
+   ⚠️ On/off, NOT off/arp/seq. Motion is a three-way row and the sequencer is the other two
+   thirds of it, so a toggle that cycled would have turned the arp on by turning the SEQUENCER
+   off, silently, from a key you pressed to hear an arpeggio. It goes to Arp, or back to
+   whatever it was before — which is Off unless the sequencer was running. */
+/* ⚠️ Key trigger sits on THIS layer rather than in the Key bank, even though it is about
+   the keys: what it changes is whether the keys own the transport, and the transport is
+   what this key's tap toggles. The setting and the switch it qualifies are one press
+   apart, which is the only place either of them makes sense. */
+const ARP_ALT = [["arpDir", "Direction", "Dir"], ["arpOct", "Octaves", "Oct"],
+                 ["keyTrig", "Key trigger", "Trg"]];
+let motionWas = "off";
+function arpControls(){
+  const out = ARP_ALT.map(a => Patchwork.surface.segment($("#" + a[0]), a[1], a[2]));
+  out.push(Patchwork.surface.option($("#seqRate"), "Rate", "Rat"));
+  [["gateFader", "Gate", "Gat"], ["swingFader", "Swing", "Swg"]].forEach(g => {
+    const r = ctlReg[g[0]];
+    if (!r || !r.get) return;
+    out.push({id: g[0], label: g[1], short: g[2], text: r.fmt,
+              get: () => r.get(), set: v => r.set(v)});
+  });
+  return out.filter(Boolean);
+}
+function arpToggle(){
+  const seg = $("#motion");
+  if (!seg) return null;
+  const on = SEQ.motion === "arp";
+  if (!on) motionWas = SEQ.motion;
+  const want = on ? (motionWas === "arp" ? "off" : motionWas) : "arp";
+  const b = Array.prototype.find.call(seg.querySelectorAll("button"), x => x.dataset.m === want);
+  if (!b) return null;
+  b.click();
+  return b.textContent.trim();
+}
 function setSurfaceBank(i){ ctlBank = Math.max(0, Math.min(SURFACE_BANKS.length - 1, i)); }
 
 /* ---- the steps, on a controller's pads ----
@@ -10319,7 +10416,9 @@ function initMidi(){
   }, {
     name: "PM\u00b71", panic: midiPanic,
     controls: surfaceControls, shiftControls: surfaceShiftControls,
-    shiftName: "Seq", grid: surfaceGrid,
+    shiftName: "Seq",
+    actControls: arpControls, actName: "Arp",
+    action: arpToggle, actionName: "Motion", grid: surfaceGrid,
     controlBanks: surfaceBanks, controlBank: bankNow, setControlBank: setSurfaceBank,
     inCh:  {get: () => MIDI.synCh,
             set: c => { MIDI.synCh = c; synChSel.value = String(c);

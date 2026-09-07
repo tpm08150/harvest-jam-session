@@ -246,32 +246,40 @@ const rig = {
      stay on; this is the handful you reach for while holding a key and let go of — the
      pattern's own settings rather than its sound. A panel that offers none falls back to its
      ordinary eight, so holding the key never makes a familiar encoder do nothing. */
-  controls(alt){
+  /* ⚠️ `layer` NAMES A MODIFIER'S ROLE, NOT ITS KEY. "alt" is the general one and "act" is the
+     one that doubles as a button — which is a fact about how a surface is shaped rather than
+     about a Launchkey, and the profile decides which of its keys means which. A layer a panel
+     does not offer falls back to the ordinary eight, so a familiar encoder never goes dead
+     under a key that means nothing here. */
+  controls(layer){
     const f = rig.focus;
     if (!f) return [];
-    if (alt && typeof f.spec.shiftControls === "function"){
+    const key = layer === "act" ? "actControls" : layer === "alt" ? "shiftControls" : null;
+    if (key && typeof f.spec[key] === "function"){
       try{
-        const list = f.spec.shiftControls() || [];
+        const list = f.spec[key]() || [];
         if (list.length) return list.slice(0, 8);
       }catch(e){}
     }
     if (typeof f.spec.controls !== "function") return [];
     try{ return (f.spec.controls() || []).slice(0, 8); }catch(e){ return []; }
   },
-  /* Whether holding the key would actually change anything here, for a display that should
-     only announce a second eight when there is one. */
-  hasAlt(){
+  /* Whether holding that key would actually change anything here, for a display that should
+     only announce a layer when there is one. */
+  hasLayer(layer){
     const f = rig.focus;
-    if (!f || typeof f.spec.shiftControls !== "function") return false;
-    try{ return (f.spec.shiftControls() || []).length > 0; }catch(e){ return false; }
+    const key = layer === "act" ? "actControls" : layer === "alt" ? "shiftControls" : null;
+    if (!f || !key || typeof f.spec[key] !== "function") return false;
+    try{ return (f.spec[key]() || []).length > 0; }catch(e){ return false; }
   },
   /* ⚠️ WHAT THE SECOND EIGHT ARE, NOT WHICH KEY REACHES THEM. The legend used to say
      "Shift", which was a guess about the hardware written into the part of the app furthest
      from it — and the wrong guess, since the key that actually works may be Func. The names
      under it already say what they are; the title should agree with them. */
-  altName(){
+  layerName(layer){
     const f = rig.focus;
-    return (f && f.spec && f.spec.shiftName) || "Alt";
+    if (!f || !f.spec) return "Alt";
+    return (layer === "act" ? f.spec.actName : f.spec.shiftName) || "Alt";
   },
 
   /* ---- banks of eight ----

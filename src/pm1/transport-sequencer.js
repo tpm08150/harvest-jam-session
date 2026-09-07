@@ -10,6 +10,13 @@ const SEQ = {
   /* the last note a human played, which is what a step switched on becomes */
   lastNote: null,
   root:36, scale:"chromatic", vel:88, accentAmt:.8, autoStart:false,
+  /* ⚠️ WHETHER THE KEYS OWN THE TRANSPORT. On, which is how this panel has always behaved:
+     the first held note starts the pattern and letting go of the last one stops it, so the
+     arp is something you play rather than something you switch on. That is worth keeping and
+     it is the wrong default for a step sequencer you want to record into — you cannot play a
+     part over a pattern that stops the moment your hands leave the keys. Off, Play is the
+     only transport, exactly like every other sequencer here. */
+  keyTrig:true,
   /* play: keys start the pattern and steer it. program: keys WRITE to the selected step,
      and every knob you move is locked to that step. */
   mode:"play", sel:0,

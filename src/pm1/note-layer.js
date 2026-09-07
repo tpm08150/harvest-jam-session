@@ -170,7 +170,7 @@ function noteOn(midi, vel, when, forceSec){
          of single notes still walks along at one step each. */
       paintSteps();
     }
-  } else if (SEQ.motion !== "off" && !SEQ.playing && heldNotes.length === 1){
+  } else if (SEQ.keyTrig && SEQ.motion !== "off" && !SEQ.playing && heldNotes.length === 1){
     SEQ.autoStart = true;
     startPlay();
   }

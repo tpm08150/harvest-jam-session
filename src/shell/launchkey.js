@@ -176,6 +176,16 @@ function hue(name){ return PAL[name] == null ? PAL.white : PAL[name]; }
    So either one opens it. That is not indecision: they are two keys asking the same
    question, and accepting both costs a boolean and removes the only way this feature can be
    dead on arrival. */
+/* ⚠️ WHICH LAYER THE HANDS ARE ASKING FOR. Func and Shift both open the general one — see
+   above for why both. ">" opens the other, and it is the one key here that is a BUTTON as
+   well: held with a knob it is a modifier, pressed and released on its own it is an action.
+   Which of the two it turned out to be is only knowable at the release, so `actUsed` records
+   whether anything happened in between. */
+function layerHeld(io){
+  if (!io.state) return "";
+  if (io.state.act) return "act";
+  return (io.state.fn || io.state.shift) ? "alt" : "";
+}
 function altHeld(io){ return !!(io.state && (io.state.fn || io.state.shift)); }
 
 /* The pair beside the encoders: pages the banks where there are banks, and where there are
@@ -315,6 +325,8 @@ function start(io, rig){
     padMode: PAD_DAW,
     fn: false,                         // Function held — the accent modifier
     shift: false,                      // Shift held — the encoders' second eight
+    act: false,                        // ">" held — a modifier while it is down, a button when it is not
+    actUsed: false,                    // ...and whether it was used as one
     scrub: 0,                          // which arrow is scrubbing the tape, if either
     /* Pads currently down, newest last. A range gesture needs to know what a finger is
        still holding, and note-on/note-off is the only place that is knowable. */
@@ -490,7 +502,9 @@ function message(io, d, rig){
   const cc = d[1], v = d[2];
 
   if (cc >= ENC_CC0 && cc < ENC_CC0 + ENC_N){
-    const list = rig.controls(altHeld(io));
+    /* Turning a knob while ">" is down is what makes it a modifier rather than a press. */
+    if (io.state.act) io.state.actUsed = true;
+    const list = rig.controls(layerHeld(io));
     const c = list[cc - ENC_CC0];
     if (!c || typeof c.set !== "function") return;
     try{ c.set(v / 127); }catch(e){}
@@ -504,6 +518,16 @@ function message(io, d, rig){
      here and on the feature channel above — and either road sets the same flag. */
   if (cc === B_SHIFT){ io.state.shift = v > 0; return; }
   if (cc === B_FUNC){ io.state.fn = v > 0; return; }
+  /* ⚠️ ">" ACTS ON THE RELEASE, not the press, because until then nobody knows whether it was
+     a press at all. Held with an encoder it is a layer; let go having moved nothing and it is
+     the button it has always been. Acting on the press would fire the action every time you
+     reached for the layer. */
+  if (cc === B_SCENE){
+    if (v > 0){ io.state.act = true; io.state.actUsed = false; return; }
+    io.state.act = false;
+    if (!io.state.actUsed) said(io, rig.act());
+    return;
+  }
 
   /* ---- the arrows beside the pads ----
      ⚠️ ALL OF IT LIVES HERE, above the press-only guard, because one of the four things
@@ -559,11 +583,6 @@ function message(io, d, rig){
        reinvented, and it reaches the same place Func and the arrows do. */
     case B_TRACK_PREV: rig.step(-1); break;
     case B_TRACK_NEXT: rig.step(1); break;
-    /* ">" is whatever the panel says it is — see act() in shell/surface.js. On the mixer it
-       is return to zero: ⚠️ instant, not a wind, because the deck's own Rewind spools back at
-       fourteen times and is a picture of a machine doing something, and waiting through the
-       animation to restart a take is the whole reason real decks have both. */
-    case B_SCENE: said(io, rig.act()); break;
     /* ⚠️ AND THE ARROWS BESIDE THE ENCODERS BELONG TO THE ENCODERS — the same rule as the
        pair beside the pads, applied to the other half of the surface. They move which eight
        the encoders point at, which on DR·1 means which drum and on PM·1 means which group
@@ -665,7 +684,7 @@ function paintButtons(io, rig){
 
 function paintEncoders(io, rig){
   const s = io.state;
-  const list = rig.controls(altHeld(io));
+  const list = rig.controls(layerHeld(io));
   for (let i = 0; i < ENC_N; i++){
     const c = list[i] || null;
     const id = c ? (c.id || "") : "";
@@ -737,11 +756,12 @@ function paintScreen(io, rig){
      replaced and a legend that did not say so would look like the bank had changed by
      itself. Only where there IS a second eight — announcing one that does not exist would
      be worse than saying nothing. */
-  const alt = altHeld(io) && rig.hasAlt();
-  const bankLabel = alt ? rig.altName() : rig.controlBankName();
+  const layer = layerHeld(io);
+  const showing = layer && rig.hasLayer(layer) ? layer : "";
+  const bankLabel = showing ? rig.layerName(showing) : rig.controlBankName();
   const inst = f ? f.name : "no panel";
   const want = [inst + (bankLabel ? "  " + bankLabel : "")];
-  const list = rig.controls(alt);
+  const list = rig.controls(showing);
   for (let i = 0; i < 8; i++){
     const c = list[i];
     want.push(c ? (c.short || c.label || c.id || "") : "");

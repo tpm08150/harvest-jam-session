@@ -54,6 +54,15 @@ function setMotion(v){
   paintMeta();
 }
 segPaint.motion = seg("#motion","m", () => SEQ.motion, setMotion);
+/* ⚠️ TURNING IT OFF ALSO DROPS THE CLAIM. autoStart is what the release handler checks to
+   decide whether the last key up should stop the pattern — so switching to Free while
+   holding the note that started it would leave a pattern nothing can stop from the keys,
+   and the next release would stop it anyway under a setting that says it will not. */
+segPaint.keyTrig = seg("#keyTrig","k", () => SEQ.keyTrig ? "on" : "off", v => {
+  SEQ.keyTrig = v === "on";
+  if (!SEQ.keyTrig) SEQ.autoStart = false;
+  paintMeta();
+});
 segPaint.seqMode = seg("#seqMode","p", () => SEQ.mode, v => {
   SEQ.mode = v;
   paintSteps(); paintLocks(); paintMeta();
@@ -481,7 +490,9 @@ function makeHFader(sel, get, set, fmt, id){
     else return;
     e.preventDefault();
   });
-  ctlReg[id] = {set:put, render, el};
+  /* Same shape the knobs register — see the note beside ctlReg in ui.js. Without `get` a
+     control surface filtered these out entirely and Gate and Swing were unreachable. */
+  ctlReg[id] = {set:put, get, lab: id, fmt: () => fmt(get()), step: 0, render, el};
   render();
 }
 makeHFader("#gateFader", () => SEQ.gate, v => SEQ.gate = clampf(v,.05,1),

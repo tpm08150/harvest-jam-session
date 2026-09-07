@@ -388,6 +388,46 @@ function surfaceControls(){
   return segs.concat(knobs);
 }
 function surfaceBanks(){ return SURFACE_BANKS.map(b => ({name: b.name})); }
+
+/* ---- the arp, on the action key ----
+   ⚠️ THE SAME KEY TOGGLES IT AND TUNES IT, which is not two meanings but one: hold it and
+   the encoders are the arpeggiator's, tap it and the arpeggiator is on or off. There is
+   nowhere else on this surface for a third handful, and an arp you can shape but not switch
+   on — or switch on but not shape — is half a control either way.
+
+   ⚠️ On/off, NOT off/arp/seq. Motion is a three-way row and the sequencer is the other two
+   thirds of it, so a toggle that cycled would have turned the arp on by turning the SEQUENCER
+   off, silently, from a key you pressed to hear an arpeggio. It goes to Arp, or back to
+   whatever it was before — which is Off unless the sequencer was running. */
+/* ⚠️ Key trigger sits on THIS layer rather than in the Key bank, even though it is about
+   the keys: what it changes is whether the keys own the transport, and the transport is
+   what this key's tap toggles. The setting and the switch it qualifies are one press
+   apart, which is the only place either of them makes sense. */
+const ARP_ALT = [["arpDir", "Direction", "Dir"], ["arpOct", "Octaves", "Oct"],
+                 ["keyTrig", "Key trigger", "Trg"]];
+let motionWas = "off";
+function arpControls(){
+  const out = ARP_ALT.map(a => Patchwork.surface.segment($("#" + a[0]), a[1], a[2]));
+  out.push(Patchwork.surface.option($("#seqRate"), "Rate", "Rat"));
+  [["gateFader", "Gate", "Gat"], ["swingFader", "Swing", "Swg"]].forEach(g => {
+    const r = ctlReg[g[0]];
+    if (!r || !r.get) return;
+    out.push({id: g[0], label: g[1], short: g[2], text: r.fmt,
+              get: () => r.get(), set: v => r.set(v)});
+  });
+  return out.filter(Boolean);
+}
+function arpToggle(){
+  const seg = $("#motion");
+  if (!seg) return null;
+  const on = SEQ.motion === "arp";
+  if (!on) motionWas = SEQ.motion;
+  const want = on ? (motionWas === "arp" ? "off" : motionWas) : "arp";
+  const b = Array.prototype.find.call(seg.querySelectorAll("button"), x => x.dataset.m === want);
+  if (!b) return null;
+  b.click();
+  return b.textContent.trim();
+}
 function setSurfaceBank(i){ ctlBank = Math.max(0, Math.min(SURFACE_BANKS.length - 1, i)); }
 
 /* ---- the steps, on a controller's pads ----
@@ -454,7 +494,9 @@ function initMidi(){
   }, {
     name: "PM\u00b71", panic: midiPanic,
     controls: surfaceControls, shiftControls: surfaceShiftControls,
-    shiftName: "Seq", grid: surfaceGrid,
+    shiftName: "Seq",
+    actControls: arpControls, actName: "Arp",
+    action: arpToggle, actionName: "Motion", grid: surfaceGrid,
     controlBanks: surfaceBanks, controlBank: bankNow, setControlBank: setSurfaceBank,
     inCh:  {get: () => MIDI.synCh,
             set: c => { MIDI.synCh = c; synChSel.value = String(c);

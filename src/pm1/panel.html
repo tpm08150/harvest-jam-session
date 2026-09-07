@@ -77,6 +77,14 @@
         <button data-m="arp">Arp</button>
         <button data-m="seq">Seq</button>
       </div>
+      <!-- ⚠️ On, the keys own the transport: the first note starts the pattern and the last
+           release stops it, which is what makes the arp something you PLAY. Off, Play is the
+           only transport — because you cannot record a part over a pattern that stops the
+           moment your hands leave the keys. -->
+      <div class="seg sm" id="keyTrig" role="group" aria-label="Keys start and stop the pattern">
+        <button data-k="on" class="on">Key trig</button>
+        <button data-k="off">Free</button>
+      </div>
       <div class="seg sm" id="arpDir" data-arponly role="group" aria-label="Arp direction">
         <button data-d="up" class="on">Up</button>
         <button data-d="down">Down</button>
