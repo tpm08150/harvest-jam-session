@@ -89,20 +89,31 @@ function surfaceShiftControls(){
    beside the pads are both free — and the two switches on this panel that a hand reaches
    for mid-line are exactly two. Both go through the panel's own segmented controls, so
    what the click does happens here too, and both answer with a word for the display. */
-function surfaceBump(dir){
-  /* ⚠️ UP IS UP, and the arrow the hand pressed has to agree with the ear: down goes to the
-     lower octave whatever order the buttons happen to sit in.
+/* ⚠️ UP IS UP, and the arrow the hand pressed has to agree with the ear: down goes to the
+   lower octave whatever order the buttons happen to sit in.
 
-     ⚠️ AND THE CURRENT VALUE COMES FROM THE PARAMETER, not from which button is wearing the
-     `on` class. The parameter is the truth here — a patch load writes it and the class
-     follows — so reading the class would put this one step behind any change that did not
-     come through a click. */
-  const want = Math.max(-2, Math.min(-1, P.subOct + (dir > 0 ? -1 : 1)));
-  if (want === P.subOct) return null;
-  const b = Array.prototype.find.call($$("#subOct button"), x => +x.dataset.s === want);
+   ⚠️ AND THE CURRENT VALUE COMES FROM THE PARAMETER, not from which button is wearing the
+   `on` class. The parameter is the truth here — a patch load writes it and the class
+   follows — so reading the class would put this one step behind any change that did not
+   come through a click. Clicking is still how it is SET, so the class follows.
+
+   Two octaves worth moving on this panel, so the pair carries both: the instrument's on the
+   plain press, because that is the one you reach for mid-line, and the sub's under Func. */
+function stepSeg(sel, attr, now, dir, lo, hi){
+  const want = Math.max(lo, Math.min(hi, now + (dir > 0 ? -1 : 1)));
+  if (want === now) return null;
+  const b = Array.prototype.find.call($$(sel + " button"), x => +x.dataset[attr] === want);
   if (!b) return null;
-  b.click();                          // the panel's own control, so the class follows too
-  return P.subOct + " oct";
+  b.click();
+  return want;
+}
+function surfaceBump(dir, alt){
+  if (alt){
+    const v = stepSeg("#subOct", "s", P.subOct, dir, -2, -1);
+    return v == null ? null : {name: "Sub", value: v + " oct"};
+  }
+  const v = stepSeg("#oct", "o", P.oct, dir, -2, 0);
+  return v == null ? null : {name: "Octave", value: (v > 0 ? "+" : "") + v};
 }
 function surfaceAction(){
   const b = $$("#wave button");
@@ -127,7 +138,7 @@ function initMidi(){
     name: "BS\u00b71", panic: midiPanic,
     controls: surfaceControls, shiftControls: surfaceShiftControls,
     shiftName: "Seq", grid: surfaceGrid,
-    bump: surfaceBump, bumpName: "Sub",
+    bump: surfaceBump, bumpName: "Octave",
     action: surfaceAction, actionName: "Wave",
     inCh: {get: () => MIDI.inCh,
            set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}

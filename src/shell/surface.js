@@ -197,20 +197,15 @@ const rig = {
     const f = rig.focus;
     return !!(f && typeof f.spec.action === "function");
   },
-  act(){
-    const f = rig.focus;
-    if (!f || typeof f.spec.action !== "function") return null;
-    try{ return {name: f.spec.actionName || "", value: f.spec.action()}; }catch(e){ return null; }
-  },
+  act(){ return said(rig.focus, "action", "actionName", []); },
   get canBump(){
     const f = rig.focus;
     return !!(f && typeof f.spec.bump === "function");
   },
-  bump(dir){
-    const f = rig.focus;
-    if (!f || typeof f.spec.bump !== "function") return null;
-    try{ return {name: f.spec.bumpName || "", value: f.spec.bump(dir)}; }catch(e){ return null; }
-  },
+  /* `alt` is the modifier, so one pair of buttons can carry two things where a panel has
+     two worth carrying — BS·1 puts its octave on the plain press and the sub's on the
+     modified one. */
+  bump(dir, alt){ return said(rig.focus, "bump", "bumpName", [dir, !!alt]); },
   /* Held rather than pressed: a scrub runs while a finger is down and stops when it lifts,
      so a profile passes both edges and the page decides what "moving" means. `speed` is a
      word rather than a number — how fast "fast" is belongs to the thing being scrubbed, not
@@ -627,6 +622,19 @@ Patchwork.midi.onChange(() => {
   }
   if (!live) restore();
 });
+
+/* Run one of the spare-button hooks and turn whatever it answers into something to show.
+   ⚠️ A hook may return a bare string, in which case the spec's name goes with it, or a
+   {name, value} pair when one pair of buttons carries two different things and the name has
+   to change with them. Anything else means "nothing happened" and says nothing. */
+function said(f, key, nameKey, args){
+  if (!f || typeof f.spec[key] !== "function") return null;
+  let r;
+  try{ r = f.spec[key].apply(null, args); }catch(e){ return null; }
+  if (r == null || r === false) return null;
+  if (typeof r === "object") return {name: r.name || f.spec[nameKey] || "", value: r.value};
+  return {name: f.spec[nameKey] || "", value: r};
+}
 
 /* ---- a <select> as a control ----
    ⚠️ HERE RATHER THAN FIVE TIMES OVER. Every panel's second eight is mostly menus — steps,

@@ -599,10 +599,21 @@ rather than its sound:
 | **DR·1** | `Stp Rat` — a drum pattern has no key and no scale |
 
 **BS·1 also uses the two spare buttons.** It has one encoder bank and no tape, so the pair
-beside the encoders and the `>` beside the pads are both free — and the two switches a hand
-reaches for mid-line are exactly two: **∧ ∨ moves the sub oscillator's octave**, and **`>`
-flips saw to square**. Both flash what they did on the screen, because a button whose effect
-you cannot see is one you press twice, which on a toggle puts it back where it started.
+beside the encoders and the `>` beside the pads are both free:
+
+| | |
+| --- | --- |
+| **∧ ∨** | the instrument's octave |
+| **Func + ∧ ∨** | the sub oscillator's octave |
+| **`>`** | flips saw to square |
+
+⚠️ Func on these two is a **second pair, not the second eight**. Holding it while *turning* a
+knob swaps what the eight are; holding it while *pressing* this pair swaps what the pair does.
+Different gestures on different controls, and neither is in the other's way.
+
+Everything here flashes what it did on the screen — `Octave 0`, `Sub -2 oct`, `Wave Square` —
+because a button whose effect you cannot see is one you press twice, which on a toggle puts it
+back where it started.
 
 ⚠️ The sub octave is **new**. BS·1's square sub was hard-wired one octave below in three
 places; it is now a parameter with its own switch on the panel, saved with the patch, and it

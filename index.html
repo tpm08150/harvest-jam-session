@@ -8499,20 +8499,15 @@ const rig = {
     const f = rig.focus;
     return !!(f && typeof f.spec.action === "function");
   },
-  act(){
-    const f = rig.focus;
-    if (!f || typeof f.spec.action !== "function") return null;
-    try{ return {name: f.spec.actionName || "", value: f.spec.action()}; }catch(e){ return null; }
-  },
+  act(){ return said(rig.focus, "action", "actionName", []); },
   get canBump(){
     const f = rig.focus;
     return !!(f && typeof f.spec.bump === "function");
   },
-  bump(dir){
-    const f = rig.focus;
-    if (!f || typeof f.spec.bump !== "function") return null;
-    try{ return {name: f.spec.bumpName || "", value: f.spec.bump(dir)}; }catch(e){ return null; }
-  },
+  /* `alt` is the modifier, so one pair of buttons can carry two things where a panel has
+     two worth carrying — BS·1 puts its octave on the plain press and the sub's on the
+     modified one. */
+  bump(dir, alt){ return said(rig.focus, "bump", "bumpName", [dir, !!alt]); },
   /* Held rather than pressed: a scrub runs while a finger is down and stops when it lifts,
      so a profile passes both edges and the page decides what "moving" means. `speed` is a
      word rather than a number — how fast "fast" is belongs to the thing being scrubbed, not
@@ -8930,6 +8925,19 @@ Patchwork.midi.onChange(() => {
   if (!live) restore();
 });
 
+/* Run one of the spare-button hooks and turn whatever it answers into something to show.
+   ⚠️ A hook may return a bare string, in which case the spec's name goes with it, or a
+   {name, value} pair when one pair of buttons carries two different things and the name has
+   to change with them. Anything else means "nothing happened" and says nothing. */
+function said(f, key, nameKey, args){
+  if (!f || typeof f.spec[key] !== "function") return null;
+  let r;
+  try{ r = f.spec[key].apply(null, args); }catch(e){ return null; }
+  if (r == null || r === false) return null;
+  if (typeof r === "object") return {name: r.name || f.spec[nameKey] || "", value: r.value};
+  return {name: f.spec[nameKey] || "", value: r};
+}
+
 /* ---- a <select> as a control ----
    ⚠️ HERE RATHER THAN FIVE TIMES OVER. Every panel's second eight is mostly menus — steps,
    rate, key, scale, mood — and each one wrapping its own would be five copies of two
@@ -9191,7 +9199,10 @@ function altHeld(io){ return !!(io.state && (io.state.fn || io.state.shift)); }
    not, does whatever the panel offers instead. The same fallthrough the pad arrows use. */
 function encArrow(io, rig, dir){
   if (rig.controlBankBy(dir)) return;
-  said(io, rig.bump(dir));
+  /* ⚠️ Func here is a SECOND PAIR, not the second eight. Holding it while TURNING a knob
+     swaps what the eight are; holding it while PRESSING these two swaps what the pair does.
+     Different gestures on different controls, and neither is in the other's way. */
+  said(io, rig.bump(dir, altHeld(io)));
 }
 /* Put what just happened on the screen. A button whose effect you cannot see is one you
    press twice to check, which on a toggle puts it back where it started. */
@@ -15246,20 +15257,31 @@ function surfaceShiftControls(){
    beside the pads are both free — and the two switches on this panel that a hand reaches
    for mid-line are exactly two. Both go through the panel's own segmented controls, so
    what the click does happens here too, and both answer with a word for the display. */
-function surfaceBump(dir){
-  /* ⚠️ UP IS UP, and the arrow the hand pressed has to agree with the ear: down goes to the
-     lower octave whatever order the buttons happen to sit in.
+/* ⚠️ UP IS UP, and the arrow the hand pressed has to agree with the ear: down goes to the
+   lower octave whatever order the buttons happen to sit in.
 
-     ⚠️ AND THE CURRENT VALUE COMES FROM THE PARAMETER, not from which button is wearing the
-     `on` class. The parameter is the truth here — a patch load writes it and the class
-     follows — so reading the class would put this one step behind any change that did not
-     come through a click. */
-  const want = Math.max(-2, Math.min(-1, P.subOct + (dir > 0 ? -1 : 1)));
-  if (want === P.subOct) return null;
-  const b = Array.prototype.find.call($$("#subOct button"), x => +x.dataset.s === want);
+   ⚠️ AND THE CURRENT VALUE COMES FROM THE PARAMETER, not from which button is wearing the
+   `on` class. The parameter is the truth here — a patch load writes it and the class
+   follows — so reading the class would put this one step behind any change that did not
+   come through a click. Clicking is still how it is SET, so the class follows.
+
+   Two octaves worth moving on this panel, so the pair carries both: the instrument's on the
+   plain press, because that is the one you reach for mid-line, and the sub's under Func. */
+function stepSeg(sel, attr, now, dir, lo, hi){
+  const want = Math.max(lo, Math.min(hi, now + (dir > 0 ? -1 : 1)));
+  if (want === now) return null;
+  const b = Array.prototype.find.call($$(sel + " button"), x => +x.dataset[attr] === want);
   if (!b) return null;
-  b.click();                          // the panel's own control, so the class follows too
-  return P.subOct + " oct";
+  b.click();
+  return want;
+}
+function surfaceBump(dir, alt){
+  if (alt){
+    const v = stepSeg("#subOct", "s", P.subOct, dir, -2, -1);
+    return v == null ? null : {name: "Sub", value: v + " oct"};
+  }
+  const v = stepSeg("#oct", "o", P.oct, dir, -2, 0);
+  return v == null ? null : {name: "Octave", value: (v > 0 ? "+" : "") + v};
 }
 function surfaceAction(){
   const b = $$("#wave button");
@@ -15284,7 +15306,7 @@ function initMidi(){
     name: "BS\u00b71", panic: midiPanic,
     controls: surfaceControls, shiftControls: surfaceShiftControls,
     shiftName: "Seq", grid: surfaceGrid,
-    bump: surfaceBump, bumpName: "Sub",
+    bump: surfaceBump, bumpName: "Octave",
     action: surfaceAction, actionName: "Wave",
     inCh: {get: () => MIDI.inCh,
            set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}

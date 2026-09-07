@@ -182,7 +182,10 @@ function altHeld(io){ return !!(io.state && (io.state.fn || io.state.shift)); }
    not, does whatever the panel offers instead. The same fallthrough the pad arrows use. */
 function encArrow(io, rig, dir){
   if (rig.controlBankBy(dir)) return;
-  said(io, rig.bump(dir));
+  /* ⚠️ Func here is a SECOND PAIR, not the second eight. Holding it while TURNING a knob
+     swaps what the eight are; holding it while PRESSING these two swaps what the pair does.
+     Different gestures on different controls, and neither is in the other's way. */
+  said(io, rig.bump(dir, altHeld(io)));
 }
 /* Put what just happened on the screen. A button whose effect you cannot see is one you
    press twice to check, which on a toggle puts it back where it started. */
