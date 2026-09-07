@@ -330,14 +330,18 @@ instrument decides what a bank is:
   selected, so choosing the lane *is* choosing the eight; Swing and Accent are the pattern's
   and sit still across all of them. The pads follow too, since the step grid shows the
   selected lane — one button and the whole surface moves to the next drum.
-- **PM·1** — a bank is a group of parameters: **Key, Perform, Filter, Flt env, Amp env, Osc,
-  Shape, LFO**. The first is the panel's key-assign row — `Key Gld Pri Tim Det Wid Bnd`: how
-  the voice is allocated, whether it glides, which note wins, and the four knobs beside them.
+- **PM·1** — a bank is a group of parameters: **Key, Filter, Flt env, Amp env, Osc, Shape,
+  LFO**. The first is the panel's key-assign row — `Key Gld Pri Tim Det Wid Bnd`: how the
+  voice is allocated, whether it glides, which note wins, and the four knobs beside them.
   ⚠️ Three of those are *segmented rows* rather than knobs, which is why they were unreachable
   before — a list under a continuous control needs the index treatment, and `segment()` in
-  `shell/surface.js` does it once for every panel that has one. Perform is second, and is not
-  a group but a *hand*: cutoff, resonance, envelope amount and the amp envelope, gathered from
-  three different sections because those are what you reach for mid-part.
+  `shell/surface.js` does it once for every panel that has one.
+
+  ⚠️ **A stepped knob is a short list wearing a knob's clothes**, and the octave selectors are
+  the proof: five positions across their whole range, so a surface pushing the position back
+  rounded every nudge to where it started and pinned them. Marking them means the position is
+  sent once and then left alone — and the formatted value goes on the display, because `84` is
+  not `+2 st`.
 - **Everything else** has eight controls or fewer, one bank, and the arrows stay dark.
 
 One mechanism, two meanings, and that is the point rather than a compromise: the surface asks

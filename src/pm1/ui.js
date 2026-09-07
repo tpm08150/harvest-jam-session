@@ -184,8 +184,15 @@ function makeKnob(host, d){
   /* CC drives this too, so a hardware knob p-locks exactly like an on-screen one */
   /* `get` is the same 0-1 the setter takes, so a control surface can put a hardware
      encoder where this knob already is instead of jumping it on first touch. */
+  /* ⚠️ `step` AND `fmt` ARE FOR WHOEVER IS NOT A MOUSE. A stepped knob has only as many
+     positions as its range divided by its step — the octave selectors have five — and a
+     control surface that keeps pushing such a knob's position back at it pins it in place,
+     which is exactly what happened to these. And a five-position knob's raw 0-127 tells you
+     nothing, where "+2 st" tells you everything. Both are facts the knob already knows and
+     nobody outside could work out. */
   ctlReg[d.id] = {set:v => { P[d.id] = fromNorm(d, v); render(); applyParam(d.id); lockKnob(d.id); },
                   get:() => toNorm(d, P[d.id]), lab: d.lab,
+                  step: d.step || 0, fmt: () => d.fmt(P[d.id]),
                   render, el};
   render();
 }

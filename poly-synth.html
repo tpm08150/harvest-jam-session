@@ -8220,20 +8220,19 @@ function writeStep(st, midi, extra){
   if (ivs.length) st.add = [...new Set(ivs)].sort((a, b) => a - b).slice(0, 5);
   else delete st.add;
 }
-/* A C-minor acid line, so accent, tie and slide are all audible on the first Play without
-   the player having to build a pattern to hear what the buttons do. */
-const DEFAULT_STEPS = [
-  S(1,0,0,.55,1,0,0), S(0,0,0,.5,0,0,0),  S(1,0,0,.45,0,0,0), S(1,12,0,.35,0,0,0),
-  S(0,0,0,.5,0,0,0),  S(1,0,0,.5,0,0,0),  S(1,0,0,.5,0,0,1),  S(1,10,0,.45,1,0,0),
-  S(1,0,0,.55,0,0,0), S(0,0,0,.5,0,0,0),  S(1,3,0,.45,0,0,0), S(1,5,0,.60,0,1,0),
-  S(0,0,0,.5,0,0,0),  S(1,10,0,.45,1,0,0),S(1,7,-1,.40,0,0,0),S(0,0,0,.5,0,0,0)
-];
+/* ⚠️ EMPTY, AND IT USED TO BE A C-MINOR ACID LINE. The demo pattern was here so that accent,
+   tie and slide were audible on a first Play without anyone having to build something to hear
+   what the buttons do — a fair argument for a panel nobody has met, and the wrong trade for
+   one you open every day. It meant every reload handed you sixteen steps of somebody else's
+   idea to clear before you could start, and clearing it is not a gesture this panel has: no
+   button calls this, so the only way out was sixteen clicks.
+
+   The tour it bought is worth less than the blank page it cost. */
 function resetSteps(){
   SEQ.steps = [];
   /* MAX_STEPS is allocated regardless of the current length, so changing length never
      has to reallocate and a pattern written at 64 survives a trip down to 16 and back. */
-  for (let i = 0; i < MAX_STEPS; i++)
-    SEQ.steps.push(i < 16 ? Object.assign({}, DEFAULT_STEPS[i]) : S(0,0,0,.5,0,0,0));
+  for (let i = 0; i < MAX_STEPS; i++) SEQ.steps.push(S(0,0,0,.5,0,0,0));
 }
 resetSteps();
 
@@ -8693,8 +8692,15 @@ function makeKnob(host, d){
   /* CC drives this too, so a hardware knob p-locks exactly like an on-screen one */
   /* `get` is the same 0-1 the setter takes, so a control surface can put a hardware
      encoder where this knob already is instead of jumping it on first touch. */
+  /* ⚠️ `step` AND `fmt` ARE FOR WHOEVER IS NOT A MOUSE. A stepped knob has only as many
+     positions as its range divided by its step — the octave selectors have five — and a
+     control surface that keeps pushing such a knob's position back at it pins it in place,
+     which is exactly what happened to these. And a five-position knob's raw 0-127 tells you
+     nothing, where "+2 st" tells you everything. Both are facts the knob already knows and
+     nobody outside could work out. */
   ctlReg[d.id] = {set:v => { P[d.id] = fromNorm(d, v); render(); applyParam(d.id); lockKnob(d.id); },
                   get:() => toNorm(d, P[d.id]), lab: d.lab,
+                  step: d.step || 0, fmt: () => d.fmt(P[d.id]),
                   render, el};
   render();
 }
@@ -10159,18 +10165,18 @@ $("#clearMap").addEventListener("click", () => {
    a list under a continuous control needs the index treatment, and segment() in
    shell/surface.js does it once for every panel that has one.
 
-   The rest of the banks are the panel's own groups, for when you are setting a sound up.
-   Perform stays second — cutoff, resonance, envelope amount and the amp envelope, gathered
-   from three different sections because those are what a hand reaches for mid-part. */
+   The rest are the panel's own groups, for when you are setting a sound up.
+
+   ⚠️ THERE WAS A "PERFORM" BANK AND IT IS GONE. It gathered cutoff, resonance, envelope
+   amount and the amp envelope from three different sections on the grounds that those are
+   what a hand reaches for mid-part — which was true, and still left every one of them a
+   press away in Filter, Flt env and Amp env. A bank that duplicates three others earns its
+   place only by being reached first, and Key is reached first now. */
 const SURFACE_BANKS = [
   {name: "Key", segs: [["voiceMode", "Key assign", "Key"], ["glideMode", "Glide", "Gld"],
                        ["prio", "Priority", "Pri"]],
    ids: [["glide", "Glide time", "Tim"], ["unidet", null, "Det"],
          ["unispread", null, "Wid"], ["bend", null, "Bnd"]]},
-  {name: "Perform", ids: [["fcut", null, "Cut"], ["fres", null, "Res"], ["fenv", null, "Env"],
-                          ["fd", "Flt dec", "FDc"], ["aa", "Amp att", "Atk"],
-                          ["ad", "Amp dec", "Dec"], ["as", "Amp sus", "Sus"],
-                          ["ar", "Amp rel", "Rel"]]},
   {name: "Filter",  ids: [["fcut", null, "Cut"], ["fres", null, "Res"], ["fenv", null, "Env"],
                           ["fkey", null, "Key"], ["velf", null, "Vel"],
                           ["fdrive", null, "Drv"], ["fhpf", null, "HPF"]]},
@@ -10198,11 +10204,21 @@ function surfaceControls(){
   const knobs = (b.ids || [])
     .map(e => (typeof e === "string" ? [e, null, null] : e))
     .filter(e => ctlReg[e[0]] && ctlReg[e[0]].get)
-    .map(e => ({
-      id: e[0], label: e[1] || ctlReg[e[0]].lab || e[0], short: e[2],
-      get: () => ctlReg[e[0]].get(),
-      set: v => ctlReg[e[0]].set(v)
-    }));
+    .map(e => {
+      const r = ctlReg[e[0]];
+      return {
+        id: e[0], label: e[1] || r.lab || e[0], short: e[2],
+        /* ⚠️ A stepped knob is a short list wearing a knob's clothes. Five positions for an
+           octave selector, and a surface that keeps sending its position back rounds every
+           nudge to the position it started on and pushes it there — the same fight BS·1's
+           menus lost. Marking it says "give it its place once, then leave it alone", and
+           the formatted value goes on the display because 84 is not "+2 st". */
+        stepped: !!r.step,
+        text: r.step ? () => r.fmt() : null,
+        get: () => r.get(),
+        set: v => r.set(v)
+      };
+    });
   return segs.concat(knobs);
 }
 function surfaceBanks(){ return SURFACE_BANKS.map(b => ({name: b.name})); }

@@ -331,18 +331,18 @@ $("#clearMap").addEventListener("click", () => {
    a list under a continuous control needs the index treatment, and segment() in
    shell/surface.js does it once for every panel that has one.
 
-   The rest of the banks are the panel's own groups, for when you are setting a sound up.
-   Perform stays second — cutoff, resonance, envelope amount and the amp envelope, gathered
-   from three different sections because those are what a hand reaches for mid-part. */
+   The rest are the panel's own groups, for when you are setting a sound up.
+
+   ⚠️ THERE WAS A "PERFORM" BANK AND IT IS GONE. It gathered cutoff, resonance, envelope
+   amount and the amp envelope from three different sections on the grounds that those are
+   what a hand reaches for mid-part — which was true, and still left every one of them a
+   press away in Filter, Flt env and Amp env. A bank that duplicates three others earns its
+   place only by being reached first, and Key is reached first now. */
 const SURFACE_BANKS = [
   {name: "Key", segs: [["voiceMode", "Key assign", "Key"], ["glideMode", "Glide", "Gld"],
                        ["prio", "Priority", "Pri"]],
    ids: [["glide", "Glide time", "Tim"], ["unidet", null, "Det"],
          ["unispread", null, "Wid"], ["bend", null, "Bnd"]]},
-  {name: "Perform", ids: [["fcut", null, "Cut"], ["fres", null, "Res"], ["fenv", null, "Env"],
-                          ["fd", "Flt dec", "FDc"], ["aa", "Amp att", "Atk"],
-                          ["ad", "Amp dec", "Dec"], ["as", "Amp sus", "Sus"],
-                          ["ar", "Amp rel", "Rel"]]},
   {name: "Filter",  ids: [["fcut", null, "Cut"], ["fres", null, "Res"], ["fenv", null, "Env"],
                           ["fkey", null, "Key"], ["velf", null, "Vel"],
                           ["fdrive", null, "Drv"], ["fhpf", null, "HPF"]]},
@@ -370,11 +370,21 @@ function surfaceControls(){
   const knobs = (b.ids || [])
     .map(e => (typeof e === "string" ? [e, null, null] : e))
     .filter(e => ctlReg[e[0]] && ctlReg[e[0]].get)
-    .map(e => ({
-      id: e[0], label: e[1] || ctlReg[e[0]].lab || e[0], short: e[2],
-      get: () => ctlReg[e[0]].get(),
-      set: v => ctlReg[e[0]].set(v)
-    }));
+    .map(e => {
+      const r = ctlReg[e[0]];
+      return {
+        id: e[0], label: e[1] || r.lab || e[0], short: e[2],
+        /* ⚠️ A stepped knob is a short list wearing a knob's clothes. Five positions for an
+           octave selector, and a surface that keeps sending its position back rounds every
+           nudge to the position it started on and pushes it there — the same fight BS·1's
+           menus lost. Marking it says "give it its place once, then leave it alone", and
+           the formatted value goes on the display because 84 is not "+2 st". */
+        stepped: !!r.step,
+        text: r.step ? () => r.fmt() : null,
+        get: () => r.get(),
+        set: v => r.set(v)
+      };
+    });
   return segs.concat(knobs);
 }
 function surfaceBanks(){ return SURFACE_BANKS.map(b => ({name: b.name})); }

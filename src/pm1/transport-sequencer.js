@@ -45,20 +45,19 @@ function writeStep(st, midi, extra){
   if (ivs.length) st.add = [...new Set(ivs)].sort((a, b) => a - b).slice(0, 5);
   else delete st.add;
 }
-/* A C-minor acid line, so accent, tie and slide are all audible on the first Play without
-   the player having to build a pattern to hear what the buttons do. */
-const DEFAULT_STEPS = [
-  S(1,0,0,.55,1,0,0), S(0,0,0,.5,0,0,0),  S(1,0,0,.45,0,0,0), S(1,12,0,.35,0,0,0),
-  S(0,0,0,.5,0,0,0),  S(1,0,0,.5,0,0,0),  S(1,0,0,.5,0,0,1),  S(1,10,0,.45,1,0,0),
-  S(1,0,0,.55,0,0,0), S(0,0,0,.5,0,0,0),  S(1,3,0,.45,0,0,0), S(1,5,0,.60,0,1,0),
-  S(0,0,0,.5,0,0,0),  S(1,10,0,.45,1,0,0),S(1,7,-1,.40,0,0,0),S(0,0,0,.5,0,0,0)
-];
+/* ⚠️ EMPTY, AND IT USED TO BE A C-MINOR ACID LINE. The demo pattern was here so that accent,
+   tie and slide were audible on a first Play without anyone having to build something to hear
+   what the buttons do — a fair argument for a panel nobody has met, and the wrong trade for
+   one you open every day. It meant every reload handed you sixteen steps of somebody else's
+   idea to clear before you could start, and clearing it is not a gesture this panel has: no
+   button calls this, so the only way out was sixteen clicks.
+
+   The tour it bought is worth less than the blank page it cost. */
 function resetSteps(){
   SEQ.steps = [];
   /* MAX_STEPS is allocated regardless of the current length, so changing length never
      has to reallocate and a pattern written at 64 survives a trip down to 16 and back. */
-  for (let i = 0; i < MAX_STEPS; i++)
-    SEQ.steps.push(i < 16 ? Object.assign({}, DEFAULT_STEPS[i]) : S(0,0,0,.5,0,0,0));
+  for (let i = 0; i < MAX_STEPS; i++) SEQ.steps.push(S(0,0,0,.5,0,0,0));
 }
 resetSteps();
 
