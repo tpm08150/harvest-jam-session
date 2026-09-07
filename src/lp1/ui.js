@@ -22,7 +22,11 @@ const LABEL = {idle:"Empty", armed:"Armed", rec:"Recording", play:"Playing", dub
    Drawn in rows of eight, which is how MS·1, DR·1 and the shared step grid all settled on
    drawing sixteen: sixteen across is unhittable at a face's width, and eight is the widest
    run that stays countable without labels. */
-const TAKES = Patchwork.scenes.rows.length;   // the launcher's rows, and the worklet's filled()
+/* ⚠️ SIXTEEN TAKES, NOT ONE PER ROW. This read the launcher's row count, which was right for
+   exactly as long as a take WAS a row — and the launcher has thirty-two rows now while the
+   pads that address these have sixteen. The bank is its own size: a scene names a take, and
+   several scenes may name the same one. */
+const TAKES = 16;
 function buildTakes(){
   takesEl.textContent = "";
   for (let i = 0; i < TAKES; i++){
@@ -131,20 +135,24 @@ function paintLoop(){
 }
 requestAnimationFrame(paintLoop);
 
-/* ⚠️ INTO THE SCENE THAT IS PLAYING, not into whichever take was last selected. Arming with
-   no slot used LP.slot, which starts at 0 and only moves when somebody picks a take — so a
-   loop recorded over a running scene 2 landed in scene 1, every time, and the take strip
-   said so afterwards in a place you were not looking.
+/* ⚠️ INTO THE TAKE THE PLAYING SCENE NAMES, when it names one. Arming with no slot uses
+   LP.slot, which starts at 0 and only moves when somebody picks a take — so a loop recorded
+   over a running scene 2 used to land in take 1, and the strip said so afterwards in a place
+   you were not looking.
 
-   A looper's row is the rack's row: that is the whole premise of one take per scene. With
-   nothing playing there is no scene to join and the selected take is the right answer. */
-function recordSlot(){
-  const row = Patchwork.scenes && Patchwork.scenes.currentRow ? Patchwork.scenes.currentRow() : -1;
-  return row >= 0 ? row : LP.slot;
+   ⚠️ AND IT GOES THROUGH THE MAPPING rather than assuming row n is take n. If the scene you
+   are over names a take, recording joins THAT take, which is what "record over what I am
+   hearing" means. If it names none, or nothing is playing, the selected take is the answer
+   and the take strip is where you said so. */
+function armTake(){
+  const S = Patchwork.scenes;
+  const row = S && S.currentRow ? S.currentRow() : -1;
+  const t = row >= 0 ? LP.sceneTake[row] : undefined;
+  return t == null ? LP.slot : t;
 }
 recBtn.addEventListener("click", () => {
   if (LP.mode === "rec" || LP.mode === "armed") stopLoop();
-  else arm("rec", recordSlot());
+  else arm("rec", armTake());
 });
 const takeName = () => "Take " + (LP.slot + 1);
 /* A switch, with nothing to check. There is no "record something first" any more, because

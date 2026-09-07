@@ -82,6 +82,14 @@ function paintCell(b, ri, id, queued, onRow){
   const t = slotted(id);
   b.classList.toggle("full", t ? !!(t.hasSlot && t.hasSlot(ri))
                                : Patchwork.scenes.has(ri, id));
+  /* ⚠️ A SLOT CELL NAMES A TAKE, so it says which. Every other cell holds a pattern that
+     belongs to it alone and a dot is the whole story; a looper's cell is a REFERENCE, and
+     two rows pointing at take 3 look identical to two rows holding different loops unless
+     the number is on them. */
+  if (t && t.takeAt){
+    const n = t.takeAt(ri);
+    b.textContent = n == null ? "" : String(n + 1);
+  }
   /* a slot track keeps its own transport, so what it is playing comes from the track
      rather than from the scene model, which has never heard of it */
   b.classList.toggle("live", t ? !!(t.liveSlot && t.liveSlot() === ri)

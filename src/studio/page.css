@@ -1769,3 +1769,9 @@ body.gated{overflow:hidden}
 
    The dot stays mint everywhere. `data-hue` is still set on the cells, so this is one rule
    away if it is ever wanted back. */
+
+/* A looper's cell carries the take number it names, because it is a reference rather than a
+   thing — two rows on take 3 are indistinguishable from two rows holding different loops
+   without it. Small and dim: the dot is still what says "there is something here". */
+.st-cell{font-family:"DM Mono",ui-monospace,monospace;font-size:9px;color:var(--silk-dim)}
+.st-cell.full{color:var(--mint)}

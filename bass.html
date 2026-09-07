@@ -5138,6 +5138,9 @@ function register(id, spec){
             recordSlot: spec.recordSlot || null,
             playSlot: spec.playSlot || null,
             hasSlot: spec.hasSlot || null,
+            /* Which take a row NAMES, for a slot track whose cells are references rather
+               than contents — see paintCell() in studio/scenes.js. */
+            takeAt: spec.takeAt || null,
             clearSlot: spec.clearSlot || null,
             /* which slot it is working out of right now, or null. A slot track has no
                scene row, so the launcher cannot ask scenes.onRow which cell to ring. */

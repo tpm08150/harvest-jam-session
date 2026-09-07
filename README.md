@@ -222,7 +222,13 @@ than carrying the previous row's part underneath.
 **When** a fired row lands is a setting — instant, next bar, or when CS·1's progression comes
 round, which is the default. **Cmd-shift-click** empties a block.
 
-LP·1 keeps a **separate audio take per row**, so a row can carry a loop as well as patterns.
+⚠️ **An LP·1 cell names a take rather than holding one.** Clicking it puts the take the looper
+is currently on into that row — the same sentence every other cell answers, theirs holding a
+pattern and this one a take number, which is why the cell shows the number. Two rows can name
+the same loop. Shift-clicking **forgets the reference and keeps the audio**: clearing a cell
+is tidying an arrangement, and destroying a recording is something you ask for on the take
+strip rather than get as a side effect. An *empty* take cannot be put on a scene at all — a
+reference to silence looks exactly like a loop until the row comes round and nothing happens.
 Every track can be armed. PM·1, VC·1, BS·1 and DR·1 also take notes you play onto the grid
 as you play them; CS·1 and LP·1 do not — a row press captures CS·1's progression and records
 LP·1 an audio take.
@@ -836,10 +842,11 @@ What the sixteen pads mean follows the panel you clicked:
   This is the panel's own gesture, not a second one: the pads and the on-screen grid run the
   same `press()`, so a lane or a modifier added to one is in the other by construction.
 
-- **LP·1** — the sixteen loop slots, slot 1 on the **top-left** pad, read down like the
-  launcher and unlike CS·1's chord bank. ⚠️ Which are the scene rows: a looper's takes are
-  already addressed by row, so the grid is not a new idea about LP·1 but the launcher's own
-  column with sixteen pads under it — a pad and the cell above it always agree. A pad with a
+- **LP·1** — the sixteen loop **takes**, take 1 on the **top-left** pad, read down like the
+  launcher. ⚠️ These are a *bank*, not the scene rows. They used to be the same list — slot n
+  was row n — which meant a loop you wanted in three places had to be recorded three times as
+  three copies of the same audio, and thirty-two rows against sixteen takes would have left
+  half the launcher unable to hold a loop at all. A pad with a
   take plays it, an empty one records into it, and a recording slot is red so you can see it
   from across the room. `>` is the loop's Play/Stop.
 

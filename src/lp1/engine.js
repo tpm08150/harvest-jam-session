@@ -29,7 +29,20 @@ const LP = {
      part, then play another over it. Once is still a press away and is the rarer answer. */
   after: "dub",             // once | dub
   pos: 0, len: 0, peak: 0,
-  slot: 0, filled: [],      // one take per scene row — see the live page
+  slot: 0, filled: [],      // which take is loaded, and which of the sixteen hold audio
+
+  /* ⚠️ A SCENE HOLDS A TAKE NUMBER, NOT A TAKE. Slot n used to BE scene row n — one take per
+     row, welded — which made the bank and the arrangement the same list and meant a loop you
+     wanted in three places had to be recorded three times, into three rows, as three copies
+     of the same audio. And there were sixteen rows to a bank of sixteen takes, so growing the
+     launcher to thirty-two would have left half the arrangement unable to hold a loop at all.
+
+     So the takes are a bank you record into, and a scene cell REFERS to one. Two rows can
+     name the same take; clearing a cell forgets the reference and leaves the audio where it
+     is, because throwing away a recording is a thing you ask for on the take strip rather
+     than a side effect of tidying an arrangement. */
+  sceneTake: [],            // row -> take index, or undefined
+  firedRow: -1,             // which row last put a take on, for the launcher's ring
   /* ⚠️ THE SLOT WAITING FOR THE LOOP LINE, or -1. queueSlot() deliberately does not move
      LP.slot — see the note there — so between the press and the seam there was NOTHING
      anywhere that said a take had been asked for. On screen you could at least see the
@@ -300,6 +313,7 @@ function stopLoop(){
   node.port.postMessage({op: "now", mode: "idle"});
   LP.queued = -1;
   LP.dubAt = -1;                 // stopping cancels the take that was waiting
+  LP.firedRow = -1;
   setMode("idle");
   /* cancelling an arm before it recorded committed no length, and no worklet message is
      coming to say so — this transition is entirely ours */
@@ -362,6 +376,7 @@ function queueSlot(i){
      "what is playing" must not change, and the answer to "what did I just ask for" has to be
      available immediately. Two questions, two fields. */
   LP.queued = i | 0;
+  LP.firedRow = -1;               // a take chosen any other way is no longer a row's doing
   paintState();
 }
 
@@ -385,11 +400,54 @@ function selectSlot(i){
   /* Choosing one outright answers the question a queued one was waiting to answer. */
   LP.queued = -1;
   LP.dubAt = -1;
+  LP.firedRow = -1;
   LP.slot = i | 0;
   if (node) node.port.postMessage({op: "slot", i: LP.slot});
   paintState();                  // the take strip has to follow, however it was moved
 }
 function hasSlot(i){ return LP.filled.indexOf(i | 0) >= 0; }
+
+/* ---- the scene's side of it ---- */
+const takeAt = row => LP.sceneTake[row | 0];
+/* A row is "filled" for the launcher when it names a take that has audio in it. A reference
+   to a take somebody has since cleared is not a cell you can fire. */
+function rowHasTake(row){
+  const t = takeAt(row);
+  return t != null && hasSlot(t);
+}
+/* ⚠️ WHAT THE LOOPER IS HOLDING, which is what every other instrument's cell captures. For a
+   sequencer that is its pattern; here it is the take you are on — so clicking an LP·1 cell
+   puts the selected take in that row, the same gesture and the same sentence. */
+function assignRow(row){
+  /* ⚠️ AN EMPTY TAKE IS NOT SOMETHING TO PUT ANYWHERE. Assigning one would write a number
+     onto a cell that cannot fire — a reference to silence, indistinguishable at a glance
+     from a loop, and discovered only when the row came round and nothing happened. Record
+     the take first; the strip and the pads are where you do that. */
+  if (!hasSlot(LP.slot)){
+    say("Take " + (LP.slot + 1) + " is empty. Record it first, then put it on a scene.", true);
+    return -1;
+  }
+  LP.sceneTake[row | 0] = LP.slot;
+  paintState();
+  if (Patchwork.record) Patchwork.record.changed();
+  return LP.slot;
+}
+function unassignRow(row){
+  delete LP.sceneTake[row | 0];
+  paintState();
+  if (Patchwork.record) Patchwork.record.changed();
+}
+/* Firing a row plays the take it names, at the loop line like any other queued switch. */
+function fireRowTake(row){
+  const t = takeAt(row);
+  if (t == null || !hasSlot(t)){ LP.firedRow = -1; return false; }
+  queueSlot(t);
+  /* ⚠️ AFTER queueSlot, which clears it. Two rows can name the same take, so "which take is
+     playing" cannot say which row put it there — only the row that asked can, and it stops
+     being true the moment a hand picks a take off the strip instead. */
+  LP.firedRow = row | 0;
+  return true;
+}
 /* Does the slot the transport is pointed at hold anything? Play and Overdub used to ask
    `bpmAtRecord`, which is one flag for the whole bank — so once ANY take existed, Play on
    an empty slot reported "Playing" and put out silence. */

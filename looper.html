@@ -5118,6 +5118,9 @@ function register(id, spec){
             recordSlot: spec.recordSlot || null,
             playSlot: spec.playSlot || null,
             hasSlot: spec.hasSlot || null,
+            /* Which take a row NAMES, for a slot track whose cells are references rather
+               than contents — see paintCell() in studio/scenes.js. */
+            takeAt: spec.takeAt || null,
             clearSlot: spec.clearSlot || null,
             /* which slot it is working out of right now, or null. A slot track has no
                scene row, so the launcher cannot ask scenes.onRow which cell to ring. */
@@ -7781,7 +7784,20 @@ const LP = {
      part, then play another over it. Once is still a press away and is the rarer answer. */
   after: "dub",             // once | dub
   pos: 0, len: 0, peak: 0,
-  slot: 0, filled: [],      // one take per scene row — see the live page
+  slot: 0, filled: [],      // which take is loaded, and which of the sixteen hold audio
+
+  /* ⚠️ A SCENE HOLDS A TAKE NUMBER, NOT A TAKE. Slot n used to BE scene row n — one take per
+     row, welded — which made the bank and the arrangement the same list and meant a loop you
+     wanted in three places had to be recorded three times, into three rows, as three copies
+     of the same audio. And there were sixteen rows to a bank of sixteen takes, so growing the
+     launcher to thirty-two would have left half the arrangement unable to hold a loop at all.
+
+     So the takes are a bank you record into, and a scene cell REFERS to one. Two rows can
+     name the same take; clearing a cell forgets the reference and leaves the audio where it
+     is, because throwing away a recording is a thing you ask for on the take strip rather
+     than a side effect of tidying an arrangement. */
+  sceneTake: [],            // row -> take index, or undefined
+  firedRow: -1,             // which row last put a take on, for the launcher's ring
   /* ⚠️ THE SLOT WAITING FOR THE LOOP LINE, or -1. queueSlot() deliberately does not move
      LP.slot — see the note there — so between the press and the seam there was NOTHING
      anywhere that said a take had been asked for. On screen you could at least see the
@@ -8052,6 +8068,7 @@ function stopLoop(){
   node.port.postMessage({op: "now", mode: "idle"});
   LP.queued = -1;
   LP.dubAt = -1;                 // stopping cancels the take that was waiting
+  LP.firedRow = -1;
   setMode("idle");
   /* cancelling an arm before it recorded committed no length, and no worklet message is
      coming to say so — this transition is entirely ours */
@@ -8114,6 +8131,7 @@ function queueSlot(i){
      "what is playing" must not change, and the answer to "what did I just ask for" has to be
      available immediately. Two questions, two fields. */
   LP.queued = i | 0;
+  LP.firedRow = -1;               // a take chosen any other way is no longer a row's doing
   paintState();
 }
 
@@ -8137,11 +8155,54 @@ function selectSlot(i){
   /* Choosing one outright answers the question a queued one was waiting to answer. */
   LP.queued = -1;
   LP.dubAt = -1;
+  LP.firedRow = -1;
   LP.slot = i | 0;
   if (node) node.port.postMessage({op: "slot", i: LP.slot});
   paintState();                  // the take strip has to follow, however it was moved
 }
 function hasSlot(i){ return LP.filled.indexOf(i | 0) >= 0; }
+
+/* ---- the scene's side of it ---- */
+const takeAt = row => LP.sceneTake[row | 0];
+/* A row is "filled" for the launcher when it names a take that has audio in it. A reference
+   to a take somebody has since cleared is not a cell you can fire. */
+function rowHasTake(row){
+  const t = takeAt(row);
+  return t != null && hasSlot(t);
+}
+/* ⚠️ WHAT THE LOOPER IS HOLDING, which is what every other instrument's cell captures. For a
+   sequencer that is its pattern; here it is the take you are on — so clicking an LP·1 cell
+   puts the selected take in that row, the same gesture and the same sentence. */
+function assignRow(row){
+  /* ⚠️ AN EMPTY TAKE IS NOT SOMETHING TO PUT ANYWHERE. Assigning one would write a number
+     onto a cell that cannot fire — a reference to silence, indistinguishable at a glance
+     from a loop, and discovered only when the row came round and nothing happened. Record
+     the take first; the strip and the pads are where you do that. */
+  if (!hasSlot(LP.slot)){
+    say("Take " + (LP.slot + 1) + " is empty. Record it first, then put it on a scene.", true);
+    return -1;
+  }
+  LP.sceneTake[row | 0] = LP.slot;
+  paintState();
+  if (Patchwork.record) Patchwork.record.changed();
+  return LP.slot;
+}
+function unassignRow(row){
+  delete LP.sceneTake[row | 0];
+  paintState();
+  if (Patchwork.record) Patchwork.record.changed();
+}
+/* Firing a row plays the take it names, at the loop line like any other queued switch. */
+function fireRowTake(row){
+  const t = takeAt(row);
+  if (t == null || !hasSlot(t)){ LP.firedRow = -1; return false; }
+  queueSlot(t);
+  /* ⚠️ AFTER queueSlot, which clears it. Two rows can name the same take, so "which take is
+     playing" cannot say which row put it there — only the row that asked can, and it stops
+     being true the moment a hand picks a take off the strip instead. */
+  LP.firedRow = row | 0;
+  return true;
+}
 /* Does the slot the transport is pointed at hold anything? Play and Overdub used to ask
    `bpmAtRecord`, which is one flag for the whole bank — so once ANY take existed, Play on
    an empty slot reported "Playing" and put out silence. */
@@ -8203,7 +8264,11 @@ const LABEL = {idle:"Empty", armed:"Armed", rec:"Recording", play:"Playing", dub
    Drawn in rows of eight, which is how MS·1, DR·1 and the shared step grid all settled on
    drawing sixteen: sixteen across is unhittable at a face's width, and eight is the widest
    run that stays countable without labels. */
-const TAKES = Patchwork.scenes.rows.length;   // the launcher's rows, and the worklet's filled()
+/* ⚠️ SIXTEEN TAKES, NOT ONE PER ROW. This read the launcher's row count, which was right for
+   exactly as long as a take WAS a row — and the launcher has thirty-two rows now while the
+   pads that address these have sixteen. The bank is its own size: a scene names a take, and
+   several scenes may name the same one. */
+const TAKES = 16;
 function buildTakes(){
   takesEl.textContent = "";
   for (let i = 0; i < TAKES; i++){
@@ -8312,20 +8377,24 @@ function paintLoop(){
 }
 requestAnimationFrame(paintLoop);
 
-/* ⚠️ INTO THE SCENE THAT IS PLAYING, not into whichever take was last selected. Arming with
-   no slot used LP.slot, which starts at 0 and only moves when somebody picks a take — so a
-   loop recorded over a running scene 2 landed in scene 1, every time, and the take strip
-   said so afterwards in a place you were not looking.
+/* ⚠️ INTO THE TAKE THE PLAYING SCENE NAMES, when it names one. Arming with no slot uses
+   LP.slot, which starts at 0 and only moves when somebody picks a take — so a loop recorded
+   over a running scene 2 used to land in take 1, and the strip said so afterwards in a place
+   you were not looking.
 
-   A looper's row is the rack's row: that is the whole premise of one take per scene. With
-   nothing playing there is no scene to join and the selected take is the right answer. */
-function recordSlot(){
-  const row = Patchwork.scenes && Patchwork.scenes.currentRow ? Patchwork.scenes.currentRow() : -1;
-  return row >= 0 ? row : LP.slot;
+   ⚠️ AND IT GOES THROUGH THE MAPPING rather than assuming row n is take n. If the scene you
+   are over names a take, recording joins THAT take, which is what "record over what I am
+   hearing" means. If it names none, or nothing is playing, the selected take is the answer
+   and the take strip is where you said so. */
+function armTake(){
+  const S = Patchwork.scenes;
+  const row = S && S.currentRow ? S.currentRow() : -1;
+  const t = row >= 0 ? LP.sceneTake[row] : undefined;
+  return t == null ? LP.slot : t;
 }
 recBtn.addEventListener("click", () => {
   if (LP.mode === "rec" || LP.mode === "armed") stopLoop();
-  else arm("rec", recordSlot());
+  else arm("rec", armTake());
 });
 const takeName = () => "Take " + (LP.slot + 1);
 /* A switch, with nothing to check. There is no "record something first" any more, because
@@ -8774,23 +8843,34 @@ if (window.Patchwork && Patchwork.surface){
 /* Not a scene member. A scene changes what an instrument PLAYS, and a looper's content is
    a recording — swapping it from a scene row would either throw away a take or need the
    bank to carry audio. Both are wrong; the looper is played by hand, the way MS·1's
-   vocoder and bass are. */
+   vocoder and bass are.
 
-/* LP·1 records audio, not notes, so it has no write() — arming and record hand straight
-   to its own transport, which already lands the take on the bar line. */
-/* LP·1 records audio, not notes, so it has no write(). It has SLOTS instead — one take per
-   scene row — and the live page drives them directly. */
+   ⚠️ SO A SCENE CELL NAMES A TAKE RATHER THAN BEING ONE. Slot n used to BE row n, which made
+   the take bank and the arrangement one list: a loop you wanted in three places had to be
+   recorded three times, and thirty-two rows against sixteen takes would have left half the
+   launcher unable to hold a loop at all. The four calls below are the whole of the change —
+   the launcher still asks the same four questions and gets answers about a reference. */
 Patchwork.record.register("lp1", {
   name: "LP·1",
   canRecord: true,
   slots: true,
-  recordSlot: n => arm("rec", n),
-  playSlot: n => queueSlot(n),          // the launcher's route: lands on the loop line
-  hasSlot: n => hasSlot(n),
-  clearSlot: n => clearSlot(n),
+  /* ⚠️ NOT "RECORD INTO THIS ROW" ANY MORE. It is "put what I am holding here", which is the
+     sentence every other instrument's cell already answers — theirs holds a pattern and this
+     one holds the take you are on. Recording is LP·1's own business and happens on its own
+     pads and its own button. */
+  recordSlot: n => assignRow(n),
+  playSlot: n => fireRowTake(n),
+  hasSlot: n => rowHasTake(n),
+  /* Which take this row names, for a cell that has to show it — see paintCell(). */
+  takeAt: n => takeAt(n),
+  /* ⚠️ FORGETS THE REFERENCE, KEEPS THE AUDIO. Clearing a cell is tidying an arrangement;
+     throwing away a recording is a thing you ask for on the take strip, and doing it as a
+     side effect of the first would be the most destructive control on the page wearing the
+     costume of the least. */
+  clearSlot: n => unassignRow(n),
   /* armed is not yet a row — it is a row about to start on the bar line, and the launcher
      already draws that as the queued state */
-  liveSlot: () => (LP.mode === "idle" || LP.mode === "armed") ? null : LP.slot,
+  liveSlot: () => (LP.mode === "idle" || LP.mode === "armed") ? null : LP.firedRow,
   /* how the session gets a take out of here and puts one back — see shell/codec.js */
   grabTake: n => grabTake(n),
   loadTake: (n, chans, meta) => loadTake(n, chans, meta),
