@@ -331,10 +331,12 @@ transport and LEDs run over the DAW port, which the surface takes for itself.
 | | |
 | --- | --- |
 | **Keys** | play whichever panel has the focus — *Plays the selected panel*, on by default |
+| **Panel focus** | scrolls the page to the panel it moved to, since the rack is taller than the window |
 | **Pads, DAW layout** | the focused panel's grid — see below |
 | **Pads, Drum layout** | DR·1's kit, wherever the focus is, one lane per pad in the order the panel lists them |
 | **Encoders** | the focused panel's eight main controls, named on the screen as you turn them |
 | **∧ ∨ right of the encoders** | which eight — the drum lane on DR·1, a parameter bank on PM·1 |
+| **Hold a pad + ∧ ∨ right of the encoders** | that note's length, a step at a time |
 | **▶ / ■** | the rack transport, the same button the launcher's Play is |
 | **∧ ∨ left of the pads** | page the grid — see the sequencers below |
 | **Shift + ∧ ∨**, or **Func + ∧ ∨** | move the focus to the previous / next panel |
@@ -586,6 +588,12 @@ What the sixteen pads mean follows the panel you clicked:
   rebuilt from the last pitch you played — changing a note's *length* destroyed the note,
   which is the one thing the gesture is for. The pads remember what the last press emptied,
   so the anchor comes back exactly: the chord, the accent and the parameter locks with it.
+
+  **Holding a pad and pressing the pair beside the encoders walks that note's length**, a
+  step at a time, with the new length on the screen. The range gesture writes a length in one
+  go and this adjusts one — which is what you are doing once it is nearly right. It stops at
+  one step rather than deleting: pressing the pad is already how you delete, and a pair of
+  arrows that quietly turns destructive at the end of its travel is one you stop trusting.
 
   Which is also an **undo for a mis-press**. Pressing a lit step clears it, and pressing the
   same pad again puts it back — unless you have played something in between, because the last

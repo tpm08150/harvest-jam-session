@@ -191,6 +191,21 @@ function altHeld(io){ return !!(io.state && (io.state.fn || io.state.shift)); }
 /* The pair beside the encoders: pages the banks where there are banks, and where there are
    not, does whatever the panel offers instead. The same fallthrough the pad arrows use. */
 function encArrow(io, rig, dir){
+  /* ⚠️ A HELD PAD CLAIMS THIS PAIR wherever the grid has lengths to change, and claims it
+     whether or not there is a note under the pad: holding a step is an unambiguous statement
+     about which step you mean, and the pair's ordinary job — paging the encoder banks — is
+     not something anyone reaches for with their other hand on a pad. Falling through would
+     page a bank you cannot see under a gesture you meant for the grid.
+
+     DR·1 has no stretch and wants none, because a drum hit has no length; there the pair goes
+     on paging the lane with a pad held, which is what it always did. ∧ is longer: up is more. */
+  if (io.state.down.length){
+    const g = rig.grid();
+    if (g && g.stretch){
+      said(io, g.stretch(io.state.down[io.state.down.length - 1], dir < 0 ? 1 : -1));
+      return;
+    }
+  }
   if (rig.controlBankBy(dir)) return;
   /* ⚠️ Func here is a SECOND PAIR, not the second eight. Holding it while TURNING a knob
      swaps what the eight are; holding it while PRESSING these two swaps what the pair does.

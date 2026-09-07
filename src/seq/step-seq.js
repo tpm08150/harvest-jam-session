@@ -714,8 +714,12 @@ function tieTo(from, cell){
   if (!seq.steps[a].on && !(erased && erased.i === a && putBack(a, erased.st)))
     seq.press(a, o.held ? o.held() : null, {cycle: false});
   erased = null;
-  /* An accent inside a held note is a hit that never happens — the tie is why. */
-  span.forEach(st => { st.on = 1; st.tie = 1; st.accent = 0; });
+  /* An accent inside a held note is a hit that never happens — the tie is why, and a chord
+     on one is a chord nothing plays. */
+  span.forEach(st => {
+    st.on = 1; st.tie = 1; st.accent = 0;
+    if (st.add) delete st.add;
+  });
   for (let i = b + 1; i < seq.SEQ.len; i++){
     const st = seq.steps[i];
     if (!st || !st.tie) break;
@@ -724,7 +728,60 @@ function tieTo(from, cell){
   return true;
 }
 
+/* The run of steps a note occupies, found from any part of it — the sounding step and every
+   tie behind it. Holding a tie and holding its head are the same held note, so they had
+   better be the same answer. */
+function runAt(i){
+  let head = i;
+  while (head > 0 && seq.steps[head] && seq.steps[head].tie) head--;
+  const st = seq.steps[head];
+  if (!st || !st.on || st.tie) return null;
+  let end = head;
+  while (end + 1 < seq.SEQ.len && seq.steps[end + 1] && seq.steps[end + 1].tie) end++;
+  return {head, end};
+}
+
+/* ---- a note's length, one step at a time ----
+   Hold the pad and press the pair beside the encoders. The range gesture writes a length in
+   one go and this walks it, which is the difference between saying how long a note is and
+   adjusting how long it is — and adjusting is what you are doing once it is nearly right.
+
+   ⚠️ THE HOLD IS STILL A PRESS, and a press on a lit step clears it. So the first thing this
+   does is put back what that press emptied, exactly as the range gesture does. Without it,
+   reaching for a note to lengthen would delete it before the arrow was ever read. */
+function stretch(cell, delta){
+  const i = cellStep(cell);
+  if (i >= seq.SEQ.len) return null;
+  if (erased && erased.i === i){
+    putBack(i, erased.st);
+    erased.tail.forEach(t => putBack(t.i, t.st));
+    erased = null;
+  }
+  const run = runAt(i);
+  if (!run) return null;                        // nothing here to be longer or shorter
+  if (delta > 0){
+    const n = run.end + 1;
+    if (n < seq.SEQ.len && seq.steps[n]){
+      const st = seq.steps[n];
+      st.on = 1; st.tie = 1; st.accent = 0; st.slide = 0;
+      if (st.add) delete st.add;                // a tie sounds nothing, chord included
+      run.end = n;
+    }
+  } else if (run.end > run.head){
+    /* ⚠️ NEVER PAST ONE STEP. Shortening a one-step note to nothing would be a delete, and
+       delete is what pressing the pad already does — a pair of arrows that quietly becomes a
+       destructive gesture at the end of its travel is one you stop trusting. */
+    const st = seq.steps[run.end];
+    st.tie = 0; st.on = 0; st.accent = 0; st.slide = 0;
+    run.end--;
+  }
+  if (o.repaint) o.repaint();
+  const n = run.end - run.head + 1;
+  return {name: "Length", value: n + (n === 1 ? " step" : " steps")};
+}
+
 return {
+  stretch,
   /* The range, and what a step you switch on will become — which is the one fact you
      cannot see from the pads and the whole reason the last-played note is worth having. */
   label: () => {

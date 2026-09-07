@@ -621,16 +621,42 @@ const contested = () => roots.length > 1;
    anything to contest, so an early return when the root is already focused left the
    panel that owns the keyboard with no ring on it — the one case that matters most,
    since it is the state the page opens in. */
-function focus(root){
+/* ⚠️ AND BRING IT INTO VIEW, because focus can move without a hand on the page. A controller
+   steps between panels and the rack is taller than the window: the ring moved to a panel two
+   screens down, the encoders and pads were driving something nobody could see, and the only
+   way to find out what you were playing was to scroll and look.
+
+   Nothing when it is already whole on screen, so this is silent in the ordinary case and
+   never fights a scroll you are in the middle of. A panel taller than the window aligns to
+   its top rather than its middle — centring one would push its own header off. */
+function reveal(root){
+  const box = root.getBoundingClientRect();
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  if (box.top >= 0 && box.bottom <= vh) return;
+  let smooth = true;
+  try{ smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches; }catch(e){}
+  try{
+    root.scrollIntoView({behavior: smooth ? "smooth" : "auto",
+                         block: box.height > vh ? "start" : "center"});
+  }catch(e){ root.scrollIntoView(); }     // the options form is not everywhere
+}
+
+/* `quiet` is "the hand is already there" — see the pointer listener below. */
+function focus(root, quiet){
   if (!root || roots.indexOf(root) < 0) return;
+  const moved = focused !== root;
   focused = root;
   if (!contested()) return;              // nothing to show with a single panel
   roots.forEach(r => r.classList.toggle("focused", r === focused));
+  if (moved && !quiet) reveal(root);
 }
 
 document.addEventListener("pointerdown", e => {
   const el = e.target instanceof Element ? e.target.closest("[data-instrument]") : null;
-  if (el) focus(el);
+  /* ⚠️ QUIET, and this is the case that makes the flag worth having. You clicked it, so it
+     is already where you want it — and this fires on the pointerdown that STARTS a fader
+     drag, so a scroll here would move the control out from under the finger holding it. */
+  if (el) focus(el, true);
 }, true);
 
 function onKey(root, type, fn){
@@ -2796,6 +2822,21 @@ function altHeld(io){ return !!(io.state && (io.state.fn || io.state.shift)); }
 /* The pair beside the encoders: pages the banks where there are banks, and where there are
    not, does whatever the panel offers instead. The same fallthrough the pad arrows use. */
 function encArrow(io, rig, dir){
+  /* ⚠️ A HELD PAD CLAIMS THIS PAIR wherever the grid has lengths to change, and claims it
+     whether or not there is a note under the pad: holding a step is an unambiguous statement
+     about which step you mean, and the pair's ordinary job — paging the encoder banks — is
+     not something anyone reaches for with their other hand on a pad. Falling through would
+     page a bank you cannot see under a gesture you meant for the grid.
+
+     DR·1 has no stretch and wants none, because a drum hit has no length; there the pair goes
+     on paging the lane with a pad held, which is what it always did. ∧ is longer: up is more. */
+  if (io.state.down.length){
+    const g = rig.grid();
+    if (g && g.stretch){
+      said(io, g.stretch(io.state.down[io.state.down.length - 1], dir < 0 ? 1 : -1));
+      return;
+    }
+  }
   if (rig.controlBankBy(dir)) return;
   /* ⚠️ Func here is a SECOND PAIR, not the second eight. Holding it while TURNING a knob
      swaps what the eight are; holding it while PRESSING these two swaps what the pair does.
@@ -6576,8 +6617,12 @@ function tieTo(from, cell){
   if (!seq.steps[a].on && !(erased && erased.i === a && putBack(a, erased.st)))
     seq.press(a, o.held ? o.held() : null, {cycle: false});
   erased = null;
-  /* An accent inside a held note is a hit that never happens — the tie is why. */
-  span.forEach(st => { st.on = 1; st.tie = 1; st.accent = 0; });
+  /* An accent inside a held note is a hit that never happens — the tie is why, and a chord
+     on one is a chord nothing plays. */
+  span.forEach(st => {
+    st.on = 1; st.tie = 1; st.accent = 0;
+    if (st.add) delete st.add;
+  });
   for (let i = b + 1; i < seq.SEQ.len; i++){
     const st = seq.steps[i];
     if (!st || !st.tie) break;
@@ -6586,7 +6631,60 @@ function tieTo(from, cell){
   return true;
 }
 
+/* The run of steps a note occupies, found from any part of it — the sounding step and every
+   tie behind it. Holding a tie and holding its head are the same held note, so they had
+   better be the same answer. */
+function runAt(i){
+  let head = i;
+  while (head > 0 && seq.steps[head] && seq.steps[head].tie) head--;
+  const st = seq.steps[head];
+  if (!st || !st.on || st.tie) return null;
+  let end = head;
+  while (end + 1 < seq.SEQ.len && seq.steps[end + 1] && seq.steps[end + 1].tie) end++;
+  return {head, end};
+}
+
+/* ---- a note's length, one step at a time ----
+   Hold the pad and press the pair beside the encoders. The range gesture writes a length in
+   one go and this walks it, which is the difference between saying how long a note is and
+   adjusting how long it is — and adjusting is what you are doing once it is nearly right.
+
+   ⚠️ THE HOLD IS STILL A PRESS, and a press on a lit step clears it. So the first thing this
+   does is put back what that press emptied, exactly as the range gesture does. Without it,
+   reaching for a note to lengthen would delete it before the arrow was ever read. */
+function stretch(cell, delta){
+  const i = cellStep(cell);
+  if (i >= seq.SEQ.len) return null;
+  if (erased && erased.i === i){
+    putBack(i, erased.st);
+    erased.tail.forEach(t => putBack(t.i, t.st));
+    erased = null;
+  }
+  const run = runAt(i);
+  if (!run) return null;                        // nothing here to be longer or shorter
+  if (delta > 0){
+    const n = run.end + 1;
+    if (n < seq.SEQ.len && seq.steps[n]){
+      const st = seq.steps[n];
+      st.on = 1; st.tie = 1; st.accent = 0; st.slide = 0;
+      if (st.add) delete st.add;                // a tie sounds nothing, chord included
+      run.end = n;
+    }
+  } else if (run.end > run.head){
+    /* ⚠️ NEVER PAST ONE STEP. Shortening a one-step note to nothing would be a delete, and
+       delete is what pressing the pad already does — a pair of arrows that quietly becomes a
+       destructive gesture at the end of its travel is one you stop trusting. */
+    const st = seq.steps[run.end];
+    st.tie = 0; st.on = 0; st.accent = 0; st.slide = 0;
+    run.end--;
+  }
+  if (o.repaint) o.repaint();
+  const n = run.end - run.head + 1;
+  return {name: "Length", value: n + (n === 1 ? " step" : " steps")};
+}
+
 return {
+  stretch,
   /* The range, and what a step you switch on will become — which is the one fact you
      cannot see from the pads and the whole reason the last-played note is worth having. */
   label: () => {
