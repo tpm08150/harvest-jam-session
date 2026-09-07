@@ -3251,18 +3251,30 @@ const B_PLAY = 115, B_STOP = 116, B_REC = 117, B_LOOP = 118,
 const FEAT_THROUGH = [B_ENC_UP, B_ENC_DN, B_ARROW_UP, B_ARROW_DN,
                       B_TRACK_PREV, B_TRACK_NEXT, B_PLAY, B_STOP, B_REC, B_LOOP];
 
-/* ⚠️ FUNCTION IS THE MODIFIER. SHIFT IS A SECOND KEYBOARD.
+/* ⚠️ FUNCTION IS THE MODIFIER. SHIFT IS MOSTLY A SECOND KEYBOARD.
 
-   Shift does reach us — it reports on channel 7 as `b6 3f` — but it is not a modifier the
-   host can combine with anything, because the device does the combining itself: hold Shift
-   and the arrows beside the pads stop sending 106/107 and send 103/102, its own Track pair.
-   Shift and a pad go further still and never arrive, being how the device's own pad-mode
-   menu is driven.
+   Shift reaches us — it reports on channel 7 as `b6 3f` — but the device does most of the
+   combining itself rather than leaving it to the host: hold Shift and the arrows beside the
+   pads stop sending 106/107 and send 103/102, its own Track pair. Shift and a pad go further
+   still and never arrive at all, being how the device's own pad-mode menu is driven.
 
-   So Shift is not read as state and nothing is built on it. What it produces are simply
-   OTHER BUTTONS, listed above and bound like any other, and the one modifier this profile
-   holds is Func. That reads better anyway — one rule, on one key, meaning the same thing
-   everywhere on the surface. */
+   So for the most part what Shift produces are simply OTHER BUTTONS, listed above and bound
+   like any other, and the one modifier this profile holds is Func.
+
+   ⚠️ TWO THINGS DO READ IT AS STATE, and this note used to say nothing did. layerHeld() takes
+   it as a second way into the alt layer, and Shift+Func hops a linked pair — see jump(). Both
+   are safe for the same reason: they are built on Shift's own report, which always arrives,
+   rather than on some other button changing its number underneath it.
+
+   ⚠️ AND THE HOP IS DELIBERATELY ORDER-FREE, which is not politeness — it is insurance. The
+   pair fires on whichever of the two arrives SECOND, so it needs only one of the two presses
+   to reach us. If this device turns out to swallow or renumber Func while Shift is held, the
+   way it already swallows Shift+pad, then holding Func and tapping Shift still works, because
+   Shift's own report is the one thing that always comes through. Neither order was assumed;
+   both are wired.
+
+   If it ever seems dead one way round, `Patchwork.surface.traffic` with the thing plugged in
+   is the answer, and it is the answer to every question in this file. */
 
 /* Colouring. "Channel 1: stationary, Channel 2: flashing, Channel 3: pulsing" for
    everything except the drum rack, which uses channels 10, 11 and 12. A pad LED is a note
