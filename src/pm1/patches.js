@@ -68,9 +68,12 @@ function restore(s){
   setOctave(numOr(s.octave, -3, 3, 0));
   const q = s.seq || {};
   SEQ.motion = oneOf(q.motion, ["off","arp","seq"], SEQ.motion);
-  /* Older patches predate the setting and have to land on the behaviour they were saved
-     under, which is the one this panel has always had: the keys start it. */
-  SEQ.keyTrig = q.keyTrig == null ? true : !!q.keyTrig;
+  /* ⚠️ AN OLD PATCH LANDS ON FREE, although it was saved under Key trig. The rule everywhere
+     else here is that a patch comes back as it was — and this is the one setting where doing
+     that would hand somebody the confusing behaviour precisely when they cannot see why, on
+     a panel they have just loaded and are pressing keys at. Anything saved SINCE carries its
+     own answer and is honoured. */
+  SEQ.keyTrig = q.keyTrig == null ? false : !!q.keyTrig;
   SEQ.len    = oneOf(q.len, [8,12,16,32], 16);
   SEQ.rate   = oneOf(q.rate, Object.keys(RATES), "1/16");
   SEQ.gate   = numOr(q.gate, .05, 1, .5);

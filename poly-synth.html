@@ -723,8 +723,8 @@ input[type="text"]::placeholder{color:#5a646a}
            only transport — because you cannot record a part over a pattern that stops the
            moment your hands leave the keys. -->
       <div class="seg sm" id="keyTrig" role="group" aria-label="Keys start and stop the pattern">
-        <button data-k="on" class="on">Key trig</button>
-        <button data-k="off">Free</button>
+        <button data-k="on">Key trig</button>
+        <button data-k="off" class="on">Free</button>
       </div>
       <div class="seg sm" id="arpDir" data-arponly role="group" aria-label="Arp direction">
         <button data-d="up" class="on">Up</button>
@@ -4855,12 +4855,30 @@ function setLivePattern(id, pat){
 
 /* Whether an instrument's own transport is running. The live page needs it to draw a
    master Play that reflects what is actually going, rather than a button with an opinion. */
+/* ⚠️ WHICH ROW THE RACK IS ON, which nothing could ask before. `onRow` is per instrument and
+   they can legitimately disagree — firing one cell moves one instrument — so "the current
+   scene" is the row the most of them are playing from, and -1 when the room is quiet.
+
+   Wanted by anything that has to JOIN what is already happening rather than start something:
+   LP·1 arming a take is the first, and it was recording into row 1 whatever was playing,
+   because its own idea of a slot had never been told the rack had moved. */
+function currentRow(){
+  const tally = new Map();
+  for (const [id, row] of onRow){
+    if (!playing(id)) continue;
+    tally.set(row, (tally.get(row) || 0) + 1);
+  }
+  let best = -1, n = 0;
+  tally.forEach((count, row) => { if (count > n){ n = count; best = row; } });
+  return best;
+}
+
 function playing(id){
   const it = insts.find(x => x.id === id);
   return !!(it && it.isPlaying());
 }
 
-return {register, store, storeAll, clear, fire, take, onChange, playing, start,
+return {register, store, storeAll, clear, fire, take, onChange, playing, start, currentRow,
         setQuantum, setPatternBars,
         get quantum(){ return quantum; },
         get patternBars(){ return patternBars; },
@@ -9229,13 +9247,18 @@ const SEQ = {
   /* the last note a human played, which is what a step switched on becomes */
   lastNote: null,
   root:36, scale:"chromatic", vel:88, accentAmt:.8, autoStart:false,
-  /* ⚠️ WHETHER THE KEYS OWN THE TRANSPORT. On, which is how this panel has always behaved:
-     the first held note starts the pattern and letting go of the last one stops it, so the
-     arp is something you play rather than something you switch on. That is worth keeping and
-     it is the wrong default for a step sequencer you want to record into — you cannot play a
-     part over a pattern that stops the moment your hands leave the keys. Off, Play is the
-     only transport, exactly like every other sequencer here. */
-  keyTrig:true,
+  /* ⚠️ WHETHER THE KEYS OWN THE TRANSPORT, and it defaults OFF now. On, the first held note
+     starts the pattern and letting go of the last one stops it — which is how this panel
+     always behaved and is genuinely nice once you know it, because the arp becomes something
+     you play rather than something you switch on.
+
+     ⚠️ It is a terrible thing to meet first. With Motion on Seq and an empty grid, pressing a
+     key starts a transport that has nothing to play and silences the note you pressed — so a
+     panel that works perfectly reads as one that makes no sound, and there is nothing on
+     screen that would tell you otherwise. Free is the behaviour every other sequencer here
+     has: Play is the transport, a key is a key. Key trig is one press away for anyone who
+     wants it. */
+  keyTrig:false,
   /* play: keys start the pattern and steer it. program: keys WRITE to the selected step,
      and every knob you move is locked to that step. */
   mode:"play", sel:0,
@@ -10827,9 +10850,12 @@ function restore(s){
   setOctave(numOr(s.octave, -3, 3, 0));
   const q = s.seq || {};
   SEQ.motion = oneOf(q.motion, ["off","arp","seq"], SEQ.motion);
-  /* Older patches predate the setting and have to land on the behaviour they were saved
-     under, which is the one this panel has always had: the keys start it. */
-  SEQ.keyTrig = q.keyTrig == null ? true : !!q.keyTrig;
+  /* ⚠️ AN OLD PATCH LANDS ON FREE, although it was saved under Key trig. The rule everywhere
+     else here is that a patch comes back as it was — and this is the one setting where doing
+     that would hand somebody the confusing behaviour precisely when they cannot see why, on
+     a panel they have just loaded and are pressing keys at. Anything saved SINCE carries its
+     own answer and is honoured. */
+  SEQ.keyTrig = q.keyTrig == null ? false : !!q.keyTrig;
   SEQ.len    = oneOf(q.len, [8,12,16,32], 16);
   SEQ.rate   = oneOf(q.rate, Object.keys(RATES), "1/16");
   SEQ.gate   = numOr(q.gate, .05, 1, .5);

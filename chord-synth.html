@@ -4755,12 +4755,30 @@ function setLivePattern(id, pat){
 
 /* Whether an instrument's own transport is running. The live page needs it to draw a
    master Play that reflects what is actually going, rather than a button with an opinion. */
+/* ⚠️ WHICH ROW THE RACK IS ON, which nothing could ask before. `onRow` is per instrument and
+   they can legitimately disagree — firing one cell moves one instrument — so "the current
+   scene" is the row the most of them are playing from, and -1 when the room is quiet.
+
+   Wanted by anything that has to JOIN what is already happening rather than start something:
+   LP·1 arming a take is the first, and it was recording into row 1 whatever was playing,
+   because its own idea of a slot had never been told the rack had moved. */
+function currentRow(){
+  const tally = new Map();
+  for (const [id, row] of onRow){
+    if (!playing(id)) continue;
+    tally.set(row, (tally.get(row) || 0) + 1);
+  }
+  let best = -1, n = 0;
+  tally.forEach((count, row) => { if (count > n){ n = count; best = row; } });
+  return best;
+}
+
 function playing(id){
   const it = insts.find(x => x.id === id);
   return !!(it && it.isPlaying());
 }
 
-return {register, store, storeAll, clear, fire, take, onChange, playing, start,
+return {register, store, storeAll, clear, fire, take, onChange, playing, start, currentRow,
         setQuantum, setPatternBars,
         get quantum(){ return quantum; },
         get patternBars(){ return patternBars; },

@@ -231,6 +231,18 @@ LP·1 an audio take.
 timer to beat and no confirm to click through, because the button says what it will do and
 the undo expires exactly when it stops being safe.
 
+⚠️ **LP·1 records into the scene that is playing.** Arming with no slot used the last take you
+selected, which starts at 1 and only moves when somebody picks one — so a loop recorded over a
+running scene 2 landed in scene 1 every time, and the take strip said so afterwards in a place
+you were not looking. A looper's row is the rack's row; that is the whole premise of one take
+per scene. With nothing playing there is no scene to join and the selected take is right.
+
+**Arming a take moves you to what you are recording.** The pad that starts a take and the
+panel that makes the sound are two different places, and the count-in is the worst moment to
+be finding the second one — so the hop that Func + `>` does by hand happens on its own. Only
+on *record*: firing a take back is listening, and being thrown at an instrument you did not
+ask for would be the surface moving under you. Func + `>` is still how you come back.
+
 **Hold a note and it records as long as you held it**, as a run of ties on the steps it
 covered — the three pitched instruments all do this, and a drum does not, because a drum has
 no length to record. Playing a shorter note over a longer one takes the old tail with it, so
@@ -294,11 +306,13 @@ holding a pattern hard to pick out, which is the one thing the grid is for. `DIM
 vanish. Off is not an option: an empty cell you can still press must not look like a pad that
 does nothing.
 
-⚠️ **A column is an instrument, so a column has its colour** — and one table feeds both views,
-so a box, a pad and the ring round a panel cannot drift apart. Only *full* cells are tinted:
-an empty cell is a hole, and seven colours of hole would be a grid that looked busiest when it
-had nothing in it. Green stays reserved for the one thing louder than either axis — this cell
-is playing right now.
+⚠️ **A column is an instrument, so a *pad* has its colour** — and the boxes on screen do not.
+Tried both and took the second back out: on the hardware the columns are unlabelled and colour
+is the only thing that says which instrument a pad belongs to, while on screen the column
+headers already say it in words, so the same idea that earns its place there is noise here —
+seven hues competing with the one distinction the grid exists to draw, which is full against
+empty. Green stays reserved on the pads for the thing louder than either axis: this cell is
+playing right now.
 
 ⚠️ **A cursor is not a page.** All sixteen rows are visible at once, so there is nowhere to
 page to — and still somewhere to point. The pair beside the pads walks the cursor and `>`

@@ -24,7 +24,10 @@ const LP = {
      the standing answer it starts each new take from, so a looper you use for layering does
      not need the same press before every single take, and one you use for one-shot phrases
      never dubs by accident. Set on arm, overridable at any point after it. */
-  after: "once",            // once | dub
+  /* ⚠️ DUB, NOT ONCE. A looper you have to press something extra on to build a layer is a
+     looper you use for one-shot phrases; the thing people actually do with one is play a
+     part, then play another over it. Once is still a press away and is the rarer answer. */
+  after: "dub",             // once | dub
   pos: 0, len: 0, peak: 0,
   slot: 0, filled: [],      // one take per scene row — see the live page
   /* ⚠️ THE SLOT WAITING FOR THE LOOP LINE, or -1. queueSlot() deliberately does not move

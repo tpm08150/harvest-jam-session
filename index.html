@@ -3301,25 +3301,14 @@ body.gated{overflow:hidden}
 @media (prefers-reduced-motion:reduce){ .st-scenes{transition:none} }
 .st-scenes.focused{outline-color:var(--cue)}
 
-/* ---- a column is an instrument, so a column has its colour ----
-   ⚠️ THE GRID WAS SEVEN COLUMNS OF IDENTICAL GREEN CELLS, which said a block was full and
-   never which instrument's block it was — you counted across from the left and hoped. The
-   hue comes from one table shared with the pads (see COLOUR in studio/scenes.js), so a box,
-   a pad and the ring round a panel cannot drift apart.
-   Only the FULL state is tinted: an empty cell is a hole, and seven colours of hole would be
-   a grid that looked busiest when it had nothing in it. */
-.st-cell[data-hue="orchid"]   { --hue:var(--stripe-mod) }
-.st-cell[data-hue="amber"]    { --hue:var(--stripe-bass) }
-.st-cell[data-hue="red"]      { --hue:var(--cap-red) }
-.st-cell[data-hue="blue"]     { --hue:var(--accent) }
-.st-cell[data-hue="pink"]     { --hue:var(--stripe-voc) }
-.st-cell[data-hue="turquoise"]{ --hue:var(--lp-ring) }
-.st-cell[data-hue="yellow"]   { --hue:var(--cap-yellow) }
-.st-cell.full::after{background:var(--hue,var(--mint));box-shadow:0 0 7px var(--hue,var(--mint))}
-/* Playing keeps its own ring rather than the column's: "this one is sounding right now" has
-   to win over "this one belongs to the bass", and it is the same green on every column so
-   the eye finds it without reading. */
-.st-cell.live{border-color:var(--mint);box-shadow:0 0 0 1px var(--mint) inset}
+/* ⚠️ THE BOXES ARE NOT COLOURED PER INSTRUMENT AND THE PADS ARE. Tried and taken back out:
+   on the hardware the columns are unlabelled and colour is the only thing that says which
+   instrument a pad belongs to, while on screen the column headers already say it in words —
+   so the same idea that earns its place there is noise here, seven hues competing with the
+   one distinction this grid exists to draw, which is full against empty.
+
+   The dot stays mint everywhere. `data-hue` is still set on the cells, so this is one rule
+   away if it is ever wanted back. */
 </style>
 </head>
 <body>
@@ -4142,8 +4131,8 @@ body.gated{overflow:hidden}
            only transport — because you cannot record a part over a pattern that stops the
            moment your hands leave the keys. -->
       <div class="seg sm" id="keyTrig" role="group" aria-label="Keys start and stop the pattern">
-        <button data-k="on" class="on">Key trig</button>
-        <button data-k="off">Free</button>
+        <button data-k="on">Key trig</button>
+        <button data-k="off" class="on">Free</button>
       </div>
       <div class="seg sm" id="arpDir" data-arponly role="group" aria-label="Arp direction">
         <button data-d="up" class="on">Up</button>
@@ -4602,8 +4591,8 @@ body.gated{overflow:hidden}
          happening now; this is what a take you have not recorded yet will do when it reaches
          its end. -->
     <div class="seg sm" id="loopAfter" role="group" aria-label="What a new take does after its first pass">
-      <button data-a="once" class="on">Once</button>
-      <button data-a="dub">Keep dubbing</button>
+      <button data-a="once">Once</button>
+      <button data-a="dub" class="on">Keep dubbing</button>
     </div>
     <button class="btn ghost" id="playStop">▶ Play</button>
     <button class="btn ghost" id="undo">Undo</button>
@@ -11081,12 +11070,30 @@ function setLivePattern(id, pat){
 
 /* Whether an instrument's own transport is running. The live page needs it to draw a
    master Play that reflects what is actually going, rather than a button with an opinion. */
+/* ⚠️ WHICH ROW THE RACK IS ON, which nothing could ask before. `onRow` is per instrument and
+   they can legitimately disagree — firing one cell moves one instrument — so "the current
+   scene" is the row the most of them are playing from, and -1 when the room is quiet.
+
+   Wanted by anything that has to JOIN what is already happening rather than start something:
+   LP·1 arming a take is the first, and it was recording into row 1 whatever was playing,
+   because its own idea of a slot had never been told the rack had moved. */
+function currentRow(){
+  const tally = new Map();
+  for (const [id, row] of onRow){
+    if (!playing(id)) continue;
+    tally.set(row, (tally.get(row) || 0) + 1);
+  }
+  let best = -1, n = 0;
+  tally.forEach((count, row) => { if (count > n){ n = count; best = row; } });
+  return best;
+}
+
 function playing(id){
   const it = insts.find(x => x.id === id);
   return !!(it && it.isPlaying());
 }
 
-return {register, store, storeAll, clear, fire, take, onChange, playing, start,
+return {register, store, storeAll, clear, fire, take, onChange, playing, start, currentRow,
         setQuantum, setPatternBars,
         get quantum(){ return quantum; },
         get patternBars(){ return patternBars; },
@@ -20948,13 +20955,18 @@ const SEQ = {
   /* the last note a human played, which is what a step switched on becomes */
   lastNote: null,
   root:36, scale:"chromatic", vel:88, accentAmt:.8, autoStart:false,
-  /* ⚠️ WHETHER THE KEYS OWN THE TRANSPORT. On, which is how this panel has always behaved:
-     the first held note starts the pattern and letting go of the last one stops it, so the
-     arp is something you play rather than something you switch on. That is worth keeping and
-     it is the wrong default for a step sequencer you want to record into — you cannot play a
-     part over a pattern that stops the moment your hands leave the keys. Off, Play is the
-     only transport, exactly like every other sequencer here. */
-  keyTrig:true,
+  /* ⚠️ WHETHER THE KEYS OWN THE TRANSPORT, and it defaults OFF now. On, the first held note
+     starts the pattern and letting go of the last one stops it — which is how this panel
+     always behaved and is genuinely nice once you know it, because the arp becomes something
+     you play rather than something you switch on.
+
+     ⚠️ It is a terrible thing to meet first. With Motion on Seq and an empty grid, pressing a
+     key starts a transport that has nothing to play and silences the note you pressed — so a
+     panel that works perfectly reads as one that makes no sound, and there is nothing on
+     screen that would tell you otherwise. Free is the behaviour every other sequencer here
+     has: Play is the transport, a key is a key. Key trig is one press away for anyone who
+     wants it. */
+  keyTrig:false,
   /* play: keys start the pattern and steer it. program: keys WRITE to the selected step,
      and every knob you move is locked to that step. */
   mode:"play", sel:0,
@@ -22546,9 +22558,12 @@ function restore(s){
   setOctave(numOr(s.octave, -3, 3, 0));
   const q = s.seq || {};
   SEQ.motion = oneOf(q.motion, ["off","arp","seq"], SEQ.motion);
-  /* Older patches predate the setting and have to land on the behaviour they were saved
-     under, which is the one this panel has always had: the keys start it. */
-  SEQ.keyTrig = q.keyTrig == null ? true : !!q.keyTrig;
+  /* ⚠️ AN OLD PATCH LANDS ON FREE, although it was saved under Key trig. The rule everywhere
+     else here is that a patch comes back as it was — and this is the one setting where doing
+     that would hand somebody the confusing behaviour precisely when they cannot see why, on
+     a panel they have just loaded and are pressing keys at. Anything saved SINCE carries its
+     own answer and is honoured. */
+  SEQ.keyTrig = q.keyTrig == null ? false : !!q.keyTrig;
   SEQ.len    = oneOf(q.len, [8,12,16,32], 16);
   SEQ.rate   = oneOf(q.rate, Object.keys(RATES), "1/16");
   SEQ.gate   = numOr(q.gate, .05, 1, .5);
@@ -24703,7 +24718,10 @@ const LP = {
      the standing answer it starts each new take from, so a looper you use for layering does
      not need the same press before every single take, and one you use for one-shot phrases
      never dubs by accident. Set on arm, overridable at any point after it. */
-  after: "once",            // once | dub
+  /* ⚠️ DUB, NOT ONCE. A looper you have to press something extra on to build a layer is a
+     looper you use for one-shot phrases; the thing people actually do with one is play a
+     part, then play another over it. Once is still a press away and is the rarer answer. */
+  after: "dub",             // once | dub
   pos: 0, len: 0, peak: 0,
   slot: 0, filled: [],      // one take per scene row — see the live page
   /* ⚠️ THE SLOT WAITING FOR THE LOOP LINE, or -1. queueSlot() deliberately does not move
@@ -25224,9 +25242,20 @@ function paintLoop(){
 }
 requestAnimationFrame(paintLoop);
 
+/* ⚠️ INTO THE SCENE THAT IS PLAYING, not into whichever take was last selected. Arming with
+   no slot used LP.slot, which starts at 0 and only moves when somebody picks a take — so a
+   loop recorded over a running scene 2 landed in scene 1, every time, and the take strip
+   said so afterwards in a place you were not looking.
+
+   A looper's row is the rack's row: that is the whole premise of one take per scene. With
+   nothing playing there is no scene to join and the selected take is the right answer. */
+function recordSlot(){
+  const row = Patchwork.scenes && Patchwork.scenes.currentRow ? Patchwork.scenes.currentRow() : -1;
+  return row >= 0 ? row : LP.slot;
+}
 recBtn.addEventListener("click", () => {
   if (LP.mode === "rec" || LP.mode === "armed") stopLoop();
-  else arm("rec");
+  else arm("rec", recordSlot());
 });
 const takeName = () => "Take " + (LP.slot + 1);
 /* A switch, with nothing to check. There is no "record something first" any more, because
@@ -25554,9 +25583,26 @@ const surfaceGrid = {
        rather than armed: a modifier that falls through to "record" on a miss would turn a
        fumbled delete into a live take. */
     if (mods && mods.accent){ if (hasSlot(i)) clearSlot(i); return; }
-    if (hasSlot(i)) queueSlot(i); else arm("rec", i);
+    if (hasSlot(i)){ queueSlot(i); return; }
+    arm("rec", i);
+    /* ⚠️ ARMING A TAKE MOVES YOU TO WHAT YOU ARE ABOUT TO RECORD. The pad that starts a take
+       and the panel that makes the sound are two different places, and the count-in is the
+       worst possible moment to be going and finding the second one — so the hop that Func +
+       ">" does by hand happens here on its own. Only on RECORD: firing a take back is
+       listening, and being thrown at an instrument you did not ask for would be the surface
+       moving under you. Func + ">" is still how you come back. */
+    goToInput();
   }
 };
+
+/* The panel this looper is recording, when it is recording a panel at all — the same
+   question `link` answers for Func + ">", asked from the one other place that wants it. */
+function goToInput(){
+  const id = instOf(LP.input);
+  if (!id) return;
+  const root = (Patchwork.roots || []).find(r => r.dataset.instrument === id);
+  if (root) Patchwork.focus(root);
+}
 
 /* ---- LP·1 on a MIDI channel ----
    ⚠️ IT TAKES NO NOTES AND IT STILL WANTS A CHANNEL, which is the distinction that kept this

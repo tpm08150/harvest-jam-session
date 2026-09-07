@@ -131,9 +131,20 @@ function paintLoop(){
 }
 requestAnimationFrame(paintLoop);
 
+/* ⚠️ INTO THE SCENE THAT IS PLAYING, not into whichever take was last selected. Arming with
+   no slot used LP.slot, which starts at 0 and only moves when somebody picks a take — so a
+   loop recorded over a running scene 2 landed in scene 1, every time, and the take strip
+   said so afterwards in a place you were not looking.
+
+   A looper's row is the rack's row: that is the whole premise of one take per scene. With
+   nothing playing there is no scene to join and the selected take is the right answer. */
+function recordSlot(){
+  const row = Patchwork.scenes && Patchwork.scenes.currentRow ? Patchwork.scenes.currentRow() : -1;
+  return row >= 0 ? row : LP.slot;
+}
 recBtn.addEventListener("click", () => {
   if (LP.mode === "rec" || LP.mode === "armed") stopLoop();
-  else arm("rec");
+  else arm("rec", recordSlot());
 });
 const takeName = () => "Take " + (LP.slot + 1);
 /* A switch, with nothing to check. There is no "record something first" any more, because
@@ -461,9 +472,26 @@ const surfaceGrid = {
        rather than armed: a modifier that falls through to "record" on a miss would turn a
        fumbled delete into a live take. */
     if (mods && mods.accent){ if (hasSlot(i)) clearSlot(i); return; }
-    if (hasSlot(i)) queueSlot(i); else arm("rec", i);
+    if (hasSlot(i)){ queueSlot(i); return; }
+    arm("rec", i);
+    /* ⚠️ ARMING A TAKE MOVES YOU TO WHAT YOU ARE ABOUT TO RECORD. The pad that starts a take
+       and the panel that makes the sound are two different places, and the count-in is the
+       worst possible moment to be going and finding the second one — so the hop that Func +
+       ">" does by hand happens here on its own. Only on RECORD: firing a take back is
+       listening, and being thrown at an instrument you did not ask for would be the surface
+       moving under you. Func + ">" is still how you come back. */
+    goToInput();
   }
 };
+
+/* The panel this looper is recording, when it is recording a panel at all — the same
+   question `link` answers for Func + ">", asked from the one other place that wants it. */
+function goToInput(){
+  const id = instOf(LP.input);
+  if (!id) return;
+  const root = (Patchwork.roots || []).find(r => r.dataset.instrument === id);
+  if (root) Patchwork.focus(root);
+}
 
 /* ---- LP·1 on a MIDI channel ----
    ⚠️ IT TAKES NO NOTES AND IT STILL WANTS A CHANNEL, which is the distinction that kept this
