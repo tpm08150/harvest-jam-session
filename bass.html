@@ -2934,16 +2934,20 @@ function encArrow(io, rig, dir){
   /* ⚠️ Func here is a SECOND PAIR, not the second eight. Holding it while TURNING a knob
      swaps what the eight are; holding it while PRESSING these two swaps what the pair does.
      Different gestures on different controls, and neither is in the other's way. */
-  const r = rig.bump(dir, altHeld(io));
-  if (r && r.value != null && r.value !== false){ said(io, r); return; }
-  /* ⚠️ LAST, and that is what makes it free. A linked pair — LP·1 and whatever it is
-     recording — is worth a one-press hop, and not worth taking these arrows off DR·1's lanes
-     or PM·1's banks to get it. So it answers only where nothing else did: LP·1 has one bank
-     and no bump of its own, and a banked panel falls out to it at the end of its list. The
-     same fallthrough rule the arrows beside the pads already run on. */
-  jump(io, rig);
+  said(io, rig.bump(dir, altHeld(io)));
 }
-/* Arriving somewhere changes what the pads are FOR, and the hardware has two layouts for
+
+/* ---- Shift + Func: hop to the panel this one is paired with ----
+   ⚠️ THIS WAS THE ARROWS AND THE ARROWS WERE WRONG FOR IT. They answered last, after banks
+   and after the panel's own bump — which kept DR·1's lanes and PM·1's pages intact, and made
+   the hop something you reached by paging to the end of a list first. A toggle you have to
+   walk to is not a toggle.
+
+   Two modifiers, held together, are free on every panel here: neither does anything on its
+   own press, both are already tracked, and nothing else in this profile wants the pair. So
+   the gesture costs nothing and is the same everywhere, which is what "quick" needed.
+
+   Arriving somewhere changes what the pads are FOR, and the hardware has two layouts for
    that. A kit wants the Drum layout — the whole point of hopping to DR·1 is to hit drums,
    and landing on its step grid would mean a second press every time. Everything else wants
    the DAW layout, which is where its own grid is drawn. */
@@ -3315,13 +3319,27 @@ function message(io, d, rig){
 
   /* Both are state, so both need the release as well as the press. Shift arrives twice —
      here and on the feature channel above — and either road sets the same flag. */
-  if (cc === B_SHIFT){ io.state.shift = v > 0; return; }
+  /* Either order: hold one, press the other. The blanket rule at the top of message() has
+     already marked Func as used by the time this runs, so its release stays quiet. */
+  if (cc === B_SHIFT){
+    io.state.shift = v > 0;
+    if (v > 0 && io.state.fn) jump(io, rig);
+    return;
+  }
   /* ⚠️ FUNC ACTS ON THE RELEASE, for the reason ">" does below: until then nobody knows it
      was a press at all. Held with anything else it is the modifier it has always been; let go
      having modified nothing and it turns the panel you are pointed at to its other face. A
      panel with only one face never sees it, and Func there is exactly what it was. */
   if (cc === B_FUNC){
-    if (v > 0){ io.state.fn = true; io.state.fnUsed = false; return; }
+    if (v > 0){
+      io.state.fn = true;
+      /* ⚠️ SPENT ON THE PRESS when Shift is already down, or the release would ALSO turn the
+         panel to its other face — the Func message is the one thing the blanket rule at the
+         top of message() cannot mark, because that rule is what stops Func marking itself. */
+      io.state.fnUsed = !!io.state.shift;
+      if (io.state.shift) jump(io, rig);
+      return;
+    }
     io.state.fn = false;
     if (!io.state.fnUsed) said(io, rig.face());
     return;

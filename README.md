@@ -336,6 +336,7 @@ transport and LEDs run over the DAW port, which the surface takes for itself.
 | **Pads, Drum layout** | DR·1's kit, wherever the focus is, one lane per pad in the order the panel lists them |
 | **Encoders** | the focused panel's eight main controls, named on the screen as you turn them |
 | **An encoder over a list** | one detent, one position — see below |
+| **Shift + Func** | hop between a linked pair — LP·1 and whatever it is recording |
 | **∧ ∨ right of the encoders** | which eight — the drum lane on DR·1, a parameter bank on PM·1 |
 | **Hold a pad + ∧ ∨ right of the encoders** | that note's length, a step at a time |
 | **Func, tapped** | a panel's other face where it has one — on CS·1, the bass voice and its pattern |
@@ -649,16 +650,19 @@ What the sixteen pads mean follows the panel you clicked:
   "Studio output" is not a knob but a penance. Choosing between microphones is a setup decision
   and belongs on the page, where you can read them.
 
-  ⚠️ **Pick an instrument and the pair beside the encoders hops between the two panels**, from
-  either end — LP·1 knows what it is recording, but the panel you jumped *to* has no idea it is
-  half of anything, so the link is declared once by the end that knows and read in both
-  directions. Landing on DR·1 brings up the hardware's **Drum** layout, since the point of
-  hopping to the kit is to hit drums; landing anywhere else restores the DAW layout.
+  ⚠️ **Pick an instrument and Shift + Func hops between the two panels**, from either end —
+  LP·1 knows what it is recording, but the panel you jumped *to* has no idea it is half of
+  anything, so the link is declared once by the end that knows and read in both directions.
+  Either order: hold one, press the other. Landing on DR·1 brings up the hardware's **Drum**
+  layout, since the point of hopping to the kit is to hit drums; landing anywhere else restores
+  the DAW layout. With the input set to the studio bus or a microphone there is nowhere to hop
+  to, and the gesture does nothing.
 
-  It answers *last*, only where nothing else wanted the gesture: banks page first, then the
-  panel's own bump, then this. DR·1 keeps its lanes and you fall out to LP·1 at the end of the
-  list — the same fallthrough rule the arrows beside the pads run on. With the input set to the
-  studio bus or a microphone there is nowhere to hop to, and the arrows do nothing.
+  ⚠️ This was the pair beside the encoders and the arrows were wrong for it. They answered
+  *last*, after banks and after the panel's own bump — which kept DR·1's lanes and PM·1's pages
+  intact, and made the hop something you reached by paging to the end of a list first. A toggle
+  you have to walk to is not a toggle. Two modifiers held together are free on every panel:
+  neither does anything on its own press, and nothing else in the profile wants the pair.
 
   ⚠️ LP·1 takes no notes, so it never registered with the MIDI router — which was the only
   door the surface knew, so focusing it left the encoders blank. Claiming a MIDI channel just
