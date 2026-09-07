@@ -3286,6 +3286,7 @@ body.gated{overflow:hidden}
             aria-expanded="false" aria-haspopup="true" title="Save as, delete, export, import">&hellip;</button>
     <div class="st-proj-menu" id="stProjMenu" hidden>
       <button class="st-xport" id="stProjSaveAs">Save as&hellip;</button>
+      <button class="st-xport" id="stProjRevert">Revert</button>
       <button class="st-xport" id="stProjExport">Export&hellip;</button>
       <button class="st-xport" id="stProjImport">Import&hellip;</button>
       <button class="st-xport st-proj-del" id="stProjDelete">Delete</button>
@@ -7935,7 +7936,10 @@ function remove(name){
   return true;
 }
 
-return {part, capture, apply, save, open, remove, names, all,
+/* Step out of a project without touching what is on the desk — see the note in the browser. */
+function forget(){ setCurrent(""); }
+
+return {part, capture, apply, save, open, remove, forget, names, all,
         get current(){ return current; },
         onChange: fn => watchers.push(fn)};
 })();
@@ -27801,7 +27805,11 @@ paint();
    dialogues, and the one that matters is the one they then click through too. */
 sel.addEventListener("change", () => {
   const name = sel.value;
-  if (!name){ paint(); return; }
+  /* ⚠️ "unsaved" DOES NOT CLEAR THE DESK. It forgets which project you are in, so the next
+     reload opens blank — the escape hatch from a project rather than a way to lose one. A
+     menu entry that silently wiped the page would be the most destructive control here and
+     the least obviously so. */
+  if (!name){ P.forget(); return; }
   const busy = !!(Patchwork.scenes
     && Patchwork.scenes.rows.some(r => Object.keys(r.cells).length));
   if (busy && !confirm("Load " + name + "? The current scenes and sounds are replaced.")){
@@ -27823,6 +27831,16 @@ bSave.addEventListener("click", () => doSave(P.current || askName("")));
 box.querySelector("#stProjSaveAs").addEventListener("click", () => {
   shut();
   doSave(askName(P.current));
+});
+/* ⚠️ THE ONLY WAY TO RE-OPEN WHAT IS ALREADY OPEN. Picking the selected item out of the list
+   again fires no change event — browsers do not report choosing what was already chosen — so
+   without this there is no gesture for "throw away what I have done since". */
+box.querySelector("#stProjRevert").addEventListener("click", () => {
+  shut();
+  const cur = P.current;
+  if (!cur) return;
+  if (confirm("Revert to the saved " + cur + "? Changes since you saved are lost."))
+    P.open(cur);
 });
 box.querySelector("#stProjDelete").addEventListener("click", () => {
   shut();
@@ -27863,6 +27881,16 @@ file.addEventListener("change", () => {
   r.readAsText(f);
   file.value = "";
 });
+
+/* ⚠️ THE LAST PROJECT OPENS ITSELF, and without this the whole feature looked broken. The
+   name survived a reload and the state did not, so the list came back reading "My song" over
+   an empty desk — and picking "My song" out of it did nothing at all, because it was already
+   what the select said. A project you have to remember to re-open is a project you will lose.
+
+   Silent on failure: a page that will not load is worse than a page that loads empty. */
+if (P.current && P.names().indexOf(P.current) >= 0){
+  try{ P.open(P.current); }catch(e){ console.error("could not reopen the last project", e); }
+}
 
 /* ---- the menu ---- */
 function shut(){ menu.hidden = true; bMore.setAttribute("aria-expanded", "false"); }

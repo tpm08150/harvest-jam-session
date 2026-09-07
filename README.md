@@ -235,11 +235,22 @@ reload — and the scenes, the grid of patterns that *is* the arrangement, lived
 Close the tab and the song was gone while every setting around it stayed.
 
 **Project** sits in the header between the view tabs and the jam controls: a list of what you
-have saved, a Save button, and a menu with Save as, Export, Import and Delete. Save overwrites
-what you opened; with nothing open it asks for a name, and the button says which of the two it
-is about to do. Loading replaces the desk, so it asks first — but only once there is something
-to replace, because a confirm on an empty page is a dialogue that teaches people to click
-through dialogues.
+have saved, a Save button, and a menu with Save as, Revert, Export, Import and Delete. Save
+overwrites what you opened; with nothing open it asks for a name, and the button says which of
+the two it is about to do. Loading replaces the desk, so it asks first — but only once there is
+something to replace, because a confirm on an empty page is a dialogue that teaches people to
+click through dialogues.
+
+⚠️ **The last project opens itself.** Without that the whole thing looked broken: the *name*
+survived a reload and the state did not, so the list came back reading "My song" over an empty
+desk — and picking "My song" out of it did nothing at all, because it was already what the
+list said and browsers do not report choosing what was already chosen. A project you have to
+remember to re-open is a project you will lose.
+
+That same rule is why **Revert** exists: it is the only gesture for re-opening what is already
+open, which is what "throw away what I have done since" means. And **— unsaved —** steps out of
+a project without touching the desk, so the next reload starts blank — an escape hatch rather
+than a way to lose work.
 
 ⚠️ **A project is the sum of what registers with it**, not a list one file keeps:
 

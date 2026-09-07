@@ -1478,7 +1478,10 @@ function remove(name){
   return true;
 }
 
-return {part, capture, apply, save, open, remove, names, all,
+/* Step out of a project without touching what is on the desk — see the note in the browser. */
+function forget(){ setCurrent(""); }
+
+return {part, capture, apply, save, open, remove, forget, names, all,
         get current(){ return current; },
         onChange: fn => watchers.push(fn)};
 })();
