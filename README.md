@@ -383,6 +383,21 @@ the lane, because which lane you are on is something you change constantly while
 drums. The pair beside the encoders walks the sixteen tracks; `>` flips the selected one
 between the two kinds.
 
+⚠️ **One encoder bank, and that is what makes the arrows the track selector.** There were two,
+and the pair beside the encoders pages banks *before* it asks a panel for its own bump — so
+walking to track 5 meant paging past a bank first, and the arrows appeared to do nothing every
+other press. On a sixteen-track sequencer the track *is* the navigation, and everything worth
+turning fits in eight knobs anyway.
+
+The screen carries **which track**, not just which steps: every other panel has one sequencer
+so its grid never had to say, and here "1-16" alone names the step range of a track you cannot
+otherwise see. Changing track flashes it, and the resting display keeps it.
+
+**The part being edited is drawn on screen**, on both faces — the sixteen the pads hold on a
+synth track and the eight on a drum one, as a wash and a left edge rather than a fourth
+outline, and only while a surface is connected. A window nobody can move is a window that
+means nothing.
+
 ## MIDI out
 
 ⚠️ **One cable out for the rack, one channel per instrument** — the same shape the input

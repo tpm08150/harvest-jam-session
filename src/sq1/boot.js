@@ -105,7 +105,6 @@ if (navigator.requestMIDIAccess && window.isSecureContext){
   Patchwork.midi.route("sq1", onMidi, function(){}, {
     name: "SQ·1", panic,
     controls: surfaceControls,
-    controlBanks: surfaceBanks, controlBank: surfaceBankNow, setControlBank: setSurfaceBank,
     grid: surfaceGrid,
     bump: surfaceBump, bumpName: "Track",
     action: surfaceAction, actionName: "Style",

@@ -7,6 +7,8 @@
 let sel = 0;                       // which track is on screen
 const cur = () => track(sel);
 
+/* How many steps of one lane the controller's top row holds — see drumSurface in midi.js. */
+const PADS = 8;
 const RATE_LIST = Object.keys(RATES);
 const LEN_LIST = [4, 8, 12, 16, 24, 32, 48, 64];
 const NOTES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
@@ -187,10 +189,21 @@ function paintDrum(){
       }
     }
     const head = t.playingStep();
+    /* ⚠️ WHICH EIGHT THE PADS ARE ON, drawn the way the synth grid draws its sixteen. A drum
+       track can be sixty-four steps long and the controller edits eight of them, and until
+       this there was nothing on screen that said which eight — so paging on the hardware
+       moved an invisible window and the grid looked identical either side of it.
+       Only while a surface is connected: a band nobody can move is a band that means
+       nothing, which is the same rule bankShown() states in seq/step-seq.js. */
+    const surf = window.Patchwork && Patchwork.surface && Patchwork.surface.connected;
+    const base = surf && t.T.len > PADS ? Math.min(t.T.bank || 0,
+      Math.ceil(t.T.len / PADS) - 1) * PADS : -1;
+    row.classList.toggle("sel", surf && +row.dataset.lane === t.T.lane);
     [].forEach.call(cells.children, (b, i) => {
       b.classList.toggle("on", l.steps[i] === 1);
       b.classList.toggle("acc", l.steps[i] === 2);
       b.classList.toggle("now", i === head);
+      b.classList.toggle("bank", base >= 0 && i >= base && i < base + PADS);
     });
   });
 }

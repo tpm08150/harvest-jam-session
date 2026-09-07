@@ -9,41 +9,41 @@
    eight lanes over two pages on a drum one — and the track is chosen with the pair beside
    the encoders, which is what that pair does everywhere else. */
 
-let surfBank = 0;
-function surfaceBanks(){
-  return [{name: "Track"}, {name: "Feel"}];
-}
-const surfaceBankNow = () => Math.min(surfBank, surfaceBanks().length - 1);
-function setSurfaceBank(i){ surfBank = Math.max(0, Math.min(surfaceBanks().length - 1, i)); }
+/* ⚠️ ONE BANK, AND THAT IS WHAT MAKES THE ARROWS THE TRACK SELECTOR. There were two — Track
+   and Feel — and the pair beside the encoders pages banks BEFORE it asks a panel for its own
+   bump, so walking to track 5 meant paging past a bank first and the arrows appeared to do
+   nothing every other press. On a sixteen-track sequencer the track IS the navigation, and
+   everything worth turning fits in eight knobs anyway. Two banks were never worth the cost.
 
+   Key and Scale mean nothing on a drum track and are simply absent there; six controls and
+   two dark encoders is more honest than eight with two that do nothing. */
 function surfaceControls(){
   const t = cur();
   const T = t.style === "drum" ? t.drum.T : t.synth.seq.SEQ;
-  if (surfaceBankNow() === 0){
-    return [
-      Patchwork.surface.option(lenSel, "Steps", "Stp"),
-      Patchwork.surface.option(rateSel, "Rate", "Rat"),
-      Patchwork.surface.segment(styleSeg, "Style", "Sty"),
-      Patchwork.surface.segment(muteSeg, "Mute", "Mut")
-    ].filter(Boolean);
-  }
-  /* Swing and velocity are the two things you turn while it runs; key and scale only mean
-     anything on a synth track, so they are simply absent on a drum one. */
-  const out = [{
-    id: "swing", label: "Swing", short: "Swg",
-    text: () => (T.swing <= .505 ? "straight" : Math.round((T.swing - .5) * 200) + "%"),
-    get: () => (T.swing - .5) / .25,
-    set: v => { T.swing = .5 + Math.max(0, Math.min(1, v)) * .25; }
-  }, {
-    id: "vel", label: "Velocity", short: "Vel",
-    text: () => String(t.style === "drum" ? t.drum.T.vel : Math.round(t.synth.seq.SEQ.vel || 100)),
-    get: () => (t.style === "drum" ? t.drum.T.vel : 100) / 127,
-    set: v => { if (t.style === "drum") t.drum.T.vel = Math.max(1, Math.round(v * 127)); }
-  }];
+  const out = [
+    Patchwork.surface.option(lenSel, "Steps", "Stp"),
+    Patchwork.surface.option(rateSel, "Rate", "Rat")
+  ];
   if (t.style === "synth"){
     out.push(Patchwork.surface.option(keySel, "Key", "Key"));
     out.push(Patchwork.surface.option(scaleSel, "Scale", "Scl"));
   }
+  out.push(Patchwork.surface.segment(styleSeg, "Style", "Sty"));
+  out.push(Patchwork.surface.segment(muteSeg, "Mute", "Mut"));
+  out.push({
+    id: "swing", label: "Swing", short: "Swg",
+    text: () => (T.swing <= .505 ? "straight" : Math.round((T.swing - .5) * 200) + "%"),
+    get: () => (T.swing - .5) / .25,
+    set: v => { T.swing = .5 + Math.max(0, Math.min(1, v)) * .25; }
+  });
+  /* Velocity is the drum track's, because a synth step carries its own accent and the
+     shared sequencer already scales by it. */
+  if (t.style === "drum") out.push({
+    id: "vel", label: "Velocity", short: "Vel",
+    text: () => String(t.drum.T.vel),
+    get: () => t.drum.T.vel / 127,
+    set: v => { t.drum.T.vel = Math.max(1, Math.round(v * 127)); }
+  });
   return out.filter(Boolean);
 }
 
@@ -55,7 +55,12 @@ function surfaceBump(dir){
   if (to === sel) return null;
   sel = to;
   showTrack();
-  return {name: "Track", value: String(sel + 1) + " · " + cur().style};
+  /* ⚠️ AND SAY SO. Sixteen tracks that look identical from the pads is exactly the case where
+     a silent move leaves you editing something you did not mean to. The flash names the track
+     and what kind it is; the resting display carries the number from then on. */
+  const t = cur();
+  const T = t.style === "drum" ? t.drum.T : t.synth.seq.SEQ;
+  return {name: "Track", value: (sel + 1) + " " + t.style + " " + T.len + "×" + T.rate};
 }
 /* ">" flips the selected track between the two kinds, because that is the one decision this
    panel makes that is not a value on a knob. */
@@ -73,25 +78,48 @@ function surfaceAction(){
    the top row is the selected lane's steps and the bottom row picks which lane. */
 let synthSurface = null, synthFor = -1;
 function synthPads(){
-  if (synthFor !== sel){ synthSurface = Patchwork.makeSeqSurface(cur().synth.seq,
-    {repaint: () => { if (grid) grid.paint(); }}); synthFor = sel; }
+  if (synthFor !== sel){
+    synthSurface = Patchwork.makeSeqSurface(cur().synth.seq, {
+      /* ⚠️ THE TRACK NUMBER BELONGS ON THE SCREEN. Every other panel has one sequencer, so
+         its grid never had to say which — and here there are sixteen, and "1-16" alone tells
+         you the step range of a track you cannot see the name of. Static rather than a
+         function because the surface is rebuilt whenever the selection moves. */
+      label: "T" + (sel + 1),
+      repaint: () => { if (grid) grid.paint(); }
+    });
+    synthFor = sel;
+  }
   return synthSurface;
 }
 
 const DRUM_PAGE = 8;
+/* One definition of "which eight", because it was written out four times and one of the four
+   was wrong. */
+const drumPages = t => Math.max(1, Math.ceil(t.T.len / DRUM_PAGE));
+const drumBase = t => Math.min(t.T.bank || 0, drumPages(t) - 1) * DRUM_PAGE;
 const drumSurface = {
+  /* ⚠️ THE PAGE IS T.bank, and this read a bankBase() that does not exist — so the guard
+     handed back 0 and the screen said "1-8" from whichever page you were actually on. A
+     readout that is wrong is worse than none: it is the one thing on the controller telling
+     you where you are, and it was lying with total confidence. */
   label: () => {
     const t = cur().drum, l = t.lanes[t.T.lane] || t.lanes[0];
-    const base = (t.bankBase ? t.bankBase() : 0);
+    const base = drumBase(t);
     return "T" + (sel + 1) + " " + (l ? l.name : "") + "  " + (base + 1) + "-"
          + Math.min(t.T.len, base + DRUM_PAGE);
   },
-  pages: () => Math.max(1, Math.ceil(cur().drum.T.len / DRUM_PAGE)),
-  page: () => Math.min(cur().drum.T.bank || 0, Math.max(0, Math.ceil(cur().drum.T.len / DRUM_PAGE) - 1)),
-  setPage: p => { cur().drum.T.bank = Math.max(0, Math.min(Math.ceil(cur().drum.T.len / DRUM_PAGE) - 1, p)); },
+  pages: () => drumPages(cur().drum),
+  page: () => drumBase(cur().drum) / DRUM_PAGE,
+  setPage: p => {
+    const t = cur().drum;
+    t.T.bank = Math.max(0, Math.min(drumPages(t) - 1, p));
+    /* ⚠️ THE SCREEN FOLLOWS THE PADS. Paging is the one gesture here that changes what the
+       on-screen grid is showing you the edit range of, and nothing else would repaint it. */
+    paintDrum();
+  },
   cells: () => {
     const out = new Array(16).fill(null);
-    const t = cur().drum, base = (t.T.bank || 0) * DRUM_PAGE;
+    const t = cur().drum, base = drumBase(t);
     const lane = t.lanes[t.T.lane] || t.lanes[0];
     const head = t.playingStep();
     /* ⚠️ TOP ROW IS THE PATTERN, BOTTOM ROW IS THE KIT. Eight lanes and eight steps a page
@@ -115,7 +143,7 @@ const drumSurface = {
   down: (cell, vel, mods) => {
     const t = cur().drum;
     if (cell < 8){ t.T.lane = cell; paintDrum(); return; }
-    const i = (t.T.bank || 0) * DRUM_PAGE + (cell - 8);
+    const i = drumBase(t) + (cell - 8);
     if (i >= t.T.len) return;
     /* Func writes an accent outright rather than walking to it, the same shortcut DR·1's
        pads make: three presses to accent a step is two too many mid-take. */

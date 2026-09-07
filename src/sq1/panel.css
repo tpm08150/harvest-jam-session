@@ -126,3 +126,17 @@
   .tracks{grid-template-columns:repeat(8,1fr)}
   .lane-head{flex-basis:104px}
 }
+
+/* ---- what the controller is editing ----
+   ⚠️ A WASH AND A LEFT EDGE, NOT A FOURTH OUTLINE. `now`, `acc` and focus are outlines or
+   rings already, and a band drawn as another ring reads as a box inside a box — the same
+   thing bs1 and dr1 say about theirs. Only ever drawn while a surface is connected: a window
+   nobody can move is a window that means nothing. */
+.dstep.bank{border-color:#4a7fb0}
+.dstep.bank:not(.on):not(.acc){background:rgba(74,127,176,.20)}
+.lane.sel .lane-name{color:var(--sq-hi)}
+.lane.sel .lane-steps{position:relative}
+.lane.sel .lane-steps::before{
+  content:"";position:absolute;left:-5px;top:0;bottom:0;width:2px;border-radius:1px;
+  background:var(--sq);box-shadow:0 0 6px var(--sq);
+}
