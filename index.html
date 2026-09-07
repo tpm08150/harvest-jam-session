@@ -9521,10 +9521,27 @@ const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends sen
    has four screens; wiring one to the other means the surface has no navigation of its own
    to learn and no button to spend on it. Mixer is the only one that also retargets the
    encoders, because it is the only one of the four that is a thing to turn knobs at. */
+/* ⚠️ AND CUSTOM 1 IS THE FIFTH SCREEN. The four below are the device's own named modes and
+   the app's four performing views; Settings has no place among them and needed somewhere,
+   and the pad right of Transport is a mode this profile was previously handing straight back.
+
+   ⚠️ THE NUMBER IS A GUESS AND THE OTHERS ARE NOT. Every constant in this file that came from
+   the guide rather than from the wire has been wrong at least once — the encoder arrows were
+   55/56 on paper and 51/52 in fact. The four below are confirmed against hardware; this one
+   is not, because Custom modes are barely documented and there was no device here to ask.
+
+   If Shift + Custom 1 does nothing, one press settles it:
+
+     Patchwork.surface.traffic     // press it, then read the tail
+
+   A mode report is `b6 1e NN` on the feature channel. Put NN here. An unrecognised mode is
+   also announced on the console rather than dropped in silence, for the same reason. */
+const ENC_CUSTOM1 = 6;
 const ENC_VIEW = {1: {view: "tape",   page: "mixer"},
                   2: {view: "studio", page: ""},
                   4: {view: "live",   page: "scenes"},
                   5: {view: "lib",    page: ""}};
+ENC_VIEW[ENC_CUSTOM1] = {view: "set", page: "settings"};
 
 /* Pads. DAW layout reports as notes on channel 1; Drum layout on channel 10 once the DAW
    has taken the rack. Guide, "DAW mode" and "Drum mode" pad index figures.
@@ -9942,8 +9959,12 @@ function message(io, d, rig){
        about and cannot light. */
     if (d[1] === F_ENCS){
       const to = ENC_VIEW[d[2]];
-      /* A Custom mode is somebody else's; leave the app where it is rather than guessing. */
+      /* A Custom mode we have not claimed is somebody else's; leave the app where it is
+         rather than guessing — but SAY which one, because the only reason Custom 1's number
+         is a guess is that there was no hardware here to ask. */
       if (to){ rig.setMode(to.page); rig.goto(to.view); }
+      else console.info("launchkey: encoder mode " + d[2] + " is not mapped — "
+                      + "see ENC_CUSTOM1 in shell/launchkey.js");
       return;
     }
     /* ⚠️ SHIFT IS STATE AGAIN, and this time it earns it. It cannot be combined with another
@@ -26862,6 +26883,9 @@ function buildRows(){
     const outCell = cell("out");
     const outSel = document.createElement("select");
     outSel.className = "st-midi-ch";
+    /* ⚠️ An id, so the surface page can drive THIS select rather than a second copy of the
+       same question — see studio/settings.js. One control, one truth. */
+    outSel.id = "stOut-" + it.id;
     outSel.setAttribute("aria-label", it.name + " output channels");
     outSel.addEventListener("change", () => { A.setOut(it.id, parseInt(outSel.value, 10)); });
     outCell.appendChild(outSel);
@@ -26873,6 +26897,7 @@ function buildRows(){
       const inCell = cell("in");
       inSelProxy = document.createElement("select");
       inSelProxy.className = "st-midi-ch";
+      inSelProxy.id = "stAIn-" + it.id;
       inSelProxy.setAttribute("aria-label", it.name + " audio input");
       inSelProxy.addEventListener("change", () => {
         src.value = inSelProxy.value;
@@ -26985,6 +27010,7 @@ function build(){
       if (!it.spec[key]){ cell.classList.add("st-midi-none"); rows && row.appendChild(cell); return; }
       const sel = document.createElement("select");
       sel.className = "st-midi-ch";
+      sel.id = "stMidi-" + key + "-" + it.id;
       chOptions(sel);
       sel.value = String(it.spec[key].get());
       sel.setAttribute("aria-label", it.name + " " + lab + " channel");
@@ -27081,6 +27107,132 @@ if (surfSel && window.Patchwork && Patchwork.surface){
   fillSurfaces();
   setTimeout(fillSurfaces, 0);
 }
+})();
+
+/* ---- Settings, on the controller ----
+   ⚠️ EVERY CONTROL HERE IS THE PAGE'S OWN SELECT, driven through option() rather than
+   reimplemented. A surface page that kept its own idea of which channel DR·1 answers on
+   would be a second answer to a question that already has one, and the two would drift the
+   first time either was changed from the other end. So this page is a MAP of the tab, and
+   the tab is where the behaviour lives.
+
+   ⚠️ AND IT IS A PAGE, NOT A PANEL. A page outranks the focus while its mode is on — see
+   rig.focus in shell/surface.js — which is exactly right here: the whole point is to reach
+   VC·1's channels without first going and clicking on VC·1. */
+(() => {
+"use strict";
+const S = window.Patchwork && Patchwork.surface;
+if (!S || !S.mount) return;
+
+const q = sel => document.querySelector(sel);
+const opt = (sel, label, short) => Patchwork.surface.option(q(sel), label, short);
+
+/* Which panels have a row, in the order the tab lists them. Read fresh every time: a page
+   built once at boot would be missing whatever registered after it. */
+function panels(){
+  const midi = (Patchwork.midi && Patchwork.midi.list) ? Patchwork.midi.list() : [];
+  return (Patchwork.roots || []).map(r => {
+    const id = r.dataset.instrument;
+    const m = midi.find(x => x.id === id);
+    const t = Patchwork.record && Patchwork.record.track ? Patchwork.record.track(id) : null;
+    return {id, name: (m && m.name) || (t && t.name) || id.toUpperCase()};
+  }).filter(x => x.id);
+}
+
+/* ---- the banks ----
+   Global first, because "which interface" and "which MIDI port" are the questions you have
+   to answer before any of the per-instrument ones mean anything. */
+function banks(){
+  return [{name: "Global"}].concat(panels().map(p => ({name: p.name})));
+}
+let bank = 0;
+const bankNow = () => Math.min(bank, banks().length - 1);
+
+function globalControls(){
+  return [
+    opt("#stAudioOut", "Output device", "Dev"),
+    opt("#stMidiIn", "MIDI in", "MIn"),
+    opt("#stSurface", "Controller", "Ctl"),
+    /* A checkbox is not a list, so it is the one control here that has to be built by hand.
+       Two positions, and nudge() is what makes a two-position control usable on an encoder
+       at all — see stepper() in shell/surface.js. */
+    follow()
+  ].filter(Boolean);
+}
+function follow(){
+  const el = q("#stMidiFollow");
+  if (!el) return null;
+  const set = on => {
+    if (!!el.checked === !!on) return;
+    el.checked = !!on;
+    el.dispatchEvent(new Event("change", {bubbles: true}));
+  };
+  return {
+    id: "follow", label: "Plays selected", short: "Sel", stepped: true,
+    text: () => (el.checked ? "On" : "Off"),
+    get: () => (el.checked ? 1 : 0),
+    set: v => set(v >= .5),
+    nudge: d => set(d > 0)
+  };
+}
+
+/* One bank per instrument: where its sound goes, where its sound comes from, and the two
+   channels it answers and speaks on. Absent controls are simply absent — an instrument with
+   no MIDI out has three, not four with a dead one. */
+function instControls(id){
+  return [
+    opt("#stOut-" + id, "Audio out", "Out"),
+    opt("#stAIn-" + id, "Audio in", "In"),
+    opt("#stMidi-inCh-" + id, "MIDI in ch", "MIn"),
+    opt("#stMidi-outCh-" + id, "MIDI out ch", "MOu")
+  ].filter(Boolean);
+}
+
+function controls(){
+  const i = bankNow();
+  if (i === 0) return globalControls();
+  const p = panels()[i - 1];
+  return p ? instControls(p.id) : [];
+}
+
+/* ⚠️ THE PADS ARE THE BANKS. Sixteen of them and one page per instrument plus a global one
+   is at most eight — so rather than leave the grid dark on the one page where a hand is
+   hunting for a panel by name, each pad IS a page. Which beats paging through them with the
+   arrows while reading a four-character name off a screen. */
+const grid = {
+  label: () => {
+    const b = banks()[bankNow()];
+    return "Settings  " + (b ? b.name : "");
+  },
+  cells: () => {
+    const out = new Array(16).fill(null);
+    const list = banks();
+    for (let k = 0; k < list.length && k < 16; k++){
+      const cell = k < 8 ? k + 8 : k - 8;      // top row first, as every grid here reads
+      out[cell] = k === bankNow()
+        ? {colour: "white", on: true}
+        : {colour: k === 0 ? "amber" : "cyan", on: false};
+    }
+    return out;
+  },
+  down: cell => {
+    const k = cell < 8 ? cell + 8 : cell - 8;
+    if (k < banks().length) bank = k;
+  }
+};
+
+S.mount("settings", {
+  name: "Settings",
+  /* Entering the mode brings the tab up, so the screen and the encoders are looking at the
+     same thing. Leaving it is the surface's own business — another encoder mode, or a tab
+     clicked with a mouse. */
+  show: () => { if (S.rig && S.rig.goto) S.rig.goto("set"); },
+  controls,
+  controlBanks: banks,
+  controlBank: bankNow,
+  setControlBank: i => { bank = Math.max(0, Math.min(banks().length - 1, i)); },
+  grid
+});
 })();
 
 /* ---- the live page ----

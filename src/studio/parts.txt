@@ -126,6 +126,7 @@ ts1/ui.js
 ts1/boot.js
 ts1/_close.js
 studio/scenes.js
+studio/settings.js
 studio/live.js
 studio/console.js
 studio/tape.js

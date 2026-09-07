@@ -2934,10 +2934,27 @@ const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends sen
    has four screens; wiring one to the other means the surface has no navigation of its own
    to learn and no button to spend on it. Mixer is the only one that also retargets the
    encoders, because it is the only one of the four that is a thing to turn knobs at. */
+/* ⚠️ AND CUSTOM 1 IS THE FIFTH SCREEN. The four below are the device's own named modes and
+   the app's four performing views; Settings has no place among them and needed somewhere,
+   and the pad right of Transport is a mode this profile was previously handing straight back.
+
+   ⚠️ THE NUMBER IS A GUESS AND THE OTHERS ARE NOT. Every constant in this file that came from
+   the guide rather than from the wire has been wrong at least once — the encoder arrows were
+   55/56 on paper and 51/52 in fact. The four below are confirmed against hardware; this one
+   is not, because Custom modes are barely documented and there was no device here to ask.
+
+   If Shift + Custom 1 does nothing, one press settles it:
+
+     Patchwork.surface.traffic     // press it, then read the tail
+
+   A mode report is `b6 1e NN` on the feature channel. Put NN here. An unrecognised mode is
+   also announced on the console rather than dropped in silence, for the same reason. */
+const ENC_CUSTOM1 = 6;
 const ENC_VIEW = {1: {view: "tape",   page: "mixer"},
                   2: {view: "studio", page: ""},
                   4: {view: "live",   page: "scenes"},
                   5: {view: "lib",    page: ""}};
+ENC_VIEW[ENC_CUSTOM1] = {view: "set", page: "settings"};
 
 /* Pads. DAW layout reports as notes on channel 1; Drum layout on channel 10 once the DAW
    has taken the rack. Guide, "DAW mode" and "Drum mode" pad index figures.
@@ -3355,8 +3372,12 @@ function message(io, d, rig){
        about and cannot light. */
     if (d[1] === F_ENCS){
       const to = ENC_VIEW[d[2]];
-      /* A Custom mode is somebody else's; leave the app where it is rather than guessing. */
+      /* A Custom mode we have not claimed is somebody else's; leave the app where it is
+         rather than guessing — but SAY which one, because the only reason Custom 1's number
+         is a guess is that there was no hardware here to ask. */
       if (to){ rig.setMode(to.page); rig.goto(to.view); }
+      else console.info("launchkey: encoder mode " + d[2] + " is not mapped — "
+                      + "see ENC_CUSTOM1 in shell/launchkey.js");
       return;
     }
     /* ⚠️ SHIFT IS STATE AGAIN, and this time it earns it. It cannot be combined with another

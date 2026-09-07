@@ -739,6 +739,9 @@ function buildRows(){
     const outCell = cell("out");
     const outSel = document.createElement("select");
     outSel.className = "st-midi-ch";
+    /* ⚠️ An id, so the surface page can drive THIS select rather than a second copy of the
+       same question — see studio/settings.js. One control, one truth. */
+    outSel.id = "stOut-" + it.id;
     outSel.setAttribute("aria-label", it.name + " output channels");
     outSel.addEventListener("change", () => { A.setOut(it.id, parseInt(outSel.value, 10)); });
     outCell.appendChild(outSel);
@@ -750,6 +753,7 @@ function buildRows(){
       const inCell = cell("in");
       inSelProxy = document.createElement("select");
       inSelProxy.className = "st-midi-ch";
+      inSelProxy.id = "stAIn-" + it.id;
       inSelProxy.setAttribute("aria-label", it.name + " audio input");
       inSelProxy.addEventListener("change", () => {
         src.value = inSelProxy.value;
@@ -862,6 +866,7 @@ function build(){
       if (!it.spec[key]){ cell.classList.add("st-midi-none"); rows && row.appendChild(cell); return; }
       const sel = document.createElement("select");
       sel.className = "st-midi-ch";
+      sel.id = "stMidi-" + key + "-" + it.id;
       chOptions(sel);
       sel.value = String(it.spec[key].get());
       sel.setAttribute("aria-label", it.name + " " + lab + " channel");
