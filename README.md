@@ -227,6 +227,12 @@ Every track can be armed. PM·1, VC·1, BS·1 and DR·1 also take notes you play
 as you play them; CS·1 and LP·1 do not — a row press captures CS·1's progression and records
 LP·1 an audio take.
 
+**Hold a note and it records as long as you held it**, as a run of ties on the steps it
+covered — the three pitched instruments all do this, and a drum does not, because a drum has
+no length to record. Playing a shorter note over a longer one takes the old tail with it, so
+a part is something you can play again rather than something you have to go and shorten by
+hand afterwards.
+
 ## Projects
 
 ⚠️ **Everything on this page was persistent except the thing you actually made.** Sounds save

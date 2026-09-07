@@ -69,9 +69,17 @@ function allPolyOff(t){
 
 /* True when a running pattern owns the synth voice, so the keyboard must not also play it.
    Never in program mode: there you are entering notes and must hear each one, even with
-   the sequence running underneath. */
+   the sequence running underneath.
+
+   ⚠️ AND ONLY WHILE THE PATTERN IS USING YOUR KEYS FOR SOMETHING ELSE. The arp always is —
+   it reads heldNotes and voices them, so a keyboard sounding underneath would double every
+   note of it. The sequencer plays its own grid and never reads a key at all; the only claim
+   it had on them was Key trigger, where the held note IS the run button and hearing it would
+   be a drone under the pattern. Turn Key trigger off and a key is just a key, which is the
+   whole point of the mode — and it went silent instead, so the one thing free running is
+   for, playing a part over the pattern to record it, you had to do deaf. */
 const seqOwnsVoice = () => SEQ.playing && SEQ.mode === "play"
-                        && (SEQ.motion === "arp" || SEQ.motion === "seq");
+                        && (SEQ.motion === "arp" || (SEQ.motion === "seq" && SEQ.keyTrig));
 
 /* Run fn() with a step's parameter locks temporarily in force. Voices read P at build time,
    so swapping P around the build is all it takes — and because scheduling is synchronous
@@ -227,6 +235,9 @@ function noteOff(midi, when, forceSec){
   if (latch){ paintKeys(); return; }
   const i = heldNotes.findIndex(n => n.midi === m);
   if (i >= 0) heldNotes.splice(i, 1);
+  /* The other half of the note the recorder took on the way down — see shell/record.js.
+     Unconditional, like the note-on: it is a no-op for a note that was never written. */
+  Patchwork.record.noteOff("pm1", m, t);
   /* the step cursor moves on when your hands come off, so a chord is one step */
   if (SEQ.mode !== "play" && !heldNotes.length){
     selectStep(SEQ.sel + 1);
@@ -262,6 +273,10 @@ function noteOff(midi, when, forceSec){
 }
 
 function allNotesOff(){
+  /* ⚠️ A PANIC IS STILL A RELEASE. This is the one path that empties heldNotes without
+     going through noteOff(), so a note taken by the recorder would otherwise be left open
+     and its length never written — see the same repetition of the auto-stop below. */
+  Patchwork.record.allOff("pm1");
   heldNotes.length = 0;
   downKeys.clear();
   /* This is the one path that empties heldNotes without going through noteOff(), so the

@@ -189,6 +189,52 @@ let timer = null, nextTime = 0, stepIndex = 0, marks = [], arpIdx = 0;
 /* Slide is the one thing that makes a 303 line sound like a 303: portamento INTO the step
    with no amp retrigger, so the two notes are one continuous gesture. It only works if the
    previous note was never released, which is why the scheduler looks one step ahead. */
+/* ---- a played instant as a step, and a held note as a tie ----
+   The nearest boundary rather than the one just passed, so a note struck a hair late lands
+   where it was aimed. The attack and the release both ask, and they have to agree about it
+   or a hold would tie the wrong run. Shared in shape with seq/step-seq.js — the two
+   sequencers are different enough to be separate and record identically. */
+function stepAtTime(t){
+  if (!marks.length) return -1;
+  let m = null;
+  for (let k = marks.length - 1; k >= 0; k--) if (marks[k].t <= t){ m = marks[k]; break; }
+  if (!m) m = marks[0];
+  const half = (m.end - m.t) / 2;
+  return ((((t - m.t) > half ? m.i + 1 : m.i) % SEQ.len) + SEQ.len) % SEQ.len;
+}
+/* ⚠️ A RUN OF TIES BELONGS TO THE STEP IN FRONT OF IT and to nothing else, which is what
+   makes both of these safe to do without asking. Recording a new note over an old one takes
+   the old one's tail with it — overdub a short note onto a long one and without this it
+   keeps the long one's length, with no gesture anywhere that shortens it again. */
+function clearTail(from){
+  for (let k = 1; k < SEQ.len; k++){
+    const st = SEQ.steps[(from + k) % SEQ.len];
+    if (!st || !st.tie) break;
+    st.tie = 0; st.on = 0; st.accent = 0; st.slide = 0;
+    delete st.add;
+  }
+}
+/* ...and holding the note is how the tail gets written: every step between where it landed
+   and where you let go sounds nothing of its own and lengthens this one instead.
+
+   ⚠️ ONE TURN OF THE PATTERN AT MOST. A note held longer than the loop is a drone, and a
+   drone is a full lap of ties — not a lap and then another over the top of it. */
+function tieTail(from, to){
+  let n = 0;
+  for (let k = 1; k < SEQ.len; k++){
+    const i = (from + k) % SEQ.len;
+    if (i === (to + 1) % SEQ.len) break;
+    const st = SEQ.steps[i];
+    if (!st) break;
+    st.on = 1; st.tie = 1; st.accent = 0; st.slide = 0;
+    /* a tie sounds nothing of its own, so the chord it happens to be carrying is not
+       something anyone can hear and is only there to be found later by a hand edit */
+    delete st.add;
+    n++;
+  }
+  return n;
+}
+
 function nextSounding(i){
   for (let k = 1; k <= SEQ.len; k++){
     const st = SEQ.steps[(i + k) % SEQ.len];

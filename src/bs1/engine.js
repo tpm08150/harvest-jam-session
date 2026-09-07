@@ -172,6 +172,12 @@ function noteOn(midi, vel, when){
 }
 function noteOff(midi, when){
   const t = when == null ? ctx.currentTime + .003 : when;
+  /* ⚠️ ONLY A HAND'S RELEASE, and `when` is what tells them apart: every path a person
+     lets go through — MIDI, the on-screen keys, the computer keyboard — asks for "now" and
+     passes nothing, while the sequencer voicing its own grid schedules an exact end time.
+     Reporting the machine's would let a step playing back the pitch you are holding close
+     your note for you, at a time you did not choose. See shell/record.js. */
+  if (when == null) Patchwork.record.noteOff("bs1", midi);
   held.delete(midi);
   const n = pick();
   if (n == null){
@@ -182,6 +188,9 @@ function noteOff(midi, when){
   paintNow();
 }
 function allNotesOff(){
+  /* A panic is still a release, and this is the one path that empties `held` without going
+     through noteOff() — so a note the recorder took would be left open and never lengthened. */
+  Patchwork.record.allOff("bs1");
   held.clear();
   const t = ctx ? ctx.currentTime : 0;
   if (cur){ cur.release(t); cur = null; }

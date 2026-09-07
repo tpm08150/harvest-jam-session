@@ -10,9 +10,14 @@
 Patchwork.record = (() => {
 "use strict";
 
-const kit = [];              // {id, name, write, arm, disarm, canRecord}
+const kit = [];              // {id, name, write, hold, arm, disarm, canRecord}
 const armed = new Set();
 const subs = [];
+/* ⚠️ WHERE EACH HELD NOTE LANDED, so its release can say how long it was. Keyed by track
+   and pitch, because that pair is what a note-off arrives carrying and nothing else about
+   the note survives the gap. Only notes that were actually taken get an entry — write()
+   returning -1 is a note that landed nowhere, and a release has nothing to extend. */
+const holds = new Map();     // "id:midi" -> step index the note-on wrote
 
 function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
 function onChange(fn){ subs.push(fn); }
@@ -20,6 +25,12 @@ function onChange(fn){ subs.push(fn); }
 function register(id, spec){
   kit.push({id, name: spec.name || id,
             write: spec.write || null,
+            /* ⚠️ HOLDING A NOTE IS PART OF PLAYING IT, and for everything except a drum it
+               is the part that says how long. write() takes the attack; hold() is handed
+               the step it landed on and the instant it was let go, and turns the steps
+               between into a tie. A track without one — DR·1, where a note has no length
+               to record — simply never hears about the release. */
+            hold: spec.hold || null,
             arm: spec.arm || function(){},
             disarm: spec.disarm || function(){},
             slots: !!spec.slots,
@@ -55,7 +66,10 @@ function track(id){ return kit.find(x => x.id === id) || null; }
 function setArmed(id, want){
   const it = kit.find(x => x.id === id);
   if (!it || !it.canRecord) return;
-  if (want){ armed.add(id); it.arm(true); } else { armed.delete(id); it.disarm(); }
+  /* Disarming drops any note still down: a release that arrives after you stopped
+     recording should not go on writing, and an entry nothing will ever close is a tie
+     waiting to be written by the next note that happens to share its pitch. */
+  if (want){ armed.add(id); it.arm(true); } else { armed.delete(id); allOff(id); it.disarm(); }
   notify();
 }
 function toggleArm(id){ setArmed(id, !armed.has(id)); }
@@ -112,8 +126,44 @@ function note(id, midi, vel, when){
      you are recording into something the next row-fire quietly discards. write() returns
      the step it landed on, or -1 when it landed nowhere — a transport that is not running
      has no step to write to — so nothing is re-stored for a note that was not taken. */
-  if (i >= 0) Patchwork.scenes.restore(id);
+  /* Remembered only where a release means something. DR·1 has no hold() — a drum has no
+     length to record — so it never accumulates entries nothing will ever come to close. */
+  if (i >= 0){
+    if (it.hold) holds.set(id + ":" + midi, i);
+    Patchwork.scenes.restore(id);
+  }
   return i;
+}
+
+/* ---- and how long you held it ----
+   ⚠️ THE RELEASE IS THE OTHER HALF OF THE NOTE. Every sequencer here could already record
+   WHICH step you played and none of them could record that you were still holding it, so a
+   part played into the grid came back as a row of clicks however long you leant on the keys
+   — and the tie lane, which is the fix, is something you then had to go and draw in by hand
+   for a length you had already performed.
+
+   Instruments call this from their own note-off, which is the one place every release goes
+   through: the keyboard's, the computer keys', MIDI's and a panic's alike. */
+function noteOff(id, midi, when){
+  const key = id + ":" + midi;
+  const from = holds.get(key);
+  /* Deleted whether or not it is written, so a note released after disarming leaves
+     nothing behind for the next one to inherit. */
+  if (from == null) return 0;
+  holds.delete(key);
+  if (!armed.has(id)) return 0;
+  const it = kit.find(x => x.id === id);
+  if (!it || !it.hold) return 0;
+  try{ return it.hold(from, when) || 0; }catch(e){ return 0; }
+}
+/* A panic, a latch let go, an octave change under held keys — anything that ends every note
+   at once. The alternative is each instrument remembering which notes it owed a release to,
+   which is the map this file already keeps. */
+function allOff(id, when){
+  const pre = id + ":";
+  Array.from(holds.keys()).forEach(k => {
+    if (k.indexOf(pre) === 0) noteOff(id, +k.slice(pre.length), when);
+  });
 }
 
 /* ---- the arm control ----
@@ -162,7 +212,8 @@ function paintArms(){
 }
 subs.push(paintArms);
 
-return {register, setArmed, toggleArm, captureRow, note, onChange, track, mount,
+return {register, setArmed, toggleArm, captureRow, note, noteOff, allOff,
+        onChange, track, mount,
         /* A track saying its OWN state moved — the looper starting, stopping, filling or
            emptying a slot. Arming is the shell's and notifies itself; a slot track keeps
            its transport privately, so without this the launcher had no way to know a take

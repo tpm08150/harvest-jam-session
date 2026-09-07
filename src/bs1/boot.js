@@ -23,6 +23,12 @@ Patchwork.record.register("bs1", {
     const i = seq.recordAt(midi, vel, when);
     if (i >= 0) grid.paint();
     return i;
+  },
+  /* How long you leant on it, as a run of ties — see holdTo() in seq/step-seq.js. */
+  hold: (from, when) => {
+    const n = seq.holdTo(from, when);
+    if (n) grid.paint();
+    return n;
   }
 });
 

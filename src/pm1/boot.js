@@ -167,11 +167,8 @@ Patchwork.record.register("pm1", {
   write: (midi, vel, when) => {
     if (!SEQ.playing || !marks.length) return -1;
     const t = when == null ? (ctx ? ctx.currentTime : 0) : when;
-    let m = null;
-    for (let k = marks.length - 1; k >= 0; k--) if (marks[k].t <= t){ m = marks[k]; break; }
-    if (!m) m = marks[0];
-    const half = (m.end - m.t) / 2;
-    const i = (((t - m.t) > half ? m.i + 1 : m.i) % SEQ.len + SEQ.len) % SEQ.len;
+    const i = stepAtTime(t);
+    if (i < 0) return -1;
     const st = SEQ.steps[i];
     if (!st) return -1;
     const ns = heldNotes.map(h => h.midi).sort((a, b) => a - b);
@@ -179,8 +176,21 @@ Patchwork.record.register("pm1", {
     writeStep(st, root, ns.length > 1 ? ns.slice(1).map(x => x - root) : null);
     st.on = 1; st.tie = 0;
     st.accent = vel >= 100 ? 1 : 0;
+    clearTail(i);
     paintSteps();
     return i;
+  },
+  /* ⚠️ AND HOW LONG YOU LEANT ON IT. Every note of a chord reports its own release and they
+     all point at the same step, so the ties only ever GROW — which makes the step as long as
+     the longest note in the chord, and that is what a chord held with one finger lingering
+     actually sounds like. */
+  hold: (from, when) => {
+    if (!SEQ.playing || !marks.length) return 0;
+    const to = stepAtTime(when == null ? (ctx ? ctx.currentTime : 0) : when);
+    if (to < 0) return 0;
+    const n = tieTail(from, to);
+    if (n) paintSteps();
+    return n;
   }
 });
 

@@ -4785,9 +4785,14 @@ return {mount, octaveUI, panic, get layout(){ return Object.assign({}, MAP); }};
 Patchwork.record = (() => {
 "use strict";
 
-const kit = [];              // {id, name, write, arm, disarm, canRecord}
+const kit = [];              // {id, name, write, hold, arm, disarm, canRecord}
 const armed = new Set();
 const subs = [];
+/* ⚠️ WHERE EACH HELD NOTE LANDED, so its release can say how long it was. Keyed by track
+   and pitch, because that pair is what a note-off arrives carrying and nothing else about
+   the note survives the gap. Only notes that were actually taken get an entry — write()
+   returning -1 is a note that landed nowhere, and a release has nothing to extend. */
+const holds = new Map();     // "id:midi" -> step index the note-on wrote
 
 function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
 function onChange(fn){ subs.push(fn); }
@@ -4795,6 +4800,12 @@ function onChange(fn){ subs.push(fn); }
 function register(id, spec){
   kit.push({id, name: spec.name || id,
             write: spec.write || null,
+            /* ⚠️ HOLDING A NOTE IS PART OF PLAYING IT, and for everything except a drum it
+               is the part that says how long. write() takes the attack; hold() is handed
+               the step it landed on and the instant it was let go, and turns the steps
+               between into a tie. A track without one — DR·1, where a note has no length
+               to record — simply never hears about the release. */
+            hold: spec.hold || null,
             arm: spec.arm || function(){},
             disarm: spec.disarm || function(){},
             slots: !!spec.slots,
@@ -4830,7 +4841,10 @@ function track(id){ return kit.find(x => x.id === id) || null; }
 function setArmed(id, want){
   const it = kit.find(x => x.id === id);
   if (!it || !it.canRecord) return;
-  if (want){ armed.add(id); it.arm(true); } else { armed.delete(id); it.disarm(); }
+  /* Disarming drops any note still down: a release that arrives after you stopped
+     recording should not go on writing, and an entry nothing will ever close is a tie
+     waiting to be written by the next note that happens to share its pitch. */
+  if (want){ armed.add(id); it.arm(true); } else { armed.delete(id); allOff(id); it.disarm(); }
   notify();
 }
 function toggleArm(id){ setArmed(id, !armed.has(id)); }
@@ -4887,8 +4901,44 @@ function note(id, midi, vel, when){
      you are recording into something the next row-fire quietly discards. write() returns
      the step it landed on, or -1 when it landed nowhere — a transport that is not running
      has no step to write to — so nothing is re-stored for a note that was not taken. */
-  if (i >= 0) Patchwork.scenes.restore(id);
+  /* Remembered only where a release means something. DR·1 has no hold() — a drum has no
+     length to record — so it never accumulates entries nothing will ever come to close. */
+  if (i >= 0){
+    if (it.hold) holds.set(id + ":" + midi, i);
+    Patchwork.scenes.restore(id);
+  }
   return i;
+}
+
+/* ---- and how long you held it ----
+   ⚠️ THE RELEASE IS THE OTHER HALF OF THE NOTE. Every sequencer here could already record
+   WHICH step you played and none of them could record that you were still holding it, so a
+   part played into the grid came back as a row of clicks however long you leant on the keys
+   — and the tie lane, which is the fix, is something you then had to go and draw in by hand
+   for a length you had already performed.
+
+   Instruments call this from their own note-off, which is the one place every release goes
+   through: the keyboard's, the computer keys', MIDI's and a panic's alike. */
+function noteOff(id, midi, when){
+  const key = id + ":" + midi;
+  const from = holds.get(key);
+  /* Deleted whether or not it is written, so a note released after disarming leaves
+     nothing behind for the next one to inherit. */
+  if (from == null) return 0;
+  holds.delete(key);
+  if (!armed.has(id)) return 0;
+  const it = kit.find(x => x.id === id);
+  if (!it || !it.hold) return 0;
+  try{ return it.hold(from, when) || 0; }catch(e){ return 0; }
+}
+/* A panic, a latch let go, an octave change under held keys — anything that ends every note
+   at once. The alternative is each instrument remembering which notes it owed a release to,
+   which is the map this file already keeps. */
+function allOff(id, when){
+  const pre = id + ":";
+  Array.from(holds.keys()).forEach(k => {
+    if (k.indexOf(pre) === 0) noteOff(id, +k.slice(pre.length), when);
+  });
 }
 
 /* ---- the arm control ----
@@ -4937,7 +4987,8 @@ function paintArms(){
 }
 subs.push(paintArms);
 
-return {register, setArmed, toggleArm, captureRow, note, onChange, track, mount,
+return {register, setArmed, toggleArm, captureRow, note, noteOff, allOff,
+        onChange, track, mount,
         /* A track saying its OWN state moved — the looper starting, stopping, filling or
            emptying a slot. Arming is the shell's and notifies itself; a slot track keeps
            its transport privately, so without this the launcher had no way to know a take
@@ -6502,23 +6553,66 @@ function press(i, held, m){
   else st.accent = 1;
 }
 
-function recordAt(midi, vel, when){
+/* Which step an instant is a step OF: the nearest boundary rather than the one just
+   passed, so a note struck a hair late lands where it was aimed. The attack and the release
+   both ask, and they have to agree or a hold would tie the wrong run. */
+function stepAtTime(t){
   const ctx = Patchwork.audio.ctx;
   if (!ctx || !SEQ.playing || !marks.length) return -1;
-  const t = when == null ? ctx.currentTime : when;
   let m = null;
   for (let k = marks.length - 1; k >= 0; k--)
     if (marks[k].t <= t){ m = marks[k]; break; }
   if (!m) m = marks[0];
   const half = (m.end - m.t) / 2;
-  const i = ((t - m.t) > half ? m.i + 1 : m.i) % SEQ.len;
+  return ((((t - m.t) > half ? m.i + 1 : m.i) % SEQ.len) + SEQ.len) % SEQ.len;
+}
 
+/* ⚠️ A RUN OF TIES BELONGS TO THE STEP IN FRONT OF IT and to nothing else — that is what
+   the tie lane means, and it is what makes both of these safe to do without asking. So
+   recording a new note over an old one has to take the old one's tail with it: overdub a
+   short note onto a long one and without this it keeps the long one's length, with no
+   gesture anywhere that shortens it again. */
+function clearTail(from){
+  for (let k = 1; k < SEQ.len; k++){
+    const st = steps[(from + k) % SEQ.len];
+    if (!st || !st.tie) break;
+    st.tie = 0; st.on = 0; st.accent = 0; st.slide = 0;
+  }
+}
+/* ...and holding the note is how the tail gets written: every step between where it landed
+   and where you let go sounds nothing of its own and lengthens this one instead.
+
+   ⚠️ ONE TURN OF THE PATTERN AT MOST. A note held longer than the loop is a drone, and a
+   drone is a full lap of ties — not a lap and then another over the top of it. */
+function holdTo(from, when){
+  const ctx = Patchwork.audio.ctx;
+  if (!ctx || from == null || from < 0) return 0;
+  const to = stepAtTime(when == null ? ctx.currentTime : when);
+  if (to < 0) return 0;
+  let n = 0;
+  for (let k = 1; k < SEQ.len; k++){
+    const i = (from + k) % SEQ.len;
+    if (i === (to + 1) % SEQ.len) break;
+    const st = steps[i];
+    if (!st) break;
+    st.on = 1; st.tie = 1; st.accent = 0; st.slide = 0;
+    n++;
+  }
+  return n;
+}
+
+function recordAt(midi, vel, when){
+  const ctx = Patchwork.audio.ctx;
+  if (!ctx) return -1;
+  const i = stepAtTime(when == null ? ctx.currentTime : when);
+  if (i < 0) return -1;
   setStepNote(i, midi, vel);
+  clearTail(i);
   return i;
 }
 
 return {
-  SEQ, steps, stepNote, stepEvent, start, stop, tick, playingStep, recordAt, press,
+  SEQ, steps, stepNote, stepEvent, start, stop, tick, playingStep, recordAt, holdTo, press,
   setStepNote, selectStep, played, eraseAt, lock, unlock, isLocked, clearLocks, withLocks,
   get lastNote(){ return lastNote; },
   RATES, SCALES,
@@ -8029,9 +8123,17 @@ function allPolyOff(t){
 
 /* True when a running pattern owns the synth voice, so the keyboard must not also play it.
    Never in program mode: there you are entering notes and must hear each one, even with
-   the sequence running underneath. */
+   the sequence running underneath.
+
+   ⚠️ AND ONLY WHILE THE PATTERN IS USING YOUR KEYS FOR SOMETHING ELSE. The arp always is —
+   it reads heldNotes and voices them, so a keyboard sounding underneath would double every
+   note of it. The sequencer plays its own grid and never reads a key at all; the only claim
+   it had on them was Key trigger, where the held note IS the run button and hearing it would
+   be a drone under the pattern. Turn Key trigger off and a key is just a key, which is the
+   whole point of the mode — and it went silent instead, so the one thing free running is
+   for, playing a part over the pattern to record it, you had to do deaf. */
 const seqOwnsVoice = () => SEQ.playing && SEQ.mode === "play"
-                        && (SEQ.motion === "arp" || SEQ.motion === "seq");
+                        && (SEQ.motion === "arp" || (SEQ.motion === "seq" && SEQ.keyTrig));
 
 /* Run fn() with a step's parameter locks temporarily in force. Voices read P at build time,
    so swapping P around the build is all it takes — and because scheduling is synchronous
@@ -8187,6 +8289,9 @@ function noteOff(midi, when, forceSec){
   if (latch){ paintKeys(); return; }
   const i = heldNotes.findIndex(n => n.midi === m);
   if (i >= 0) heldNotes.splice(i, 1);
+  /* The other half of the note the recorder took on the way down — see shell/record.js.
+     Unconditional, like the note-on: it is a no-op for a note that was never written. */
+  Patchwork.record.noteOff("pm1", m, t);
   /* the step cursor moves on when your hands come off, so a chord is one step */
   if (SEQ.mode !== "play" && !heldNotes.length){
     selectStep(SEQ.sel + 1);
@@ -8222,6 +8327,10 @@ function noteOff(midi, when, forceSec){
 }
 
 function allNotesOff(){
+  /* ⚠️ A PANIC IS STILL A RELEASE. This is the one path that empties heldNotes without
+     going through noteOff(), so a note taken by the recorder would otherwise be left open
+     and its length never written — see the same repetition of the auto-stop below. */
+  Patchwork.record.allOff("pm1");
   heldNotes.length = 0;
   downKeys.clear();
   /* This is the one path that empties heldNotes without going through noteOff(), so the
@@ -8431,6 +8540,52 @@ let timer = null, nextTime = 0, stepIndex = 0, marks = [], arpIdx = 0;
 /* Slide is the one thing that makes a 303 line sound like a 303: portamento INTO the step
    with no amp retrigger, so the two notes are one continuous gesture. It only works if the
    previous note was never released, which is why the scheduler looks one step ahead. */
+/* ---- a played instant as a step, and a held note as a tie ----
+   The nearest boundary rather than the one just passed, so a note struck a hair late lands
+   where it was aimed. The attack and the release both ask, and they have to agree about it
+   or a hold would tie the wrong run. Shared in shape with seq/step-seq.js — the two
+   sequencers are different enough to be separate and record identically. */
+function stepAtTime(t){
+  if (!marks.length) return -1;
+  let m = null;
+  for (let k = marks.length - 1; k >= 0; k--) if (marks[k].t <= t){ m = marks[k]; break; }
+  if (!m) m = marks[0];
+  const half = (m.end - m.t) / 2;
+  return ((((t - m.t) > half ? m.i + 1 : m.i) % SEQ.len) + SEQ.len) % SEQ.len;
+}
+/* ⚠️ A RUN OF TIES BELONGS TO THE STEP IN FRONT OF IT and to nothing else, which is what
+   makes both of these safe to do without asking. Recording a new note over an old one takes
+   the old one's tail with it — overdub a short note onto a long one and without this it
+   keeps the long one's length, with no gesture anywhere that shortens it again. */
+function clearTail(from){
+  for (let k = 1; k < SEQ.len; k++){
+    const st = SEQ.steps[(from + k) % SEQ.len];
+    if (!st || !st.tie) break;
+    st.tie = 0; st.on = 0; st.accent = 0; st.slide = 0;
+    delete st.add;
+  }
+}
+/* ...and holding the note is how the tail gets written: every step between where it landed
+   and where you let go sounds nothing of its own and lengthens this one instead.
+
+   ⚠️ ONE TURN OF THE PATTERN AT MOST. A note held longer than the loop is a drone, and a
+   drone is a full lap of ties — not a lap and then another over the top of it. */
+function tieTail(from, to){
+  let n = 0;
+  for (let k = 1; k < SEQ.len; k++){
+    const i = (from + k) % SEQ.len;
+    if (i === (to + 1) % SEQ.len) break;
+    const st = SEQ.steps[i];
+    if (!st) break;
+    st.on = 1; st.tie = 1; st.accent = 0; st.slide = 0;
+    /* a tie sounds nothing of its own, so the chord it happens to be carrying is not
+       something anyone can hear and is only there to be found later by a hand edit */
+    delete st.add;
+    n++;
+  }
+  return n;
+}
+
 function nextSounding(i){
   for (let k = 1; k <= SEQ.len; k++){
     const st = SEQ.steps[(i + k) % SEQ.len];
@@ -10712,11 +10867,8 @@ Patchwork.record.register("pm1", {
   write: (midi, vel, when) => {
     if (!SEQ.playing || !marks.length) return -1;
     const t = when == null ? (ctx ? ctx.currentTime : 0) : when;
-    let m = null;
-    for (let k = marks.length - 1; k >= 0; k--) if (marks[k].t <= t){ m = marks[k]; break; }
-    if (!m) m = marks[0];
-    const half = (m.end - m.t) / 2;
-    const i = (((t - m.t) > half ? m.i + 1 : m.i) % SEQ.len + SEQ.len) % SEQ.len;
+    const i = stepAtTime(t);
+    if (i < 0) return -1;
     const st = SEQ.steps[i];
     if (!st) return -1;
     const ns = heldNotes.map(h => h.midi).sort((a, b) => a - b);
@@ -10724,8 +10876,21 @@ Patchwork.record.register("pm1", {
     writeStep(st, root, ns.length > 1 ? ns.slice(1).map(x => x - root) : null);
     st.on = 1; st.tie = 0;
     st.accent = vel >= 100 ? 1 : 0;
+    clearTail(i);
     paintSteps();
     return i;
+  },
+  /* ⚠️ AND HOW LONG YOU LEANT ON IT. Every note of a chord reports its own release and they
+     all point at the same step, so the ties only ever GROW — which makes the step as long as
+     the longest note in the chord, and that is what a chord held with one finger lingering
+     actually sounds like. */
+  hold: (from, when) => {
+    if (!SEQ.playing || !marks.length) return 0;
+    const to = stepAtTime(when == null ? (ctx ? ctx.currentTime : 0) : when);
+    if (to < 0) return 0;
+    const n = tieTail(from, to);
+    if (n) paintSteps();
+    return n;
   }
 });
 

@@ -226,11 +226,19 @@ function noteOn(midi, vel, when){
 }
 function noteOff(midi, when){
   const t = when == null ? ctx.currentTime + .003 : when;
+  /* ⚠️ ONLY A HAND'S RELEASE, and `when` is what tells them apart: every path a person
+     lets go through — MIDI, the on-screen keys, the computer keyboard — asks for "now" and
+     passes nothing, while the sequencer voicing its own grid schedules an exact end time.
+     Reporting the machine's would let a step playing back the pitch you are holding close
+     your note for you, at a time you did not choose. See shell/record.js. */
+  if (when == null) Patchwork.record.noteOff("vc1", midi);
   const c = carriers.get(midi);
   if (c) c.release(t);
   if (typeof paintNow === "function") paintNow();
 }
 function allNotesOff(){
+  /* A panic is still a release — see the note in bs1/engine.js. */
+  Patchwork.record.allOff("vc1");
   const t = ctx ? ctx.currentTime : 0;
   carriers.forEach(c => { try{ c.release(t); }catch(e){} });
   if (typeof paintNow === "function") paintNow();

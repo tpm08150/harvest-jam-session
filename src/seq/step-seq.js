@@ -312,23 +312,66 @@ function press(i, held, m){
   else st.accent = 1;
 }
 
-function recordAt(midi, vel, when){
+/* Which step an instant is a step OF: the nearest boundary rather than the one just
+   passed, so a note struck a hair late lands where it was aimed. The attack and the release
+   both ask, and they have to agree or a hold would tie the wrong run. */
+function stepAtTime(t){
   const ctx = Patchwork.audio.ctx;
   if (!ctx || !SEQ.playing || !marks.length) return -1;
-  const t = when == null ? ctx.currentTime : when;
   let m = null;
   for (let k = marks.length - 1; k >= 0; k--)
     if (marks[k].t <= t){ m = marks[k]; break; }
   if (!m) m = marks[0];
   const half = (m.end - m.t) / 2;
-  const i = ((t - m.t) > half ? m.i + 1 : m.i) % SEQ.len;
+  return ((((t - m.t) > half ? m.i + 1 : m.i) % SEQ.len) + SEQ.len) % SEQ.len;
+}
 
+/* ⚠️ A RUN OF TIES BELONGS TO THE STEP IN FRONT OF IT and to nothing else — that is what
+   the tie lane means, and it is what makes both of these safe to do without asking. So
+   recording a new note over an old one has to take the old one's tail with it: overdub a
+   short note onto a long one and without this it keeps the long one's length, with no
+   gesture anywhere that shortens it again. */
+function clearTail(from){
+  for (let k = 1; k < SEQ.len; k++){
+    const st = steps[(from + k) % SEQ.len];
+    if (!st || !st.tie) break;
+    st.tie = 0; st.on = 0; st.accent = 0; st.slide = 0;
+  }
+}
+/* ...and holding the note is how the tail gets written: every step between where it landed
+   and where you let go sounds nothing of its own and lengthens this one instead.
+
+   ⚠️ ONE TURN OF THE PATTERN AT MOST. A note held longer than the loop is a drone, and a
+   drone is a full lap of ties — not a lap and then another over the top of it. */
+function holdTo(from, when){
+  const ctx = Patchwork.audio.ctx;
+  if (!ctx || from == null || from < 0) return 0;
+  const to = stepAtTime(when == null ? ctx.currentTime : when);
+  if (to < 0) return 0;
+  let n = 0;
+  for (let k = 1; k < SEQ.len; k++){
+    const i = (from + k) % SEQ.len;
+    if (i === (to + 1) % SEQ.len) break;
+    const st = steps[i];
+    if (!st) break;
+    st.on = 1; st.tie = 1; st.accent = 0; st.slide = 0;
+    n++;
+  }
+  return n;
+}
+
+function recordAt(midi, vel, when){
+  const ctx = Patchwork.audio.ctx;
+  if (!ctx) return -1;
+  const i = stepAtTime(when == null ? ctx.currentTime : when);
+  if (i < 0) return -1;
   setStepNote(i, midi, vel);
+  clearTail(i);
   return i;
 }
 
 return {
-  SEQ, steps, stepNote, stepEvent, start, stop, tick, playingStep, recordAt, press,
+  SEQ, steps, stepNote, stepEvent, start, stop, tick, playingStep, recordAt, holdTo, press,
   setStepNote, selectStep, played, eraseAt, lock, unlock, isLocked, clearLocks, withLocks,
   get lastNote(){ return lastNote; },
   RATES, SCALES,
