@@ -441,6 +441,41 @@ click.addEventListener("click", e => {
 clickLvl.addEventListener("input", () => Patchwork.click.setLevel(clickLvl.value / 100));
 Patchwork.click.onChange(paint);
 
+/* ---- the launcher, as a surface page ----
+   ⚠️ THE PADS SHOULD BE THE LAUNCHER ON THE LAUNCHER'S OWN VIEW. They already fall through to
+   the scene grid when the focused panel has none, which was right as a default and wrong as
+   the only route: on the Live page the launcher is the whole screen, and the pads following
+   whichever panel was last clicked meant looking at a grid you could not press.
+
+   The grid itself is the shell's — the same one the fallthrough uses, so the two cannot come
+   to differ — and the controls are this head's own, because they are the ones you would reach
+   past the launcher for. */
+if (window.Patchwork && Patchwork.surface){
+  Patchwork.surface.mount("scenes", {
+    name: "Scenes",
+    grid: Patchwork.surface.sceneGrid,
+    controls: () => [
+      Patchwork.surface.segment(quant, "Lands on", "Qnt"),
+      Patchwork.surface.segment(barCount, "Bars", "Bar")
+    ].filter(Boolean),
+    /* Tempo on the pair beside the encoders: it is the number you reach for most on this
+       page and the one thing here that is neither a list nor a grid. */
+    bumpName: "Tempo",
+    bump: dir => {
+      Patchwork.clock.setBpm(Patchwork.clock.shown + (dir > 0 ? -1 : 1));
+      paint();
+      return String(Patchwork.clock.shown);
+    },
+    actionName: "All",
+    action: () => {
+      if (!Patchwork.launch.anyPlaying()) return null;
+      stop.click();
+      return "Stopped";
+    }
+  });
+}
+
+
 function paint(){
   out.textContent = Patchwork.clock.shown;
   const live = Patchwork.launch.anyPlaying();

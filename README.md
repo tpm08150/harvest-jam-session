@@ -567,10 +567,28 @@ What the sixteen pads mean follows the panel you clicked:
   This is the panel's own gesture, not a second one: the pads and the on-screen grid run the
   same `press()`, so a lane or a modifier added to one is in the other by construction.
 
-- **LP·1, TS·1** — no sequencer of their own, so the pads fall through to the scene launcher.
+- **LP·1** — the sixteen loop slots. ⚠️ Which are the scene rows: a looper's takes are already
+  addressed by row, so the grid is not a new idea about LP·1 but the launcher's own column with
+  sixteen pads under it — a pad and the cell above it always agree. A pad with a take plays it,
+  an empty one records into it, and a recording slot is red so you can see it from across the
+  room. `>` is the loop's Play/Stop.
+
+  ⚠️ LP·1 takes no notes, so it never registered with the MIDI router — which was the only
+  door the surface knew, so focusing it left the encoders blank. Claiming a MIDI channel just
+  to be findable would be a lie about what the panel does, so `surface.panel()` is the other
+  door: same adapters, no channel.
+
+- **TS·1** — its four faders, with the six rows of buttons on the modifier. This panel is
+  mostly *lists*, so the split lands in a different place than elsewhere and for the same
+  reason: what you turn while it runs, then what you set before you arm it. `>` is Arm, because
+  there is exactly one thing this instrument does.
 
 - **The scene launcher** — sixteen rows on sixteen pads, amber for a stored row, pulsing for
-  one that is armed, green for one that is sounding.
+  one that is armed, green for one that is sounding. It is the fallthrough for any panel with
+  no grid of its own, and **Shift + Sends** aims at it deliberately: the Live view *is* the
+  launcher, and pads that followed whichever panel was last clicked meant looking at a grid you
+  could not press. There the encoders are the head's own — where a fired row lands, and the
+  pattern length — and the pair beside them nudges the tempo.
 
 The pads are lit from what is actually true rather than from anything an instrument
 remembers to announce, so a chord arriving on the transport's own schedule lights its pad

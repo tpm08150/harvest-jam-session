@@ -62,6 +62,8 @@ function onMidi(e){
 if (navigator.requestMIDIAccess && window.isSecureContext){
   Patchwork.midi.route("ts1", onMidi, function(){}, {
     name: "TS·1", panic: midiPanic,
+    controls: surfaceControls, shiftControls: surfaceShiftControls, shiftName: "Set",
+    action: surfaceAction, actionName: "TS\u00b71",
     inCh: {get: () => MIDI.inCh, set: c => { MIDI.inCh = c; }}
   });
   Patchwork.midi.open().catch(() => {});

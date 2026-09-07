@@ -1842,7 +1842,20 @@ let mode = "";
    "the focused instrument's controls", "the grid", "play" — rather than in the words the
    shell thinks in. A profile that reached for Patchwork.scenes directly would be a profile
    that breaks when the launcher changes. */
+/* ---- panels that are not MIDI instruments ----
+   ⚠️ LP·1 TAKES NO NOTES, so it never registered with Patchwork.midi.route() and the surface
+   could not see it at all — focus it and the encoders went blank. Its adapters had nowhere to
+   live, because the only door in was the MIDI router's, and claiming a channel purely to be
+   findable would be a lie about what the panel does.
+
+     Patchwork.surface.panel("lp1", {name, controls, grid, ...});
+
+   Same spec, other door. An instrument that DOES answer to MIDI keeps handing its adapters to
+   route() alongside its channels, because there they sit next to the thing they belong with. */
+const panels = new Map();
+function panel(id, spec){ panels.set(id, spec); notify(); }
 function specOf(id){
+  if (panels.has(id)) return panels.get(id);
   const it = Patchwork.midi.list().find(x => x.id === id);
   return it ? it.spec : null;
 }
@@ -1979,7 +1992,12 @@ const rig = {
     if (!f || typeof f.spec.scrub !== "function") return false;
     try{ f.spec.scrub(dir, on, speed || "fast"); return true; }catch(e){ return false; }
   },
-  get instruments(){ return Patchwork.midi.list().map(i => ({id: i.id, name: i.name})); },
+  get instruments(){
+    const seen = new Map();
+    Patchwork.midi.list().forEach(i => seen.set(i.id, i.name));
+    panels.forEach((spec, id) => { if (!seen.has(id)) seen.set(id, spec.name || id); });
+    return Array.from(seen, ([id, name]) => ({id, name}));
+  },
 
   /* Up to eight continuous controls for the focused instrument, in the order the
      instrument thinks matters. Missing adapter means an instrument that has not been
@@ -2457,7 +2475,8 @@ function segment(el, label, short){
   };
 }
 
-return {register, mount, onView, option, segment, connect, disconnect, restore, rig,
+return {register, mount, panel, onView, option, segment, sceneGrid,
+        connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
                                                        label: f.det.label || f.profile.name})); },
@@ -2545,7 +2564,7 @@ const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends sen
    encoders, because it is the only one of the four that is a thing to turn knobs at. */
 const ENC_VIEW = {1: {view: "tape",   page: "mixer"},
                   2: {view: "studio", page: ""},
-                  4: {view: "live",   page: ""},
+                  4: {view: "live",   page: "scenes"},
                   5: {view: "lib",    page: ""}};
 
 /* Pads. DAW layout reports as notes on channel 1; Drum layout on channel 10 once the DAW
@@ -6889,9 +6908,14 @@ fillVariants();
 const paintImpact = seg("#tsImpact", "i", () => TS.impact ? "on" : "off",
                         v => { TS.impact = v === "on"; });
 
+/* A control surface reads and writes these the same way a pointer does — see the same
+   registry in bs1/ui.js. All four are already 0-1. */
+const faderReg = {};
 function fader(sel, get, set, fmt){
   const el = $(sel), slot = el.querySelector(".hslot"),
         cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
+  faderReg[sel] = {get, set: v => { set(Math.max(0, Math.min(1, v))); paintF(); },
+                   text: () => fmt(get())};
   function paintF(){
     cap.style.left = (Math.max(0, Math.min(1, get())) * 100) + "%";
     val.textContent = fmt(get());
@@ -6973,6 +6997,39 @@ $("#panic").addEventListener("click", () => { cancel(); paintRead(); });
 onChange(paintRead);
 paintRead();
 
+/* ---- TS·1 on a control surface ----
+   ⚠️ THIS PANEL IS MOSTLY LISTS. Fill, length, shape, character, carry and impact are all
+   rows of buttons, and the four faders are the only continuous things on it — which is why
+   the ordinary eight are the faders and the second eight are the rows. It is the same split
+   every other panel has, arriving at a different place because the panel is a different
+   shape: what you turn while it runs, then what you set before you arm it.
+
+   And ">" is Arm, because there is exactly one thing this instrument does and that is it. */
+const TS_CTL = [["#depthF", "Depth", "Dep"], ["#spaceF", "Space", "Spc"],
+                ["#fxF", "FX", "FX"], ["#fillLvlF", "Fill level", "Fil"]];
+const TS_ALT = [["tsFill", "Fill", "Fil"], ["tsBars", "Bars", "Bar"],
+                ["tsShapeSeg", "Shape", "Shp"], ["tsChar", "Character", "Chr"],
+                ["tsCarry", "Carry", "Cry"], ["tsImpact", "Impact", "Imp"]];
+function surfaceControls(){
+  return TS_CTL.filter(c => faderReg[c[0]]).map(c => ({
+    id: c[0].slice(1), label: c[1], short: c[2],
+    text: faderReg[c[0]].text,
+    get: () => faderReg[c[0]].get(),
+    set: v => faderReg[c[0]].set(v)
+  }));
+}
+function surfaceShiftControls(){
+  const out = TS_ALT.map(a => Patchwork.surface.segment($("#" + a[0]), a[1], a[2]));
+  out.push(Patchwork.surface.option($("#tsVariant"), "Variant", "Var"));
+  return out.filter(Boolean);
+}
+function surfaceAction(){
+  const b = $("#arm");
+  if (!b || b.disabled) return null;
+  b.click();
+  return b.textContent.trim();
+}
+
 /* ============ boot ============ */
 
 /* A scene row can arm a transition, which is the point of it being on the launcher at all:
@@ -7036,6 +7093,8 @@ function onMidi(e){
 if (navigator.requestMIDIAccess && window.isSecureContext){
   Patchwork.midi.route("ts1", onMidi, function(){}, {
     name: "TS·1", panic: midiPanic,
+    controls: surfaceControls, shiftControls: surfaceShiftControls, shiftName: "Set",
+    action: surfaceAction, actionName: "TS\u00b71",
     inCh: {get: () => MIDI.inCh, set: c => { MIDI.inCh = c; }}
   });
   Patchwork.midi.open().catch(() => {});

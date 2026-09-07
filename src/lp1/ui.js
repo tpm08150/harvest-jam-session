@@ -285,9 +285,13 @@ setTimeout(listInputs, 0);
 if (navigator.mediaDevices) navigator.mediaDevices.addEventListener("devicechange", listInputs);
 
 /* The loop's level and the click's are the same control twice, so it is written once. */
+/* A control surface reads and writes these the same way a pointer does — see the same
+   registry in bs1/ui.js and the note about ranges beside it. These are already 0-1. */
+const faderReg = {};
 function mountFader(sel, get, set){
   const el = $(sel), slot = el.querySelector(".hslot"),
         cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
+  faderReg[sel] = {get, set: v => { set(Math.max(0, Math.min(1, v))); paintF(); }};
   function paintF(){
     cap.style.left = (get() * 100) + "%";
     val.textContent = Math.round(get() * 100) + "%";
@@ -324,3 +328,69 @@ onKey("keydown", e => {
 });
 
 paintState();
+/* ---- LP·1 on a control surface ----
+   ⚠️ REGISTERED WITH surface.panel(), NOT WITH THE MIDI ROUTER. This instrument takes no
+   notes, so it has no channel and never called Patchwork.midi.route() — which is where every
+   other panel's adapters live, and therefore where the surface looked for them. Focus LP·1
+   and the encoders went blank. Claiming a MIDI channel purely to be findable would be a lie
+   about what the panel does; the other door is in shell/surface.js.
+
+   ⚠️ AND THE PADS ARE THE SLOTS, WHICH ARE THE SCENE ROWS. A looper's takes are already
+   addressed by row — recordSlot(n) and playSlot(n) are how the launcher fires them — so the
+   grid is not a new idea about LP·1, it is the launcher's own column with sixteen pads under
+   it instead of sixteen cells. Which also means a pad and the cell above it always agree. */
+const LP_SHORT = [["#levelF", "Level", "Lvl"], ["#clickF", "Click", "Clk"]];
+function surfaceControls(){
+  const out = LP_SHORT.filter(c => faderReg[c[0]]).map(c => ({
+    id: c[0].slice(1), label: c[1], short: c[2],
+    get: () => faderReg[c[0]].get(),
+    set: v => faderReg[c[0]].set(v)
+  }));
+  const bars = Patchwork.surface.option($("#bars"), "Bars", "Bar");
+  const mon = Patchwork.surface.segment($("#mon"), "Monitor", "Mon");
+  const click = Patchwork.surface.segment($("#click"), "Metronome", "Met");
+  return out.concat([bars, mon, click].filter(Boolean));
+}
+
+const surfaceGrid = {
+  label: () => "Loops",
+  cells: () => {
+    const out = new Array(16).fill(null);
+    /* ⚠️ "Armed" is not playing. The same rule boot.js gives the launcher: a slot about to
+       start on the bar line is queued, not live, and drawing it as live would light a pad
+       for a loop nobody can hear yet. */
+    const live = (LP.mode === "idle" || LP.mode === "armed") ? -1 : LP.slot;
+    for (let i = 0; i < 16; i++){
+      const has = hasSlot(i);
+      if (!has && live !== i) continue;          /* an empty slot is a dark pad, not a dim one */
+      out[i] = live === i ? {colour: "green", on: true} : {colour: "cyan", on: false};
+    }
+    /* Recording is the one state you must be able to see from across a room. */
+    if (LP.mode === "rec" || LP.mode === "dub"){
+      const i = LP.slot;
+      if (i >= 0 && i < 16) out[i] = {colour: "red", on: true, hot: true};
+    }
+    return out;
+  },
+  /* A pad with a take plays it; an empty one records into it. Both through the same calls
+     the launcher makes, so a pad and the cell above it cannot mean different things. */
+  down: cell => { if (hasSlot(cell)) queueSlot(cell); else arm("rec", cell); }
+};
+
+if (window.Patchwork && Patchwork.surface){
+  Patchwork.surface.panel("lp1", {
+    name: "LP\u00b71",
+    controls: surfaceControls,
+    grid: surfaceGrid,
+    /* The deck's own Play/Stop, so whatever it does when clicked happens here too. */
+    actionName: "Loop",
+    action: () => {
+      const b = $("#playStop");
+      if (!b || b.disabled) return null;
+      b.click();
+      return b.textContent.trim();
+    }
+  });
+}
+
+

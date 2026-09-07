@@ -70,7 +70,7 @@ const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends sen
    encoders, because it is the only one of the four that is a thing to turn knobs at. */
 const ENC_VIEW = {1: {view: "tape",   page: "mixer"},
                   2: {view: "studio", page: ""},
-                  4: {view: "live",   page: ""},
+                  4: {view: "live",   page: "scenes"},
                   5: {view: "lib",    page: ""}};
 
 /* Pads. DAW layout reports as notes on channel 1; Drum layout on channel 10 once the DAW

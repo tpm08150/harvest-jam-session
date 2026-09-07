@@ -48,9 +48,14 @@ fillVariants();
 const paintImpact = seg("#tsImpact", "i", () => TS.impact ? "on" : "off",
                         v => { TS.impact = v === "on"; });
 
+/* A control surface reads and writes these the same way a pointer does — see the same
+   registry in bs1/ui.js. All four are already 0-1. */
+const faderReg = {};
 function fader(sel, get, set, fmt){
   const el = $(sel), slot = el.querySelector(".hslot"),
         cap = el.querySelector(".hcap"), val = el.querySelector(".hval");
+  faderReg[sel] = {get, set: v => { set(Math.max(0, Math.min(1, v))); paintF(); },
+                   text: () => fmt(get())};
   function paintF(){
     cap.style.left = (Math.max(0, Math.min(1, get())) * 100) + "%";
     val.textContent = fmt(get());
@@ -131,3 +136,36 @@ $("#panic").addEventListener("click", () => { cancel(); paintRead(); });
 })();
 onChange(paintRead);
 paintRead();
+
+/* ---- TS·1 on a control surface ----
+   ⚠️ THIS PANEL IS MOSTLY LISTS. Fill, length, shape, character, carry and impact are all
+   rows of buttons, and the four faders are the only continuous things on it — which is why
+   the ordinary eight are the faders and the second eight are the rows. It is the same split
+   every other panel has, arriving at a different place because the panel is a different
+   shape: what you turn while it runs, then what you set before you arm it.
+
+   And ">" is Arm, because there is exactly one thing this instrument does and that is it. */
+const TS_CTL = [["#depthF", "Depth", "Dep"], ["#spaceF", "Space", "Spc"],
+                ["#fxF", "FX", "FX"], ["#fillLvlF", "Fill level", "Fil"]];
+const TS_ALT = [["tsFill", "Fill", "Fil"], ["tsBars", "Bars", "Bar"],
+                ["tsShapeSeg", "Shape", "Shp"], ["tsChar", "Character", "Chr"],
+                ["tsCarry", "Carry", "Cry"], ["tsImpact", "Impact", "Imp"]];
+function surfaceControls(){
+  return TS_CTL.filter(c => faderReg[c[0]]).map(c => ({
+    id: c[0].slice(1), label: c[1], short: c[2],
+    text: faderReg[c[0]].text,
+    get: () => faderReg[c[0]].get(),
+    set: v => faderReg[c[0]].set(v)
+  }));
+}
+function surfaceShiftControls(){
+  const out = TS_ALT.map(a => Patchwork.surface.segment($("#" + a[0]), a[1], a[2]));
+  out.push(Patchwork.surface.option($("#tsVariant"), "Variant", "Var"));
+  return out.filter(Boolean);
+}
+function surfaceAction(){
+  const b = $("#arm");
+  if (!b || b.disabled) return null;
+  b.click();
+  return b.textContent.trim();
+}

@@ -82,7 +82,20 @@ let mode = "";
    "the focused instrument's controls", "the grid", "play" — rather than in the words the
    shell thinks in. A profile that reached for Patchwork.scenes directly would be a profile
    that breaks when the launcher changes. */
+/* ---- panels that are not MIDI instruments ----
+   ⚠️ LP·1 TAKES NO NOTES, so it never registered with Patchwork.midi.route() and the surface
+   could not see it at all — focus it and the encoders went blank. Its adapters had nowhere to
+   live, because the only door in was the MIDI router's, and claiming a channel purely to be
+   findable would be a lie about what the panel does.
+
+     Patchwork.surface.panel("lp1", {name, controls, grid, ...});
+
+   Same spec, other door. An instrument that DOES answer to MIDI keeps handing its adapters to
+   route() alongside its channels, because there they sit next to the thing they belong with. */
+const panels = new Map();
+function panel(id, spec){ panels.set(id, spec); notify(); }
 function specOf(id){
+  if (panels.has(id)) return panels.get(id);
   const it = Patchwork.midi.list().find(x => x.id === id);
   return it ? it.spec : null;
 }
@@ -219,7 +232,12 @@ const rig = {
     if (!f || typeof f.spec.scrub !== "function") return false;
     try{ f.spec.scrub(dir, on, speed || "fast"); return true; }catch(e){ return false; }
   },
-  get instruments(){ return Patchwork.midi.list().map(i => ({id: i.id, name: i.name})); },
+  get instruments(){
+    const seen = new Map();
+    Patchwork.midi.list().forEach(i => seen.set(i.id, i.name));
+    panels.forEach((spec, id) => { if (!seen.has(id)) seen.set(id, spec.name || id); });
+    return Array.from(seen, ([id, name]) => ({id, name}));
+  },
 
   /* Up to eight continuous controls for the focused instrument, in the order the
      instrument thinks matters. Missing adapter means an instrument that has not been
@@ -697,7 +715,8 @@ function segment(el, label, short){
   };
 }
 
-return {register, mount, onView, option, segment, connect, disconnect, restore, rig,
+return {register, mount, panel, onView, option, segment, sceneGrid,
+        connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
                                                        label: f.det.label || f.profile.name})); },
