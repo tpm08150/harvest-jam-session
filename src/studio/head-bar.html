@@ -16,6 +16,25 @@
     <button data-v="lib">Library</button>
   </div>
   <span class="st-hint">click a panel to give it the keyboard</span>
+  <!-- ⚠️ The one thing on this page that was NOT persistent. Sounds save as patches, the desk
+       remembers its knobs, the tape keeps its take — and the scenes, which are the song,
+       lived only in memory. Here rather than inside a panel because a project is the whole
+       page's, the way the view switch and the jam control are. -->
+  <div class="st-proj" id="stProj">
+    <label class="st-lab" for="stProjSel">Project</label>
+    <select id="stProjSel"><option value="">&mdash; unsaved &mdash;</option></select>
+    <button class="st-xport st-jam-btn" id="stProjSave">Save</button>
+    <button class="st-xport st-jam-btn st-proj-more" id="stProjMore"
+            aria-expanded="false" aria-haspopup="true" title="Save as, delete, export, import">&hellip;</button>
+    <div class="st-proj-menu" id="stProjMenu" hidden>
+      <button class="st-xport" id="stProjSaveAs">Save as&hellip;</button>
+      <button class="st-xport" id="stProjExport">Export&hellip;</button>
+      <button class="st-xport" id="stProjImport">Import&hellip;</button>
+      <button class="st-xport st-proj-del" id="stProjDelete">Delete</button>
+      <input type="file" id="stProjFile" accept="application/json,.json" hidden>
+    </div>
+  </div>
+
   <!-- A jam is a room name. Anyone on the same one plays the same grid — see
        shell/session.js for why that is state and not audio. -->
   <div class="st-jam" id="stJam">

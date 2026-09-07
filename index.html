@@ -1593,10 +1593,26 @@ body{
   font-size:21px;font-weight:600;letter-spacing:.34em;text-transform:uppercase;
   color:#e4e9ec;
 }
+/* ---- the project control ----
+   ⚠️ `margin-left:auto` on THIS one, not only on the jam block beside it. The first auto
+   margin in a flex row absorbs the free space, so putting it here pushes both to the right
+   as one group and keeps the project next to the jam rather than stranded mid-row. */
+.st-proj{display:flex;align-items:center;gap:8px;margin-left:auto;position:relative}
+.st-proj select{max-width:15ch}
+.st-proj-more{padding:8px 10px;letter-spacing:.14em}
+.st-proj-menu{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:40;
+  display:flex;flex-direction:column;gap:4px;padding:7px;min-width:150px;
+  background:var(--panel,#1b2126);border:1px solid var(--groove);border-radius:7px;
+  box-shadow:0 10px 26px rgba(0,0,0,.55);
+}
+.st-proj-menu .st-xport{width:100%;text-align:left;padding:7px 10px;font-size:11px}
+.st-proj-del{color:var(--cap-red)}
+
 /* ---- the jam control ----
    In the page's own chrome, not the launcher's: whether you are playing alone is a fact
    about the page, the way the view switch and the face toggle are. */
-.st-jam{display:flex;align-items:center;gap:10px;margin-left:auto}
+.st-jam{display:flex;align-items:center;gap:10px}
 .st-jam-btn{padding:8px 14px;font-size:11px}
 .st-jam-btn.st-on{
   background:linear-gradient(180deg,#5fd8b4,var(--mint));color:#06231a;border-color:#2f8f74;
@@ -3258,6 +3274,25 @@ body.gated{overflow:hidden}
     <button data-v="lib">Library</button>
   </div>
   <span class="st-hint">click a panel to give it the keyboard</span>
+  <!-- ⚠️ The one thing on this page that was NOT persistent. Sounds save as patches, the desk
+       remembers its knobs, the tape keeps its take — and the scenes, which are the song,
+       lived only in memory. Here rather than inside a panel because a project is the whole
+       page's, the way the view switch and the jam control are. -->
+  <div class="st-proj" id="stProj">
+    <label class="st-lab" for="stProjSel">Project</label>
+    <select id="stProjSel"><option value="">&mdash; unsaved &mdash;</option></select>
+    <button class="st-xport st-jam-btn" id="stProjSave">Save</button>
+    <button class="st-xport st-jam-btn st-proj-more" id="stProjMore"
+            aria-expanded="false" aria-haspopup="true" title="Save as, delete, export, import">&hellip;</button>
+    <div class="st-proj-menu" id="stProjMenu" hidden>
+      <button class="st-xport" id="stProjSaveAs">Save as&hellip;</button>
+      <button class="st-xport" id="stProjExport">Export&hellip;</button>
+      <button class="st-xport" id="stProjImport">Import&hellip;</button>
+      <button class="st-xport st-proj-del" id="stProjDelete">Delete</button>
+      <input type="file" id="stProjFile" accept="application/json,.json" hidden>
+    </div>
+  </div>
+
   <!-- A jam is a room name. Anyone on the same one plays the same grid — see
        shell/session.js for why that is state and not audio. -->
   <div class="st-jam" id="stJam">
@@ -7794,6 +7829,131 @@ return {claim, pin, run, stop, setBpm, onTempo, beatSeconds, setRate, setOriginS
         get ticks(){ return ticks; }};
 })();
 
+/* Projects — the whole desk, saved under a name.
+
+   Everything on this page was already persistent except the thing you actually made. Sounds
+   save as patches, the mixer remembers its knobs, the tape keeps its take, the MIDI map
+   survives a reload — and the SCENES, the grid of patterns that is the arrangement, lived
+   only in memory. Close the tab and the song was gone while every setting around it stayed.
+
+   ⚠️ A PROJECT IS THE SUM OF WHAT REGISTERS WITH IT, not a list this file keeps. Writing out
+   "rows, live patterns, sounds, mixer, tempo" here would mean a project silently missing
+   whatever is added next — and the thing added next is exactly the thing nobody remembers to
+   come back and add. So each module says what it contributes:
+
+     Patchwork.project.part("scenes", {capture, apply});
+
+   which is the same bargain session.registerPatch() already makes for a jam, and for the
+   same reason: one definition of a thing, handed to whoever needs it.
+
+   ⚠️ AND IT SAVES WHAT IS TRUE, NOT WHAT WAS PLAYED. Nothing here records a performance —
+   that is the tape's job, and the library's. This is the state you would have to rebuild by
+   hand, which is the state worth a name. */
+Patchwork.project = (() => {
+"use strict";
+
+const KEY = "patchwork-projects";
+const LAST = "patchwork-project-last";
+const parts = [];                 // {id, capture, apply}
+const watchers = [];
+function notify(){ watchers.forEach(fn => { try{ fn(); }catch(e){} }); }
+
+function part(id, spec){
+  if (!id || !spec || typeof spec.capture !== "function" || typeof spec.apply !== "function") return;
+  parts.push({id, capture: spec.capture, apply: spec.apply});
+}
+
+/* ⚠️ Deep-copied on the way out and on the way in, the same rule scenes.js follows for a
+   captured pattern: a saved project holding a live reference would be rewritten by every
+   edit made after it was saved, and would look correct right up until you reloaded. */
+const copy = v => (v == null ? null : JSON.parse(JSON.stringify(v)));
+
+function capture(){
+  const out = {v: 1, at: Date.now(), parts: {}};
+  parts.forEach(p => {
+    try{ out.parts[p.id] = copy(p.capture()); }catch(e){}
+  });
+  return out;
+}
+
+/* ⚠️ IN REGISTRATION ORDER, which is load order, which is the order things depend on each
+   other in: the clock is up before the sequencers that read it, and the sounds are on before
+   the patterns that play through them. Applying a grid to instruments that have not had
+   their voices restored yet would sound wrong for exactly one pass and then correct itself,
+   which is the worst kind of bug to be told about. */
+function apply(proj){
+  if (!proj || !proj.parts) return false;
+  parts.forEach(p => {
+    const data = proj.parts[p.id];
+    if (data == null) return;
+    try{ p.apply(copy(data)); }catch(e){ console.error("project part failed: " + p.id, e); }
+  });
+  notify();
+  return true;
+}
+
+/* ---- the store ---- */
+function all(){
+  try{ return JSON.parse(localStorage.getItem(KEY)) || {}; }catch(e){ return {}; }
+}
+function write(o){
+  try{ localStorage.setItem(KEY, JSON.stringify(o)); return true; }
+  catch(e){ return false; }               // a full quota is the one failure worth reporting
+}
+function names(){ return Object.keys(all()).sort((a, b) => a.localeCompare(b)); }
+
+let current = "";
+try{ current = localStorage.getItem(LAST) || ""; }catch(e){}
+function setCurrent(name){
+  current = name || "";
+  try{ localStorage.setItem(LAST, current); }catch(e){}
+  notify();
+}
+
+function save(name){
+  const n = String(name || "").trim();
+  if (!n) return false;
+  const o = all();
+  o[n] = capture();
+  if (!write(o)) return false;
+  setCurrent(n);
+  return true;
+}
+function open(name){
+  const p = all()[name];
+  if (!p) return false;
+  const ok = apply(p);
+  if (ok) setCurrent(name);
+  return ok;
+}
+function remove(name){
+  const o = all();
+  if (!o[name]) return false;
+  delete o[name];
+  write(o);
+  if (current === name) setCurrent("");
+  return true;
+}
+
+return {part, capture, apply, save, open, remove, names, all,
+        get current(){ return current; },
+        onChange: fn => watchers.push(fn)};
+})();
+
+/* ---- the transport's own share of a project ----
+   Here rather than in clock.js because tempo is the page's rather than the clock's — the
+   clock counts, and what it counts at is a decision the project holds. */
+(() => {
+"use strict";
+if (!Patchwork.project) return;
+Patchwork.project.part("transport", {
+  capture: () => ({bpm: Patchwork.clock ? Patchwork.clock.bpm : null}),
+  apply: p => {
+    if (p && typeof p.bpm === "number" && Patchwork.clock) Patchwork.clock.setBpm(p.bpm);
+  }
+});
+})();
+
 /* The metronome.
 
    It belongs to the page, not to an instrument. It started inside LP·1 because that is
@@ -10050,6 +10210,38 @@ return {register, store, storeAll, clear, fire, take, onChange, playing, start,
         changed: notify,
         has(row, id){ return !!(rows[row] && rows[row].cells[id]); }};
 })();
+/* ---- the arrangement's share of a project ----
+   ⚠️ THE GRID AND THE UNSTORED PATTERNS BOTH. What each instrument is playing right now is
+   usually not in any row — you build a part live and store it into a scene afterwards, or
+   never — so a project that saved only the rows would lose the thing you had just made,
+   which is the very thing you reached for Save to keep. */
+(() => {
+"use strict";
+if (!Patchwork.project) return;
+Patchwork.project.part("scenes", {
+  capture(){
+    const live = {};
+    Patchwork.scenes.instruments.forEach(i => {
+      const pat = Patchwork.scenes.livePattern(i.id);
+      if (pat) live[i.id] = pat;
+    });
+    return {rows: Patchwork.scenes.rows, live,
+            quantum: Patchwork.scenes.quantum,
+            patternBars: Patchwork.scenes.patternBars};
+  },
+  apply(p){
+    if (!p) return;
+    if (p.rows) Patchwork.scenes.loadRows(p.rows);
+    if (p.quantum) Patchwork.scenes.setQuantum(p.quantum);
+    if (p.patternBars) Patchwork.scenes.setPatternBars(p.patternBars);
+    /* ⚠️ Applied AFTER the rows, because loadRows repaints and a live pattern written first
+       would be drawn from the grid it replaced. */
+    if (p.live) Object.keys(p.live).forEach(id => Patchwork.scenes.setLivePattern(id, p.live[id]));
+    Patchwork.scenes.changed();
+  }
+});
+})();
+
 /* The chords on the page, for whoever wants to play along.
 
    CS·1 generates a progression and then plays it alone. Everything else in the rack — the
@@ -11870,6 +12062,7 @@ Patchwork.scenes.onChange(pushScenes);
 Patchwork.clock.onTempo("session", pushTransport, null);
 
 return {join, leave, browse, claim, release, ownerName, registerPatch, mountOwners,
+        patchSnapshot, applyPatch,
         registerVoice, played, pushTake,
         talk: (d, n) => send("talk", {d, n}),
         onChange: fn => subs.push(fn),
@@ -11890,6 +12083,23 @@ return {join, leave, browse, claim, release, ownerName, registerPatch, mountOwne
         get owners(){ return new Map(owners); },
         get peers(){ return [...peers.values()].map(p => ({id: p.id, name: p.name})); }};
 })();
+/* ---- the sounds' share of a project ----
+   ⚠️ THE SAME REGISTRY A JAM SHARES, not a second idea of what a sound is. An instrument
+   answers that question once, through registerPatch(), and a project that saved a slightly
+   different set of parameters would be a bug nobody could see until they reloaded and heard
+   something else. */
+(() => {
+"use strict";
+if (!Patchwork.project) return;
+Patchwork.project.part("sounds", {
+  capture: () => Patchwork.session.patchSnapshot(),
+  apply: p => {
+    if (!p) return;
+    Object.keys(p).forEach(id => Patchwork.session.applyPatch(id, p[id]));
+  }
+});
+})();
+
 
 /* The synth core every instrument shares.
 
@@ -17922,6 +18132,22 @@ Patchwork.scenes.register("cs1", {
    as you play. What arming means here is the other half — press a row and the progression
    you have right now goes into it. */
 Patchwork.record.register("cs1", {name: "CS\u00b71"});
+
+/* ---- CS·1's share of a project ----
+   ⚠️ THE WHOLE PATCH, NOT JUST THE PROGRESSION. Every other instrument answers the project
+   through session.registerPatch(), and CS·1 does not — it kept its own browser because its
+   patches carry a progression, a MIDI program number and a trigger note, which is the note
+   at the top of shell/patches.js. So it answers here instead, with the same snapshot() and
+   restore() its own Save and Load use: one definition of what a CS·1 patch is, handed to a
+   third consumer rather than described a third time.
+
+   The progression is captured twice over — once here and once as this instrument's scene
+   pattern — and that is not a conflict, because both are taken in the same instant from the
+   same state. This one lands last and is the fuller of the two. */
+Patchwork.project && Patchwork.project.part("cs1", {
+  capture: () => snapshot(),
+  apply: s => { try{ restore(s); }catch(e){} }
+});
 
 /* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input
    path can be driven and asserted on without hardware, which is how the channel filter
@@ -25968,6 +26194,48 @@ if (window.Patchwork && Patchwork.surface){
 }
 let scrubTimer = 0;
 
+
+/* ---- the desk's share of a project ----
+   ⚠️ THE SAME `saved` OBJECT THE DESK PERSISTS, replayed through the knobs rather than
+   written past them. Assigning it and calling it done would leave every knob drawing its old
+   angle over a channel that had already moved, which is the exact split this file exists to
+   avoid — see the note at the top about owning no audio. */
+if (window.Patchwork && Patchwork.project){
+  Patchwork.project.part("mix", {
+    /* ⚠️ THE FADERS ARE NOT IN `saved` AND HAD TO BE ASKED FOR SEPARATELY. This file keeps
+       the knobs; the LEVEL of a channel is the bus's, read back rather than stored here,
+       precisely so the desk and the launcher's faders cannot hold two ideas of it — the note
+       on buildStrips() says so. Which means a project that saved `saved` alone saved every
+       EQ move and none of the balance, and came back with the mix flat. */
+    capture(){
+      const levels = {}, mutes = [], solos = [];
+      stripIds().forEach(id => {
+        levels[id] = A.level(id);
+        if (A.muted(id)) mutes.push(id);
+        if (A.soloed(id)) solos.push(id);
+      });
+      return {desk: saved, levels, mutes, solos};
+    },
+    apply(p){
+      if (!p) return;
+      const desk = p.desk || p;                 // a project saved before levels existed
+      Object.keys(desk).forEach(k => { saved[k] = desk[k]; });
+      /* ⚠️ Levels BEFORE the rebuild, because building a strip reads its fader position off
+         the bus — set them after and every fader would draw where it used to be. */
+      stripIds().forEach(id => {
+        if (p.levels && typeof p.levels[id] === "number") A.setLevel(id, p.levels[id]);
+        if (p.mutes) A.setMute(id, p.mutes.indexOf(id) >= 0);
+        if (p.solos) A.setSolo(id, p.solos.indexOf(id) >= 0);
+      });
+      /* Rebuilding is how the desk reads `saved` — every knob starts from it. */
+      buildStrips();
+      buildMaster();
+      buildMasterFader();
+      persist();
+    }
+  });
+}
+
 })();
 
 /* ---- the deck ----
@@ -27453,6 +27721,124 @@ Patchwork.libraryUI = {
 /* Both instruments are built by now. Nothing else to do yet — the clock, the audio bus
    and the MIDI router are Phase 3, and until then each panel still runs its own. */
 Patchwork.focus(Patchwork.roots[0]);
+
+/* ---- the project browser ----
+   Save, load, name and carry away the whole desk. Mounted here rather than in project.js
+   because the shell has no header — a standalone instrument page has one panel and nothing
+   to arrange — so the module holds the state and the studio holds the control. */
+(() => {
+"use strict";
+const box = document.querySelector("#stProj");
+const P = window.Patchwork && Patchwork.project;
+if (!box || !P) return;
+const sel = box.querySelector("#stProjSel"),
+      bSave = box.querySelector("#stProjSave"),
+      bMore = box.querySelector("#stProjMore"),
+      menu = box.querySelector("#stProjMenu"),
+      file = box.querySelector("#stProjFile");
+
+function paint(){
+  const names = P.names(), cur = P.current;
+  /* Rebuilt only when the list or the selection actually changed — a <select> rebuilt under
+     an open menu closes it, and this repaints on every save. */
+  const want = names.join(" ") + "" + cur;
+  if (sel.dataset.built !== want){
+    sel.dataset.built = want;
+    sel.textContent = "";
+    sel.appendChild(Object.assign(document.createElement("option"),
+      {value: "", textContent: names.length ? "— unsaved —" : "— nothing saved —"}));
+    names.forEach(n => sel.appendChild(Object.assign(document.createElement("option"),
+      {value: n, textContent: n})));
+  }
+  if (sel.value !== cur) sel.value = cur;
+  /* Save overwrites what you opened; with nothing open it has to ask for a name first, and
+     the button says which of the two it is about to do. */
+  bSave.textContent = cur ? "Save" : "Save…";
+}
+P.onChange(paint);
+paint();
+
+/* ⚠️ Loading throws the desk away, so it asks — but only once there IS something to throw
+   away. A confirm on an empty page is a dialogue that teaches people to click through
+   dialogues, and the one that matters is the one they then click through too. */
+sel.addEventListener("change", () => {
+  const name = sel.value;
+  if (!name){ paint(); return; }
+  const busy = !!(Patchwork.scenes
+    && Patchwork.scenes.rows.some(r => Object.keys(r.cells).length));
+  if (busy && !confirm("Load " + name + "? The current scenes and sounds are replaced.")){
+    paint();
+    return;
+  }
+  if (!P.open(name)) alert("That project could not be opened.");
+});
+
+function askName(prefill){
+  const n = prompt("Name this project", prefill || "");
+  return n == null ? null : n.trim();
+}
+function doSave(name){
+  if (!name) return;
+  if (!P.save(name)) alert("Could not save — this browser's storage is full.");
+}
+bSave.addEventListener("click", () => doSave(P.current || askName("")));
+box.querySelector("#stProjSaveAs").addEventListener("click", () => {
+  shut();
+  doSave(askName(P.current));
+});
+box.querySelector("#stProjDelete").addEventListener("click", () => {
+  shut();
+  const cur = P.current;
+  if (!cur) return;
+  if (confirm("Delete " + cur + "? This cannot be undone.")) P.remove(cur);
+});
+
+/* ⚠️ A project that lives only in this browser is one cleared cache from gone, which is not
+   what "save" promises. Export is the copy you can keep, and it is the same shape Import
+   reads back — the patch browser's bargain, for the whole desk rather than one sound. */
+box.querySelector("#stProjExport").addEventListener("click", () => {
+  shut();
+  const name = P.current || "project";
+  const body = Object.assign({name}, P.capture());
+  const blob = new Blob([JSON.stringify(body, null, 1)], {type: "application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name.replace(/[^\w\- ]+/g, "").trim() + ".jam.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+});
+box.querySelector("#stProjImport").addEventListener("click", () => { shut(); file.click(); });
+file.addEventListener("change", () => {
+  const f = file.files && file.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    let p = null;
+    try{ p = JSON.parse(r.result); }catch(e){}
+    if (!p || !p.parts){ alert("That is not a Jam Session project."); return; }
+    if (!P.apply(p)){ alert("That project could not be opened."); return; }
+    /* Imported and then saved, so it is in the list rather than only on the desk — an
+       import you cannot get back to after a reload has not really been imported. */
+    const name = String(p.name || f.name.replace(/\.jam\.json$|\.json$/i, "")).trim();
+    if (name) P.save(name);
+  };
+  r.readAsText(f);
+  file.value = "";
+});
+
+/* ---- the menu ---- */
+function shut(){ menu.hidden = true; bMore.setAttribute("aria-expanded", "false"); }
+bMore.addEventListener("click", e => {
+  e.stopPropagation();
+  const open = menu.hidden;
+  menu.hidden = !open;
+  bMore.setAttribute("aria-expanded", open ? "true" : "false");
+});
+/* Shuts on a click anywhere else and on Escape. A menu you can only close by finding its own
+   button again is one that ends up left open over the thing you wanted to look at. */
+document.addEventListener("click", e => { if (!box.contains(e.target)) shut(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") shut(); });
+})();
 
 /* Runs last, once every instrument on the page has registered.
 

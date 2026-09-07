@@ -609,4 +609,46 @@ if (window.Patchwork && Patchwork.surface){
 }
 let scrubTimer = 0;
 
+
+/* ---- the desk's share of a project ----
+   ⚠️ THE SAME `saved` OBJECT THE DESK PERSISTS, replayed through the knobs rather than
+   written past them. Assigning it and calling it done would leave every knob drawing its old
+   angle over a channel that had already moved, which is the exact split this file exists to
+   avoid — see the note at the top about owning no audio. */
+if (window.Patchwork && Patchwork.project){
+  Patchwork.project.part("mix", {
+    /* ⚠️ THE FADERS ARE NOT IN `saved` AND HAD TO BE ASKED FOR SEPARATELY. This file keeps
+       the knobs; the LEVEL of a channel is the bus's, read back rather than stored here,
+       precisely so the desk and the launcher's faders cannot hold two ideas of it — the note
+       on buildStrips() says so. Which means a project that saved `saved` alone saved every
+       EQ move and none of the balance, and came back with the mix flat. */
+    capture(){
+      const levels = {}, mutes = [], solos = [];
+      stripIds().forEach(id => {
+        levels[id] = A.level(id);
+        if (A.muted(id)) mutes.push(id);
+        if (A.soloed(id)) solos.push(id);
+      });
+      return {desk: saved, levels, mutes, solos};
+    },
+    apply(p){
+      if (!p) return;
+      const desk = p.desk || p;                 // a project saved before levels existed
+      Object.keys(desk).forEach(k => { saved[k] = desk[k]; });
+      /* ⚠️ Levels BEFORE the rebuild, because building a strip reads its fader position off
+         the bus — set them after and every fader would draw where it used to be. */
+      stripIds().forEach(id => {
+        if (p.levels && typeof p.levels[id] === "number") A.setLevel(id, p.levels[id]);
+        if (p.mutes) A.setMute(id, p.mutes.indexOf(id) >= 0);
+        if (p.solos) A.setSolo(id, p.solos.indexOf(id) >= 0);
+      });
+      /* Rebuilding is how the desk reads `saved` — every knob starts from it. */
+      buildStrips();
+      buildMaster();
+      buildMasterFader();
+      persist();
+    }
+  });
+}
+
 })();

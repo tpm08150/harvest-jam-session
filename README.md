@@ -227,6 +227,45 @@ Every track can be armed. PM·1, VC·1, BS·1 and DR·1 also take notes you play
 as you play them; CS·1 and LP·1 do not — a row press captures CS·1's progression and records
 LP·1 an audio take.
 
+## Projects
+
+⚠️ **Everything on this page was persistent except the thing you actually made.** Sounds save
+as patches, the desk remembers its knobs, the tape keeps its take, the MIDI map survives a
+reload — and the scenes, the grid of patterns that *is* the arrangement, lived only in memory.
+Close the tab and the song was gone while every setting around it stayed.
+
+**Project** sits in the header between the view tabs and the jam controls: a list of what you
+have saved, a Save button, and a menu with Save as, Export, Import and Delete. Save overwrites
+what you opened; with nothing open it asks for a name, and the button says which of the two it
+is about to do. Loading replaces the desk, so it asks first — but only once there is something
+to replace, because a confirm on an empty page is a dialogue that teaches people to click
+through dialogues.
+
+⚠️ **A project is the sum of what registers with it**, not a list one file keeps:
+
+    Patchwork.project.part("scenes", {capture, apply});
+
+Writing out "rows, live patterns, sounds, mixer, tempo" in one place would mean a project
+silently missing whatever is added next — and the thing added next is exactly the thing nobody
+remembers to come back and add. Today that is the transport, the scenes, every instrument's
+sound, CS·1's whole patch and the desk.
+
+Two things it took a round-trip test to notice:
+
+- **The unstored patterns matter as much as the grid.** What an instrument is playing right
+  now is usually not in any row — you build a part live and store it into a scene afterwards,
+  or never — so a project saving only the rows would lose the thing you reached for Save to
+  keep.
+- **The faders were not in the desk's own saved state.** A channel's *level* belongs to the
+  bus, read back rather than kept by the console, precisely so the desk and the launcher's
+  faders cannot hold two ideas of it. Which meant the first version saved every EQ move and
+  none of the balance, and came back with the mix flat.
+
+**Export** writes a `.jam.json` you can keep or send; **Import** reads it back and saves it
+into the list, because an import you cannot get back to after a reload has not really been
+imported. A project that lives only in this browser is one cleared cache from gone, which is
+not what Save promises.
+
 ## Scenes
 
 The studio build adds a **scene launcher** over the three panels: eight rows, one cell per

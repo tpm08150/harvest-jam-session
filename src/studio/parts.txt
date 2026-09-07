@@ -56,6 +56,7 @@ shell/opus.js
 shell/cloud.js
 studio/gate.js
 shell/clock.js
+shell/project.js
 shell/click.js
 shell/midi.js
 shell/surface.js

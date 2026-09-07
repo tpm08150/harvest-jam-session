@@ -397,3 +397,35 @@ return {register, store, storeAll, clear, fire, take, onChange, playing, start,
         changed: notify,
         has(row, id){ return !!(rows[row] && rows[row].cells[id]); }};
 })();
+/* ---- the arrangement's share of a project ----
+   ⚠️ THE GRID AND THE UNSTORED PATTERNS BOTH. What each instrument is playing right now is
+   usually not in any row — you build a part live and store it into a scene afterwards, or
+   never — so a project that saved only the rows would lose the thing you had just made,
+   which is the very thing you reached for Save to keep. */
+(() => {
+"use strict";
+if (!Patchwork.project) return;
+Patchwork.project.part("scenes", {
+  capture(){
+    const live = {};
+    Patchwork.scenes.instruments.forEach(i => {
+      const pat = Patchwork.scenes.livePattern(i.id);
+      if (pat) live[i.id] = pat;
+    });
+    return {rows: Patchwork.scenes.rows, live,
+            quantum: Patchwork.scenes.quantum,
+            patternBars: Patchwork.scenes.patternBars};
+  },
+  apply(p){
+    if (!p) return;
+    if (p.rows) Patchwork.scenes.loadRows(p.rows);
+    if (p.quantum) Patchwork.scenes.setQuantum(p.quantum);
+    if (p.patternBars) Patchwork.scenes.setPatternBars(p.patternBars);
+    /* ⚠️ Applied AFTER the rows, because loadRows repaints and a live pattern written first
+       would be drawn from the grid it replaced. */
+    if (p.live) Object.keys(p.live).forEach(id => Patchwork.scenes.setLivePattern(id, p.live[id]));
+    Patchwork.scenes.changed();
+  }
+});
+})();
+

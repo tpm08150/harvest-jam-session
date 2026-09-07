@@ -65,10 +65,26 @@ body{
   font-size:21px;font-weight:600;letter-spacing:.34em;text-transform:uppercase;
   color:#e4e9ec;
 }
+/* ---- the project control ----
+   ⚠️ `margin-left:auto` on THIS one, not only on the jam block beside it. The first auto
+   margin in a flex row absorbs the free space, so putting it here pushes both to the right
+   as one group and keeps the project next to the jam rather than stranded mid-row. */
+.st-proj{display:flex;align-items:center;gap:8px;margin-left:auto;position:relative}
+.st-proj select{max-width:15ch}
+.st-proj-more{padding:8px 10px;letter-spacing:.14em}
+.st-proj-menu{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:40;
+  display:flex;flex-direction:column;gap:4px;padding:7px;min-width:150px;
+  background:var(--panel,#1b2126);border:1px solid var(--groove);border-radius:7px;
+  box-shadow:0 10px 26px rgba(0,0,0,.55);
+}
+.st-proj-menu .st-xport{width:100%;text-align:left;padding:7px 10px;font-size:11px}
+.st-proj-del{color:var(--cap-red)}
+
 /* ---- the jam control ----
    In the page's own chrome, not the launcher's: whether you are playing alone is a fact
    about the page, the way the view switch and the face toggle are. */
-.st-jam{display:flex;align-items:center;gap:10px;margin-left:auto}
+.st-jam{display:flex;align-items:center;gap:10px}
 .st-jam-btn{padding:8px 14px;font-size:11px}
 .st-jam-btn.st-on{
   background:linear-gradient(180deg,#5fd8b4,var(--mint));color:#06231a;border-color:#2f8f74;

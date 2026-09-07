@@ -352,6 +352,22 @@ Patchwork.scenes.register("cs1", {
    you have right now goes into it. */
 Patchwork.record.register("cs1", {name: "CS\u00b71"});
 
+/* ---- CS·1's share of a project ----
+   ⚠️ THE WHOLE PATCH, NOT JUST THE PROGRESSION. Every other instrument answers the project
+   through session.registerPatch(), and CS·1 does not — it kept its own browser because its
+   patches carry a progression, a MIDI program number and a trigger note, which is the note
+   at the top of shell/patches.js. So it answers here instead, with the same snapshot() and
+   restore() its own Save and Load use: one definition of what a CS·1 patch is, handed to a
+   third consumer rather than described a third time.
+
+   The progression is captured twice over — once here and once as this instrument's scene
+   pattern — and that is not a conflict, because both are taken in the same instant from the
+   same state. This one lands last and is the fuller of the two. */
+Patchwork.project && Patchwork.project.part("cs1", {
+  capture: () => snapshot(),
+  apply: s => { try{ restore(s); }catch(e){} }
+});
+
 /* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input
    path can be driven and asserted on without hardware, which is how the channel filter
    above was verified. */

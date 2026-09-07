@@ -764,6 +764,7 @@ Patchwork.scenes.onChange(pushScenes);
 Patchwork.clock.onTempo("session", pushTransport, null);
 
 return {join, leave, browse, claim, release, ownerName, registerPatch, mountOwners,
+        patchSnapshot, applyPatch,
         registerVoice, played, pushTake,
         talk: (d, n) => send("talk", {d, n}),
         onChange: fn => subs.push(fn),
@@ -784,3 +785,20 @@ return {join, leave, browse, claim, release, ownerName, registerPatch, mountOwne
         get owners(){ return new Map(owners); },
         get peers(){ return [...peers.values()].map(p => ({id: p.id, name: p.name})); }};
 })();
+/* ---- the sounds' share of a project ----
+   ⚠️ THE SAME REGISTRY A JAM SHARES, not a second idea of what a sound is. An instrument
+   answers that question once, through registerPatch(), and a project that saved a slightly
+   different set of parameters would be a bug nobody could see until they reloaded and heard
+   something else. */
+(() => {
+"use strict";
+if (!Patchwork.project) return;
+Patchwork.project.part("sounds", {
+  capture: () => Patchwork.session.patchSnapshot(),
+  apply: p => {
+    if (!p) return;
+    Object.keys(p).forEach(id => Patchwork.session.applyPatch(id, p[id]));
+  }
+});
+})();
+

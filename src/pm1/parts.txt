@@ -13,6 +13,7 @@ shell/script-open.html
 shell/host.js
 shell/bus.js
 shell/clock.js
+shell/project.js
 shell/click.js
 shell/midi.js
 shell/surface.js
