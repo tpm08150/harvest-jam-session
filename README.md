@@ -762,6 +762,22 @@ What the sixteen pads mean follows the panel you clicked:
   "about to be recorded", queued is "about to play", and the two wait alike and mean opposite
   things.
 
+  ⚠️ **The pad you are already playing is not a request to play it.** Pressing the live take
+  used to queue a switch to the take it was already on — the one press on this grid that could
+  do nothing at all — so it means the other thing you would want from a running loop: start
+  layering. Press again to come back out; Record still toggles the same latch.
+
+  **Double-tapping a different take means "and keep layering when it gets here."** Which has to
+  be an intention held until the seam rather than a switch thrown now: overdub belongs to the
+  looper and not to a take, so setting it at the press would put the take that is *still
+  playing* into overdub for the rest of its bar. The first tap of the double still queues, so
+  nothing waits on a timer to find out whether a second one is coming.
+
+  Flashing green is *coming*; flashing **red** is *coming, and will layer* — the colour this
+  panel already uses for recording, because arriving in overdub is recording, and a double tap
+  that looked identical to a single one would be a gesture you could only confirm by waiting to
+  hear it.
+
   **Func + a pad empties that slot**, and there is no undo — a take is audio and clearing one
   frees the buffer, which is exactly why the only destructive gesture on these pads is the one
   that needs a second hand. An empty slot is left alone rather than armed: a modifier that fell

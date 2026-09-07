@@ -435,6 +435,33 @@ function inputControl(){
    down the page), and these slots ARE the scene rows, so it is the same conversion. */
 const slotCell = c => (c < 8 ? c + 8 : c - 8);
 
+/* ---- tapping a take that already has something in it ----
+   ⚠️ THE PAD YOU ARE ALREADY PLAYING IS NOT A REQUEST TO PLAY IT. Pressing the live take
+   used to queue a switch to the take it was already on, which is the one press on this grid
+   that could do nothing at all — so it means the other thing you would want from a loop that
+   is running, which is to start layering on it. Pressing again comes back out, so the pad is
+   a switch rather than a one-way door, and Record still toggles the same latch.
+
+   ⚠️ AND A DOUBLE TAP ON A DIFFERENT TAKE MEANS "and keep layering when it gets here". Which
+   has to be an intention held until the seam rather than a switch thrown now: overdub belongs
+   to the looper, not to a take, so setting it at the press would put the take that is STILL
+   PLAYING into overdub for the rest of its bar. LP.dubAt is that intention — see the arrival
+   in onWorklet().
+
+   The first tap of the double still queues, so nothing waits on a timer to find out whether
+   a second one is coming: the second tap only adds to what the first already did. */
+const TAP_MS = 420;
+let lastTap = {i: -1, t: 0};
+function tapFilled(i){
+  const now = performance.now();
+  const again = lastTap.i === i && (now - lastTap.t) < TAP_MS;
+  lastTap = {i, t: now};
+  const live = (LP.mode === "play" || LP.mode === "dub") && LP.slot === i;
+  if (live){ setDub(!LP.dubOn); return; }
+  queueSlot(i);
+  if (again) LP.dubAt = i;
+}
+
 const surfaceGrid = {
   label: () => "Loops",
   cells: () => {
@@ -451,8 +478,13 @@ const surfaceGrid = {
          is up to eight beats away — press a pad, get nothing at all for that long, and the
          only reading available is that the pad does not work. Same colour, because it is the
          same take; the flashing is the wait, and it stops the instant it lands. */
-      out[slotCell(i)] = LP.queued === i ? {colour: "green", on: true, hot: true}
-                       : live === i      ? {colour: "green", on: true}
+      /* ⚠️ FLASHING RED IS "COMING, AND WILL LAYER", flashing green is "coming". Same shape,
+         and the colour is the one this panel already uses for recording — because arriving
+         in overdub IS recording, and a double tap that looked identical to a single one
+         would be a gesture you could only confirm by waiting to hear it. */
+      out[slotCell(i)] = LP.dubAt === i  ? {colour: "red", on: true, hot: true}
+                       : LP.queued === i ? {colour: "green", on: true, hot: true}
+                       : live === i      ? {colour: LP.dubOn ? "red" : "green", on: true}
                                          : {colour: "cyan", on: false};
     }
     /* Recording is the one state you must be able to see from across a room. */
@@ -472,7 +504,7 @@ const surfaceGrid = {
        rather than armed: a modifier that falls through to "record" on a miss would turn a
        fumbled delete into a live take. */
     if (mods && mods.accent){ if (hasSlot(i)) clearSlot(i); return; }
-    if (hasSlot(i)){ queueSlot(i); return; }
+    if (hasSlot(i)){ tapFilled(i); return; }
     arm("rec", i);
     /* ⚠️ ARMING A TAKE MOVES YOU TO WHAT YOU ARE ABOUT TO RECORD. The pad that starts a take
        and the panel that makes the sound are two different places, and the count-in is the

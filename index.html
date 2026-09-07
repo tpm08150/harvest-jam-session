@@ -24730,6 +24730,11 @@ const LP = {
      playhead and count; on sixteen pads you pressed one and nothing whatever happened for
      up to eight beats, which is indistinguishable from a pad that does not work. */
   queued: -1,
+  /* ⚠️ A SLOT THAT SHOULD ARRIVE ALREADY DUBBING, or -1. Overdub is a switch on the LOOPER
+     rather than on a take, so "play this one and keep layering it" cannot be said by setting
+     the switch now — the switch would apply to the take still playing for the rest of its
+     bar. It has to be an intention held until the seam, which is what this is. */
+  dubAt: -1,
 
   bpmAtRecord: null,        // the tempo the loop was cut at — see the note in the panel
   /* The audio time the armed take starts on, so the panel can count it in. "Armed" with
@@ -24852,6 +24857,10 @@ function onWorklet(m){
   /* It landed: the wait is over and the pad stops flashing. Cleared on arrival rather than
      on every `looped`, because a queued slot survives the loop lines it is waiting through. */
   if (LP.queued >= 0 && LP.slot === LP.queued) LP.queued = -1;
+  /* ...and if it was asked to arrive dubbing, that is now. Checked against the slot rather
+     than against `queued`, so a take that got here some other way is not caught by a stale
+     intention nobody cancelled. */
+  if (LP.dubAt >= 0 && LP.slot === LP.dubAt){ LP.dubAt = -1; setDub(true); }
   if (m.ev === "pos"){ LP.pos = m.pos; LP.len = m.len; LP.peak = m.peak; return; }
   if (m.ev === "slots"){ paintState(); return; }
   if (m.ev === "started" || m.ev === "looped"){ setMode(m.mode); }
@@ -24983,7 +24992,8 @@ async function arm(mode, slot){
 function stopLoop(){
   if (!node) return;
   node.port.postMessage({op: "now", mode: "idle"});
-  LP.queued = -1;                 // stopping cancels the take that was waiting
+  LP.queued = -1;
+  LP.dubAt = -1;                 // stopping cancels the take that was waiting
   setMode("idle");
   /* cancelling an arm before it recorded committed no length, and no worklet message is
      coming to say so — this transition is entirely ours */
@@ -25068,6 +25078,7 @@ function fireSlot(i){
 function selectSlot(i){
   /* Choosing one outright answers the question a queued one was waiting to answer. */
   LP.queued = -1;
+  LP.dubAt = -1;
   LP.slot = i | 0;
   if (node) node.port.postMessage({op: "slot", i: LP.slot});
   paintState();                  // the take strip has to follow, however it was moved
@@ -25081,6 +25092,7 @@ function clearLoop(){
   if (!node) return;
   node.port.postMessage({op: "clear"});
   LP.queued = -1;
+  LP.dubAt = -1;
   setMode("idle");
 }
 /* Empty one row's take. The LENGTH survives — bpmAtRecord stays — because the other rows
@@ -25546,6 +25558,33 @@ function inputControl(){
    down the page), and these slots ARE the scene rows, so it is the same conversion. */
 const slotCell = c => (c < 8 ? c + 8 : c - 8);
 
+/* ---- tapping a take that already has something in it ----
+   ⚠️ THE PAD YOU ARE ALREADY PLAYING IS NOT A REQUEST TO PLAY IT. Pressing the live take
+   used to queue a switch to the take it was already on, which is the one press on this grid
+   that could do nothing at all — so it means the other thing you would want from a loop that
+   is running, which is to start layering on it. Pressing again comes back out, so the pad is
+   a switch rather than a one-way door, and Record still toggles the same latch.
+
+   ⚠️ AND A DOUBLE TAP ON A DIFFERENT TAKE MEANS "and keep layering when it gets here". Which
+   has to be an intention held until the seam rather than a switch thrown now: overdub belongs
+   to the looper, not to a take, so setting it at the press would put the take that is STILL
+   PLAYING into overdub for the rest of its bar. LP.dubAt is that intention — see the arrival
+   in onWorklet().
+
+   The first tap of the double still queues, so nothing waits on a timer to find out whether
+   a second one is coming: the second tap only adds to what the first already did. */
+const TAP_MS = 420;
+let lastTap = {i: -1, t: 0};
+function tapFilled(i){
+  const now = performance.now();
+  const again = lastTap.i === i && (now - lastTap.t) < TAP_MS;
+  lastTap = {i, t: now};
+  const live = (LP.mode === "play" || LP.mode === "dub") && LP.slot === i;
+  if (live){ setDub(!LP.dubOn); return; }
+  queueSlot(i);
+  if (again) LP.dubAt = i;
+}
+
 const surfaceGrid = {
   label: () => "Loops",
   cells: () => {
@@ -25562,8 +25601,13 @@ const surfaceGrid = {
          is up to eight beats away — press a pad, get nothing at all for that long, and the
          only reading available is that the pad does not work. Same colour, because it is the
          same take; the flashing is the wait, and it stops the instant it lands. */
-      out[slotCell(i)] = LP.queued === i ? {colour: "green", on: true, hot: true}
-                       : live === i      ? {colour: "green", on: true}
+      /* ⚠️ FLASHING RED IS "COMING, AND WILL LAYER", flashing green is "coming". Same shape,
+         and the colour is the one this panel already uses for recording — because arriving
+         in overdub IS recording, and a double tap that looked identical to a single one
+         would be a gesture you could only confirm by waiting to hear it. */
+      out[slotCell(i)] = LP.dubAt === i  ? {colour: "red", on: true, hot: true}
+                       : LP.queued === i ? {colour: "green", on: true, hot: true}
+                       : live === i      ? {colour: LP.dubOn ? "red" : "green", on: true}
                                          : {colour: "cyan", on: false};
     }
     /* Recording is the one state you must be able to see from across a room. */
@@ -25583,7 +25627,7 @@ const surfaceGrid = {
        rather than armed: a modifier that falls through to "record" on a miss would turn a
        fumbled delete into a live take. */
     if (mods && mods.accent){ if (hasSlot(i)) clearSlot(i); return; }
-    if (hasSlot(i)){ queueSlot(i); return; }
+    if (hasSlot(i)){ tapFilled(i); return; }
     arm("rec", i);
     /* ⚠️ ARMING A TAKE MOVES YOU TO WHAT YOU ARE ABOUT TO RECORD. The pad that starts a take
        and the panel that makes the sound are two different places, and the count-in is the

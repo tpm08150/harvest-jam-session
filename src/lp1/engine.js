@@ -36,6 +36,11 @@ const LP = {
      playhead and count; on sixteen pads you pressed one and nothing whatever happened for
      up to eight beats, which is indistinguishable from a pad that does not work. */
   queued: -1,
+  /* ⚠️ A SLOT THAT SHOULD ARRIVE ALREADY DUBBING, or -1. Overdub is a switch on the LOOPER
+     rather than on a take, so "play this one and keep layering it" cannot be said by setting
+     the switch now — the switch would apply to the take still playing for the rest of its
+     bar. It has to be an intention held until the seam, which is what this is. */
+  dubAt: -1,
 
   bpmAtRecord: null,        // the tempo the loop was cut at — see the note in the panel
   /* The audio time the armed take starts on, so the panel can count it in. "Armed" with
@@ -158,6 +163,10 @@ function onWorklet(m){
   /* It landed: the wait is over and the pad stops flashing. Cleared on arrival rather than
      on every `looped`, because a queued slot survives the loop lines it is waiting through. */
   if (LP.queued >= 0 && LP.slot === LP.queued) LP.queued = -1;
+  /* ...and if it was asked to arrive dubbing, that is now. Checked against the slot rather
+     than against `queued`, so a take that got here some other way is not caught by a stale
+     intention nobody cancelled. */
+  if (LP.dubAt >= 0 && LP.slot === LP.dubAt){ LP.dubAt = -1; setDub(true); }
   if (m.ev === "pos"){ LP.pos = m.pos; LP.len = m.len; LP.peak = m.peak; return; }
   if (m.ev === "slots"){ paintState(); return; }
   if (m.ev === "started" || m.ev === "looped"){ setMode(m.mode); }
@@ -289,7 +298,8 @@ async function arm(mode, slot){
 function stopLoop(){
   if (!node) return;
   node.port.postMessage({op: "now", mode: "idle"});
-  LP.queued = -1;                 // stopping cancels the take that was waiting
+  LP.queued = -1;
+  LP.dubAt = -1;                 // stopping cancels the take that was waiting
   setMode("idle");
   /* cancelling an arm before it recorded committed no length, and no worklet message is
      coming to say so — this transition is entirely ours */
@@ -374,6 +384,7 @@ function fireSlot(i){
 function selectSlot(i){
   /* Choosing one outright answers the question a queued one was waiting to answer. */
   LP.queued = -1;
+  LP.dubAt = -1;
   LP.slot = i | 0;
   if (node) node.port.postMessage({op: "slot", i: LP.slot});
   paintState();                  // the take strip has to follow, however it was moved
@@ -387,6 +398,7 @@ function clearLoop(){
   if (!node) return;
   node.port.postMessage({op: "clear"});
   LP.queued = -1;
+  LP.dubAt = -1;
   setMode("idle");
 }
 /* Empty one row's take. The LENGTH survives — bpmAtRecord stays — because the other rows
