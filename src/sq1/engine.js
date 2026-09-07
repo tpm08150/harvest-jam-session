@@ -39,7 +39,12 @@ function makeDrum(ch, send){
   const lanes = GM.map(g => ({note: g.note, name: g.name,
                               steps: new Array(MAX_STEPS).fill(0)}));
   const T = {len: 16, rate: "1/16", swing: .5, playing: false, sel: 0, lane: 0, bank: 0,
-             vel: 100, accentAmt: .35};
+             vel: 100, accentAmt: .35,
+             /* ⚠️ WHAT A PRESS WRITES IS A SETTING, not a cycle — DR·1's words and DR·1's
+                reason. Off → on → accent → off is elegant right up to the moment you want a
+                step gone and the only route there is through accenting it first: two presses
+                to undo one, on the gesture you make most often with a pattern running. */
+             write: "step"};
   let nextTime = 0, stepIndex = 0, marks = [];
 
   const stepSeconds = () => beatSeconds() / (RATES[T.rate] || 4);
@@ -95,10 +100,15 @@ function makeDrum(ch, send){
       }
       while (marks.length > 40) marks.shift();
     },
-    /* press cycles off → on → accent → off, the same three states DR·1's pads walk. */
-    press(lane, i){
+    /* One place, so a mouse press, a pad press and a modifier cannot disagree about what a
+       step becomes. ⚠️ Accent on an EMPTY step writes an accented step rather than nothing:
+       you are asking for a loud hit there, and making you draw it twice would be the second
+       press this whole change exists to remove. Straight from DR·1's nextValue(). */
+    press(lane, i, accent){
       const l = lanes[lane]; if (!l || i >= MAX_STEPS) return;
-      l.steps[i] = (l.steps[i] + 1) % 3;
+      const v = l.steps[i];
+      const wantAccent = accent == null ? T.write === "accent" : !!accent;
+      l.steps[i] = wantAccent ? (v === 2 ? 1 : 2) : (v ? 0 : 1);
     },
     clear(){ lanes.forEach(l => l.steps.fill(0)); },
     count(){ return lanes.reduce((n, l) => n + l.steps.reduce((m, v) => m + (v ? 1 : 0), 0), 0); },

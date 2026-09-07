@@ -164,9 +164,18 @@ function buildDrumFace(){
   });
   paintDrum();
 }
+const writeSeg = $("#sqWrite");
+writeSeg.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  cur().drum.T.write = b.dataset.w;
+  writeSeg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+});
 lanesEl.addEventListener("click", e => {
   const b = e.target.closest(".dstep"); if (!b) return;
-  cur().drum.press(+b.closest(".lane").dataset.lane, +b.dataset.i);
+  /* ⚠️ The modifier still works on screen, so somebody who reached for it is not told no —
+     it is simply not the way you are expected to draw a bar of accents. */
+  cur().drum.press(+b.closest(".lane").dataset.lane, +b.dataset.i,
+                   e.shiftKey ? true : undefined);
   paintDrum();
   if (clearSeqBtn) clearSeqBtn.paint();
 });
@@ -242,6 +251,11 @@ function showTrack(){
   $("#sqScaleField").hidden = drum;
   modeSeg.hidden = drum;
   $("#sqLane").hidden = drum;
+  /* ...and what a press writes is the drum face's, so it appears exactly where the synth
+     face's lane picker was. */
+  writeSeg.hidden = !drum;
+  if (drum) writeSeg.querySelectorAll("button").forEach(b =>
+    b.classList.toggle("on", b.dataset.w === (t.drum.T.write || "step")));
   if (drum) buildDrumFace(); else buildSynthFace();
   mountClear();
   paintHead();

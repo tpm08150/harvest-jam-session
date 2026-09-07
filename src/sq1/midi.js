@@ -145,12 +145,12 @@ const drumSurface = {
     if (cell < 8){ t.T.lane = cell; paintDrum(); return; }
     const i = drumBase(t) + (cell - 8);
     if (i >= t.T.len) return;
-    /* Func writes an accent outright rather than walking to it, the same shortcut DR·1's
-       pads make: three presses to accent a step is two too many mid-take. */
-    const l = t.lanes[t.T.lane];
-    if (!l) return;
-    if (mods && mods.accent) l.steps[i] = l.steps[i] === 2 ? 0 : 2;
-    else t.press(t.T.lane, i);
+    /* ⚠️ FUNC IS THE ACCENT, whatever the panel's write mode says. On the hardware there is
+       no second control to reach for mid-take and a modifier under the same thumb is free —
+       which is the opposite of the argument on screen, where a mode you set once beats
+       holding a key to draw the thing you draw most. Two answers because they are two
+       different hands. */
+    t.press(t.T.lane, i, mods && mods.accent ? true : undefined);
     paintDrum();
   }
 };

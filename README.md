@@ -366,6 +366,20 @@ scale degree, accent, slide, tie, parameter locks and live recording. ⚠️ Bot
 every track and only one plays. Switching while you are looking for something should not cost
 you the pattern you already wrote.
 
+⚠️ **A press turns a step on and off; accent is its own gesture.** It used to be off → on →
+accent → off on the one control, which is elegant right up to the moment you want a step gone
+and the only route there is through accenting it first — two presses to undo one, on the
+gesture you make most often with a pattern running. DR·1 reached the same conclusion about the
+same cycle and this follows it.
+
+⚠️ **And it is answered differently by each hand.** On the controller **Func + a pad** writes
+the accent, because there is no second control to reach for mid-take and a modifier under the
+same thumb is free. On screen it is a **Step / Accent** mode, because the downbeat of a kick is
+accented nearly every time and holding a key to draw the thing you draw most is worse than
+pressing a button once. Shift-click still works for anyone who reaches for it. Accent on an
+*empty* step writes an accented step rather than nothing — you are asking for a loud hit
+there, and drawing it twice is the second press this whole change removes.
+
 ⚠️ **The General MIDI drum map is a starting point, not a rule.** Outboard gear agrees about
 almost nothing, and a sequencer that could only address the notes a 1991 module used would be
 useless in front of most of it — so each lane carries a note number you edit, with the note
