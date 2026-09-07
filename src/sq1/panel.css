@@ -1,0 +1,70 @@
+:scope{
+  width:100%;max-width:860px;
+  background:linear-gradient(180deg,var(--panel-hi),var(--panel) 22%,var(--panel-lo));
+  border:1px solid var(--edge);
+  border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,0 22px 50px rgba(0,0,0,.55);
+  padding:20px 18px 24px;
+  position:relative;
+  --sq:#7fb2e8;          /* this panel's own blue — it drives boxes, not speakers */
+  --sq-hi:#a7cdf5;
+}
+.plate{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+.brand{font-family:Fraunces,Georgia,serif;font-size:19px;color:var(--sq-hi);letter-spacing:.02em}
+.silk{font-family:"Saira Semi Condensed",system-ui,sans-serif;font-size:10.5px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--silk-dim)}
+.screws{flex:1}
+.grow{flex:1}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.field{display:flex;align-items:center;gap:6px}
+.face{margin-bottom:12px}
+.hint{display:block;margin:8px 0 0;line-height:1.5;text-transform:none;letter-spacing:.02em}
+
+/* ---- the sixteen ----
+   ⚠️ A NUMBER SAYS FOUR THINGS AT ONCE and each of them is a different question: which track
+   you are editing, which have anything in them, which are running, and which are muted. Four
+   states on one button because a rack of sixteen with four indicators each would be a wall of
+   lights nobody reads. */
+.tracks{display:grid;grid-template-columns:repeat(16,1fr);gap:4px;flex:1;min-width:320px}
+.trk{
+  font-family:"DM Mono",ui-monospace,monospace;font-size:11px;
+  padding:7px 0;border-radius:5px;cursor:pointer;
+  background:linear-gradient(180deg,#20262b,#171c20);
+  border:1px solid var(--edge);color:var(--silk-dim);
+}
+.trk:hover{color:var(--silk)}
+.trk.has{color:var(--sq-hi);border-color:#3a536e}
+.trk.run{background:linear-gradient(180deg,#2b4257,#1d2b39);border-color:var(--sq)}
+.trk.muted{opacity:.4}
+.trk.sel{box-shadow:0 0 0 2px var(--sq) inset;color:#fff}
+.trk:focus-visible{outline:2px solid var(--sq);outline-offset:1px}
+
+/* ---- the drum face ---- */
+.lanes{display:flex;flex-direction:column;gap:5px}
+.lane{display:flex;align-items:center;gap:9px}
+.lane-head{display:flex;align-items:center;gap:6px;flex:0 0 132px}
+.lane-name{font-family:"DM Mono",ui-monospace,monospace;font-size:11px;color:var(--silk);
+  width:26px}
+.lane-note{
+  width:48px;padding:3px 5px;font-family:"DM Mono",ui-monospace,monospace;font-size:11px;
+  background:#12171b;border:1px solid var(--edge);border-radius:4px;color:var(--sq-hi);
+}
+.lane-nn{width:40px}
+.lane-steps{display:grid;grid-template-columns:repeat(var(--steps,16),1fr);gap:3px;flex:1}
+.dstep{
+  height:22px;border-radius:4px;cursor:pointer;
+  background:linear-gradient(180deg,#1b2126,#141a1e);
+  border:1px solid var(--edge);
+}
+.dstep.beat{border-color:#38424a}
+.dstep.on{background:linear-gradient(180deg,var(--sq),#4a7fb0);border-color:var(--sq-hi)}
+/* An accent is the same colour louder, not a second colour — see DR·1, which says the same. */
+.dstep.acc{background:linear-gradient(180deg,#ffd27a,#e0a13a);border-color:#ffe0a0}
+.dstep.now{box-shadow:0 0 0 2px #fff inset}
+.dstep:focus-visible{outline:2px solid var(--sq);outline-offset:1px}
+
+.note{font-size:11.5px;color:var(--silk-dim);line-height:1.5;margin-top:10px}
+@media (max-width:760px){
+  .tracks{grid-template-columns:repeat(8,1fr)}
+  .lane-head{flex-basis:104px}
+}

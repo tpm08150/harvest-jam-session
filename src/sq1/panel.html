@@ -1,0 +1,74 @@
+<!-- ⚠️ data-silent: THIS PANEL ENDS AT A CABLE, NOT AT THE AUDIO BUS. It is an instrument by
+     every registry's reckoning — it plays a pattern, it belongs to a scene, it answers on a
+     channel — and it has no strip, no fader and no output pair, because what it drives is a
+     box on the other end of a five-pin lead. Anything that draws a channel per panel has to
+     ask, or the desk grows a fader that moves nothing. -->
+<div class="unit sq1" data-instrument="sq1" data-silent>
+  <div data-face class="plate">
+    <span class="brand">SQ&middot;1</span>
+    <span class="silk">external sequencer</span>
+    <span class="screws"></span>
+  </div>
+
+  <!-- ⚠️ THE TRACK SELECTOR IS THE CHANNEL SELECTOR. Sixteen tracks and sixteen MIDI
+       channels is not a coincidence to be arranged around — it is the whole model, so there
+       is no second control asking which channel a track is on. A lit number has something
+       in it; the ring is the one you are editing. -->
+  <div data-face class="row">
+    <span class="silk">Track</span>
+    <div class="tracks" id="sqTracks" role="group" aria-label="Track"></div>
+  </div>
+
+  <div data-face class="row">
+    <div class="seg sm" id="sqStyle" role="group" aria-label="Track style">
+      <button data-s="synth" class="on">Synth</button>
+      <button data-s="drum">Drum</button>
+    </div>
+    <div class="seg sm" id="sqMute" role="group" aria-label="Mute this track">
+      <button data-m="on">Play</button>
+      <button data-m="off">Mute</button>
+    </div>
+    <!-- ⚠️ Per TRACK, not per rack: a twelve-step hat against a sixteen-step bass is the
+         reason this instrument exists. -->
+    <label class="field"><span class="silk">Steps</span>
+      <select id="sqLen" aria-label="Steps in this track"></select></label>
+    <label class="field"><span class="silk">Rate</span>
+      <select id="sqRate" aria-label="Rate of this track"></select></label>
+    <button class="btn ghost sm" id="sqClear"></button>
+  </div>
+
+  <!-- the synth face: the shared grid every other sequencer here draws -->
+  <div data-face class="face" id="sqSynth">
+    <div class="row">
+      <div class="seg sm" id="sqLane" role="group" aria-label="What a click edits">
+        <button data-l="on" class="on">Gate</button>
+        <button data-l="pitch">Pitch</button>
+        <button data-l="accent">Accent</button>
+        <button data-l="slide">Slide</button>
+        <button data-l="tie">Tie</button>
+      </div>
+      <label class="field"><span class="silk">Key</span>
+        <select id="sqKey" aria-label="Key"></select></label>
+      <label class="field"><span class="silk">Scale</span>
+        <select id="sqScale" aria-label="Scale"></select></label>
+    </div>
+    <div class="seqwrap" id="sqWrap"></div>
+    <p class="silk hint" id="sqHint"></p>
+  </div>
+
+  <!-- the drum face: eight lanes, and the note each one sends -->
+  <div data-face class="face" id="sqDrum" hidden>
+    <p class="silk hint">click a step to turn it on &middot; again for accent &middot; again to clear
+      &middot; ⚠️ the note numbers are yours to set &mdash; the General MIDI map is only a start</p>
+    <div class="lanes" id="sqLanes"></div>
+  </div>
+
+  <div data-face class="row">
+    <button class="btn play" id="sqPlay">&#9654; Play</button>
+    <span class="silk" id="sqNow">&mdash;</span>
+    <span class="grow"></span>
+    <button class="btn sm panic" id="sqPanic" title="All notes off on every channel">Panic</button>
+  </div>
+
+  <div class="note" id="sqNote"></div>
+</div>

@@ -341,6 +341,42 @@ on a controller is usually that something is too loud — then click, tempo, bar
 on*. Tempo keeps the pair beside the encoders as well as having a knob, because a nudge of
 exactly one is what that pair is for.
 
+## SQ·1 — the external sequencer
+
+⚠️ **The one panel here that makes no sound.** Every other instrument ends at the audio bus;
+this one ends at a five-pin cable, and what it is for is the box on the other side of it. It
+has no voice, no strip and no fader — which is a fact other things have to be told, because
+anything drawing a channel per panel would otherwise grow a fader that moves nothing. The
+panel says so in its own markup (`data-silent`), and the desk, the audio rows and the output
+routing all ask.
+
+**Sixteen tracks, one per MIDI channel, sixty-four steps each.** The track selector *is* the
+channel selector: there is no second control asking which channel a track is on, because that
+is the whole model.
+
+A track is either a **drum** track — eight lanes of on/off/accent, each lane sending a note
+number you set — or a **synth** track, which is the shared sequencer wholesale: pitch as a
+scale degree, accent, slide, tie, parameter locks and live recording. ⚠️ Both models exist for
+every track and only one plays. Switching while you are looking for something should not cost
+you the pattern you already wrote.
+
+⚠️ **The General MIDI drum map is a starting point, not a rule.** Outboard gear agrees about
+almost nothing, and a sequencer that could only address the notes a 1991 module used would be
+useless in front of most of it — so each lane carries a note number you edit, with the note
+name beside it, because 46 and A♯2 are the same fact and only one of them is a sound you can
+hum.
+
+⚠️ **Each track keeps its own length and rate.** That is the reason to own one of these: a
+twelve-step hat against a sixteen-step bass is a polyrhythm, and the same two locked to one
+grid is a fill you write out longhand. They meet only at the shell's clock, which is what
+keeps them locked to the rest of the rack rather than merely near it.
+
+On the controller the pads are the **selected track's steps** — the shared paged grid on a
+synth track, and on a drum track the top row is the lane's steps with the bottom row picking
+the lane, because which lane you are on is something you change constantly while writing
+drums. The pair beside the encoders walks the sixteen tracks; `>` flips the selected one
+between the two kinds.
+
 ## MIDI out
 
 ⚠️ **One cable out for the rack, one channel per instrument** — the same shape the input

@@ -900,6 +900,10 @@ function cell(labelText){
    and it is also the one panel here that most obviously has an audio input. Building this
    list from the router quietly left out the looper. Roots are what is actually on the page;
    the name comes from whichever registry happens to know it. */
+const silent = id => {
+  const r = (Patchwork.roots || []).find(x => x.dataset.instrument === id);
+  return !!(r && r.hasAttribute("data-silent"));
+};
 function panelList(){
   const midi = (Patchwork.midi && Patchwork.midi.list) ? Patchwork.midi.list() : [];
   /* ⚠️ WHO REGISTERED AS AN INSTRUMENT, not who has a data-instrument attribute. The
@@ -915,7 +919,11 @@ function panelList(){
       const m = midi.find(x => x.id === id);
       const t = Patchwork.record && Patchwork.record.track ? Patchwork.record.track(id) : null;
       return {id, name: (m && m.name) || (t && t.name) || id.toUpperCase()};
-    }).filter(x => x.id && real(x.id));
+    /* ⚠️ AND AN AUDIO ROW NEEDS AUDIO. SQ·1 passes every registry — it plays a pattern, it
+       is in a scene, it answers on a channel — and has no strip to route, because what it
+       drives is a box on the end of a cable. It says so in its markup; asking the DOM is how
+       the mixer decides the same thing. */
+    }).filter(x => x.id && real(x.id) && !silent(x.id));
 }
 
 function buildRows(){

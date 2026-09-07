@@ -144,7 +144,11 @@ function niceName(id){
   return m ? m[1].toUpperCase() + "\u00b7" + m[2] : id.toUpperCase();
 }
 function buildStrips(){
-  const insts = (Patchwork.roots || []).map(r => r.dataset.instrument).filter(Boolean);
+  /* ⚠️ stripIds(), NOT A SECOND COPY OF IT. This had its own roots-to-ids line, identical to
+     that function on the day it was written — so when "which panels are channels" stopped
+     meaning "every root", the desk kept building faders for a launcher and a sequencer that
+     have no audio in them, while everything else on the page had already been told. */
+  const insts = stripIds();
   strips.textContent = "";
   knobs.clear();
   insts.forEach(id => {
@@ -429,8 +433,14 @@ const SHORT = {high:"Hi", mid:"Mid", freq:"Frq", low:"Low",
 /* "DR·1" is four characters and a middle dot; a legend three letters wide wants DR1. */
 const shortName = id => id.toUpperCase().slice(0, 3);
 
+/* ⚠️ NOT EVERY PANEL IS A CHANNEL. This listed every root, which was true for as long as
+   every root was an instrument with a voice — and then the launcher became selectable and
+   SQ·1 arrived driving outboard gear, and the desk grew two faders that moved nothing. A
+   panel that ends anywhere but the audio bus says so in its own markup; see data-silent. */
 function stripIds(){
-  return (Patchwork.roots || []).map(r => r.dataset.instrument).filter(Boolean);
+  return (Patchwork.roots || [])
+    .filter(r => !r.hasAttribute("data-silent"))
+    .map(r => r.dataset.instrument).filter(Boolean);
 }
 
 /* ⚠️ MASTER IS NOT A STRIP. It has no channel, no EQ and no mute — it is the bus everything

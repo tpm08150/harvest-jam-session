@@ -25,6 +25,9 @@ vc1/_panel-close.css
 ts1/_panel-open.css
 ts1/panel.css
 ts1/_panel-close.css
+sq1/_panel-open.css
+sq1/panel.css
+sq1/_panel-close.css
 lp1/_panel-open.css
 lp1/panel.css
 lp1/_panel-close.css
@@ -41,6 +44,7 @@ pm1/panel.html
 vc1/panel.html
 lp1/panel.html
 ts1/panel.html
+sq1/panel.html
 studio/rack-close.html
 studio/live.html
 studio/tape.html
@@ -125,6 +129,12 @@ ts1/engine.js
 ts1/ui.js
 ts1/boot.js
 ts1/_close.js
+sq1/_open.js
+sq1/engine.js
+sq1/ui.js
+sq1/midi.js
+sq1/boot.js
+sq1/_close.js
 studio/scenes.js
 studio/settings.js
 studio/live.js

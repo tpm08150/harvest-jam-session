@@ -56,6 +56,7 @@ body{
 .unit.vc1.focused{outline-color:var(--stripe-voc)}
 .unit.bs1.focused{outline-color:var(--stripe-bass)}
 .unit.dr1.focused{outline-color:var(--stripe-mod)}
+.unit.sq1.focused{outline-color:var(--sq-ring)}
 
 /* ⚠️ ONLY THE VIEW SWITCH IS CENTRED, and it is centred by coming OUT of the flow. Left in
    the row it would sit wherever the wordmark and the hint left room — which is a different

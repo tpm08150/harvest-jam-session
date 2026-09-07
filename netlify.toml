@@ -55,6 +55,11 @@
   status = 200
 
 [[redirects]]
+  from = "/sequencer"
+  to = "/sequencer.html"
+  status = 200
+
+[[redirects]]
   from = "/studio"
   to = "/index.html"
   status = 200

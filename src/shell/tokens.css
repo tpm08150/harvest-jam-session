@@ -46,6 +46,7 @@
      borrowed either would read as a row doing something. Also the launcher's focus ring,
      because the launcher belongs to no instrument and taking one's colour would say it did. */
   --cue:#63d6c9;
+  --sq-ring:#7fb2e8;       /* the external sequencer — a cable rather than a voice */
   /* named here rather than repeated as literals the way CS·1 does */
   --groove:#12161a;
   --groove-hi:#20262a;
