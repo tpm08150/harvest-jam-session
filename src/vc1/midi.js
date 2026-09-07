@@ -71,6 +71,16 @@ function surfaceControls(){
   }));
 }
 
+/* ---- the pattern's own settings, on the modifier ----
+   The four menus over the step grid: what the line is, as opposed to what it sounds like. They are lists rather than ranges, which is why they were never among the
+   ordinary eight — see option() in shell/surface.js, where the awkward parts of putting
+   a menu under a knob are handled once. */
+const SURFACE_ALT = [["#seqLen", "Steps", "Stp"], ["#seqRate", "Rate", "Rat"],
+                     ["#seqKey", "Key", "Key"], ["#seqScale", "Scale", "Scl"]];
+function surfaceShiftControls(){
+  return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true); return;
@@ -83,7 +93,8 @@ function initMidi(){
      same setting and must never disagree about it. */
   Patchwork.midi.route("vc1", onMidi, pt => { fillPorts(); followInput(pt); describe(); }, {
     name: "VC\u00b71", panic: midiPanic,
-    controls: surfaceControls, grid: surfaceGrid,
+    controls: surfaceControls, shiftControls: surfaceShiftControls,
+    shiftName: "Seq", grid: surfaceGrid,
     inCh: {get: () => MIDI.inCh,
            set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
   });

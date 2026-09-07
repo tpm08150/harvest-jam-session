@@ -547,8 +547,18 @@ rather than passes a modifier, and whether an encoder turned under Shift still s
 CC is a fact about firmware rather than about the guide. Func is the profile's own modifier,
 is known to arrive, and means nothing else while a knob is moving.
 
-On **BS·1** that is the pattern's own settings — `Stp Rat Key Scl`: steps, rate, key and
-scale. ⚠️ Those are *lists, not ranges*, which is why they were never among the ordinary
+What that second eight is depends on the panel — in every case, the pattern's own settings
+rather than its sound:
+
+| | second eight |
+| --- | --- |
+| **CS·1** | `Key Mod Len M/m Arp Pls Swg Bas` — key, mood, chord count, major/minor, arp rate, pulse, swing, bass |
+| **PM·1, BS·1, VC·1** | `Stp Rat Key Scl` — steps, rate, key, scale |
+| **DR·1** | `Stp Rat` — a drum pattern has no key and no scale |
+
+⚠️ CS·1's Mood and Mode are one letter apart on the panel and would be one letter apart in a
+three-character legend, so Mode is spelled `M/m`: it is the major-or-minor switch, and saying
+so beats a name you have to squint at. ⚠️ Those are *lists, not ranges*, which is why they were never among the ordinary
 eight: Cutoff has a value anywhere between two ends, while Rate is one of seven names and a
 knob landing between two of them means nothing. The encoder picks an **index** — its travel
 divided by however many options there are — and goes through the panel's own menu, so the

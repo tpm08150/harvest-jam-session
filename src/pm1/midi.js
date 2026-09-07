@@ -390,6 +390,16 @@ const surfaceGrid = Patchwork.makeSeqSurface({
   get lastNote(){ return SEQ.lastNote; }
 }, {repaint: () => paintSteps()});
 
+/* ---- the pattern's own settings, on the modifier ----
+   The four menus over the step grid: what the line is, as opposed to what it sounds like. They are lists rather than ranges, which is why they were never among the
+   ordinary eight — see option() in shell/surface.js, where the awkward parts of putting
+   a menu under a knob are handled once. */
+const SURFACE_ALT = [["#seqLen", "Steps", "Stp"], ["#seqRate", "Rate", "Rat"],
+                     ["#seqKey", "Key", "Key"], ["#seqScale", "Scale", "Scl"]];
+function surfaceShiftControls(){
+  return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     /* every iOS browser is WebKit underneath, so this is a platform limit rather than a
@@ -415,7 +425,8 @@ function initMidi(){
     fillPorts(); followInput(pt); bindOutput(); describe();
   }, {
     name: "PM\u00b71", panic: midiPanic,
-    controls: surfaceControls, grid: surfaceGrid,
+    controls: surfaceControls, shiftControls: surfaceShiftControls,
+    shiftName: "Seq", grid: surfaceGrid,
     controlBanks: surfaceBanks, controlBank: bankNow, setControlBank: setSurfaceBank,
     inCh:  {get: () => MIDI.synCh,
             set: c => { MIDI.synCh = c; synChSel.value = String(c);

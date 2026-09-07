@@ -790,6 +790,21 @@ const surfaceGrid = {
   up: i => padOff("s" + i)
 };
 
+/* ---- the pattern's own settings, on the modifier ----
+   A full eight, because a progression has more to say about itself than a line does.
+   ⚠️ Mood and Mode are one letter apart on the panel and would be one letter apart in a
+   three-character legend, so Mode is spelled M/m — it is the major-or-minor switch, and
+   saying so beats a name you have to squint at. They are lists rather than ranges, which is why they were never among the
+   ordinary eight — see option() in shell/surface.js, where the awkward parts of putting
+   a menu under a knob are handled once. */
+const SURFACE_ALT = [["#key", "Key", "Key"], ["#mood", "Mood", "Mod"],
+                     ["#len", "Chords", "Len"], ["#mode", "Mode", "M/m"],
+                     ["#arpRate", "Arp rate", "Arp"], ["#pulseSteps", "Pulse", "Pls"],
+                     ["#swing", "Swing", "Swg"], ["#bassSteps", "Bass", "Bas"]];
+function surfaceShiftControls(){
+  return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     /* Every iOS browser is WebKit underneath, so this is a platform limit rather than a
@@ -813,7 +828,8 @@ function initMidi(){
     fillPorts(); followInput(pt); bindOutput(); describe();
   }, {
     name: "CS\u00b71", panic: midiPanic,
-    controls: surfaceControls,
+    controls: surfaceControls, shiftControls: surfaceShiftControls,
+    shiftName: "Prog",
     grid: surfaceGrid,
     inCh:  {get: () => MIDI.inCh,
             set: c => { MIDI.inCh = c; midiInChSel.value = String(c);

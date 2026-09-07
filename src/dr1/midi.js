@@ -276,6 +276,17 @@ const surfaceGrid = {
   }
 };
 
+/* ---- the pattern's own settings, on the modifier ----
+   Only two, because a drum pattern has no key and no scale — and two that are worth
+   reaching without the mouse is still two. Swing and Accent are already among the ordinary
+   eight, being the pattern's rather than a voice's. They are lists rather than ranges, which is why they were never among the
+   ordinary eight — see option() in shell/surface.js, where the awkward parts of putting
+   a menu under a knob are handled once. */
+const SURFACE_ALT = [["#len", "Steps", "Stp"], ["#rate", "Rate", "Rat"]];
+function surfaceShiftControls(){
+  return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true);
@@ -290,7 +301,8 @@ function initMidi(){
      same setting and must never disagree about it. */
   Patchwork.midi.route("dr1", onMidi, pt => { fillPorts(); followInput(pt); bindOutput(); describe(); }, {
     name: "DR·1", panic: midiPanic,
-    controls: surfaceControls, grid: surfaceGrid,
+    controls: surfaceControls, shiftControls: surfaceShiftControls,
+    shiftName: "Seq", grid: surfaceGrid,
     controlBanks: drumBanks, controlBank: drumBank, setControlBank: setDrumBank,
     drumNote, drumLanes, drumFire, drumCell,
     inCh:  {get: () => MIDI.inCh,

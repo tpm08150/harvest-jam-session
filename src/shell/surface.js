@@ -611,7 +611,37 @@ Patchwork.midi.onChange(() => {
   if (!live) restore();
 });
 
-return {register, mount, onView, connect, disconnect, restore, rig,
+/* ---- a <select> as a control ----
+   ⚠️ HERE RATHER THAN FIVE TIMES OVER. Every panel's second eight is mostly menus — steps,
+   rate, key, scale, mood — and each one wrapping its own would be five copies of two
+   awkward decisions: that a list under a continuous knob has to be addressed by INDEX, its
+   travel divided by however many options there are, and that such a control must be marked
+   `stepped` or the surface will push its position back and pin it in place.
+
+   It goes through the element's own change event, so whatever the panel does when the menu
+   is used happens here too — a sequencer rebuilding its grid, a progression re-spelling its
+   chords. Writing the underlying value instead would move the number and leave the panel
+   drawing the old one. */
+function option(el, label, short){
+  if (!el || !el.options) return null;
+  const last = () => Math.max(1, el.options.length - 1);
+  return {
+    id: el.id || label, label, short, stepped: true,
+    text: () => {
+      const o = el.options[el.selectedIndex];
+      return o ? o.textContent.trim() : "";
+    },
+    get: () => el.selectedIndex / last(),
+    set: v => {
+      const i = Math.max(0, Math.min(el.options.length - 1, Math.round(v * last())));
+      if (i === el.selectedIndex) return;
+      el.selectedIndex = i;
+      el.dispatchEvent(new Event("change", {bubbles: true}));
+    }
+  };
+}
+
+return {register, mount, onView, option, connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
                                                        label: f.det.label || f.profile.name})); },

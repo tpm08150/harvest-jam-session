@@ -73,45 +73,15 @@ function surfaceControls(){
   }));
 }
 
-/* ---- the pattern's own settings, on Shift ----
-   ⚠️ THESE ARE LISTS, NOT RANGES, and that is the whole reason they were not among the
-   eight. Cutoff has a value anywhere between two ends; Rate is one of seven names and Scale
-   is one of a dozen, and a knob that lands between two of them means nothing. So the encoder
-   picks an INDEX — its travel divided by however many options there are — which is the only
-   honest way to put a list under a continuous control.
-
-   And they go through the panel's own <select>, dispatching the change event a click would,
-   so the sequencer rebuilds its grid and re-spells its notes exactly as if the menu had been
-   used. Setting seq.SEQ.len from here would move the number and leave the panel drawing the
-   old one. */
-function optCtl(sel, label, short){
-  const el = $(sel);
-  if (!el) return null;
-  const last = () => Math.max(1, el.options.length - 1);
-  return {
-    id: sel.slice(1), label, short,
-    /* ⚠️ `stepped` tells the surface not to keep pushing this knob's position back at it.
-       Seven options means seven positions; a knob nudged between two of them rounds to the
-       one it started on and gets shoved back there. See paintEncoders in shell/launchkey.js.
-       `text` is the option's own words, because "84" says nothing about Phrygian. */
-    stepped: true,
-    text: () => {
-      const o = el.options[el.selectedIndex];
-      return o ? o.textContent.trim() : "";
-    },
-    get: () => el.selectedIndex / last(),
-    set: v => {
-      const i = Math.max(0, Math.min(el.options.length - 1, Math.round(v * last())));
-      if (i === el.selectedIndex) return;
-      el.selectedIndex = i;
-      el.dispatchEvent(new Event("change", {bubbles: true}));
-    }
-  };
-}
+/* ---- the pattern's own settings, on the modifier ----
+   The four menus above the grid: what the line is, as opposed to what it sounds like. They
+   are lists rather than ranges, which is why they were never among the ordinary eight — see
+   option() in shell/surface.js, which is where the awkward parts of putting a menu under a
+   knob are handled once. */
+const SURFACE_ALT = [["#seqLen", "Steps", "Stp"], ["#seqRate", "Rate", "Rat"],
+                     ["#seqKey", "Key", "Key"], ["#seqScale", "Scale", "Scl"]];
 function surfaceShiftControls(){
-  return [optCtl("#seqLen", "Steps", "Stp"), optCtl("#seqRate", "Rate", "Rat"),
-          optCtl("#seqKey", "Key", "Key"), optCtl("#seqScale", "Scale", "Scl")]
-    .filter(Boolean);
+  return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
 }
 
 function initMidi(){

@@ -8746,7 +8746,37 @@ Patchwork.midi.onChange(() => {
   if (!live) restore();
 });
 
-return {register, mount, onView, connect, disconnect, restore, rig,
+/* ---- a <select> as a control ----
+   ⚠️ HERE RATHER THAN FIVE TIMES OVER. Every panel's second eight is mostly menus — steps,
+   rate, key, scale, mood — and each one wrapping its own would be five copies of two
+   awkward decisions: that a list under a continuous knob has to be addressed by INDEX, its
+   travel divided by however many options there are, and that such a control must be marked
+   `stepped` or the surface will push its position back and pin it in place.
+
+   It goes through the element's own change event, so whatever the panel does when the menu
+   is used happens here too — a sequencer rebuilding its grid, a progression re-spelling its
+   chords. Writing the underlying value instead would move the number and leave the panel
+   drawing the old one. */
+function option(el, label, short){
+  if (!el || !el.options) return null;
+  const last = () => Math.max(1, el.options.length - 1);
+  return {
+    id: el.id || label, label, short, stepped: true,
+    text: () => {
+      const o = el.options[el.selectedIndex];
+      return o ? o.textContent.trim() : "";
+    },
+    get: () => el.selectedIndex / last(),
+    set: v => {
+      const i = Math.max(0, Math.min(el.options.length - 1, Math.round(v * last())));
+      if (i === el.selectedIndex) return;
+      el.selectedIndex = i;
+      el.dispatchEvent(new Event("change", {bubbles: true}));
+    }
+  };
+}
+
+return {register, mount, onView, option, connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
                                                        label: f.det.label || f.profile.name})); },
@@ -13946,6 +13976,17 @@ const surfaceGrid = {
   }
 };
 
+/* ---- the pattern's own settings, on the modifier ----
+   Only two, because a drum pattern has no key and no scale — and two that are worth
+   reaching without the mouse is still two. Swing and Accent are already among the ordinary
+   eight, being the pattern's rather than a voice's. They are lists rather than ranges, which is why they were never among the
+   ordinary eight — see option() in shell/surface.js, where the awkward parts of putting
+   a menu under a knob are handled once. */
+const SURFACE_ALT = [["#len", "Steps", "Stp"], ["#rate", "Rate", "Rat"]];
+function surfaceShiftControls(){
+  return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true);
@@ -13960,7 +14001,8 @@ function initMidi(){
      same setting and must never disagree about it. */
   Patchwork.midi.route("dr1", onMidi, pt => { fillPorts(); followInput(pt); bindOutput(); describe(); }, {
     name: "DR·1", panic: midiPanic,
-    controls: surfaceControls, grid: surfaceGrid,
+    controls: surfaceControls, shiftControls: surfaceShiftControls,
+    shiftName: "Seq", grid: surfaceGrid,
     controlBanks: drumBanks, controlBank: drumBank, setControlBank: setDrumBank,
     drumNote, drumLanes, drumFire, drumCell,
     inCh:  {get: () => MIDI.inCh,
@@ -14877,45 +14919,15 @@ function surfaceControls(){
   }));
 }
 
-/* ---- the pattern's own settings, on Shift ----
-   ⚠️ THESE ARE LISTS, NOT RANGES, and that is the whole reason they were not among the
-   eight. Cutoff has a value anywhere between two ends; Rate is one of seven names and Scale
-   is one of a dozen, and a knob that lands between two of them means nothing. So the encoder
-   picks an INDEX — its travel divided by however many options there are — which is the only
-   honest way to put a list under a continuous control.
-
-   And they go through the panel's own <select>, dispatching the change event a click would,
-   so the sequencer rebuilds its grid and re-spells its notes exactly as if the menu had been
-   used. Setting seq.SEQ.len from here would move the number and leave the panel drawing the
-   old one. */
-function optCtl(sel, label, short){
-  const el = $(sel);
-  if (!el) return null;
-  const last = () => Math.max(1, el.options.length - 1);
-  return {
-    id: sel.slice(1), label, short,
-    /* ⚠️ `stepped` tells the surface not to keep pushing this knob's position back at it.
-       Seven options means seven positions; a knob nudged between two of them rounds to the
-       one it started on and gets shoved back there. See paintEncoders in shell/launchkey.js.
-       `text` is the option's own words, because "84" says nothing about Phrygian. */
-    stepped: true,
-    text: () => {
-      const o = el.options[el.selectedIndex];
-      return o ? o.textContent.trim() : "";
-    },
-    get: () => el.selectedIndex / last(),
-    set: v => {
-      const i = Math.max(0, Math.min(el.options.length - 1, Math.round(v * last())));
-      if (i === el.selectedIndex) return;
-      el.selectedIndex = i;
-      el.dispatchEvent(new Event("change", {bubbles: true}));
-    }
-  };
-}
+/* ---- the pattern's own settings, on the modifier ----
+   The four menus above the grid: what the line is, as opposed to what it sounds like. They
+   are lists rather than ranges, which is why they were never among the ordinary eight — see
+   option() in shell/surface.js, which is where the awkward parts of putting a menu under a
+   knob are handled once. */
+const SURFACE_ALT = [["#seqLen", "Steps", "Stp"], ["#seqRate", "Rate", "Rat"],
+                     ["#seqKey", "Key", "Key"], ["#seqScale", "Scale", "Scl"]];
 function surfaceShiftControls(){
-  return [optCtl("#seqLen", "Steps", "Stp"), optCtl("#seqRate", "Rate", "Rat"),
-          optCtl("#seqKey", "Key", "Key"), optCtl("#seqScale", "Scale", "Scl")]
-    .filter(Boolean);
+  return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
 }
 
 function initMidi(){
@@ -17238,6 +17250,21 @@ const surfaceGrid = {
   up: i => padOff("s" + i)
 };
 
+/* ---- the pattern's own settings, on the modifier ----
+   A full eight, because a progression has more to say about itself than a line does.
+   ⚠️ Mood and Mode are one letter apart on the panel and would be one letter apart in a
+   three-character legend, so Mode is spelled M/m — it is the major-or-minor switch, and
+   saying so beats a name you have to squint at. They are lists rather than ranges, which is why they were never among the
+   ordinary eight — see option() in shell/surface.js, where the awkward parts of putting
+   a menu under a knob are handled once. */
+const SURFACE_ALT = [["#key", "Key", "Key"], ["#mood", "Mood", "Mod"],
+                     ["#len", "Chords", "Len"], ["#mode", "Mode", "M/m"],
+                     ["#arpRate", "Arp rate", "Arp"], ["#pulseSteps", "Pulse", "Pls"],
+                     ["#swing", "Swing", "Swg"], ["#bassSteps", "Bass", "Bas"]];
+function surfaceShiftControls(){
+  return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     /* Every iOS browser is WebKit underneath, so this is a platform limit rather than a
@@ -17261,7 +17288,8 @@ function initMidi(){
     fillPorts(); followInput(pt); bindOutput(); describe();
   }, {
     name: "CS\u00b71", panic: midiPanic,
-    controls: surfaceControls,
+    controls: surfaceControls, shiftControls: surfaceShiftControls,
+    shiftName: "Prog",
     grid: surfaceGrid,
     inCh:  {get: () => MIDI.inCh,
             set: c => { MIDI.inCh = c; midiInChSel.value = String(c);
@@ -21171,6 +21199,16 @@ const surfaceGrid = Patchwork.makeSeqSurface({
   get lastNote(){ return SEQ.lastNote; }
 }, {repaint: () => paintSteps()});
 
+/* ---- the pattern's own settings, on the modifier ----
+   The four menus over the step grid: what the line is, as opposed to what it sounds like. They are lists rather than ranges, which is why they were never among the
+   ordinary eight — see option() in shell/surface.js, where the awkward parts of putting
+   a menu under a knob are handled once. */
+const SURFACE_ALT = [["#seqLen", "Steps", "Stp"], ["#seqRate", "Rate", "Rat"],
+                     ["#seqKey", "Key", "Key"], ["#seqScale", "Scale", "Scl"]];
+function surfaceShiftControls(){
+  return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     /* every iOS browser is WebKit underneath, so this is a platform limit rather than a
@@ -21196,7 +21234,8 @@ function initMidi(){
     fillPorts(); followInput(pt); bindOutput(); describe();
   }, {
     name: "PM\u00b71", panic: midiPanic,
-    controls: surfaceControls, grid: surfaceGrid,
+    controls: surfaceControls, shiftControls: surfaceShiftControls,
+    shiftName: "Seq", grid: surfaceGrid,
     controlBanks: surfaceBanks, controlBank: bankNow, setControlBank: setSurfaceBank,
     inCh:  {get: () => MIDI.synCh,
             set: c => { MIDI.synCh = c; synChSel.value = String(c);
@@ -22269,6 +22308,16 @@ function surfaceControls(){
   }));
 }
 
+/* ---- the pattern's own settings, on the modifier ----
+   The four menus over the step grid: what the line is, as opposed to what it sounds like. They are lists rather than ranges, which is why they were never among the
+   ordinary eight — see option() in shell/surface.js, where the awkward parts of putting
+   a menu under a knob are handled once. */
+const SURFACE_ALT = [["#seqLen", "Steps", "Stp"], ["#seqRate", "Rate", "Rat"],
+                     ["#seqKey", "Key", "Key"], ["#seqScale", "Scale", "Scl"]];
+function surfaceShiftControls(){
+  return SURFACE_ALT.map(a => Patchwork.surface.option($(a[0]), a[1], a[2])).filter(Boolean);
+}
+
 function initMidi(){
   if (!navigator.requestMIDIAccess){
     say("Web MIDI isn't available in this browser. Chrome and Edge support it.", true); return;
@@ -22281,7 +22330,8 @@ function initMidi(){
      same setting and must never disagree about it. */
   Patchwork.midi.route("vc1", onMidi, pt => { fillPorts(); followInput(pt); describe(); }, {
     name: "VC\u00b71", panic: midiPanic,
-    controls: surfaceControls, grid: surfaceGrid,
+    controls: surfaceControls, shiftControls: surfaceShiftControls,
+    shiftName: "Seq", grid: surfaceGrid,
     inCh: {get: () => MIDI.inCh,
            set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
   });
