@@ -76,7 +76,18 @@ segPaint.seqMode = seg("#seqMode","p", () => SEQ.mode, v => {
 });
 /* declared before it is assigned: a paint can run while this file is still being
    evaluated, and a `const` in its temporal dead zone throws on any access at all */
-let clearLocksBtn = null;
+let clearLocksBtn = null, clearSeqBtn = null;
+/* One implementation of this across the rack — see mountClearSeq in seq/step-seq.js. PM·1
+   keeps its own steps rather than the shared sequencer's, and resetSteps() is already what
+   an empty pattern means here. */
+clearSeqBtn = Patchwork.mountClearSeq($("#clearSeq"), {
+  count: () => SEQ.steps.reduce((n, st) =>
+    n + ((st.on || st.tie || (st.locks && Object.keys(st.locks).length)) ? 1 : 0), 0),
+  grab: () => JSON.parse(JSON.stringify(SEQ.steps)),
+  put: p => { SEQ.steps = JSON.parse(JSON.stringify(p)); },
+  clear: () => resetSteps(),
+  repaint: () => { paintSteps(); paintLocks(); }
+});
 clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
   steps: () => SEQ.steps,
   sel: () => SEQ.sel,
@@ -292,6 +303,10 @@ function paintSteps(){
       ? stepNotes(st, true).map(noteLabel).join(" ")
       : noteLabel(stepNote(st, true)));
   });
+  /* ⚠️ HERE RATHER THAN IN paintLocks, which is where the other one goes: this button reads
+     the STEPS, and the Undo it offers is good only while the grid is still empty — so it has
+     to be repainted by whatever put a note back into it, which is this. */
+  if (clearSeqBtn) clearSeqBtn.paint();
 }
 /* Highlight the knobs that are locked on the selected step, so a p-lock is something you
    can see rather than remember. */

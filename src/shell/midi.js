@@ -124,7 +124,20 @@ function deliver(s, e){
    channels and should not grow them. So a message aimed at the focused instrument is
    re-stamped with the channel that instrument is listening on, and its own filter passes
    it for its own reasons. An instrument on Omni needs no rewrite and gets none. */
-let follow = false;
+/* ⚠️ ON BY DEFAULT, AND REMEMBERED. Off was the safe choice for a rack whose panels each
+   had their own port and channel, and it is the wrong one for the way this is actually
+   played: you click a panel, you play, and you expect to hear the panel you clicked. With
+   this off, a controller on one channel reaches exactly one instrument and every other panel
+   is silent until you go and find the channel selectors — which is a MIDI routing problem
+   presented as the keyboard being broken.
+
+   Remembered rather than merely defaulted, so turning it off stays off: a default is what
+   you get before you have an opinion, not something to be handed back every reload. */
+const FOLLOW_KEY = "patchwork-midi-follow";
+let follow = (() => {
+  try{ const v = localStorage.getItem(FOLLOW_KEY); return v == null ? true : v === "1"; }
+  catch(e){ return true; }
+})();
 
 /* ⚠️ A NOTE-OFF GOES WHERE ITS NOTE-ON WENT, focus or no focus. Hold a note, click another
    panel, let go: without this the note-off lands on the newly focused instrument and the
@@ -246,6 +259,7 @@ function list(){
 }
 function setFollow(on){
   follow = !!on;
+  try{ localStorage.setItem(FOLLOW_KEY, follow ? "1" : "0"); }catch(e){}
   /* ⚠️ Notes held across the switch would never be released by the rule that is now in
      force, so let go of everything first. Silence is recoverable; a stuck note is not. */
   heldBy.clear();

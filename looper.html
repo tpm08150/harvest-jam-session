@@ -1675,7 +1675,20 @@ function deliver(s, e){
    channels and should not grow them. So a message aimed at the focused instrument is
    re-stamped with the channel that instrument is listening on, and its own filter passes
    it for its own reasons. An instrument on Omni needs no rewrite and gets none. */
-let follow = false;
+/* ⚠️ ON BY DEFAULT, AND REMEMBERED. Off was the safe choice for a rack whose panels each
+   had their own port and channel, and it is the wrong one for the way this is actually
+   played: you click a panel, you play, and you expect to hear the panel you clicked. With
+   this off, a controller on one channel reaches exactly one instrument and every other panel
+   is silent until you go and find the channel selectors — which is a MIDI routing problem
+   presented as the keyboard being broken.
+
+   Remembered rather than merely defaulted, so turning it off stays off: a default is what
+   you get before you have an opinion, not something to be handed back every reload. */
+const FOLLOW_KEY = "patchwork-midi-follow";
+let follow = (() => {
+  try{ const v = localStorage.getItem(FOLLOW_KEY); return v == null ? true : v === "1"; }
+  catch(e){ return true; }
+})();
 
 /* ⚠️ A NOTE-OFF GOES WHERE ITS NOTE-ON WENT, focus or no focus. Hold a note, click another
    panel, let go: without this the note-off lands on the newly focused instrument and the
@@ -1797,6 +1810,7 @@ function list(){
 }
 function setFollow(on){
   follow = !!on;
+  try{ localStorage.setItem(FOLLOW_KEY, follow ? "1" : "0"); }catch(e){}
   /* ⚠️ Notes held across the switch would never be released by the rule that is now in
      force, so let go of everything first. Silence is recoverable; a stuck note is not. */
   heldBy.clear();
@@ -6190,6 +6204,25 @@ return {
   RATES, SCALES,
   toggle(){ SEQ.playing ? stop() : start(); },
   setLen(n){ SEQ.len = V.clampf(n|0, 1, MAX); },
+  /* The pattern ALONE, without the settings capture() carries: clearing a sequence empties
+     the steps and must not reach for the key, the rate or the length. */
+  grabPattern(){ return JSON.parse(JSON.stringify(steps.slice(0, MAX))); },
+  putPattern(p){
+    if (!Array.isArray(p)) return;
+    for (let i = 0; i < MAX; i++) steps[i] = Object.assign(S(), p[i] || null);
+  },
+  clearPattern(){ for (let i = 0; i < MAX; i++) steps[i] = S(); },
+  /* ⚠️ THE WHOLE ALLOCATION, not the first SEQ.len of it. A pattern written at 64 and then
+     shortened to 16 still has fifty steps in it, and a Clear that left them there would be
+     a Clear you had to do twice — once now and once after lengthening it again. */
+  countPattern(){
+    let n = 0;
+    for (let i = 0; i < MAX; i++){
+      const st = steps[i];
+      if (st.on || st.tie || (st.locks && Object.keys(st.locks).length)) n++;
+    }
+    return n;
+  },
   capture(){ return {steps: JSON.parse(JSON.stringify(steps.slice(0, MAX))),
                      len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing,
                      root: SEQ.root, scale: SEQ.scale, gate: SEQ.gate,
@@ -6284,6 +6317,12 @@ function paint(){
     b.classList.toggle("lock", !!(st.locks && Object.keys(st.locks).length));
     b.textContent = (!st.on || st.tie) ? "" : noteName(seq.stepNote(st));
   });
+  /* ⚠️ ANYTHING WHOSE LABEL IS A FACT ABOUT THE PATTERN has to be repainted from HERE, and
+     not from onSelect: this runs every time the grid changes and that runs only when the
+     cursor moves. Clear is the one that showed it up — a note recorded live left the button
+     reading the count from before it, and a button that has gone stale into `disabled` is
+     one you cannot press at all. */
+  if (o.after) o.after();
 }
 
 /* A surface connecting or going away changes whether the band is drawn at all, and neither
@@ -6442,17 +6481,52 @@ function base(){ return page() * PAGE; }
    ran in opposite directions would be a coin flip every time you looked down. */
 const cellStep = c => base() + (c < 8 ? c + 8 : c - 8);
 
+/* ⚠️ WHAT THE LAST PRESS EMPTIED, kept so it can be put back. A press turns a lit step off,
+   and that is the only gesture on this surface that destroys something — the pitch, the
+   chord, the accent and any parameter locks all go at once, and none of them are anywhere on
+   the pads to be read back off. Pressing the same pad again restores exactly what was there.
+
+   ⚠️ UNLESS YOU HAVE PLAYED SOMETHING SINCE. The last note played is what a step switched on
+   becomes, so a press after touching the keys is a press that means the new note — putting
+   the old one back would ignore the thing you just did to say otherwise. `note` is what the
+   cue held at the moment of the erase, and a change to it is what retires this.
+
+   (Which reads a single note, so on PM·1 a DIFFERENT chord over the same root does not
+   retire it. The alternative is a cue token every panel would have to invent; this is the
+   one fact all of them already publish.) */
+let erased = null;                       // {i, st, tail: [{i, st}], note}
+
+const copy = v => JSON.parse(JSON.stringify(v));
+function snapOf(i){
+  const st = seq.steps[i];
+  return st ? copy(st) : null;
+}
+/* ⚠️ IN PLACE, not steps[i] = snap. Panels hold on to step objects — PM·1's paint reads the
+   ones it drew with — so replacing the element leaves the grid pointing at the old one. */
+function putBack(i, snap){
+  const st = seq.steps[i];
+  if (!st || !snap) return false;
+  Object.keys(st).forEach(k => { delete st[k]; });
+  Object.assign(st, copy(snap));
+  return true;
+}
+const cue = () => (seq.lastNote == null ? null : seq.lastNote);
+
 /* Hold one pad, press another: everything between them becomes one held note. A tie
    extends the note before it rather than sounding on its own, so a run of them is exactly
    what "this note lasts four steps" means to the engine.
 
-   ⚠️ IDEMPOTENT, NOT A TOGGLE, and that is forced rather than chosen. The anchor pad's own
-   press has already run by the time the second pad arrives — there is no way to know a
-   press is the start of a range until the range happens. So repeating the gesture would
-   undo a step the first press had just turned on and leave the ties behind it stranded,
-   and what you got back would depend on what the anchor happened to be before you touched
-   it. Doing the same thing twice does the same thing; clearing a held note is pressing its
-   steps, which is what a press has always meant. */
+   ⚠️ THE ANCHOR KEEPS ITS NOTE, which took an erase memory to arrange. Its own press has
+   already run by the time the second pad arrives — there is no way to know a press is the
+   start of a range until the range happens — so the note you were reaching out to lengthen
+   had been turned off, and the rebuild here wrote the last-played note over it. Changing a
+   note's LENGTH destroyed the note, which is the one thing the gesture is for. Putting the
+   anchor back from what its own press emptied is exact: the chord, the accent and the locks
+   all survive, because none of them were ever really gone.
+
+   ⚠️ AND IT SETS THE RUN RATHER THAN GROWING IT, so the same gesture shortens. Ties past the
+   new end belonged to this note and to nothing else, so they go with it — before, a run
+   could only ever get longer and the way back was to erase the note and play it again. */
 function tieTo(from, cell){
   let a = cellStep(from), b = cellStep(cell);
   if (a === b) return false;
@@ -6464,9 +6538,16 @@ function tieTo(from, cell){
   /* The note being held has to exist before anything can extend it — including when the
      anchor's own press is what just turned it off. press() is what knows how a step
      switched on gets its pitch, so ask it rather than setting `on` here. */
-  if (!seq.steps[a].on) seq.press(a, o.held ? o.held() : null, {cycle: false});
+  if (!seq.steps[a].on && !(erased && erased.i === a && putBack(a, erased.st)))
+    seq.press(a, o.held ? o.held() : null, {cycle: false});
+  erased = null;
   /* An accent inside a held note is a hit that never happens — the tie is why. */
   span.forEach(st => { st.on = 1; st.tie = 1; st.accent = 0; });
+  for (let i = b + 1; i < seq.SEQ.len; i++){
+    const st = seq.steps[i];
+    if (!st || !st.tie) break;
+    st.tie = 0; st.on = 0; st.accent = 0; st.slide = 0;
+  }
   return true;
 }
 
@@ -6517,11 +6598,88 @@ return {
       if (o.repaint) o.repaint();
       return;
     }
-    seq.press(i, o.held ? o.held() : null,
-              {accent: !!(mods && mods.accent), cycle: false});
+    const accent = !!(mods && mods.accent);
+    const before = snapOf(i);
+    const wasOn = !!(before && (before.on || before.tie));
+    /* the same pad again, with nothing played in between: put back what it just emptied */
+    if (!wasOn && !accent && erased && erased.i === i && erased.note === cue()
+        && putBack(i, erased.st)){
+      erased.tail.forEach(t => putBack(t.i, t.st));
+      erased = null;
+      if (o.repaint) o.repaint();
+      return;
+    }
+    /* ⚠️ A HELD NOTE IS ITS WHOLE RUN, so a press that clears part of one clears the rest of
+       it. A tie extends the step in front of it and nothing else, so a tie whose note is gone
+       sounds nothing at all and lights a pad anyway — amber cells for a note that is not
+       there. Pressing the head deletes the note; pressing a step inside it ends the note
+       there. Neither leaves anything behind, and the reinstate below puts back the run
+       exactly as it was. */
+    const tail = [];
+    seq.press(i, o.held ? o.held() : null, {accent, cycle: false});
+    const now = seq.steps[i];
+    const gone = wasOn && now && !now.on && !now.tie;
+    if (gone){
+      for (let k = i + 1; k < seq.SEQ.len; k++){
+        const st = seq.steps[k];
+        if (!st || !st.tie) break;
+        tail.push({i: k, st: copy(st)});
+        st.tie = 0; st.on = 0; st.accent = 0; st.slide = 0;
+      }
+    }
+    erased = gone ? {i, st: before, tail, note: cue()} : null;
     if (o.repaint) o.repaint();
   }
 };
+};
+
+/* ---- empty the pattern ----
+   One implementation across the rack, the same bargain mountClearLocks makes below: the
+   panels differ in how a step is stored and not at all in what this gesture means.
+
+   ⚠️ IT UNDOES ITSELF, AND WITHOUT A TIMER. A cleared pattern is the one thing on these
+   panels you cannot get back — there is no undo anywhere else here and a whole part can go
+   to one misclick — but a confirm on a performance panel is the dialogue that teaches people
+   to click through dialogues, and the one that matters is the one they then click through
+   too. So the button reads what it will do: with something in the sequence it is Clear, with
+   nothing in it and a pattern to put back it is Undo, and with nothing in it and nothing to
+   put back it is off.
+
+   Which means the undo expires exactly when it stops being safe — the moment you play a note
+   into the empty grid, the button is Clear again and the old pattern is gone. No duration to
+   pick, and no window in which Undo would throw away what you have just done. */
+Patchwork.mountClearSeq = function(btn, o){
+"use strict";
+if (!btn || !o) return {paint(){}};
+let undo = null;
+
+function paint(){
+  const n = o.count();
+  if (n > 0){
+    undo = undo && null;          // something is in there; the old pattern is not coming back
+    btn.textContent = "Clear";
+    btn.disabled = false;
+    btn.classList.remove("on");
+    btn.title = "Empty the sequence — " + n + (n === 1 ? " step" : " steps") + ".";
+    return;
+  }
+  btn.textContent = undo ? "Undo" : "Clear";
+  btn.disabled = !undo;
+  btn.classList.toggle("on", !!undo);
+  btn.title = undo ? "Put the cleared pattern back."
+                   : "Nothing in the sequence to clear.";
+}
+
+btn.addEventListener("click", () => {
+  if (o.count() > 0){ undo = o.grab(); o.clear(); }
+  else if (undo){ o.put(undo); undo = null; }
+  else return;
+  if (o.repaint) o.repaint();
+  paint();
+});
+
+paint();
+return {paint};
 };
 
 Patchwork.mountClearLocks = function(btn, o){

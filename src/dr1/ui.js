@@ -8,7 +8,7 @@ const clampf = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
    wrote it — the yellow label BS·1 and PM·1 both use. */
 const faderReg = {};
 /* assigned further down; declared here so an early paint cannot hit a temporal dead zone */
-let clearLocksBtn = null;
+let clearLocksBtn = null, clearSeqBtn = null;
 
 /* ---- the lane grid ---- */
 function buildLanes(){
@@ -55,6 +55,10 @@ function paintPads(){
     b.classList.toggle("beat", i % 4 === 0);
     b.classList.toggle("bank", bank >= 0 && i >= bank && i < bank + 16);
   });
+  /* ⚠️ HERE, not in paintLocks: the Clear button's label is a fact about the PATTERN, and
+     paintLocks runs when the selection or a lock moves. Reset pattern refilled the grid and
+     left the button still offering to undo a clear that no longer described anything. */
+  if (clearSeqBtn) clearSeqBtn.paint();
 }
 
 /* The first step of the sixteen a control surface is showing, or -1 when there is nothing
@@ -412,7 +416,26 @@ clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
 
 /* ---- transport and pattern controls ---- */
 playBtn.addEventListener("click", () => SEQ.playing ? stopPlay() : startPlay());
-$("#clearPat").addEventListener("click", () => { ORDER.forEach(k => steps[k].fill(0)); paintPads(); });
+/* The same button the rest of the rack has — see mountClearSeq in seq/step-seq.js. It was
+   a bare handler here and the only Clear on the page you could not take back; a kit is eight
+   lanes deep and the misclick costs correspondingly more. */
+clearSeqBtn = Patchwork.mountClearSeq($("#clearPat"), {
+  count: () => ORDER.reduce((n, k) =>
+    n + steps[k].reduce((m, v) => m + (v ? 1 : 0), 0) + lockCount(k), 0),
+  /* Locks come along, because a lock on a step that is gone does nothing and would come
+     back attached to whatever you wrote in its place. */
+  grab: () => ({steps: JSON.parse(JSON.stringify(steps)),
+                locks: JSON.parse(JSON.stringify(locks))}),
+  put: p => {
+    ORDER.forEach(k => {
+      if (p.steps && p.steps[k]) steps[k] = p.steps[k].slice();
+      delete locks[k];
+      if (p.locks && p.locks[k]) locks[k] = p.locks[k];
+    });
+  },
+  clear: () => { ORDER.forEach(k => { steps[k].fill(0); delete locks[k]; }); },
+  repaint: () => { paintPads(); paintLocks(); }
+});
 $("#defaultPat").addEventListener("click", () => { loadDefaultPattern(); paintPads(); });
 $("#panic").addEventListener("click", () => { stopPlay(); midiPanic(); });
 

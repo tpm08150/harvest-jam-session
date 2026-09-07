@@ -1,6 +1,12 @@
 
 /* ============ ui ============ */
 
+/* ⚠️ DECLARED UP HERE, not beside the mount that assigns it. The grid's paint repaints this
+   button, the grid is mounted before the button is, and a `let` read before its declaration
+   is evaluated throws rather than reading undefined — so a declaration next to the
+   assignment, which is where it wants to live, would break the first paint of the grid. */
+let clearSeqBtn = null;
+
 const playBtn = $("#play"), tempoOut = $("#tempoOut"), nowNote = $("#nowNote"),
       meterEl = $("#inMeter"), vocNote = $("#vocNote");
 const NOTES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
@@ -46,7 +52,9 @@ function played(n){
 }
 const grid = Patchwork.mountSeqGrid($("#seqWrap"), seq, {
   held: heldNote,
-  onSelect: () => paintLocked()
+  onSelect: () => paintLocked(),
+  /* the Clear button's label is a fact about the pattern — see paint() in seq/step-seq.js */
+  after: () => { if (clearSeqBtn) clearSeqBtn.paint(); }
 });
 
 /* The same steps on a controller's pads. It runs seq.press(), which is the function the
@@ -301,6 +309,15 @@ $("#seqLane").addEventListener("click", e => {
 /* declared before it is assigned: a paint can run while this file is still being
    evaluated, and a `const` in its temporal dead zone throws on any access at all */
 let clearLocksBtn = null;
+/* One implementation of this across the rack — see seq/step-seq.js. */
+clearSeqBtn = Patchwork.mountClearSeq($("#clearSeq"), {
+  count: () => seq.countPattern(),
+  grab: () => seq.grabPattern(),
+  put: p => seq.putPattern(p),
+  clear: () => seq.clearPattern(),
+  repaint: () => grid.render()
+});
+
 clearLocksBtn = Patchwork.mountClearLocks($("#clearLocks"), {
   steps: () => seq.steps,
   sel: () => seq.SEQ.sel,

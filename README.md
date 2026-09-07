@@ -227,6 +227,10 @@ Every track can be armed. PM·1, VC·1, BS·1 and DR·1 also take notes you play
 as you play them; CS·1 and LP·1 do not — a row press captures CS·1's progression and records
 LP·1 an audio take.
 
+**Clear** empties a sequence, and reads *Undo* until you put something back into it — no
+timer to beat and no confirm to click through, because the button says what it will do and
+the undo expires exactly when it stops being safe.
+
 **Hold a note and it records as long as you held it**, as a run of ties on the steps it
 covered — the three pitched instruments all do this, and a drum does not, because a drum has
 no length to record. Playing a shorter note over a longer one takes the old tail with it, so
@@ -326,7 +330,7 @@ transport and LEDs run over the DAW port, which the surface takes for itself.
 
 | | |
 | --- | --- |
-| **Keys** | play whichever panel has the focus — turn on *Plays the selected panel* |
+| **Keys** | play whichever panel has the focus — *Plays the selected panel*, on by default |
 | **Pads, DAW layout** | the focused panel's grid — see below |
 | **Pads, Drum layout** | DR·1's kit, wherever the focus is, one lane per pad in the order the panel lists them |
 | **Encoders** | the focused panel's eight main controls, named on the screen as you turn them |
@@ -574,10 +578,21 @@ What the sixteen pads mean follows the panel you clicked:
   **Holding one pad and pressing another ties everything between them** into one held note —
   which is how you write a note longer than a step without leaving the controller. Holding,
   rather than two presses in a row: sequential presses cannot be told apart from two ordinary
-  edits, so every second press would silently become a tie. The gesture is idempotent rather
-  than a toggle — the anchor pad's own press has already run by the time the second pad
-  arrives, so an "undo" would depend on what the step happened to be before you touched it.
-  Clearing a held note is pressing its steps, which is what a press has always meant.
+  edits, so every second press would silently become a tie. It **sets** the run rather than
+  growing it, so the same gesture shortens a note as well as lengthens it.
+
+  ⚠️ **And the note survives it.** The anchor pad's own press has already run by the time the
+  second pad arrives, so the note you reached out to lengthen had been switched off and got
+  rebuilt from the last pitch you played — changing a note's *length* destroyed the note,
+  which is the one thing the gesture is for. The pads remember what the last press emptied,
+  so the anchor comes back exactly: the chord, the accent and the parameter locks with it.
+
+  Which is also an **undo for a mis-press**. Pressing a lit step clears it, and pressing the
+  same pad again puts it back — unless you have played something in between, because the last
+  note played is what a step switched on becomes and putting the old one back would ignore
+  what you just said. A press takes the whole run, head and ties together: a tie extends the
+  step in front of it and nothing else, so a tie whose note is gone lights a pad and sounds
+  nothing.
 
   This is the panel's own gesture, not a second one: the pads and the on-screen grid run the
   same `press()`, so a lane or a modifier added to one is in the other by construction.
