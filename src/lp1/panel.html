@@ -23,6 +23,13 @@
   <div data-face class="transport">
     <button class="btn primary rec" id="rec">● Record</button>
     <button class="btn ghost" id="dub">Overdub</button>
+    <!-- ⚠️ NOT THE SAME SWITCH AS Overdub, which is why it says "after". Overdub is what is
+         happening now; this is what a take you have not recorded yet will do when it reaches
+         its end. -->
+    <div class="seg sm" id="loopAfter" role="group" aria-label="What a new take does after its first pass">
+      <button data-a="once" class="on">Once</button>
+      <button data-a="dub">Keep dubbing</button>
+    </div>
     <button class="btn ghost" id="playStop">▶ Play</button>
     <button class="btn ghost" id="undo">Undo</button>
     <button class="btn ghost" id="clear">Clear take</button>

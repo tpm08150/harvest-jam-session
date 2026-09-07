@@ -40,9 +40,17 @@ body{
 
 /* Which instrument the computer keyboard is talking to. The shell only marks this when
    there is more than one panel, so a standalone build never shows a ring it cannot
-   change. Colour-coded to the instrument: CS·1 is the red one, MS·1 the blue. */
+   change. Colour-coded to the instrument: CS·1 is the red one, MS·1 the blue.
+
+   ⚠️ THE FIRST RULE IS THE ONE THAT MATTERS. Every line below it is an override, so a panel
+   added later gets a ring whether or not anyone remembers to come back here — which nobody
+   did: LP·1 and TS·1 arrived after this list was written and were the two panels you could
+   focus with no way to tell that you had. */
 .unit{outline:2px solid transparent;outline-offset:3px;transition:outline-color .12s}
 @media (prefers-reduced-motion:reduce){ .unit{transition:none} }
+.unit.focused{outline-color:var(--accent)}
+.unit.lp1.focused{outline-color:var(--lp-ring)}
+.unit.ts1.focused{outline-color:var(--cap-yellow)}
 .unit.cs1.focused{outline-color:var(--cap-red)}
 .unit.pm1.focused{outline-color:var(--accent)}
 .unit.vc1.focused{outline-color:var(--stripe-voc)}

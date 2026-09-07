@@ -37,6 +37,10 @@
   --stripe-amp:#9aa5ac;
   --stripe-voc:#d67ab1;    /* vocoder — its own identity, not a variant of the filter */
   --stripe-bass:#d9884a;   /* bass pedals */
+  /* ⚠️ Here rather than read off the panels, because each panel's own accent is declared on
+     its :scope and the ring is drawn on the wrapper OUTSIDE it. Same teal LP·1 is built out
+     of, and TS·1's is the cap yellow it already uses for the fill and the armed readout. */
+  --lp-ring:#5ec8c0;
   /* named here rather than repeated as literals the way CS·1 does */
   --groove:#12161a;
   --groove-hi:#20262a;

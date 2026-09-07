@@ -102,6 +102,9 @@ function noteCell(mode, n){
    "Encoder modes / Absolute Mode", cross-checked against the display targets on p17
    ("15h-1Ch: encoders"). */
 const ENC_CC0 = 21, ENC_N = 8;
+/* Where a list's encoder is parked between turns — mid-travel, so there is room to go either
+   way. See the encoder branch in message(). */
+const ENC_MID = 64;
 
 /* Buttons, all Control Change on channel 16 (BFh). Guide, "The surface in DAW mode".
    The Mini SKUs carry the subset this file uses; the full-size adds a transport row whose
@@ -343,6 +346,9 @@ function start(io, rig){
     shift: false,                      // Shift held — the encoders' second eight
     act: false,                        // ">" held — a modifier while it is down, a button when it is not
     actUsed: false,                    // ...and whether it was used as one
+    /* Where each encoder last reported itself, so a list can be moved by the CHANGE rather
+       than by the value. Null means "no baseline yet" — the control under it just changed. */
+    encAt: new Array(ENC_N).fill(null),
     scrub: 0,                          // which arrow is scrubbing the tape, if either
     /* Pads currently down, newest last. A range gesture needs to know what a finger is
        still holding, and note-on/note-off is the only place that is knowable. */
@@ -529,8 +535,30 @@ function message(io, d, rig){
     /* Turning a knob while ">" is down is what makes it a modifier rather than a press. */
     if (io.state.act) io.state.actUsed = true;
     const list = rig.controls(layerHeld(io));
-    const c = list[cc - ENC_CC0];
-    if (!c || typeof c.set !== "function") return;
+    const i = cc - ENC_CC0;
+    const c = list[i];
+    if (!c) return;
+    /* ⚠️ A LIST MOVES BY DETENT, NOT BY POSITION. These encoders are endless but report an
+       absolute 0-127, so a control with N positions used to need 127/N detents per step:
+       sixty-four to flip a two-way segment, twenty-one for a four-way select. Bars, Monitor
+       and Metronome on LP·1 were all reported as simply not working, and they were — you
+       would have had to spin them most of a full sweep to see anything move.
+
+       So the travel is read as a DIRECTION and the knob is re-centred afterwards. Centring is
+       not tidiness: the device's own counter saturates at 0 and 127, and an encoder parked at
+       either end stops reporting change in that direction — the control would work until it
+       had been turned far enough one way and then be stuck for good. */
+    if (typeof c.nudge === "function"){
+      const was = io.state.encAt[i];
+      io.state.encAt[i] = v;
+      if (was == null || v === was) return;      // the first turn after a switch is a baseline
+      try{ c.nudge(v > was ? 1 : -1); }catch(e){}
+      io.send([CH_BTN, cc, ENC_MID]);
+      io.state.encAt[i] = ENC_MID;
+      io.state.encs[i] = ENC_MID;
+      return;
+    }
+    if (typeof c.set !== "function") return;
     try{ c.set(v / 127); }catch(e){}
     /* Remember what we just heard so paint() does not immediately send the same value
        back and fight the hand that is still turning it. */
@@ -723,6 +751,14 @@ function paintEncoders(io, rig){
     const id = c ? (c.id || "") : "";
     const arrived = s.encIds[i] !== id;         // a different control is under this knob
     s.encIds[i] = id;
+    /* ⚠️ AND THE BASELINE GOES WITH IT. A list is moved by how far the knob turned since its
+       last report, and "since" means nothing across a change of what the knob is pointed at —
+       the first turn on the new control would jump by whatever the old one had left behind.
+
+       For a list we park the knob mid-travel below and therefore KNOW where it is, so the
+       baseline is that rather than nothing: an unknown baseline costs the first detent after
+       every switch, which on a two-way segment is half the gesture. */
+    if (arrived) s.encAt[i] = (c && typeof c.nudge === "function") ? ENC_MID : null;
 
     /* Position feedback. The guide's phrase for the absolute modes is "If the DAW sends
        them position information, they automatically pick that up" — which is what stops a
@@ -737,11 +773,16 @@ function paintEncoders(io, rig){
        the range — which is also why Key and Scale, with two dozen options each, were the
        two that seemed to work. */
     let v = 0;
-    if (c && typeof c.get === "function"){
+    if (c && typeof c.nudge === "function") v = ENC_MID;   // parked, not positioned
+    else if (c && typeof c.get === "function"){
       try{ v = Math.max(0, Math.min(127, Math.round(c.get() * 127))); }catch(e){ v = 0; }
     }
+    /* ⚠️ ARRIVAL ALWAYS SENDS FOR A LIST, cache or no cache. The cache says what we last
+       TOLD this encoder, and a knob the user has since spun is nowhere near it — parking it
+       is the whole reason the baseline above can be trusted. */
     const push = !!c && (!c.stepped || arrived);
-    if (push && s.encs[i] !== v) io.send([CH_BTN, ENC_CC0 + i, v]);
+    const force = arrived && !!c && typeof c.nudge === "function";
+    if (push && (force || s.encs[i] !== v)) io.send([CH_BTN, ENC_CC0 + i, v]);
     s.encs[i] = v;
 
     if (!io.sysex) continue;

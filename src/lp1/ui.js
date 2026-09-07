@@ -82,6 +82,10 @@ function paintState(){
      actually being layered right now, and before the first wrap you are in the first
      without being in the second */
   dubBtn.classList.toggle("on", LP.dubOn);
+  /* ⚠️ ARMING WRITES THE LATCH from the preference, so the Overdub light has to be painted
+     from LP.dubOn and not only from a click on it — and this row has to follow too, since a
+     surface can move it without touching the panel. */
+  $$("#loopAfter button").forEach(b => b.classList.toggle("on", b.dataset.a === LP.after));
   dubBtn.classList.toggle("dubbing", m === "dub");
   $$("#click button").forEach(b => b.classList.toggle("on", (b.dataset.c === "on") === Patchwork.click.on));
   cutEl.textContent = LP.bpmAtRecord ? (LP.bars + " bars · cut at " + LP.bpmAtRecord + " bpm") : "—";
@@ -138,6 +142,15 @@ dubBtn.addEventListener("click", () => {
   say(LP.dubOn
     ? "Overdub on — this take will keep layering at every pass. Flip it off to stop."
     : "Overdub off.");
+});
+/* The standing answer the latch above starts each new take from — see LP.after. */
+$("#loopAfter").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  LP.after = b.dataset.a === "dub" ? "dub" : "once";
+  $$("#loopAfter button").forEach(x => x.classList.toggle("on", x === b));
+  say(LP.after === "dub"
+    ? "New takes roll straight into overdub at the end of the first pass."
+    : "New takes record one pass and then play it back.");
 });
 playBtn.addEventListener("click", () => {
   if (LP.mode === "play" || LP.mode === "dub") stopLoop();
@@ -347,10 +360,18 @@ function surfaceControls(){
     set: v => faderReg[c[0]].set(v)
   }));
   const bars = Patchwork.surface.option($("#bars"), "Bars", "Bar");
+  const after = Patchwork.surface.segment($("#loopAfter"), "After", "Aft");
   const mon = Patchwork.surface.segment($("#mon"), "Monitor", "Mon");
   const click = Patchwork.surface.segment($("#click"), "Metronome", "Met");
-  return out.concat([bars, mon, click].filter(Boolean));
+  return out.concat([bars, after, mon, click].filter(Boolean));
 }
+
+/* ⚠️ SLOT 1 IS THE TOP-LEFT PAD, and it was the bottom-left one. Cell 0 is bottom-left —
+   that is the surface's contract — so a grid read from the top has to say so, and this one
+   did not: the takes ran up the hardware while the list ran down the screen. The launcher
+   already does the same arithmetic for the same reason (a scene list is an arrangement going
+   down the page), and these slots ARE the scene rows, so it is the same conversion. */
+const slotCell = c => (c < 8 ? c + 8 : c - 8);
 
 const surfaceGrid = {
   label: () => "Loops",
@@ -363,18 +384,28 @@ const surfaceGrid = {
     for (let i = 0; i < 16; i++){
       const has = hasSlot(i);
       if (!has && live !== i) continue;          /* an empty slot is a dark pad, not a dim one */
-      out[i] = live === i ? {colour: "green", on: true} : {colour: "cyan", on: false};
+      out[slotCell(i)] = live === i ? {colour: "green", on: true}
+                                    : {colour: "cyan", on: false};
     }
     /* Recording is the one state you must be able to see from across a room. */
     if (LP.mode === "rec" || LP.mode === "dub"){
       const i = LP.slot;
-      if (i >= 0 && i < 16) out[i] = {colour: "red", on: true, hot: true};
+      if (i >= 0 && i < 16) out[slotCell(i)] = {colour: "red", on: true, hot: true};
     }
     return out;
   },
   /* A pad with a take plays it; an empty one records into it. Both through the same calls
      the launcher makes, so a pad and the cell above it cannot mean different things. */
-  down: cell => { if (hasSlot(cell)) queueSlot(cell); else arm("rec", cell); }
+  down: (cell, vel, mods) => {
+    const i = slotCell(cell);
+    /* ⚠️ FUNC EMPTIES IT, AND THERE IS NO UNDO. A take is audio and clearing one frees the
+       buffer, so this is the only destructive gesture on these pads — which is exactly why
+       it is the one that needs a second hand on the surface. An empty slot is left alone
+       rather than armed: a modifier that falls through to "record" on a miss would turn a
+       fumbled delete into a live take. */
+    if (mods && mods.accent){ if (hasSlot(i)) clearSlot(i); return; }
+    if (hasSlot(i)) queueSlot(i); else arm("rec", i);
+  }
 };
 
 if (window.Patchwork && Patchwork.surface){
@@ -382,6 +413,12 @@ if (window.Patchwork && Patchwork.surface){
     name: "LP\u00b71",
     controls: surfaceControls,
     grid: surfaceGrid,
+    /* ⚠️ RECORD IS THE OVERDUB SWITCH HERE, not an arm. Everywhere else on this surface
+       Record arms a track so that playing writes to its grid; a looper has no grid to write
+       to and the thing you reach for mid-loop is whether this pass layers. The light follows
+       the latch, so the button says what it is about to do. */
+    record: () => { setDub(!LP.dubOn); return true; },
+    get armed(){ return LP.dubOn; },
     /* The deck's own Play/Stop, so whatever it does when clicked happens here too. */
     actionName: "Loop",
     action: () => {

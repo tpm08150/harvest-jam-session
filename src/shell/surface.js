@@ -688,9 +688,36 @@ function said(f, key, nameKey, args){
    is used happens here too — a sequencer rebuilding its grid, a progression re-spelling its
    chords. Writing the underlying value instead would move the number and leave the panel
    drawing the old one. */
+/* ⚠️ ONE DETENT IS ONE POSITION, and without this a list under an encoder was unusable at
+   exactly the sizes people put under one. An absolute encoder travels 0-127; a control with
+   N positions rounds that to N, so a two-way segment needs SIXTY-FOUR detents to flip and a
+   four-way select needs twenty-one per step. Key and Scale, with two dozen options, felt
+   fine — which is why this hid for so long behind "stepped controls are fixed".
+
+   So a list says how to move it by one, and the profile turns the encoder's travel into a
+   direction rather than a position. See the encoder branch in shell/launchkey.js. */
+function stepper(count, at, go){
+  return d => {
+    const n = count();
+    if (n < 2) return;
+    const i = Math.max(0, Math.min(n - 1, at() + (d > 0 ? 1 : -1)));
+    if (i === at()) return;
+    go(i);
+  };
+}
+
 function option(el, label, short){
   if (!el || !el.options) return null;
   const last = () => Math.max(1, el.options.length - 1);
+  /* ⚠️ A `change` EVENT, NOT JUST THE VALUE. Every panel here listens for change rather than
+     polling its selects, and a select written to in script fires nothing on its own — so the
+     event is the write. It is also why a panel that REFUSES the change (LP·1 will not resize
+     a loop that has takes in it) puts the old value back and this reads it correctly next
+     time round. */
+  const pick = i => {
+    el.selectedIndex = i;
+    el.dispatchEvent(new Event("change", {bubbles: true}));
+  };
   return {
     id: el.id || label, label, short, stepped: true,
     text: () => {
@@ -701,9 +728,9 @@ function option(el, label, short){
     set: v => {
       const i = Math.max(0, Math.min(el.options.length - 1, Math.round(v * last())));
       if (i === el.selectedIndex) return;
-      el.selectedIndex = i;
-      el.dispatchEvent(new Event("change", {bubbles: true}));
-    }
+      pick(i);
+    },
+    nudge: stepper(() => el.options.length, () => el.selectedIndex, pick)
   };
 }
 
@@ -725,6 +752,7 @@ function segment(el, label, short){
     return 0;
   };
   const last = () => Math.max(1, btns().length - 1);
+  const go = i => { const b = btns()[i]; if (b) b.click(); };
   return {
     id: el.id || label, label, short, stepped: true,
     text: () => { const b = btns()[at()]; return b ? b.textContent.trim() : ""; },
@@ -734,7 +762,8 @@ function segment(el, label, short){
       const i = Math.max(0, Math.min(b.length - 1, Math.round(v * last())));
       if (i === at() || !b[i]) return;
       b[i].click();
-    }
+    },
+    nudge: stepper(() => btns().length, at, go)
   };
 }
 

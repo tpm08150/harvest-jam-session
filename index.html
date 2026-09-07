@@ -47,6 +47,10 @@
   --stripe-amp:#9aa5ac;
   --stripe-voc:#d67ab1;    /* vocoder — its own identity, not a variant of the filter */
   --stripe-bass:#d9884a;   /* bass pedals */
+  /* ⚠️ Here rather than read off the panels, because each panel's own accent is declared on
+     its :scope and the ring is drawn on the wrapper OUTSIDE it. Same teal LP·1 is built out
+     of, and TS·1's is the cap yellow it already uses for the fill and the armed readout. */
+  --lp-ring:#5ec8c0;
   /* named here rather than repeated as literals the way CS·1 does */
   --groove:#12161a;
   --groove-hi:#20262a;
@@ -1568,9 +1572,17 @@ body{
 
 /* Which instrument the computer keyboard is talking to. The shell only marks this when
    there is more than one panel, so a standalone build never shows a ring it cannot
-   change. Colour-coded to the instrument: CS·1 is the red one, MS·1 the blue. */
+   change. Colour-coded to the instrument: CS·1 is the red one, MS·1 the blue.
+
+   ⚠️ THE FIRST RULE IS THE ONE THAT MATTERS. Every line below it is an override, so a panel
+   added later gets a ring whether or not anyone remembers to come back here — which nobody
+   did: LP·1 and TS·1 arrived after this list was written and were the two panels you could
+   focus with no way to tell that you had. */
 .unit{outline:2px solid transparent;outline-offset:3px;transition:outline-color .12s}
 @media (prefers-reduced-motion:reduce){ .unit{transition:none} }
+.unit.focused{outline-color:var(--accent)}
+.unit.lp1.focused{outline-color:var(--lp-ring)}
+.unit.ts1.focused{outline-color:var(--cap-yellow)}
 .unit.cs1.focused{outline-color:var(--cap-red)}
 .unit.pm1.focused{outline-color:var(--accent)}
 .unit.vc1.focused{outline-color:var(--stripe-voc)}
@@ -4528,6 +4540,13 @@ body.gated{overflow:hidden}
   <div data-face class="transport">
     <button class="btn primary rec" id="rec">● Record</button>
     <button class="btn ghost" id="dub">Overdub</button>
+    <!-- ⚠️ NOT THE SAME SWITCH AS Overdub, which is why it says "after". Overdub is what is
+         happening now; this is what a take you have not recorded yet will do when it reaches
+         its end. -->
+    <div class="seg sm" id="loopAfter" role="group" aria-label="What a new take does after its first pass">
+      <button data-a="once" class="on">Once</button>
+      <button data-a="dub">Keep dubbing</button>
+    </div>
     <button class="btn ghost" id="playStop">▶ Play</button>
     <button class="btn ghost" id="undo">Undo</button>
     <button class="btn ghost" id="clear">Clear take</button>
@@ -9045,9 +9064,36 @@ function said(f, key, nameKey, args){
    is used happens here too — a sequencer rebuilding its grid, a progression re-spelling its
    chords. Writing the underlying value instead would move the number and leave the panel
    drawing the old one. */
+/* ⚠️ ONE DETENT IS ONE POSITION, and without this a list under an encoder was unusable at
+   exactly the sizes people put under one. An absolute encoder travels 0-127; a control with
+   N positions rounds that to N, so a two-way segment needs SIXTY-FOUR detents to flip and a
+   four-way select needs twenty-one per step. Key and Scale, with two dozen options, felt
+   fine — which is why this hid for so long behind "stepped controls are fixed".
+
+   So a list says how to move it by one, and the profile turns the encoder's travel into a
+   direction rather than a position. See the encoder branch in shell/launchkey.js. */
+function stepper(count, at, go){
+  return d => {
+    const n = count();
+    if (n < 2) return;
+    const i = Math.max(0, Math.min(n - 1, at() + (d > 0 ? 1 : -1)));
+    if (i === at()) return;
+    go(i);
+  };
+}
+
 function option(el, label, short){
   if (!el || !el.options) return null;
   const last = () => Math.max(1, el.options.length - 1);
+  /* ⚠️ A `change` EVENT, NOT JUST THE VALUE. Every panel here listens for change rather than
+     polling its selects, and a select written to in script fires nothing on its own — so the
+     event is the write. It is also why a panel that REFUSES the change (LP·1 will not resize
+     a loop that has takes in it) puts the old value back and this reads it correctly next
+     time round. */
+  const pick = i => {
+    el.selectedIndex = i;
+    el.dispatchEvent(new Event("change", {bubbles: true}));
+  };
   return {
     id: el.id || label, label, short, stepped: true,
     text: () => {
@@ -9058,9 +9104,9 @@ function option(el, label, short){
     set: v => {
       const i = Math.max(0, Math.min(el.options.length - 1, Math.round(v * last())));
       if (i === el.selectedIndex) return;
-      el.selectedIndex = i;
-      el.dispatchEvent(new Event("change", {bubbles: true}));
-    }
+      pick(i);
+    },
+    nudge: stepper(() => el.options.length, () => el.selectedIndex, pick)
   };
 }
 
@@ -9082,6 +9128,7 @@ function segment(el, label, short){
     return 0;
   };
   const last = () => Math.max(1, btns().length - 1);
+  const go = i => { const b = btns()[i]; if (b) b.click(); };
   return {
     id: el.id || label, label, short, stepped: true,
     text: () => { const b = btns()[at()]; return b ? b.textContent.trim() : ""; },
@@ -9091,7 +9138,8 @@ function segment(el, label, short){
       const i = Math.max(0, Math.min(b.length - 1, Math.round(v * last())));
       if (i === at() || !b[i]) return;
       b[i].click();
-    }
+    },
+    nudge: stepper(() => btns().length, at, go)
   };
 }
 
@@ -9216,6 +9264,9 @@ function noteCell(mode, n){
    "Encoder modes / Absolute Mode", cross-checked against the display targets on p17
    ("15h-1Ch: encoders"). */
 const ENC_CC0 = 21, ENC_N = 8;
+/* Where a list's encoder is parked between turns — mid-travel, so there is room to go either
+   way. See the encoder branch in message(). */
+const ENC_MID = 64;
 
 /* Buttons, all Control Change on channel 16 (BFh). Guide, "The surface in DAW mode".
    The Mini SKUs carry the subset this file uses; the full-size adds a transport row whose
@@ -9457,6 +9508,9 @@ function start(io, rig){
     shift: false,                      // Shift held — the encoders' second eight
     act: false,                        // ">" held — a modifier while it is down, a button when it is not
     actUsed: false,                    // ...and whether it was used as one
+    /* Where each encoder last reported itself, so a list can be moved by the CHANGE rather
+       than by the value. Null means "no baseline yet" — the control under it just changed. */
+    encAt: new Array(ENC_N).fill(null),
     scrub: 0,                          // which arrow is scrubbing the tape, if either
     /* Pads currently down, newest last. A range gesture needs to know what a finger is
        still holding, and note-on/note-off is the only place that is knowable. */
@@ -9643,8 +9697,30 @@ function message(io, d, rig){
     /* Turning a knob while ">" is down is what makes it a modifier rather than a press. */
     if (io.state.act) io.state.actUsed = true;
     const list = rig.controls(layerHeld(io));
-    const c = list[cc - ENC_CC0];
-    if (!c || typeof c.set !== "function") return;
+    const i = cc - ENC_CC0;
+    const c = list[i];
+    if (!c) return;
+    /* ⚠️ A LIST MOVES BY DETENT, NOT BY POSITION. These encoders are endless but report an
+       absolute 0-127, so a control with N positions used to need 127/N detents per step:
+       sixty-four to flip a two-way segment, twenty-one for a four-way select. Bars, Monitor
+       and Metronome on LP·1 were all reported as simply not working, and they were — you
+       would have had to spin them most of a full sweep to see anything move.
+
+       So the travel is read as a DIRECTION and the knob is re-centred afterwards. Centring is
+       not tidiness: the device's own counter saturates at 0 and 127, and an encoder parked at
+       either end stops reporting change in that direction — the control would work until it
+       had been turned far enough one way and then be stuck for good. */
+    if (typeof c.nudge === "function"){
+      const was = io.state.encAt[i];
+      io.state.encAt[i] = v;
+      if (was == null || v === was) return;      // the first turn after a switch is a baseline
+      try{ c.nudge(v > was ? 1 : -1); }catch(e){}
+      io.send([CH_BTN, cc, ENC_MID]);
+      io.state.encAt[i] = ENC_MID;
+      io.state.encs[i] = ENC_MID;
+      return;
+    }
+    if (typeof c.set !== "function") return;
     try{ c.set(v / 127); }catch(e){}
     /* Remember what we just heard so paint() does not immediately send the same value
        back and fight the hand that is still turning it. */
@@ -9837,6 +9913,14 @@ function paintEncoders(io, rig){
     const id = c ? (c.id || "") : "";
     const arrived = s.encIds[i] !== id;         // a different control is under this knob
     s.encIds[i] = id;
+    /* ⚠️ AND THE BASELINE GOES WITH IT. A list is moved by how far the knob turned since its
+       last report, and "since" means nothing across a change of what the knob is pointed at —
+       the first turn on the new control would jump by whatever the old one had left behind.
+
+       For a list we park the knob mid-travel below and therefore KNOW where it is, so the
+       baseline is that rather than nothing: an unknown baseline costs the first detent after
+       every switch, which on a two-way segment is half the gesture. */
+    if (arrived) s.encAt[i] = (c && typeof c.nudge === "function") ? ENC_MID : null;
 
     /* Position feedback. The guide's phrase for the absolute modes is "If the DAW sends
        them position information, they automatically pick that up" — which is what stops a
@@ -9851,11 +9935,16 @@ function paintEncoders(io, rig){
        the range — which is also why Key and Scale, with two dozen options each, were the
        two that seemed to work. */
     let v = 0;
-    if (c && typeof c.get === "function"){
+    if (c && typeof c.nudge === "function") v = ENC_MID;   // parked, not positioned
+    else if (c && typeof c.get === "function"){
       try{ v = Math.max(0, Math.min(127, Math.round(c.get() * 127))); }catch(e){ v = 0; }
     }
+    /* ⚠️ ARRIVAL ALWAYS SENDS FOR A LIST, cache or no cache. The cache says what we last
+       TOLD this encoder, and a knob the user has since spun is nowhere near it — parking it
+       is the whole reason the baseline above can be trusted. */
     const push = !!c && (!c.stepped || arrived);
-    if (push && s.encs[i] !== v) io.send([CH_BTN, ENC_CC0 + i, v]);
+    const force = arrived && !!c && typeof c.nudge === "function";
+    if (push && (force || s.encs[i] !== v)) io.send([CH_BTN, ENC_CC0 + i, v]);
     s.encs[i] = v;
 
     if (!io.sysex) continue;
@@ -23927,6 +24016,12 @@ const LP = {
   input: "__bus",           // device id, or __bus for the studio's own output
   mode: "idle",             // idle | armed | rec | play | dub
   dubOn: false,             // the overdub LATCH — see setDub()
+  /* ⚠️ WHAT A FRESH TAKE DOES WHEN IT REACHES THE END, which is not the same question as
+     whether overdub is on RIGHT NOW. The latch is a live switch you flip mid-take; this is
+     the standing answer it starts each new take from, so a looper you use for layering does
+     not need the same press before every single take, and one you use for one-shot phrases
+     never dubs by accident. Set on arm, overridable at any point after it. */
+  after: "once",            // once | dub
   pos: 0, len: 0, peak: 0,
   slot: 0, filled: [],      // one take per scene row — see the live page
 
@@ -24164,6 +24259,11 @@ async function arm(mode, slot){
        the readout said "—" for a loop that had in fact been cut at 120. */
     LP.bpmAtRecord = Patchwork.clock.bpm || 120;
   }
+  /* ⚠️ A FRESH TAKE STARTS FROM THE PREFERENCE, not from the latch the last take was left
+     on. Without this, one deliberate overdub silently made every later take a dubbing one —
+     and the way back was a press nobody would think to make, on a control that looked the
+     same either way. Only for `rec`: punching overdub in is what `dub` IS. */
+  if (mode === "rec") await setDub(LP.after === "dub");
   const at = Patchwork.clock.claim(LP.bars * 4);
   n.port.postMessage({op: "at", mode: mode, slot: LP.slot,
                       frame: Math.round(at * ctx.sampleRate)});
@@ -24374,6 +24474,10 @@ function paintState(){
      actually being layered right now, and before the first wrap you are in the first
      without being in the second */
   dubBtn.classList.toggle("on", LP.dubOn);
+  /* ⚠️ ARMING WRITES THE LATCH from the preference, so the Overdub light has to be painted
+     from LP.dubOn and not only from a click on it — and this row has to follow too, since a
+     surface can move it without touching the panel. */
+  $$("#loopAfter button").forEach(b => b.classList.toggle("on", b.dataset.a === LP.after));
   dubBtn.classList.toggle("dubbing", m === "dub");
   $$("#click button").forEach(b => b.classList.toggle("on", (b.dataset.c === "on") === Patchwork.click.on));
   cutEl.textContent = LP.bpmAtRecord ? (LP.bars + " bars · cut at " + LP.bpmAtRecord + " bpm") : "—";
@@ -24430,6 +24534,15 @@ dubBtn.addEventListener("click", () => {
   say(LP.dubOn
     ? "Overdub on — this take will keep layering at every pass. Flip it off to stop."
     : "Overdub off.");
+});
+/* The standing answer the latch above starts each new take from — see LP.after. */
+$("#loopAfter").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  LP.after = b.dataset.a === "dub" ? "dub" : "once";
+  $$("#loopAfter button").forEach(x => x.classList.toggle("on", x === b));
+  say(LP.after === "dub"
+    ? "New takes roll straight into overdub at the end of the first pass."
+    : "New takes record one pass and then play it back.");
 });
 playBtn.addEventListener("click", () => {
   if (LP.mode === "play" || LP.mode === "dub") stopLoop();
@@ -24639,10 +24752,18 @@ function surfaceControls(){
     set: v => faderReg[c[0]].set(v)
   }));
   const bars = Patchwork.surface.option($("#bars"), "Bars", "Bar");
+  const after = Patchwork.surface.segment($("#loopAfter"), "After", "Aft");
   const mon = Patchwork.surface.segment($("#mon"), "Monitor", "Mon");
   const click = Patchwork.surface.segment($("#click"), "Metronome", "Met");
-  return out.concat([bars, mon, click].filter(Boolean));
+  return out.concat([bars, after, mon, click].filter(Boolean));
 }
+
+/* ⚠️ SLOT 1 IS THE TOP-LEFT PAD, and it was the bottom-left one. Cell 0 is bottom-left —
+   that is the surface's contract — so a grid read from the top has to say so, and this one
+   did not: the takes ran up the hardware while the list ran down the screen. The launcher
+   already does the same arithmetic for the same reason (a scene list is an arrangement going
+   down the page), and these slots ARE the scene rows, so it is the same conversion. */
+const slotCell = c => (c < 8 ? c + 8 : c - 8);
 
 const surfaceGrid = {
   label: () => "Loops",
@@ -24655,18 +24776,28 @@ const surfaceGrid = {
     for (let i = 0; i < 16; i++){
       const has = hasSlot(i);
       if (!has && live !== i) continue;          /* an empty slot is a dark pad, not a dim one */
-      out[i] = live === i ? {colour: "green", on: true} : {colour: "cyan", on: false};
+      out[slotCell(i)] = live === i ? {colour: "green", on: true}
+                                    : {colour: "cyan", on: false};
     }
     /* Recording is the one state you must be able to see from across a room. */
     if (LP.mode === "rec" || LP.mode === "dub"){
       const i = LP.slot;
-      if (i >= 0 && i < 16) out[i] = {colour: "red", on: true, hot: true};
+      if (i >= 0 && i < 16) out[slotCell(i)] = {colour: "red", on: true, hot: true};
     }
     return out;
   },
   /* A pad with a take plays it; an empty one records into it. Both through the same calls
      the launcher makes, so a pad and the cell above it cannot mean different things. */
-  down: cell => { if (hasSlot(cell)) queueSlot(cell); else arm("rec", cell); }
+  down: (cell, vel, mods) => {
+    const i = slotCell(cell);
+    /* ⚠️ FUNC EMPTIES IT, AND THERE IS NO UNDO. A take is audio and clearing one frees the
+       buffer, so this is the only destructive gesture on these pads — which is exactly why
+       it is the one that needs a second hand on the surface. An empty slot is left alone
+       rather than armed: a modifier that falls through to "record" on a miss would turn a
+       fumbled delete into a live take. */
+    if (mods && mods.accent){ if (hasSlot(i)) clearSlot(i); return; }
+    if (hasSlot(i)) queueSlot(i); else arm("rec", i);
+  }
 };
 
 if (window.Patchwork && Patchwork.surface){
@@ -24674,6 +24805,12 @@ if (window.Patchwork && Patchwork.surface){
     name: "LP\u00b71",
     controls: surfaceControls,
     grid: surfaceGrid,
+    /* ⚠️ RECORD IS THE OVERDUB SWITCH HERE, not an arm. Everywhere else on this surface
+       Record arms a track so that playing writes to its grid; a looper has no grid to write
+       to and the thing you reach for mid-loop is whether this pass layers. The light follows
+       the latch, so the button says what it is about to do. */
+    record: () => { setDub(!LP.dubOn); return true; },
+    get armed(){ return LP.dubOn; },
     /* The deck's own Play/Stop, so whatever it does when clicked happens here too. */
     actionName: "Loop",
     action: () => {

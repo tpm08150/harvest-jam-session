@@ -47,6 +47,10 @@
   --stripe-amp:#9aa5ac;
   --stripe-voc:#d67ab1;    /* vocoder — its own identity, not a variant of the filter */
   --stripe-bass:#d9884a;   /* bass pedals */
+  /* ⚠️ Here rather than read off the panels, because each panel's own accent is declared on
+     its :scope and the ring is drawn on the wrapper OUTSIDE it. Same teal LP·1 is built out
+     of, and TS·1's is the cap yellow it already uses for the fill and the armed readout. */
+  --lp-ring:#5ec8c0;
   /* named here rather than repeated as literals the way CS·1 does */
   --groove:#12161a;
   --groove-hi:#20262a;
@@ -2971,9 +2975,36 @@ function said(f, key, nameKey, args){
    is used happens here too — a sequencer rebuilding its grid, a progression re-spelling its
    chords. Writing the underlying value instead would move the number and leave the panel
    drawing the old one. */
+/* ⚠️ ONE DETENT IS ONE POSITION, and without this a list under an encoder was unusable at
+   exactly the sizes people put under one. An absolute encoder travels 0-127; a control with
+   N positions rounds that to N, so a two-way segment needs SIXTY-FOUR detents to flip and a
+   four-way select needs twenty-one per step. Key and Scale, with two dozen options, felt
+   fine — which is why this hid for so long behind "stepped controls are fixed".
+
+   So a list says how to move it by one, and the profile turns the encoder's travel into a
+   direction rather than a position. See the encoder branch in shell/launchkey.js. */
+function stepper(count, at, go){
+  return d => {
+    const n = count();
+    if (n < 2) return;
+    const i = Math.max(0, Math.min(n - 1, at() + (d > 0 ? 1 : -1)));
+    if (i === at()) return;
+    go(i);
+  };
+}
+
 function option(el, label, short){
   if (!el || !el.options) return null;
   const last = () => Math.max(1, el.options.length - 1);
+  /* ⚠️ A `change` EVENT, NOT JUST THE VALUE. Every panel here listens for change rather than
+     polling its selects, and a select written to in script fires nothing on its own — so the
+     event is the write. It is also why a panel that REFUSES the change (LP·1 will not resize
+     a loop that has takes in it) puts the old value back and this reads it correctly next
+     time round. */
+  const pick = i => {
+    el.selectedIndex = i;
+    el.dispatchEvent(new Event("change", {bubbles: true}));
+  };
   return {
     id: el.id || label, label, short, stepped: true,
     text: () => {
@@ -2984,9 +3015,9 @@ function option(el, label, short){
     set: v => {
       const i = Math.max(0, Math.min(el.options.length - 1, Math.round(v * last())));
       if (i === el.selectedIndex) return;
-      el.selectedIndex = i;
-      el.dispatchEvent(new Event("change", {bubbles: true}));
-    }
+      pick(i);
+    },
+    nudge: stepper(() => el.options.length, () => el.selectedIndex, pick)
   };
 }
 
@@ -3008,6 +3039,7 @@ function segment(el, label, short){
     return 0;
   };
   const last = () => Math.max(1, btns().length - 1);
+  const go = i => { const b = btns()[i]; if (b) b.click(); };
   return {
     id: el.id || label, label, short, stepped: true,
     text: () => { const b = btns()[at()]; return b ? b.textContent.trim() : ""; },
@@ -3017,7 +3049,8 @@ function segment(el, label, short){
       const i = Math.max(0, Math.min(b.length - 1, Math.round(v * last())));
       if (i === at() || !b[i]) return;
       b[i].click();
-    }
+    },
+    nudge: stepper(() => btns().length, at, go)
   };
 }
 
@@ -3142,6 +3175,9 @@ function noteCell(mode, n){
    "Encoder modes / Absolute Mode", cross-checked against the display targets on p17
    ("15h-1Ch: encoders"). */
 const ENC_CC0 = 21, ENC_N = 8;
+/* Where a list's encoder is parked between turns — mid-travel, so there is room to go either
+   way. See the encoder branch in message(). */
+const ENC_MID = 64;
 
 /* Buttons, all Control Change on channel 16 (BFh). Guide, "The surface in DAW mode".
    The Mini SKUs carry the subset this file uses; the full-size adds a transport row whose
@@ -3383,6 +3419,9 @@ function start(io, rig){
     shift: false,                      // Shift held — the encoders' second eight
     act: false,                        // ">" held — a modifier while it is down, a button when it is not
     actUsed: false,                    // ...and whether it was used as one
+    /* Where each encoder last reported itself, so a list can be moved by the CHANGE rather
+       than by the value. Null means "no baseline yet" — the control under it just changed. */
+    encAt: new Array(ENC_N).fill(null),
     scrub: 0,                          // which arrow is scrubbing the tape, if either
     /* Pads currently down, newest last. A range gesture needs to know what a finger is
        still holding, and note-on/note-off is the only place that is knowable. */
@@ -3569,8 +3608,30 @@ function message(io, d, rig){
     /* Turning a knob while ">" is down is what makes it a modifier rather than a press. */
     if (io.state.act) io.state.actUsed = true;
     const list = rig.controls(layerHeld(io));
-    const c = list[cc - ENC_CC0];
-    if (!c || typeof c.set !== "function") return;
+    const i = cc - ENC_CC0;
+    const c = list[i];
+    if (!c) return;
+    /* ⚠️ A LIST MOVES BY DETENT, NOT BY POSITION. These encoders are endless but report an
+       absolute 0-127, so a control with N positions used to need 127/N detents per step:
+       sixty-four to flip a two-way segment, twenty-one for a four-way select. Bars, Monitor
+       and Metronome on LP·1 were all reported as simply not working, and they were — you
+       would have had to spin them most of a full sweep to see anything move.
+
+       So the travel is read as a DIRECTION and the knob is re-centred afterwards. Centring is
+       not tidiness: the device's own counter saturates at 0 and 127, and an encoder parked at
+       either end stops reporting change in that direction — the control would work until it
+       had been turned far enough one way and then be stuck for good. */
+    if (typeof c.nudge === "function"){
+      const was = io.state.encAt[i];
+      io.state.encAt[i] = v;
+      if (was == null || v === was) return;      // the first turn after a switch is a baseline
+      try{ c.nudge(v > was ? 1 : -1); }catch(e){}
+      io.send([CH_BTN, cc, ENC_MID]);
+      io.state.encAt[i] = ENC_MID;
+      io.state.encs[i] = ENC_MID;
+      return;
+    }
+    if (typeof c.set !== "function") return;
     try{ c.set(v / 127); }catch(e){}
     /* Remember what we just heard so paint() does not immediately send the same value
        back and fight the hand that is still turning it. */
@@ -3763,6 +3824,14 @@ function paintEncoders(io, rig){
     const id = c ? (c.id || "") : "";
     const arrived = s.encIds[i] !== id;         // a different control is under this knob
     s.encIds[i] = id;
+    /* ⚠️ AND THE BASELINE GOES WITH IT. A list is moved by how far the knob turned since its
+       last report, and "since" means nothing across a change of what the knob is pointed at —
+       the first turn on the new control would jump by whatever the old one had left behind.
+
+       For a list we park the knob mid-travel below and therefore KNOW where it is, so the
+       baseline is that rather than nothing: an unknown baseline costs the first detent after
+       every switch, which on a two-way segment is half the gesture. */
+    if (arrived) s.encAt[i] = (c && typeof c.nudge === "function") ? ENC_MID : null;
 
     /* Position feedback. The guide's phrase for the absolute modes is "If the DAW sends
        them position information, they automatically pick that up" — which is what stops a
@@ -3777,11 +3846,16 @@ function paintEncoders(io, rig){
        the range — which is also why Key and Scale, with two dozen options each, were the
        two that seemed to work. */
     let v = 0;
-    if (c && typeof c.get === "function"){
+    if (c && typeof c.nudge === "function") v = ENC_MID;   // parked, not positioned
+    else if (c && typeof c.get === "function"){
       try{ v = Math.max(0, Math.min(127, Math.round(c.get() * 127))); }catch(e){ v = 0; }
     }
+    /* ⚠️ ARRIVAL ALWAYS SENDS FOR A LIST, cache or no cache. The cache says what we last
+       TOLD this encoder, and a knob the user has since spun is nowhere near it — parking it
+       is the whole reason the baseline above can be trusted. */
     const push = !!c && (!c.stepped || arrived);
-    if (push && s.encs[i] !== v) io.send([CH_BTN, ENC_CC0 + i, v]);
+    const force = arrived && !!c && typeof c.nudge === "function";
+    if (push && (force || s.encs[i] !== v)) io.send([CH_BTN, ENC_CC0 + i, v]);
     s.encs[i] = v;
 
     if (!io.sysex) continue;

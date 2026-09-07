@@ -335,6 +335,7 @@ transport and LEDs run over the DAW port, which the surface takes for itself.
 | **Pads, DAW layout** | the focused panel's grid — see below |
 | **Pads, Drum layout** | DR·1's kit, wherever the focus is, one lane per pad in the order the panel lists them |
 | **Encoders** | the focused panel's eight main controls, named on the screen as you turn them |
+| **An encoder over a list** | one detent, one position — see below |
 | **∧ ∨ right of the encoders** | which eight — the drum lane on DR·1, a parameter bank on PM·1 |
 | **Hold a pad + ∧ ∨ right of the encoders** | that note's length, a step at a time |
 | **Func, tapped** | a panel's other face where it has one — on CS·1, the bass voice and its pattern |
@@ -619,11 +620,27 @@ What the sixteen pads mean follows the panel you clicked:
   This is the panel's own gesture, not a second one: the pads and the on-screen grid run the
   same `press()`, so a lane or a modifier added to one is in the other by construction.
 
-- **LP·1** — the sixteen loop slots. ⚠️ Which are the scene rows: a looper's takes are already
-  addressed by row, so the grid is not a new idea about LP·1 but the launcher's own column with
-  sixteen pads under it — a pad and the cell above it always agree. A pad with a take plays it,
-  an empty one records into it, and a recording slot is red so you can see it from across the
-  room. `>` is the loop's Play/Stop.
+- **LP·1** — the sixteen loop slots, slot 1 on the **top-left** pad, read down like the
+  launcher and unlike CS·1's chord bank. ⚠️ Which are the scene rows: a looper's takes are
+  already addressed by row, so the grid is not a new idea about LP·1 but the launcher's own
+  column with sixteen pads under it — a pad and the cell above it always agree. A pad with a
+  take plays it, an empty one records into it, and a recording slot is red so you can see it
+  from across the room. `>` is the loop's Play/Stop.
+
+  **Func + a pad empties that slot**, and there is no undo — a take is audio and clearing one
+  frees the buffer, which is exactly why the only destructive gesture on these pads is the one
+  that needs a second hand. An empty slot is left alone rather than armed: a modifier that fell
+  through to "record" on a miss would turn a fumbled delete into a live take.
+
+  ⚠️ **Record is the overdub switch here**, not an arm. Everywhere else Record arms a track so
+  that playing writes to its grid; a looper has no grid to write to, and the thing you reach
+  for mid-loop is whether this pass layers. The light follows the latch.
+
+  Which is a different question from **After**, the encoder beside Bars: what a take you have
+  not recorded yet does when it reaches its end — play back once, or roll straight into
+  overdub. The latch is the live switch; this is the standing answer each new take starts from,
+  so a looper used for layering does not need the same press before every take and one used for
+  one-shot phrases never dubs by accident.
 
   ⚠️ LP·1 takes no notes, so it never registered with the MIDI router — which was the only
   door the surface knew, so focusing it left the encoders blank. Claiming a MIDI channel just
@@ -669,6 +686,19 @@ and the snare.
 ⚠️ **Hold Func — or Shift — and the encoders become a second eight**, where a panel offers
 one. Either key opens it, which is not indecision: they are two keys asking the same question,
 and accepting both costs a boolean and removes the only way this can be dead on arrival.
+⚠️ **A list under an encoder moves by detent, not by position.** These encoders are endless
+but report an absolute 0–127, so a control with *N* positions used to need 127/*N* detents per
+step: sixty-four to flip a two-way segment, twenty-one for a four-way select. LP·1's Bars,
+Monitor and Metronome were all reported as simply not working, and they were — you would have
+had to spin them most of a full sweep to see anything move. Key and Scale, with two dozen
+options each, felt fine, which is why this hid behind an earlier fix that only stopped the
+knob *fighting* the value.
+
+So the travel is read as a direction and the knob is parked mid-range afterwards. Parking is
+not tidiness: the device's own counter saturates at 0 and 127, and an encoder sitting at either
+end stops reporting change in that direction — the control would work until it had been turned
+far enough one way, and then be stuck for good.
+
 Shift is *reported* by the device, so the display follows it — but this controller remaps
 rather than passes a modifier, and whether an encoder turned under Shift still sends its own
 CC is a fact about firmware rather than about the guide. Func is the profile's own modifier,

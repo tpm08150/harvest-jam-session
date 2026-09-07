@@ -19,6 +19,12 @@ const LP = {
   input: "__bus",           // device id, or __bus for the studio's own output
   mode: "idle",             // idle | armed | rec | play | dub
   dubOn: false,             // the overdub LATCH — see setDub()
+  /* ⚠️ WHAT A FRESH TAKE DOES WHEN IT REACHES THE END, which is not the same question as
+     whether overdub is on RIGHT NOW. The latch is a live switch you flip mid-take; this is
+     the standing answer it starts each new take from, so a looper you use for layering does
+     not need the same press before every single take, and one you use for one-shot phrases
+     never dubs by accident. Set on arm, overridable at any point after it. */
+  after: "once",            // once | dub
   pos: 0, len: 0, peak: 0,
   slot: 0, filled: [],      // one take per scene row — see the live page
 
@@ -256,6 +262,11 @@ async function arm(mode, slot){
        the readout said "—" for a loop that had in fact been cut at 120. */
     LP.bpmAtRecord = Patchwork.clock.bpm || 120;
   }
+  /* ⚠️ A FRESH TAKE STARTS FROM THE PREFERENCE, not from the latch the last take was left
+     on. Without this, one deliberate overdub silently made every later take a dubbing one —
+     and the way back was a press nobody would think to make, on a control that looked the
+     same either way. Only for `rec`: punching overdub in is what `dub` IS. */
+  if (mode === "rec") await setDub(LP.after === "dub");
   const at = Patchwork.clock.claim(LP.bars * 4);
   n.port.postMessage({op: "at", mode: mode, slot: LP.slot,
                       frame: Math.round(at * ctx.sampleRate)});
