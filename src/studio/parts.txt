@@ -46,6 +46,7 @@ studio/live.html
 studio/tape.html
 studio/console.html
 studio/library.html
+studio/settings.html
 shell/script-open.html
 shell/host.js
 shell/bus.js

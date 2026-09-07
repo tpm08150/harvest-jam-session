@@ -52,6 +52,20 @@ detected controller — *one*, never a guess between two. It retries every two s
 because a Pi cold-starts the browser, the audio device and the USB controller at once with
 no agreed order, and the controller may be plugged in long after boot.
 
+## ⚠️ The sign-in gate
+
+This build is configured for cloud sync, and `studio/gate.js` puts a Google sign-in over the
+whole page until somebody on the list has signed in. A Pi that boots straight into `?kiosk`
+lands on that door with no keyboard to open it.
+
+**Kiosk mode does not bypass it, deliberately.** It is an access control, and a mode that
+quietly switched one off would be the wrong kind of convenient. Sign in once on the Pi with
+a keyboard and mouse attached — the session lives in localStorage, and `--user-data-dir`
+keeps the Chromium profile across reboots, so it is a one-time step.
+
+(A build with no cloud keys has no gate at all: `if (!C || !C.configured) return`. A checkout
+without keys is not locked out of its own instruments.)
+
 ## Audio
 
 `AUDIO_OUT=headphone` is the Pi 4's 3.5 mm jack — nothing to buy, PWM-driven, noisy, and

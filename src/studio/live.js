@@ -15,6 +15,7 @@ const lib = document.querySelector("#stLib");
 /* the console sits above the deck on the Tape page and is a sibling of it, so it is hidden
    with the view rather than by whatever happens to draw it */
 const mix = document.querySelector("#mxWrap");
+const settings = document.querySelector("#stSettings");
 const grid = document.querySelector("#liveGrid");
 if (!live || !window.Patchwork || !Patchwork.record) return;
 
@@ -311,16 +312,23 @@ if (window.Patchwork && Patchwork.surface){
    "studio". Deriving isStudio from the others is what keeps that impossible. */
 function show(which){
   const isLive = which === "live", isTape = which === "tape", isLib = which === "lib";
-  const isStudio = !isLive && !isTape && !isLib;
+  const isSet = which === "set";
+  /* ⚠️ AND THE NEGATION GROWS WITH IT, which is the trap the note above warns about and the
+     reason Studio is derived rather than named: a fifth view added without this line leaves
+     the rack and the launcher on screen underneath the settings page, because "not live, not
+     tape, not library" quietly stopped meaning "studio". */
+  const isStudio = !isLive && !isTape && !isLib && !isSet;
   live.hidden = !isLive;
   if (tape) tape.hidden = !isTape;
   if (lib) lib.hidden = !isLib;
   if (mix) mix.hidden = !isTape;
+  if (settings) settings.hidden = !isSet;
   rack.hidden = !isStudio;
   scenes.hidden = !isStudio;
   document.body.classList.toggle("living", isLive);
   document.body.classList.toggle("taping", isTape);
   document.body.classList.toggle("shelving", isLib);
+  document.body.classList.toggle("setting", isSet);
   seg.querySelectorAll("button").forEach(b => b.classList.toggle("st-sel", b.dataset.v === which));
   if (isLive){
     paint();

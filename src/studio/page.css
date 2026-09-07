@@ -1718,3 +1718,21 @@ body.gated{overflow:hidden}
    is not — the whole list is "Main". Dimmed rather than hidden, because a row that vanishes
    on a stereo machine and reappears on a multi-out one is a layout that moves under you. */
 .st-midi-ch:disabled{opacity:.45;cursor:default}
+
+/* ---- the settings view ----
+   The same plate the launcher sits on, because these panels were lifted off it and should
+   not have to be restyled to survive the move. Narrower than the rack: every row on it is a
+   name and two short selects, and a full-width column of those is a lot of white space with
+   a label lost at each end of it. */
+.st-settings{
+  max-width:900px;margin:0 auto;padding:16px 20px 40px;
+  display:flex;flex-direction:column;gap:16px;
+}
+.st-settings-head{
+  display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+  padding:4px 2px 0;
+}
+/* Lifted out of the launcher, where they were tucked under a grid and inherited its top
+   margin. Here they are the whole page, so they stand on their own. */
+.st-settings .st-midi{margin-top:0}
+@media (max-width:760px){ .st-settings{padding:10px 12px 32px} }

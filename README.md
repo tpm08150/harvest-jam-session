@@ -261,7 +261,7 @@ headphone jack or a USB interface.
 ⚠️ **Which device and which channels are different questions.** The device belongs to the
 whole `AudioContext`, so it is one global choice that overrides everything. Which *channels
 of that device* an instrument lands on costs a merger and a splitter, so that one is per
-instrument — on the Audio panel beside MIDI, laid out the same way. Plug in an eight-out
+instrument — on the **Settings** tab, laid out the same way as the MIDI rows beside them. Plug in an eight-out
 interface, put the drums on 3-4 and the bass on 5-6, take separate feeds to a desk. A pair
 takes the instrument off the main mix; the tape and the looper are unaffected, because they
 tap strips directly rather than the master sum. LP·1 and VC·1 get an audio *input* row too.
