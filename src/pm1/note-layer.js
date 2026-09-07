@@ -174,6 +174,15 @@ function noteOn(midi, vel, when, forceSec){
     SEQ.autoStart = true;
     startPlay();
   }
+  /* ⚠️ AND THE LIVE RECORDER, WHICH NOTHING HAD EVER TOLD. boot.js registers a write()
+     handler with shell/record.js and every other instrument calls record.note() from its own
+     note-on — DR·1, BS·1 and VC·1 all do — and PM·1 never did. So the arm toggle on this
+     panel armed a recorder that was never fed: you could hold a part down over a running
+     pattern for as long as you liked and nothing was written.
+
+     Unconditional, because it is a no-op unless this panel is armed, and after the push
+     above so a chord being held is already whole by the time it is read. */
+  Patchwork.record.note("pm1", m, vel, t);
   if (seqOwnsVoice()){ paintNow(); paintKeys(); return; }
   if (P.mode === "poly"){ polyOn(m, vel, t); paintNow(); paintKeys(); return; }
   const target = pick();

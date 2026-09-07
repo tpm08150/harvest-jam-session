@@ -556,6 +556,15 @@ What the sixteen pads mean follows the panel you clicked:
   The controller's screen shows which note is queued (`17-32  G2`), because it is the one
   fact you cannot see from the pads. Accented steps are red, ties and slides amber.
 
+  ⚠️ **PM·1's live recorder was never connected.** It registered a `write()` handler with
+  `shell/record.js` the way every panel does, and nothing ever called `record.note()` for it —
+  DR·1, BS·1 and VC·1 all do from their own note-on, PM·1 did not. So its arm toggle armed a
+  recorder with nothing feeding it: you could play a part over a running pattern for as long
+  as you liked and nothing was written. And when it was fed, two things it *said* it did it
+  did not — it took the step about to sound rather than the nearest one, so a note struck a
+  hair late landed a whole step early; and it wrote the single note that arrived rather than
+  the held chord, which is the one way of writing a step on that panel that dropped the chord.
+
   **Holding one pad and pressing another ties everything between them** into one held note —
   which is how you write a note longer than a step without leaving the controller. Holding,
   rather than two presses in a row: sequential presses cannot be told apart from two ordinary

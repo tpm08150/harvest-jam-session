@@ -19460,6 +19460,15 @@ function noteOn(midi, vel, when, forceSec){
     SEQ.autoStart = true;
     startPlay();
   }
+  /* ⚠️ AND THE LIVE RECORDER, WHICH NOTHING HAD EVER TOLD. boot.js registers a write()
+     handler with shell/record.js and every other instrument calls record.note() from its own
+     note-on — DR·1, BS·1 and VC·1 all do — and PM·1 never did. So the arm toggle on this
+     panel armed a recorder that was never fed: you could hold a part down over a running
+     pattern for as long as you liked and nothing was written.
+
+     Unconditional, because it is a no-op unless this panel is armed, and after the push
+     above so a chord being held is already whole by the time it is read. */
+  Patchwork.record.note("pm1", m, vel, t);
   if (seqOwnsVoice()){ paintNow(); paintKeys(); return; }
   if (P.mode === "poly"){ polyOn(m, vel, t); paintNow(); paintKeys(); return; }
   const target = pick();
@@ -21948,18 +21957,34 @@ Patchwork.scenes.register("pm1", {
 });
 
 /* PM·1 keeps MS·1's richer sequencer, so recording writes through writeStep() — the same
-   path a hand-written step takes, locks and all. Nearest step, not the sounding one. */
+   path a hand-written step takes, locks and all.
+
+   ⚠️ THE NEAREST STEP, WHICH IS WHAT THIS SAID AND NOT WHAT IT DID. It took nextSounding()
+   — the step about to play — so a note struck a hair LATE landed a whole step early, and it
+   computed a timestamp and a step length and then used neither. Both were sitting there as
+   the unwritten half of the intention. This is the same rounding seq/step-seq.js does for
+   BS·1 and VC·1: find the step you are inside, and round to whichever end is closer.
+
+   ⚠️ AND THE WHOLE HELD CHORD, not the one note that arrived. Every other way of writing a
+   step on this panel takes the chord — the grid's click does, step programming does — and
+   the one that did not was the only one you would use while playing. Read from heldNotes at
+   the moment of the write, so a triad grows into one step rather than three notes fighting
+   over it. */
 Patchwork.record.register("pm1", {
   name: "PM·1",
   write: (midi, vel, when) => {
-    if (!SEQ.playing) return -1;
+    if (!SEQ.playing || !marks.length) return -1;
     const t = when == null ? (ctx ? ctx.currentTime : 0) : when;
-    const step = stepSeconds();
-    const cur = nextSounding();
-    if (cur == null) return -1;
-    const i = cur.i;
+    let m = null;
+    for (let k = marks.length - 1; k >= 0; k--) if (marks[k].t <= t){ m = marks[k]; break; }
+    if (!m) m = marks[0];
+    const half = (m.end - m.t) / 2;
+    const i = (((t - m.t) > half ? m.i + 1 : m.i) % SEQ.len + SEQ.len) % SEQ.len;
     const st = SEQ.steps[i];
-    writeStep(st, midi);
+    if (!st) return -1;
+    const ns = heldNotes.map(h => h.midi).sort((a, b) => a - b);
+    const root = ns.length ? ns[0] : midi;
+    writeStep(st, root, ns.length > 1 ? ns.slice(1).map(x => x - root) : null);
     st.on = 1; st.tie = 0;
     st.accent = vel >= 100 ? 1 : 0;
     paintSteps();
@@ -21970,6 +21995,9 @@ Patchwork.record.register("pm1", {
 window.__pm1 = {P, SEQ, FACTORY, FACTORY_DEFAULT, FACTORY_ORDER, ladder,
                 applyParams, noteOn, noteOff, buildVoice, renderPatch,
                 stepEvent, nextSounding, stepSeconds, swungAt, envValueAt,
+                /* the scheduled step boundaries, so a test can ask which step a given
+                   instant rounds to rather than guessing at one */
+                get marks(){ return marks; },
                 arpSequence, stepNote, toDegree, fromDegree, SCALES,
                 selectStep, withLocks, writeStep,
                 onMidi, routeFor, MIDI,
