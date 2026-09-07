@@ -837,6 +837,7 @@ const chOptions = sel => {
 };
 
 function fillPorts(){
+  fillOuts();
   const keep = Patchwork.midi.port ? Patchwork.midi.port.id : "";
   inSel.textContent = "";
   inSel.appendChild(Object.assign(document.createElement("option"),
@@ -846,6 +847,21 @@ function fillPorts(){
   inSel.value = keep;
 }
 inSel.addEventListener("change", () => Patchwork.midi.select(inSel.value));
+
+const outSel = box.querySelector("#stMidiOut");
+function fillOuts(){
+  if (!outSel) return;
+  const keep = Patchwork.midi.outId;
+  outSel.textContent = "";
+  outSel.appendChild(Object.assign(document.createElement("option"),
+    {value: "", textContent: "\u2014 none \u2014"}));
+  Patchwork.midi.ports("outputs").forEach(p => outSel.appendChild(Object.assign(
+    document.createElement("option"), {value: p.id, textContent: p.name || p.id})));
+  /* Restored from the ROUTER, not from the select — a rebuild when a cable appears would
+     otherwise drop the choice back to "none". The same trap the audio list documents. */
+  if ([].some.call(outSel.options, o => o.value === keep)) outSel.value = keep;
+}
+if (outSel) outSel.addEventListener("change", () => Patchwork.midi.selectOut(outSel.value));
 
 /* Built once per registered instrument. The selects are not rebuilt on every repaint — a
    <select> being rebuilt under an open menu closes it, and this repaints whenever anything

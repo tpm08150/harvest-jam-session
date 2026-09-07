@@ -42,6 +42,7 @@ function globalControls(){
   return [
     opt("#stAudioOut", "Output device", "Dev"),
     opt("#stMidiIn", "MIDI in", "MIn"),
+    opt("#stMidiOut", "MIDI out", "MOu"),
     opt("#stSurface", "Controller", "Ctl"),
     /* A checkbox is not a list, so it is the one control here that has to be built by hand.
        Two positions, and nudge() is what makes a two-position control usable on an encoder

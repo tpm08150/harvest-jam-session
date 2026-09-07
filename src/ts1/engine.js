@@ -97,6 +97,7 @@ function schedule(){
   while (land - dur < now + .05) land += dur;
   TS.startAt = land - dur;
   TS.landAt = land;
+  sendLanding(land);          // the wire hears about it when the sweep does
   TS.armed = true;
   build(TS.startAt, land, dur);
   notify();
@@ -122,6 +123,7 @@ function fireNow(){
   const start = Math.max(now + .02, land - dur);
   TS.startAt = start;
   TS.landAt = land;
+  sendLanding(land);          // the wire hears about it when the sweep does
   TS.armed = true;
   build(start, land, Math.max(.05, land - start));
   notify();

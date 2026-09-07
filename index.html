@@ -5127,6 +5127,14 @@ body.gated{overflow:hidden}
         <label class="st-lab" for="stMidiIn">Input</label>
         <select id="stMidiIn"><option value="">&mdash; none &mdash;</option></select>
       </div>
+      <!-- ⚠️ ONE CABLE OUT FOR THE RACK, the same shape as the input beside it and as the
+           audio panel above. Every panel that speaks MIDI grew its own output port select —
+           three answers to a question with one answer, each behind a panel you had to open
+           to find. The channel is the instrument's; the cable is the page's. -->
+      <div class="st-midi-port">
+        <label class="st-lab" for="stMidiOut">Output</label>
+        <select id="stMidiOut"><option value="">&mdash; none &mdash;</option></select>
+      </div>
       <!-- A controller you pick rather than teach. The list holds every profile in
            shell/surface.js that can see its hardware on this machine right now, so an
            empty list is an honest "nothing I know about is plugged in" rather than a
@@ -8402,9 +8410,13 @@ function bindAccess(a, withSysex){
     Array.from(claims.keys()).forEach(id => {
       if (!ports("inputs").some(p => p.id === id)) claims.delete(id);
     });
+    /* the output can vanish the same way an input can, and a remembered one can APPEAR —
+       a box that boots before its interface is awake has to pick it up when it arrives */
+    bindOut();
     subs.forEach(s => { try{ s.onPort(port); }catch(e){} });
     notify();
   };
+  bindOut();
   return a;
 }
 function open(){
@@ -8565,6 +8577,78 @@ function select(portId){
   return port;
 }
 
+/* ---- one way out for the rack ----
+   ⚠️ ONE PORT, MANY CHANNELS, which is the same shape the input already had and the same
+   shape the audio bus arrived at independently. Every panel that speaks MIDI grew its own
+   output port select — PM·1 and CS·1 and DR·1 each have one — and that is three answers to a
+   question with one answer, kept in three places you have to open a panel to find. The
+   channel is the instrument's; the cable is the page's.
+
+   Remembered, because a box that boots into this should come up plugged into the same thing
+   it was plugged into yesterday. */
+const OUT_KEY = "patchwork-midi-out";
+let outPort = null, outId = "";
+try{ outId = localStorage.getItem(OUT_KEY) || ""; }catch(e){}
+
+function bindOut(){
+  outPort = outId ? (ports("outputs").find(p => p.id === outId) || null) : null;
+  return outPort;
+}
+function selectOut(portId){
+  outId = portId || "";
+  try{ localStorage.setItem(OUT_KEY, outId); }catch(e){}
+  bindOut();
+  notify();
+  return outPort;
+}
+
+/* A sender for one instrument. ⚠️ IT REMEMBERS WHAT IT SENT, which is the whole reason this
+   is an object rather than a function: a note-off for a note nobody sent is noise on the
+   wire, and a note-on left hanging by a panic or a port change is a stuck note on somebody
+   else's synth — the one MIDI bug that outlives the page that caused it.
+
+   `ch` is a getter rather than a number so the sender does not go stale when the channel is
+   changed from the Settings tab, which is exactly where it will be changed from. */
+function sender(chOf){
+  const live = new Set();
+  const at = t => (t == null ? 0 : t);
+  const ch = () => {
+    const c = typeof chOf === "function" ? chOf() : chOf;
+    return Math.max(0, Math.min(15, (c | 0)));
+  };
+  function raw(bytes, when){
+    const o = outPort;
+    if (!o) return false;
+    try{ o.send(bytes, at(when)); return true; }catch(e){ return false; }
+  }
+  return {
+    get on(){ return !!outPort; },
+    noteOn(n, vel, when){
+      const p = Math.max(0, Math.min(127, Math.round(n)));
+      const v = Math.max(1, Math.min(127, Math.round(vel == null ? 96 : vel)));
+      /* a pitch already sounding is released first, so a receiver sees a clean retrigger
+         rather than two note-ons it has to guess about */
+      if (live.has(p)) raw([0x80 | ch(), p, 0], when);
+      if (raw([0x90 | ch(), p, v], when)) live.add(p);
+    },
+    noteOff(n, when){
+      const p = Math.max(0, Math.min(127, Math.round(n)));
+      if (!live.has(p)) return;
+      live.delete(p);
+      raw([0x80 | ch(), p, 0], when);
+    },
+    cc(num, val, when){ raw([0xB0 | ch(), num & 127, val & 127], when); },
+    /* ⚠️ NOT gated on the port still being the one we sent through. A note already out has
+       to be released whatever the settings say now, or it hangs forever on a receiver that
+       has no idea the page moved on. */
+    allOff(){
+      live.forEach(p => raw([0x80 | ch(), p, 0]));
+      live.clear();
+      raw([0xB0 | ch(), 123, 0]);
+    }
+  };
+}
+
 /* ---- a port of one's own ----
    Bind `handler` to one input port for a control surface. Returns a release function; call
    it when the surface disconnects, because a claim outlives the object that made it and a
@@ -8616,7 +8700,9 @@ function setFollow(on){
 }
 
 return {open, upgrade, ports, route, select, list, setFollow,
-        claim, claimed, output,
+        claim, claimed, output, selectOut, sender,
+        get outPort(){ return outPort; },
+        get outId(){ return outId; },
         onChange: fn => watchers.push(fn),
         get follow(){ return follow; },
         get sysex(){ return sysex; },
@@ -15686,6 +15772,10 @@ function glideTime(from, to){
 function noteOn(midi, vel, when){
   ensureAudio();
   const t = when == null ? ctx.currentTime + .003 : when;
+  /* Every note a HAND plays — a key, the computer keyboard, a pad. ⚠️ Not the sequencer,
+     which drives the voice directly and never comes through here (see fire() in ui.js, and
+     the note above it explaining why). Its steps are sent from there. */
+  OUT.noteOn(midi, vel);
   held.set(midi, vel);
   const n = pick();
   if (n == null) return;
@@ -15698,6 +15788,7 @@ function noteOn(midi, vel, when){
 }
 function noteOff(midi, when){
   const t = when == null ? ctx.currentTime + .003 : when;
+  OUT.noteOff(midi);
   /* ⚠️ ONLY A HAND'S RELEASE, and `when` is what tells them apart: every path a person
      lets go through — MIDI, the on-screen keys, the computer keyboard — asks for "now" and
      passes nothing, while the sequencer voicing its own grid schedules an exact end time.
@@ -15715,8 +15806,10 @@ function noteOff(midi, when){
 }
 function allNotesOff(){
   /* A panic is still a release, and this is the one path that empties `held` without going
-     through noteOff() — so a note the recorder took would be left open and never lengthened. */
+     through noteOff() — so a note the recorder took would be left open and never lengthened.
+     The same is true of anything already out on the wire. */
   Patchwork.record.allOff("bs1");
+  OUT.allOff();
   held.clear();
   const t = ctx ? ctx.currentTime : 0;
   if (cur){ cur.release(t); cur = null; }
@@ -15778,6 +15871,14 @@ const seq = Patchwork.makeSeq({
   fire: (ev, t) => {
     ensureAudio();
     const vel = Math.round(ev.vel * 127);
+    /* ⚠️ THE LINE GOES OUT THE PORT TOO, scheduled on the same clock as the voice. A MIDI out
+       that carried only what you fingered and not what you wrote would be the wrong half of
+       a bass sequencer. A slide is one continuous gesture here and two notes on the wire —
+       there is no MIDI for "glide into this without re-attacking", and a receiver's own
+       portamento is the only place that can be honoured. */
+    const at = perfAt(t);
+    OUT.noteOn(ev.n, vel, at);
+    OUT.noteOff(ev.n, perfAt(t + ev.dur));
     /* Slide glides into a step without re-attacking it — a 303 line, and the reason the
        bass needed a sequencer of its own rather than borrowing notes from elsewhere. */
     if (ev.slide && cur && !cur.released) cur.setPitch(t, ev.n, Math.max(.02, P.glide || .06));
@@ -15796,6 +15897,16 @@ const seq = Patchwork.makeSeq({
     if (!on) allNotesOff();
   }
 });
+/* ⚠️ AUDIO TIME INTO PORT TIME. The sequencer schedules on the AudioContext clock and
+   MIDIOutput.send wants performance.now() milliseconds — two different origins for the same
+   instant. Getting this wrong does not fail loudly; it sends everything early or late by a
+   constant nobody thinks to measure. */
+function perfAt(t){
+  const c = Patchwork.audio.ctx;
+  if (!c) return 0;
+  return performance.now() + Math.max(0, (t - c.currentTime)) * 1000;
+}
+
 /* What is under a finger right now — the note a click on a step will write. Lowest, the
    same priority the voice itself uses, so what you hear and what lands agree. */
 const heldNote = () => { const n = pick(); return n == null ? null : n; };
@@ -16226,7 +16337,11 @@ paintGroove();
    instrument's channel map with the synth and the vocoder, and each of the three now
    simply answers on a channel of its own. */
 
-const MIDI = {access:null, in:null, inCh:-1};
+const MIDI = {access:null, in:null, inCh:-1, outCh:0};
+/* ⚠️ THE CABLE IS THE PAGE'S, THE CHANNEL IS OURS — see sender() in shell/midi.js. This
+   panel had no MIDI out at all, which meant a bass line written here could drive the
+   speakers and nothing else in the room. */
+const OUT = Patchwork.midi.sender(() => MIDI.outCh);
 const ledEl = $("#midiLed"), midiInSel = $("#midiIn"), midiInChSel = $("#midiInCh");
 
 midiInChSel.appendChild(Object.assign(document.createElement("option"),
@@ -16262,7 +16377,7 @@ function onMidi(e){
   else if (type === 0x80 || (type === 0x90 && d[2] === 0)) noteOff(d[1]);
   else if (type === 0xB0 && d[1] === 123) allNotesOff();
 }
-function midiPanic(){ allNotesOff(); }
+function midiPanic(){ allNotesOff(); OUT.allOff(); }
 
 function bindInput(){ MIDI.in = Patchwork.midi.select(midiInSel.value); }
 function followInput(pt){
@@ -16363,7 +16478,8 @@ function initMidi(){
     bump: surfaceBump, bumpName: "Octave",
     action: surfaceAction, actionName: "Wave",
     inCh: {get: () => MIDI.inCh,
-           set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
+           set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }},
+    outCh: {get: () => MIDI.outCh, set: c => { OUT.allOff(); MIDI.outCh = c; }}
   });
   Patchwork.midi.open().then(a => {
     MIDI.access = a; fillPorts();
@@ -23550,6 +23666,8 @@ function buildCarrier(midi, vel, t){
 function noteOn(midi, vel, when){
   ensureAudio();
   const t = when == null ? ctx.currentTime + .003 : when;
+  /* Every note this instrument sings, hand or sequencer — see the note on noteOff below. */
+  OUT.noteOn(midi, vel);
   const old = carriers.get(midi);
   if (old) old.release(t);
   /* Six at a time. Past that the bank is being asked to resolve a cluster it cannot, and
@@ -23564,6 +23682,11 @@ function noteOn(midi, vel, when){
 }
 function noteOff(midi, when){
   const t = when == null ? ctx.currentTime + .003 : when;
+  /* ⚠️ UNCONDITIONAL, unlike the recorder call below. The recorder wants a hand's release
+     only; the port wants every note this instrument sings, and this panel's sequencer plays
+     through here rather than around it — which is the very reason the recorder needed the
+     `when` test in the first place. */
+  OUT.noteOff(midi);
   /* ⚠️ ONLY A HAND'S RELEASE, and `when` is what tells them apart: every path a person
      lets go through — MIDI, the on-screen keys, the computer keyboard — asks for "now" and
      passes nothing, while the sequencer voicing its own grid schedules an exact end time.
@@ -23577,6 +23700,7 @@ function noteOff(midi, when){
 function allNotesOff(){
   /* A panic is still a release — see the note in bs1/engine.js. */
   Patchwork.record.allOff("vc1");
+  OUT.allOff();
   const t = ctx ? ctx.currentTime : 0;
   carriers.forEach(c => { try{ c.release(t); }catch(e){} });
   if (typeof paintNow === "function") paintNow();
@@ -24047,7 +24171,9 @@ paintGroove();
    instrument's channel map with the synth and the vocoder, and each of the three now
    simply answers on a channel of its own. */
 
-const MIDI = {access:null, in:null, inCh:-1};
+const MIDI = {access:null, in:null, inCh:-1, outCh:0};
+/* The cable is the page's, the channel is ours — see sender() in shell/midi.js. */
+const OUT = Patchwork.midi.sender(() => MIDI.outCh);
 const ledEl = $("#midiLed"), midiInSel = $("#midiIn"), midiInChSel = $("#midiInCh");
 
 midiInChSel.appendChild(Object.assign(document.createElement("option"),
@@ -24083,7 +24209,7 @@ function onMidi(e){
   else if (type === 0x80 || (type === 0x90 && d[2] === 0)) noteOff(d[1]);
   else if (type === 0xB0 && d[1] === 123) allNotesOff();
 }
-function midiPanic(){ allNotesOff(); }
+function midiPanic(){ allNotesOff(); OUT.allOff(); }
 
 function bindInput(){ MIDI.in = Patchwork.midi.select(midiInSel.value); }
 function followInput(pt){
@@ -24139,7 +24265,8 @@ function initMidi(){
     controls: surfaceControls, shiftControls: surfaceShiftControls,
     shiftName: "Seq", grid: surfaceGrid,
     inCh: {get: () => MIDI.inCh,
-           set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
+           set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }},
+    outCh: {get: () => MIDI.outCh, set: c => { OUT.allOff(); MIDI.outCh = c; }}
   });
   Patchwork.midi.open().then(a => {
     MIDI.access = a; fillPorts();
@@ -25347,6 +25474,41 @@ const surfaceGrid = {
   }
 };
 
+/* ---- LP·1 on a MIDI channel ----
+   ⚠️ IT TAKES NO NOTES AND IT STILL WANTS A CHANNEL, which is the distinction that kept this
+   panel off the router for so long. A looper has no pitch to play — that is why it registered
+   with surface.panel() instead — but "no pitch" is not "no MIDI": a take you can fire from a
+   sequencer, a foot pedal or another machine is the difference between a looper you drive by
+   hand and one that is part of a rig.
+
+   So the notes are SLOTS rather than pitches. Sixteen from the root up, one per take, laid
+   out like the pads and the scene rows they already are — press one and it plays if it holds
+   a take, records if it does not, exactly as the pad does. Nothing new to learn and nothing
+   new to keep in step, because it is the same call.
+
+   The root is C1, low enough to sit under anything you would actually play. */
+const LP_ROOT = 24;
+const LP_MIDI = {inCh: -1};
+function onMidi(e){
+  const d = e.data, s = d[0];
+  if (s >= 0xF0) return;
+  if (LP_MIDI.inCh >= 0 && (s & 0x0F) !== LP_MIDI.inCh) return;
+  const type = s & 0xF0;
+  if (type === 0xB0 && (d[1] === 120 || d[1] === 123)){ stopLoop(); return; }
+  if (type !== 0x90 || !d[2]) return;                 // a slot fires on the press
+  const i = d[1] - LP_ROOT;
+  if (i < 0 || i > 15) return;
+  if (hasSlot(i)) queueSlot(i); else arm("rec", i);
+}
+if (navigator.requestMIDIAccess && window.isSecureContext){
+  Patchwork.midi.route("lp1", onMidi, function(){}, {
+    name: "LP\u00b71",
+    panic: () => stopLoop(),
+    inCh: {get: () => LP_MIDI.inCh, set: c => { LP_MIDI.inCh = c; }}
+  });
+  Patchwork.midi.open().catch(() => {});
+}
+
 if (window.Patchwork && Patchwork.surface){
   Patchwork.surface.panel("lp1", {
     name: "LP\u00b71",
@@ -25529,6 +25691,7 @@ function schedule(){
   while (land - dur < now + .05) land += dur;
   TS.startAt = land - dur;
   TS.landAt = land;
+  sendLanding(land);          // the wire hears about it when the sweep does
   TS.armed = true;
   build(TS.startAt, land, dur);
   notify();
@@ -25554,6 +25717,7 @@ function fireNow(){
   const start = Math.max(now + .02, land - dur);
   TS.startAt = start;
   TS.landAt = land;
+  sendLanding(land);          // the wire hears about it when the sweep does
   TS.armed = true;
   build(start, land, Math.max(.05, land - start));
   notify();
@@ -26116,12 +26280,42 @@ function onMidi(e){
   if (type === 0x90 && d[2] > 0){ ensureAudio(); if (!TS.armed) schedule(); paintRead(); }
   else if (type === 0xB0 && (d[1] === 120 || d[1] === 123)) midiPanic();
 }
+/* ---- and out ----
+   ⚠️ A TRANSITION IS ONE EVENT, so its MIDI out is one note rather than a stream. It fires
+   when the sweep LANDS, not when you arm it: the whole shape of this instrument is that you
+   ask for something up to eight bars before it happens, and a receiver told at the arming
+   would drop its impact at the wrong end of the run-up.
+
+   The note is the middle C the rest of this rack would call C4, because there is nothing to
+   transpose — one gesture, one trigger, and the channel is what separates it from anything
+   else on the wire. */
+const TS_NOTE = 60;
+const OUT = Patchwork.midi.sender(() => MIDI.outCh);
+/* ⚠️ SCHEDULED, NOT WATCHED FOR. The landing is an audio time that is known the moment the
+   transition is armed — up to eight bars ahead — so the trigger is put on the wire with a
+   timestamp exactly as the sweep is put on the audio clock. Waiting for a state change would
+   send it a main-thread tick late, which for the one event this instrument exists to
+   announce is the wrong place by exactly the amount that matters.
+
+   Called from schedule() and fireNow() in engine.js, which are the two places a landing time
+   is decided. Hoisted, so the engine can reach it although it is written here. */
+function sendLanding(landAt){
+  const c = Patchwork.audio.ctx;
+  if (!c) return;
+  const at = performance.now() + Math.max(0, landAt - c.currentTime) * 1000;
+  OUT.noteOn(TS_NOTE, 110, at);
+  /* A trigger with no length: a receiver wants an edge, and a note left on is a note
+     somebody else has to chase. */
+  OUT.noteOff(TS_NOTE, at + 120);
+}
+
 if (navigator.requestMIDIAccess && window.isSecureContext){
   Patchwork.midi.route("ts1", onMidi, function(){}, {
     name: "TS·1", panic: midiPanic,
     controls: surfaceControls, shiftControls: surfaceShiftControls, shiftName: "Set",
     action: surfaceAction, actionName: "TS\u00b71",
-    inCh: {get: () => MIDI.inCh, set: c => { MIDI.inCh = c; }}
+    inCh: {get: () => MIDI.inCh, set: c => { MIDI.inCh = c; }},
+    outCh: {get: () => MIDI.outCh, set: c => { OUT.allOff(); MIDI.outCh = c; }}
   });
   Patchwork.midi.open().catch(() => {});
 }
@@ -26981,6 +27175,7 @@ const chOptions = sel => {
 };
 
 function fillPorts(){
+  fillOuts();
   const keep = Patchwork.midi.port ? Patchwork.midi.port.id : "";
   inSel.textContent = "";
   inSel.appendChild(Object.assign(document.createElement("option"),
@@ -26990,6 +27185,21 @@ function fillPorts(){
   inSel.value = keep;
 }
 inSel.addEventListener("change", () => Patchwork.midi.select(inSel.value));
+
+const outSel = box.querySelector("#stMidiOut");
+function fillOuts(){
+  if (!outSel) return;
+  const keep = Patchwork.midi.outId;
+  outSel.textContent = "";
+  outSel.appendChild(Object.assign(document.createElement("option"),
+    {value: "", textContent: "\u2014 none \u2014"}));
+  Patchwork.midi.ports("outputs").forEach(p => outSel.appendChild(Object.assign(
+    document.createElement("option"), {value: p.id, textContent: p.name || p.id})));
+  /* Restored from the ROUTER, not from the select — a rebuild when a cable appears would
+     otherwise drop the choice back to "none". The same trap the audio list documents. */
+  if ([].some.call(outSel.options, o => o.value === keep)) outSel.value = keep;
+}
+if (outSel) outSel.addEventListener("change", () => Patchwork.midi.selectOut(outSel.value));
 
 /* Built once per registered instrument. The selects are not rebuilt on every repaint — a
    <select> being rebuilt under an open menu closes it, and this repaints whenever anything
@@ -27152,6 +27362,7 @@ function globalControls(){
   return [
     opt("#stAudioOut", "Output device", "Dev"),
     opt("#stMidiIn", "MIDI in", "MIn"),
+    opt("#stMidiOut", "MIDI out", "MOu"),
     opt("#stSurface", "Controller", "Ctl"),
     /* A checkbox is not a list, so it is the one control here that has to be built by hand.
        Two positions, and nudge() is what makes a two-position control usable on an encoder

@@ -160,6 +160,10 @@ function glideTime(from, to){
 function noteOn(midi, vel, when){
   ensureAudio();
   const t = when == null ? ctx.currentTime + .003 : when;
+  /* Every note a HAND plays — a key, the computer keyboard, a pad. ⚠️ Not the sequencer,
+     which drives the voice directly and never comes through here (see fire() in ui.js, and
+     the note above it explaining why). Its steps are sent from there. */
+  OUT.noteOn(midi, vel);
   held.set(midi, vel);
   const n = pick();
   if (n == null) return;
@@ -172,6 +176,7 @@ function noteOn(midi, vel, when){
 }
 function noteOff(midi, when){
   const t = when == null ? ctx.currentTime + .003 : when;
+  OUT.noteOff(midi);
   /* ⚠️ ONLY A HAND'S RELEASE, and `when` is what tells them apart: every path a person
      lets go through — MIDI, the on-screen keys, the computer keyboard — asks for "now" and
      passes nothing, while the sequencer voicing its own grid schedules an exact end time.
@@ -189,8 +194,10 @@ function noteOff(midi, when){
 }
 function allNotesOff(){
   /* A panic is still a release, and this is the one path that empties `held` without going
-     through noteOff() — so a note the recorder took would be left open and never lengthened. */
+     through noteOff() — so a note the recorder took would be left open and never lengthened.
+     The same is true of anything already out on the wire. */
   Patchwork.record.allOff("bs1");
+  OUT.allOff();
   held.clear();
   const t = ctx ? ctx.currentTime : 0;
   if (cur){ cur.release(t); cur = null; }

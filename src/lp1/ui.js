@@ -465,6 +465,41 @@ const surfaceGrid = {
   }
 };
 
+/* ---- LP·1 on a MIDI channel ----
+   ⚠️ IT TAKES NO NOTES AND IT STILL WANTS A CHANNEL, which is the distinction that kept this
+   panel off the router for so long. A looper has no pitch to play — that is why it registered
+   with surface.panel() instead — but "no pitch" is not "no MIDI": a take you can fire from a
+   sequencer, a foot pedal or another machine is the difference between a looper you drive by
+   hand and one that is part of a rig.
+
+   So the notes are SLOTS rather than pitches. Sixteen from the root up, one per take, laid
+   out like the pads and the scene rows they already are — press one and it plays if it holds
+   a take, records if it does not, exactly as the pad does. Nothing new to learn and nothing
+   new to keep in step, because it is the same call.
+
+   The root is C1, low enough to sit under anything you would actually play. */
+const LP_ROOT = 24;
+const LP_MIDI = {inCh: -1};
+function onMidi(e){
+  const d = e.data, s = d[0];
+  if (s >= 0xF0) return;
+  if (LP_MIDI.inCh >= 0 && (s & 0x0F) !== LP_MIDI.inCh) return;
+  const type = s & 0xF0;
+  if (type === 0xB0 && (d[1] === 120 || d[1] === 123)){ stopLoop(); return; }
+  if (type !== 0x90 || !d[2]) return;                 // a slot fires on the press
+  const i = d[1] - LP_ROOT;
+  if (i < 0 || i > 15) return;
+  if (hasSlot(i)) queueSlot(i); else arm("rec", i);
+}
+if (navigator.requestMIDIAccess && window.isSecureContext){
+  Patchwork.midi.route("lp1", onMidi, function(){}, {
+    name: "LP\u00b71",
+    panic: () => stopLoop(),
+    inCh: {get: () => LP_MIDI.inCh, set: c => { LP_MIDI.inCh = c; }}
+  });
+  Patchwork.midi.open().catch(() => {});
+}
+
 if (window.Patchwork && Patchwork.surface){
   Patchwork.surface.panel("lp1", {
     name: "LP\u00b71",

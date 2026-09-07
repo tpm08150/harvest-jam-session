@@ -59,12 +59,42 @@ function onMidi(e){
   if (type === 0x90 && d[2] > 0){ ensureAudio(); if (!TS.armed) schedule(); paintRead(); }
   else if (type === 0xB0 && (d[1] === 120 || d[1] === 123)) midiPanic();
 }
+/* ---- and out ----
+   ⚠️ A TRANSITION IS ONE EVENT, so its MIDI out is one note rather than a stream. It fires
+   when the sweep LANDS, not when you arm it: the whole shape of this instrument is that you
+   ask for something up to eight bars before it happens, and a receiver told at the arming
+   would drop its impact at the wrong end of the run-up.
+
+   The note is the middle C the rest of this rack would call C4, because there is nothing to
+   transpose — one gesture, one trigger, and the channel is what separates it from anything
+   else on the wire. */
+const TS_NOTE = 60;
+const OUT = Patchwork.midi.sender(() => MIDI.outCh);
+/* ⚠️ SCHEDULED, NOT WATCHED FOR. The landing is an audio time that is known the moment the
+   transition is armed — up to eight bars ahead — so the trigger is put on the wire with a
+   timestamp exactly as the sweep is put on the audio clock. Waiting for a state change would
+   send it a main-thread tick late, which for the one event this instrument exists to
+   announce is the wrong place by exactly the amount that matters.
+
+   Called from schedule() and fireNow() in engine.js, which are the two places a landing time
+   is decided. Hoisted, so the engine can reach it although it is written here. */
+function sendLanding(landAt){
+  const c = Patchwork.audio.ctx;
+  if (!c) return;
+  const at = performance.now() + Math.max(0, landAt - c.currentTime) * 1000;
+  OUT.noteOn(TS_NOTE, 110, at);
+  /* A trigger with no length: a receiver wants an edge, and a note left on is a note
+     somebody else has to chase. */
+  OUT.noteOff(TS_NOTE, at + 120);
+}
+
 if (navigator.requestMIDIAccess && window.isSecureContext){
   Patchwork.midi.route("ts1", onMidi, function(){}, {
     name: "TS·1", panic: midiPanic,
     controls: surfaceControls, shiftControls: surfaceShiftControls, shiftName: "Set",
     action: surfaceAction, actionName: "TS\u00b71",
-    inCh: {get: () => MIDI.inCh, set: c => { MIDI.inCh = c; }}
+    inCh: {get: () => MIDI.inCh, set: c => { MIDI.inCh = c; }},
+    outCh: {get: () => MIDI.outCh, set: c => { OUT.allOff(); MIDI.outCh = c; }}
   });
   Patchwork.midi.open().catch(() => {});
 }

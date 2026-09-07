@@ -4,7 +4,11 @@
    instrument's channel map with the synth and the vocoder, and each of the three now
    simply answers on a channel of its own. */
 
-const MIDI = {access:null, in:null, inCh:-1};
+const MIDI = {access:null, in:null, inCh:-1, outCh:0};
+/* ⚠️ THE CABLE IS THE PAGE'S, THE CHANNEL IS OURS — see sender() in shell/midi.js. This
+   panel had no MIDI out at all, which meant a bass line written here could drive the
+   speakers and nothing else in the room. */
+const OUT = Patchwork.midi.sender(() => MIDI.outCh);
 const ledEl = $("#midiLed"), midiInSel = $("#midiIn"), midiInChSel = $("#midiInCh");
 
 midiInChSel.appendChild(Object.assign(document.createElement("option"),
@@ -40,7 +44,7 @@ function onMidi(e){
   else if (type === 0x80 || (type === 0x90 && d[2] === 0)) noteOff(d[1]);
   else if (type === 0xB0 && d[1] === 123) allNotesOff();
 }
-function midiPanic(){ allNotesOff(); }
+function midiPanic(){ allNotesOff(); OUT.allOff(); }
 
 function bindInput(){ MIDI.in = Patchwork.midi.select(midiInSel.value); }
 function followInput(pt){
@@ -141,7 +145,8 @@ function initMidi(){
     bump: surfaceBump, bumpName: "Octave",
     action: surfaceAction, actionName: "Wave",
     inCh: {get: () => MIDI.inCh,
-           set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }}
+           set: c => { MIDI.inCh = c; midiInChSel.value = String(c); allNotesOff(); describe(); }},
+    outCh: {get: () => MIDI.outCh, set: c => { OUT.allOff(); MIDI.outCh = c; }}
   });
   Patchwork.midi.open().then(a => {
     MIDI.access = a; fillPorts();

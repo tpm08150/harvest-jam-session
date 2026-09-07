@@ -55,6 +55,14 @@
         <label class="st-lab" for="stMidiIn">Input</label>
         <select id="stMidiIn"><option value="">&mdash; none &mdash;</option></select>
       </div>
+      <!-- ⚠️ ONE CABLE OUT FOR THE RACK, the same shape as the input beside it and as the
+           audio panel above. Every panel that speaks MIDI grew its own output port select —
+           three answers to a question with one answer, each behind a panel you had to open
+           to find. The channel is the instrument's; the cable is the page's. -->
+      <div class="st-midi-port">
+        <label class="st-lab" for="stMidiOut">Output</label>
+        <select id="stMidiOut"><option value="">&mdash; none &mdash;</option></select>
+      </div>
       <!-- A controller you pick rather than teach. The list holds every profile in
            shell/surface.js that can see its hardware on this machine right now, so an
            empty list is an honest "nothing I know about is plugged in" rather than a

@@ -212,6 +212,8 @@ function buildCarrier(midi, vel, t){
 function noteOn(midi, vel, when){
   ensureAudio();
   const t = when == null ? ctx.currentTime + .003 : when;
+  /* Every note this instrument sings, hand or sequencer — see the note on noteOff below. */
+  OUT.noteOn(midi, vel);
   const old = carriers.get(midi);
   if (old) old.release(t);
   /* Six at a time. Past that the bank is being asked to resolve a cluster it cannot, and
@@ -226,6 +228,11 @@ function noteOn(midi, vel, when){
 }
 function noteOff(midi, when){
   const t = when == null ? ctx.currentTime + .003 : when;
+  /* ⚠️ UNCONDITIONAL, unlike the recorder call below. The recorder wants a hand's release
+     only; the port wants every note this instrument sings, and this panel's sequencer plays
+     through here rather than around it — which is the very reason the recorder needed the
+     `when` test in the first place. */
+  OUT.noteOff(midi);
   /* ⚠️ ONLY A HAND'S RELEASE, and `when` is what tells them apart: every path a person
      lets go through — MIDI, the on-screen keys, the computer keyboard — asks for "now" and
      passes nothing, while the sequencer voicing its own grid schedules an exact end time.
@@ -239,6 +246,7 @@ function noteOff(midi, when){
 function allNotesOff(){
   /* A panic is still a release — see the note in bs1/engine.js. */
   Patchwork.record.allOff("vc1");
+  OUT.allOff();
   const t = ctx ? ctx.currentTime : 0;
   carriers.forEach(c => { try{ c.release(t); }catch(e){} });
   if (typeof paintNow === "function") paintNow();

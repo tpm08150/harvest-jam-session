@@ -270,6 +270,26 @@ See `pi/README.md`, and read `pi/setup.sh` before you run it: none of the Pi hal
 run on real hardware, and the multi-channel routing has never met an interface with more than
 two outputs.
 
+## MIDI out
+
+⚠️ **One cable out for the rack, one channel per instrument** — the same shape the input
+already had, and the same shape the audio bus arrived at separately. PM·1, CS·1 and DR·1 each
+grew their own output port select: three answers to a question with one answer, each behind a
+panel you had to open to find it. The channel is the instrument's; the cable is the page's,
+and it lives on the Settings tab.
+
+BS·1, VC·1 and TS·1 speak now. A bass line written here drives the room as well as the
+speakers; TS·1 sends **one note when the sweep lands**, not when you arm it — the whole shape
+of that instrument is asking for something up to eight bars before it happens, and a receiver
+told at the arming would drop its impact at the wrong end of the run-up. It is scheduled with
+a timestamp for the same reason.
+
+⚠️ **LP·1 takes a channel although it takes no notes**, which is the distinction that kept it
+off the router for so long. A looper has no pitch to play — that is why it registered with
+`surface.panel()` instead — but *no pitch* is not *no MIDI*. Sixteen notes from **C1** are the
+sixteen slots: press one and it plays if it holds a take, records if it does not, exactly as
+the pad does, because it is the same call.
+
 ## Projects
 
 ⚠️ **Everything on this page was persistent except the thing you actually made.** Sounds save
@@ -416,6 +436,7 @@ learn and no button spent on it.
 
 | | |
 | --- | --- |
+| **Shift + Custom 1** | Settings — a Global bank, then one bank per instrument, and the pads are the banks |
 | **Shift + Plug-in** | Studio, and the encoders follow the focused panel |
 | **Shift + Mixer** | Tape, and the encoders become MX·8 |
 | **Shift + Sends** | Live |

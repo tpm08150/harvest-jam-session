@@ -54,9 +54,13 @@ function bindAccess(a, withSysex){
     Array.from(claims.keys()).forEach(id => {
       if (!ports("inputs").some(p => p.id === id)) claims.delete(id);
     });
+    /* the output can vanish the same way an input can, and a remembered one can APPEAR —
+       a box that boots before its interface is awake has to pick it up when it arrives */
+    bindOut();
     subs.forEach(s => { try{ s.onPort(port); }catch(e){} });
     notify();
   };
+  bindOut();
   return a;
 }
 function open(){
@@ -217,6 +221,78 @@ function select(portId){
   return port;
 }
 
+/* ---- one way out for the rack ----
+   ⚠️ ONE PORT, MANY CHANNELS, which is the same shape the input already had and the same
+   shape the audio bus arrived at independently. Every panel that speaks MIDI grew its own
+   output port select — PM·1 and CS·1 and DR·1 each have one — and that is three answers to a
+   question with one answer, kept in three places you have to open a panel to find. The
+   channel is the instrument's; the cable is the page's.
+
+   Remembered, because a box that boots into this should come up plugged into the same thing
+   it was plugged into yesterday. */
+const OUT_KEY = "patchwork-midi-out";
+let outPort = null, outId = "";
+try{ outId = localStorage.getItem(OUT_KEY) || ""; }catch(e){}
+
+function bindOut(){
+  outPort = outId ? (ports("outputs").find(p => p.id === outId) || null) : null;
+  return outPort;
+}
+function selectOut(portId){
+  outId = portId || "";
+  try{ localStorage.setItem(OUT_KEY, outId); }catch(e){}
+  bindOut();
+  notify();
+  return outPort;
+}
+
+/* A sender for one instrument. ⚠️ IT REMEMBERS WHAT IT SENT, which is the whole reason this
+   is an object rather than a function: a note-off for a note nobody sent is noise on the
+   wire, and a note-on left hanging by a panic or a port change is a stuck note on somebody
+   else's synth — the one MIDI bug that outlives the page that caused it.
+
+   `ch` is a getter rather than a number so the sender does not go stale when the channel is
+   changed from the Settings tab, which is exactly where it will be changed from. */
+function sender(chOf){
+  const live = new Set();
+  const at = t => (t == null ? 0 : t);
+  const ch = () => {
+    const c = typeof chOf === "function" ? chOf() : chOf;
+    return Math.max(0, Math.min(15, (c | 0)));
+  };
+  function raw(bytes, when){
+    const o = outPort;
+    if (!o) return false;
+    try{ o.send(bytes, at(when)); return true; }catch(e){ return false; }
+  }
+  return {
+    get on(){ return !!outPort; },
+    noteOn(n, vel, when){
+      const p = Math.max(0, Math.min(127, Math.round(n)));
+      const v = Math.max(1, Math.min(127, Math.round(vel == null ? 96 : vel)));
+      /* a pitch already sounding is released first, so a receiver sees a clean retrigger
+         rather than two note-ons it has to guess about */
+      if (live.has(p)) raw([0x80 | ch(), p, 0], when);
+      if (raw([0x90 | ch(), p, v], when)) live.add(p);
+    },
+    noteOff(n, when){
+      const p = Math.max(0, Math.min(127, Math.round(n)));
+      if (!live.has(p)) return;
+      live.delete(p);
+      raw([0x80 | ch(), p, 0], when);
+    },
+    cc(num, val, when){ raw([0xB0 | ch(), num & 127, val & 127], when); },
+    /* ⚠️ NOT gated on the port still being the one we sent through. A note already out has
+       to be released whatever the settings say now, or it hangs forever on a receiver that
+       has no idea the page moved on. */
+    allOff(){
+      live.forEach(p => raw([0x80 | ch(), p, 0]));
+      live.clear();
+      raw([0xB0 | ch(), 123, 0]);
+    }
+  };
+}
+
 /* ---- a port of one's own ----
    Bind `handler` to one input port for a control surface. Returns a release function; call
    it when the surface disconnects, because a claim outlives the object that made it and a
@@ -268,7 +344,9 @@ function setFollow(on){
 }
 
 return {open, upgrade, ports, route, select, list, setFollow,
-        claim, claimed, output,
+        claim, claimed, output, selectOut, sender,
+        get outPort(){ return outPort; },
+        get outId(){ return outId; },
         onChange: fn => watchers.push(fn),
         get follow(){ return follow; },
         get sysex(){ return sysex; },
