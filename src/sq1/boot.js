@@ -108,6 +108,7 @@ if (navigator.requestMIDIAccess && window.isSecureContext){
     grid: surfaceGrid,
     bump: surfaceBump, bumpName: "Track",
     action: surfaceAction, actionName: "Style",
+    altAction: surfaceAltAction, altActionName: "Mode",
     inCh: {get: () => MIDI.inCh, set: c => { MIDI.inCh = c; }}
   });
   Patchwork.midi.open().catch(() => {});

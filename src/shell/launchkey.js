@@ -274,7 +274,11 @@ function encArrow(io, rig, dir){
    the DAW layout, which is where its own grid is drawn. */
 function jump(io, rig){
   const r = rig.jump();
-  if (!r) return;
+  /* ⚠️ NO PAIR IS NOT NOTHING TO DO. Only LP·1 declares a partner, so on every other panel
+     this gesture was two keys held for no result — and it is the last free pair on the
+     surface. Falls through to whatever the panel says Func + ">" means, exactly as the
+     arrows fall through to a bump when there is nowhere to page. */
+  if (!r){ said(io, rig.altAct()); return; }
   /* ⚠️ ASKED OF THE PANEL, not matched against "dr1". A panel that offers drum lanes IS the
      kit — that is what the property means — and a second place in this file that knows the
      kit's name is a second place to update when there are two kits. */

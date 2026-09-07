@@ -397,6 +397,24 @@ the lane, because which lane you are on is something you change constantly while
 drums. The pair beside the encoders walks the sixteen tracks; `>` flips the selected one
 between the two kinds.
 
+⚠️ **The last encoder is always what a press writes** — the lane on a synth track
+(gate/pitch/accent/slide/tie), the write mode on a drum one. Both answer the same question,
+which is what a pad or a click is about to do to a step, and it is the one thing you change
+with the other hand still on the grid. Pinned to eight rather than appended, because the two
+faces have different numbers of controls before it: a knob meaning "the last one" should not
+be the seventh on one track and the eighth on the next.
+
+**Func + `>` walks Play and Step programming.** ⚠️ That gesture is the linked-pair hop, and
+only LP·1 declares a partner — so on every other panel it was two keys held for no result,
+and it is the last free pair on the surface. It falls through to the panel now, the same way
+the arrows fall through to a bump when there is nowhere to page.
+
+⚠️ **Style is not on a knob.** Drum or synth changes what a track *is* — which grid the pads
+are, which controls exist, what the screen says — and a decision that large arriving from a
+knob brushed in passing is the wrong shape for it. It is on `>`, which is a press, and on the
+panel, which is where you were when you decided. Mute stays on a knob, because muting is a
+performance and you do it mid-bar.
+
 ⚠️ **One encoder bank, and that is what makes the arrows the track selector.** There were two,
 and the pair beside the encoders pages banks *before* it asks a panel for its own bump — so
 walking to track 5 meant paging past a bank first, and the arrows appeared to do nothing every

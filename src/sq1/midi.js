@@ -28,7 +28,11 @@ function surfaceControls(){
     out.push(Patchwork.surface.option(keySel, "Key", "Key"));
     out.push(Patchwork.surface.option(scaleSel, "Scale", "Scl"));
   }
-  out.push(Patchwork.surface.segment(styleSeg, "Style", "Sty"));
+  /* ⚠️ STYLE IS NOT ON A KNOB. Drum or synth is a decision about what a track IS — it changes
+     which grid the pads are, which controls exist and what the screen says — and a thing that
+     large arriving from a knob brushed in passing is the wrong shape for it. It is on ">",
+     which is a press, and on the panel, which is where you were when you decided. Mute stays,
+     because muting is a performance and you do it mid-bar. */
   out.push(Patchwork.surface.segment(muteSeg, "Mute", "Mut"));
   out.push({
     id: "swing", label: "Swing", short: "Swg",
@@ -44,7 +48,23 @@ function surfaceControls(){
     get: () => t.drum.T.vel / 127,
     set: v => { t.drum.T.vel = Math.max(1, Math.round(v * 127)); }
   });
-  return out.filter(Boolean);
+
+  /* ⚠️ THE LAST ENCODER IS ALWAYS WHAT A PRESS WRITES, on either face — the lane on a synth
+     track and the write mode on a drum one. Both answer the same question, which is what a
+     pad or a click is about to do to a step, and it is the one thing on this panel you
+     change while the other hand is on the grid.
+
+     ⚠️ PINNED TO EIGHT rather than appended, because the two faces have different numbers of
+     controls before it. A knob whose meaning is "the last one" should not be the seventh on
+     one track and the eighth on the next: the hand goes to the end of the row, and the end
+     of the row is where it is. */
+  const list = out.filter(Boolean);
+  while (list.length < 7) list.push(null);
+  list.length = 7;
+  list.push(t.style === "drum"
+    ? Patchwork.surface.segment(writeSeg, "Writes", "Wrt")
+    : Patchwork.surface.segment(laneSeg, "Edits", "Edt"));
+  return list;
 }
 
 /* ⚠️ THE PAIR BESIDE THE ENCODERS WALKS THE TRACKS, which is what it does on every other
@@ -69,6 +89,19 @@ function surfaceAction(){
   setStyle(sel, t.style === "drum" ? "synth" : "drum");
   showTrack();
   return cur().style;
+}
+/* ⚠️ AND FUNC + ">" WALKS PLAY AND STEP PROGRAMMING, which is the other switch on this panel
+   that is a mode rather than a value. It is a synth track's only — a drum track has no lit
+   step to land things on — so it says so rather than silently doing nothing. */
+function surfaceAltAction(){
+  const t = cur();
+  if (t.style !== "synth") return "synth only";
+  const seq = t.synth.seq;
+  const to = seq.SEQ.mode === "play" ? "step" : "play";
+  /* Through the panel's own button, so whatever a click does happens here too. */
+  const b = modeSeg.querySelector('button[data-p="' + to + '"]');
+  if (b) b.click();
+  return to === "play" ? "Play" : "Step prog";
 }
 
 /* ---- the steps, on the pads ----

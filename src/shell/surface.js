@@ -212,6 +212,15 @@ const rig = {
     return !!(f && typeof f.spec.action === "function");
   },
   act(){ return said(rig.focus, "action", "actionName", []); },
+  /* ⚠️ ">" HELD WITH FUNC, where the pair-hop has nowhere to go. A panel with no partner
+     leaves that gesture doing nothing at all, which is a whole key pair spent on silence —
+     so it falls through to the panel, the same way the arrows fall through to a bump. Named
+     for the gesture and not for the meaning, like everything else on this surface. */
+  get canAltAct(){
+    const f = rig.focus;
+    return !!(f && typeof f.spec.altAction === "function");
+  },
+  altAct(){ return said(rig.focus, "altAction", "altActionName", []); },
   /* ⚠️ FUNC TAPPED, WHICH IS THE SAME BARGAIN ">" ALREADY MAKES: held it is a modifier, let
      go having modified nothing it is a button. A panel with two FACES needs one — CS·1 has a
      chord voice and a bass voice and the encoders and pads can only be pointed at one of
