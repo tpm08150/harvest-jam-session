@@ -21285,8 +21285,20 @@ function bankShown(){
 }
 
 function paintSteps(){
+  /* ⚠️ THE GRID IS BUILT TO A LENGTH, so anything that changes the length has to rebuild it
+     and not merely repaint — and the paths that change it are not all in this file. A scene
+     apply set SEQ.len to 64, painted, and left sixteen cells on screen: the select read
+     "64 step", the transport played all sixty-four, and the panel showed the first sixteen.
+     A saved project opens itself at boot, so that was every reload.
+
+     Here rather than at each of those call sites for the reason the erase flag is: the next
+     thing to set SEQ.len would forget, and forgetting looks like the pattern being shorter
+     than it is. renderSteps() ends by calling this, and by then the counts agree, so this
+     bounces exactly once. */
+  const cells = seqWrap.querySelectorAll(".step");
+  if (cells.length !== SEQ.len){ renderSteps(); return; }
   const bank = bankShown();
-  seqWrap.querySelectorAll(".step").forEach(b => {
+  cells.forEach(b => {
     const st = SEQ.steps[+b.dataset.i];
     const i = +b.dataset.i;
     b.classList.toggle("bank", bank >= 0 && i >= bank && i < bank + 16);
