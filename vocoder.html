@@ -769,10 +769,108 @@ function context(){
     end = ctx.createGain();
     end.gain.value = 1;
     master.connect(end);
-    end.connect(ctx.destination);
+    openOut();
   }
   return ctx;
 }
+
+/* ---- more than two ways out ----
+   ⚠️ THIS IS CHANNELS, NOT DEVICES, and the two questions look alike and are not. Which
+   DEVICE the rack plays through is setSink() below and belongs to the whole context, because
+   that is where setSinkId lives. Which CHANNELS of that device an instrument lands on is a
+   graph question and costs nothing — a merger and a splitter — which is why one of these is
+   per instrument and the other cannot be.
+
+   So: plug in an eight-out interface, put the drums on 3-4 and the bass on 5-6, and take six
+   separate feeds to a desk. Everything not given a pair stays in the main mix on 1-2.
+
+   ⚠️ DISCRETE, NOT SPEAKERS. The default channelInterpretation would UPMIX a stereo master
+   into whatever surround layout it thinks eight channels means — centre, LFE, the lot — and
+   quietly put the drums somewhere nobody asked for. Discrete means channel n is output n and
+   nothing is invented. */
+let outMerge = null, endSplit = null, outWidth = 2;
+/* id -> {pair, gain, split} for every strip NOT on the main mix. ⚠️ Declared above openOut()
+   rather than beside the functions that fill it: openOut() walks it to re-hang routes after
+   a device change, and a `const` read before its declaration is evaluated throws. */
+const routes = new Map();
+function openOut(){
+  const dst = ctx.destination;
+  outWidth = Math.max(2, dst.maxChannelCount || 2);
+  try{
+    dst.channelCount = outWidth;
+    dst.channelCountMode = "explicit";
+    dst.channelInterpretation = "discrete";
+  }catch(e){ outWidth = 2; }            // a device that refuses is a stereo device
+
+  if (outMerge){ try{ outMerge.disconnect(); }catch(e){} }
+  if (endSplit){ try{ endSplit.disconnect(); }catch(e){} }
+  outMerge = ctx.createChannelMerger(outWidth);
+  outMerge.connect(dst);
+  /* The main mix lands on the first pair. A merger input is ONE channel, so the stereo
+     master has to be taken apart to reach two of them. */
+  endSplit = ctx.createChannelSplitter(2);
+  end.connect(endSplit);
+  endSplit.connect(outMerge, 0, 0);
+  endSplit.connect(outMerge, 1, 1 % outWidth);
+  routes.forEach((r, id) => wireRoute(id));   // re-hang anything already assigned
+}
+
+/* How many pairs this device offers, for a list to be built from. */
+function outPairs(){
+  context();
+  const n = Math.max(1, Math.floor(outWidth / 2));
+  const out = [{pair: 0, label: "Main 1-2"}];
+  for (let i = 1; i < n; i++) out.push({pair: i, label: (i*2 + 1) + "-" + (i*2 + 2)});
+  return out;
+}
+
+function wireRoute(id){
+  const st = strips.get(id), r = routes.get(id);
+  if (!st || !r) return;
+  try{ r.gain.disconnect(); }catch(e){}
+  try{ r.split.disconnect(); }catch(e){}
+  const a = (r.pair * 2) % outWidth, b = (r.pair * 2 + 1) % outWidth;
+  r.split = ctx.createChannelSplitter(2);
+  r.gain.connect(r.split);
+  r.split.connect(outMerge, 0, a);
+  r.split.connect(outMerge, 1, b);
+}
+/* ⚠️ IT LEAVES THE MAIN MIX, which is what "send it out a different channel" has to mean —
+   an instrument audible on 1-2 as well as on 3-4 is not routed anywhere, it is doubled. The
+   tape and the looper are unaffected: they tap strips directly rather than the master sum,
+   which is the whole reason that was worth doing.
+
+   The direct path is post-fader and post-pan and carries the MASTER fader's value too, kept
+   in step by setMasterLevel. On a desk a direct out is pre-master; on a box whose only
+   volume control is that fader, an instrument that ignored it would be a surprise. */
+function setOut(id, pair){
+  context();
+  strip(id);
+  const st = strips.get(id);
+  if (!st) return 0;
+  const n = Math.max(0, Math.min(outPairs().length - 1, pair | 0));
+  const had = routes.get(id);
+  if (n === 0){
+    if (had){
+      try{ had.gain.disconnect(); }catch(e){}
+      try{ had.split.disconnect(); }catch(e){}
+      try{ st.ch.merge.disconnect(had.gain); }catch(e){}
+      routes.delete(id);
+      st.ch.merge.connect(master);
+    }
+    return 0;
+  }
+  if (!had){
+    try{ st.ch.merge.disconnect(master); }catch(e){}
+    const g = ctx.createGain();
+    g.gain.value = masterLevel();
+    st.ch.merge.connect(g);
+    routes.set(id, {pair: n, gain: g, split: ctx.createChannelSplitter(2)});
+  } else routes.get(id).pair = n;
+  wireRoute(id);
+  return n;
+}
+function outOf(id){ const r = routes.get(id); return r ? r.pair : 0; }
 
 /* Where an instrument sends its output instead of ctx.destination. One per instrument,
    so a mixer — or a solo button — has something to hold on to later. Later is now.
@@ -848,7 +946,9 @@ function buildChannel(into, out){
   merge.connect(master);
   out.connect(revSend); revSend.connect(reverbIn());
   out.connect(dlySend); dlySend.connect(delayIn());
-  return {lo, mid, hi, comp, makeup, panL, panR, revSend, dlySend};
+  /* ⚠️ `merge` is returned because a direct out taps HERE — post-fader, post-pan, before
+     master. Without it there is no node to move an instrument off the main mix by. */
+  return {lo, mid, hi, comp, makeup, panL, panR, revSend, dlySend, merge};
 }
 
 function strip(id){
@@ -1132,6 +1232,13 @@ function setMasterLevel(v){
   const g = clamp(+v || 0, 0, 1.5);
   master.gain.cancelScheduledValues(ctx.currentTime);
   master.gain.setTargetAtTime(g, ctx.currentTime, .02);
+  /* ⚠️ AND EVERY DIRECT OUT WITH IT. A routed instrument bypasses master by construction —
+     that is what leaving the main mix means — so the one volume control on this box would
+     silently stop applying to exactly the instruments somebody had bothered to route. */
+  routes.forEach(r => {
+    r.gain.gain.cancelScheduledValues(ctx.currentTime);
+    r.gain.gain.setTargetAtTime(g, ctx.currentTime, .02);
+  });
   return g;
 }
 
@@ -1215,12 +1322,16 @@ async function setSink(id){
      done about it from here — so this reports rather than throws, and the caller decides
      whether that is worth saying out loud. */
   if (typeof ctx.setSinkId !== "function") return "unsupported";
-  try{ await ctx.setSinkId(sinkId); return "ok"; }
+  /* ⚠️ THE CHANNEL COUNT IS THE DEVICE'S. Moving from a headphone jack to an eight-out
+     interface changes how many pairs exist, so the output stage is rebuilt and every routed
+     strip re-hung — otherwise the pairs stay stereo until a reload. */
+  try{ await ctx.setSinkId(sinkId); openOut(); return "ok"; }
   catch(e){ return (e && e.name) || "failed"; }
 }
 
 return {context, strip, resume, tap, tapOnly, untap, insert, monitor,
         outputs, setSink, get sink(){ return sinkId; },
+        outPairs, setOut, outOf, get outWidth(){ return outWidth; },
         channel, eq, compression, pan, send, masterFx,
         masterLevel, setMasterLevel,
         get masterDefault(){ return MASTER_DEFAULT; },

@@ -1713,3 +1713,8 @@ body.gated{overflow:hidden}
 .lib-cd.lib-onspindle .lib-art-btn,
 .lib-tape.lib-inslot .lib-tape-cloud,
 .lib-tape.lib-inslot .lib-art-btn{display:none}
+
+/* An output row whose device offers only one pair is a control that looks like a choice and
+   is not — the whole list is "Main". Dimmed rather than hidden, because a row that vanishes
+   on a stereo machine and reappears on a multi-out one is a layout that moves under you. */
+.st-midi-ch:disabled{opacity:.45;cursor:default}

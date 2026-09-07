@@ -684,17 +684,135 @@ async function fill(){
       + "it follows the first time you let this page use a microphone.");
   else say(list.length + " output" + (list.length === 1 ? "" : "s") + " available.");
 }
+/* ---- a row per instrument ----
+   ⚠️ THE OUTPUT PAIR IS PER INSTRUMENT AND THE DEVICE IS NOT, which is why one of these is a
+   row and the other is the header above them. See the note in scenes.html. Laid out like the
+   MIDI rows below because it is the same question asked of the same list.
+
+   Built once, like theirs, and for the same reason: a <select> rebuilt under an open menu
+   closes it, and this repaints whenever the device list changes. */
+const rows = box.querySelector("#stAudioRows");
+const built = new Map();
+
+/* The two panels that take audio IN rather than only putting it out. ⚠️ Driven through the
+   panel's own select rather than around it — LP·1 refuses an input change while it is
+   recording and VC·1 has to reopen a stream, and both of those live in the panel's own
+   change handler. Writing the value and firing `change` is the whole adapter. */
+const INPUTS = {lp1: "Records", vc1: "Modulator"};
+function panelSel(id){
+  const root = (Patchwork.roots || []).find(r => r.dataset.instrument === id);
+  return root ? root.querySelector("#inSel") : null;
+}
+
+function cell(labelText){
+  const c = document.createElement("span");
+  c.className = "st-midi-cell";
+  c.appendChild(Object.assign(document.createElement("span"),
+    {className: "st-midi-lab", textContent: labelText}));
+  return c;
+}
+
+/* ⚠️ EVERY PANEL ON THE PAGE, not every panel on the MIDI router. LP·1 takes no notes and
+   therefore never registered a channel — which is the whole reason surface.panel() exists —
+   and it is also the one panel here that most obviously has an audio input. Building this
+   list from the router quietly left out the looper. Roots are what is actually on the page;
+   the name comes from whichever registry happens to know it. */
+function panelList(){
+  const midi = (Patchwork.midi && Patchwork.midi.list) ? Patchwork.midi.list() : [];
+  return (Patchwork.roots || []).map(r => {
+    const id = r.dataset.instrument;
+    const m = midi.find(x => x.id === id);
+    const t = Patchwork.record && Patchwork.record.track ? Patchwork.record.track(id) : null;
+    return {id, name: (m && m.name) || (t && t.name) || id.toUpperCase()};
+  }).filter(x => x.id);
+}
+
+function buildRows(){
+  panelList().forEach(it => {
+    if (built.has(it.id)) return;
+    const row = document.createElement("div");
+    row.className = "st-midi-row";
+    row.dataset.inst = it.id;
+    row.appendChild(Object.assign(document.createElement("span"),
+      {className: "st-midi-name", textContent: it.name}));
+
+    const outCell = cell("out");
+    const outSel = document.createElement("select");
+    outSel.className = "st-midi-ch";
+    outSel.setAttribute("aria-label", it.name + " output channels");
+    outSel.addEventListener("change", () => { A.setOut(it.id, parseInt(outSel.value, 10)); });
+    outCell.appendChild(outSel);
+    row.appendChild(outCell);
+
+    let inSelProxy = null;
+    const src = INPUTS[it.id] ? panelSel(it.id) : null;
+    if (src){
+      const inCell = cell("in");
+      inSelProxy = document.createElement("select");
+      inSelProxy.className = "st-midi-ch";
+      inSelProxy.setAttribute("aria-label", it.name + " audio input");
+      inSelProxy.addEventListener("change", () => {
+        src.value = inSelProxy.value;
+        src.dispatchEvent(new Event("change", {bubbles: true}));
+        /* ⚠️ Read back rather than assumed. LP·1 puts the old value straight back when it
+           refuses — changing the loop length would empty every take — so believing our own
+           write would leave this row lying about what the looper is listening to. */
+        setTimeout(() => { inSelProxy.value = src.value; }, 0);
+      });
+      inCell.appendChild(inSelProxy);
+      row.appendChild(inCell);
+    } else row.appendChild(document.createElement("span")).className = "st-midi-cell st-midi-none";
+
+    rows.appendChild(row);
+    built.set(it.id, {outSel, inSelProxy, src});
+  });
+}
+
+function paintRows(){
+  buildRows();
+  const pairs = A.outPairs();          // the device decides how many there are
+  built.forEach((made, id) => {
+    const want = pairs.map(p => p.pair + ":" + p.label).join(",");
+    if (made.outSel.dataset.built !== want){
+      made.outSel.dataset.built = want;
+      made.outSel.textContent = "";
+      pairs.forEach(o => made.outSel.appendChild(Object.assign(
+        document.createElement("option"), {value: String(o.pair), textContent: o.label})));
+    }
+    made.outSel.value = String(A.outOf(id));
+    /* One pair means a stereo device, and a list with one row on it is a control that only
+       looks like a choice. */
+    made.outSel.disabled = pairs.length < 2;
+    if (made.inSelProxy && made.src){
+      const want2 = [].map.call(made.src.options, o => o.value + ":" + o.textContent).join(",");
+      if (made.inSelProxy.dataset.built !== want2){
+        made.inSelProxy.dataset.built = want2;
+        made.inSelProxy.textContent = "";
+        [].forEach.call(made.src.options, o => made.inSelProxy.appendChild(Object.assign(
+          document.createElement("option"), {value: o.value, textContent: o.textContent})));
+      }
+      made.inSelProxy.value = made.src.value;
+    }
+  });
+}
+
 sel.addEventListener("change", async () => {
   const r = await A.setSink(sel.value);
   const what = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : "default";
-  if (r === "ok") say("Output \u2192 <b>" + what + "</b>.");
+  paintRows();          // a different device can offer a different number of pairs
+  if (r === "ok") say("Output \u2192 <b>" + what + "</b>."
+    + (A.outWidth > 2 ? " " + (A.outWidth / 2 | 0) + " pairs." : ""));
   else if (r === "unsupported")
     say("This browser cannot route audio per device \u2014 "
       + "<code>AudioContext.setSinkId</code> needs Chrome 110+.", true);
   else say("Couldn't switch output (" + r + ").", true);
 });
-scan.addEventListener("click", fill);
+scan.addEventListener("click", () => { fill(); paintRows(); });
 fill();
+/* Late, because the instruments register with the MIDI router as they boot and the panels
+   this proxies have to exist before their selects can be copied. */
+setTimeout(paintRows, 0);
+if (Patchwork.midi && Patchwork.midi.onChange) Patchwork.midi.onChange(paintRows);
 })();
 
 (() => {

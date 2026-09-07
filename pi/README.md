@@ -67,6 +67,26 @@ moment you hear crackle, because a synth that stutters is worse than one that is
 bank is the output, so a box with no screen can still be told where to send its sound.
 `AUDIO_OUT` only decides what it comes up on.
 
+### A multi-out interface
+
+⚠️ **Which device and which channels are different questions.** The device belongs to the
+whole `AudioContext` — that is where `setSinkId` lives, and every strip shares one context so
+the master, the sends and the tape all see the same signal — so it is global and it overrides
+everything. Which *channels of that device* an instrument lands on costs a merger and a
+splitter, so that one is per instrument, on the Audio panel beside MIDI.
+
+Plug in an eight-out interface, put the drums on 3-4 and the bass on 5-6, and take separate
+feeds to a desk. A pair takes the instrument **off** the main mix — audible on 1-2 as well as
+on 3-4 is not routed anywhere, it is doubled. The tape and the looper are unaffected: they
+tap strips directly rather than the master sum.
+
+Direct outs follow the master fader, which a hardware desk would not do. On a box whose only
+volume control is that fader, an instrument that ignored it would be a surprise.
+
+**LP·1 and VC·1 also get an audio input row** — the looper's source and the vocoder's
+modulator — because those are the two panels that take sound in, and on a Pi the answer is
+"whatever is plugged into the interface" rather than anything you can pick from a laptop.
+
 ## Getting back in
 
 ```bash
@@ -85,11 +105,12 @@ kiosk after a reload.
 
 - **A flashable `.img`.** This is a script you run on Raspberry Pi OS Lite. Baking an image
   with `pi-gen` is the next step and a bigger one.
-- **Per-instrument outputs.** ⚠️ Not a missing feature so much as a Web Audio fact:
-  `setSinkId` belongs to the `AudioContext`, and every strip shares one context so that the
-  master, the sends and the tape all see the same signal. Routing each instrument to its own
-  device needs a `MediaStreamDestination` per strip, which buys the choice at the price of
-  latency — on the one machine with the least to spare.
+- **Per-instrument *devices*.** Channels are done (above); devices are not, and are not
+  cheap: `setSinkId` belongs to the `AudioContext`, so sending two instruments to two
+  different interfaces needs a `MediaStreamDestination` per strip and buys the choice at the
+  price of latency. One interface with many channels is the better answer anyway.
+- **Verifying any of the multi-channel routing on real hardware.** It is written and it has
+  never met an interface with more than two outputs.
 - **Read-only root.** An SD card that loses power mid-write is an SD card you re-flash. An
   overlay filesystem with a writable partition for the Chromium profile (which is where
   projects and patches live) is the fix.

@@ -3253,6 +3253,11 @@ body.gated{overflow:hidden}
 .lib-cd.lib-onspindle .lib-art-btn,
 .lib-tape.lib-inslot .lib-tape-cloud,
 .lib-tape.lib-inslot .lib-art-btn{display:none}
+
+/* An output row whose device offers only one pair is a control that looks like a choice and
+   is not — the whole list is "Main". Dimmed rather than hidden, because a row that vanishes
+   on a stereo machine and reappears on a multi-out one is a layout that moves under you. */
+.st-midi-ch:disabled{opacity:.45;cursor:default}
 </style>
 </head>
 <body>
@@ -3384,17 +3389,20 @@ body.gated{overflow:hidden}
        way in and every panel grew its own selects to set that — six copies of one question,
        and the answer lived inside whichever panel you had to open to find it. The port was
        always the page's; now the channels are too. -->
-  <!-- ⚠️ ONE OUTPUT FOR THE RACK, and it is one rather than one per instrument because the
-       Web Audio API says so: setSinkId belongs to the AudioContext, and every strip on this
-       page shares a context so that the master, the sends and the tape can all see the same
-       signal. Per-instrument routing is reachable only through a MediaStream hop per strip,
-       which buys a device choice at the price of latency on the one machine — a Pi booting
-       into this — that has the least to spare. Said out loud here because the MIDI panel
-       below IS per instrument, and the asymmetry looks like an oversight otherwise.
+  <!-- Audio, laid out like the MIDI panel below it because it answers the same shape of
+       question: what the rack is plugged into, and what each instrument does with that.
 
-       It lives beside MIDI because it is the same kind of question: what the rack is plugged
-       into. On a laptop you would answer it in the OS; on a box with no screen this is the
-       only place to answer it at all. -->
+       ⚠️ ONE DEVICE, MANY CHANNELS, and the two are not the same question. WHICH DEVICE is
+       the whole context's — setSinkId belongs to the AudioContext and every strip shares one
+       so that the master, the sends and the tape all see the same signal — so it is the
+       global row at the top and it overrides everything. WHICH CHANNELS of that device an
+       instrument lands on is a graph question, costs a merger and a splitter, and is
+       therefore per instrument. Plug in an eight-out interface, put the drums on 3-4, take
+       separate feeds to a desk.
+
+       ⚠️ A pair takes the instrument OFF the main mix. Audible on 1-2 as well as on 3-4 is
+       not routed anywhere, it is doubled. The tape and the looper are unaffected — they tap
+       strips directly rather than the master sum. -->
   <div class="st-midi" id="stAudio">
     <div class="st-midi-top">
       <span class="st-lab">Audio</span>
@@ -3404,6 +3412,7 @@ body.gated{overflow:hidden}
       </div>
       <button class="st-xport" id="stAudioScan">Rescan</button>
     </div>
+    <div class="st-midi-rows" id="stAudioRows"></div>
     <p class="st-midi-note" id="stAudioNote"></p>
   </div>
 
@@ -5261,10 +5270,108 @@ function context(){
     end = ctx.createGain();
     end.gain.value = 1;
     master.connect(end);
-    end.connect(ctx.destination);
+    openOut();
   }
   return ctx;
 }
+
+/* ---- more than two ways out ----
+   ⚠️ THIS IS CHANNELS, NOT DEVICES, and the two questions look alike and are not. Which
+   DEVICE the rack plays through is setSink() below and belongs to the whole context, because
+   that is where setSinkId lives. Which CHANNELS of that device an instrument lands on is a
+   graph question and costs nothing — a merger and a splitter — which is why one of these is
+   per instrument and the other cannot be.
+
+   So: plug in an eight-out interface, put the drums on 3-4 and the bass on 5-6, and take six
+   separate feeds to a desk. Everything not given a pair stays in the main mix on 1-2.
+
+   ⚠️ DISCRETE, NOT SPEAKERS. The default channelInterpretation would UPMIX a stereo master
+   into whatever surround layout it thinks eight channels means — centre, LFE, the lot — and
+   quietly put the drums somewhere nobody asked for. Discrete means channel n is output n and
+   nothing is invented. */
+let outMerge = null, endSplit = null, outWidth = 2;
+/* id -> {pair, gain, split} for every strip NOT on the main mix. ⚠️ Declared above openOut()
+   rather than beside the functions that fill it: openOut() walks it to re-hang routes after
+   a device change, and a `const` read before its declaration is evaluated throws. */
+const routes = new Map();
+function openOut(){
+  const dst = ctx.destination;
+  outWidth = Math.max(2, dst.maxChannelCount || 2);
+  try{
+    dst.channelCount = outWidth;
+    dst.channelCountMode = "explicit";
+    dst.channelInterpretation = "discrete";
+  }catch(e){ outWidth = 2; }            // a device that refuses is a stereo device
+
+  if (outMerge){ try{ outMerge.disconnect(); }catch(e){} }
+  if (endSplit){ try{ endSplit.disconnect(); }catch(e){} }
+  outMerge = ctx.createChannelMerger(outWidth);
+  outMerge.connect(dst);
+  /* The main mix lands on the first pair. A merger input is ONE channel, so the stereo
+     master has to be taken apart to reach two of them. */
+  endSplit = ctx.createChannelSplitter(2);
+  end.connect(endSplit);
+  endSplit.connect(outMerge, 0, 0);
+  endSplit.connect(outMerge, 1, 1 % outWidth);
+  routes.forEach((r, id) => wireRoute(id));   // re-hang anything already assigned
+}
+
+/* How many pairs this device offers, for a list to be built from. */
+function outPairs(){
+  context();
+  const n = Math.max(1, Math.floor(outWidth / 2));
+  const out = [{pair: 0, label: "Main 1-2"}];
+  for (let i = 1; i < n; i++) out.push({pair: i, label: (i*2 + 1) + "-" + (i*2 + 2)});
+  return out;
+}
+
+function wireRoute(id){
+  const st = strips.get(id), r = routes.get(id);
+  if (!st || !r) return;
+  try{ r.gain.disconnect(); }catch(e){}
+  try{ r.split.disconnect(); }catch(e){}
+  const a = (r.pair * 2) % outWidth, b = (r.pair * 2 + 1) % outWidth;
+  r.split = ctx.createChannelSplitter(2);
+  r.gain.connect(r.split);
+  r.split.connect(outMerge, 0, a);
+  r.split.connect(outMerge, 1, b);
+}
+/* ⚠️ IT LEAVES THE MAIN MIX, which is what "send it out a different channel" has to mean —
+   an instrument audible on 1-2 as well as on 3-4 is not routed anywhere, it is doubled. The
+   tape and the looper are unaffected: they tap strips directly rather than the master sum,
+   which is the whole reason that was worth doing.
+
+   The direct path is post-fader and post-pan and carries the MASTER fader's value too, kept
+   in step by setMasterLevel. On a desk a direct out is pre-master; on a box whose only
+   volume control is that fader, an instrument that ignored it would be a surprise. */
+function setOut(id, pair){
+  context();
+  strip(id);
+  const st = strips.get(id);
+  if (!st) return 0;
+  const n = Math.max(0, Math.min(outPairs().length - 1, pair | 0));
+  const had = routes.get(id);
+  if (n === 0){
+    if (had){
+      try{ had.gain.disconnect(); }catch(e){}
+      try{ had.split.disconnect(); }catch(e){}
+      try{ st.ch.merge.disconnect(had.gain); }catch(e){}
+      routes.delete(id);
+      st.ch.merge.connect(master);
+    }
+    return 0;
+  }
+  if (!had){
+    try{ st.ch.merge.disconnect(master); }catch(e){}
+    const g = ctx.createGain();
+    g.gain.value = masterLevel();
+    st.ch.merge.connect(g);
+    routes.set(id, {pair: n, gain: g, split: ctx.createChannelSplitter(2)});
+  } else routes.get(id).pair = n;
+  wireRoute(id);
+  return n;
+}
+function outOf(id){ const r = routes.get(id); return r ? r.pair : 0; }
 
 /* Where an instrument sends its output instead of ctx.destination. One per instrument,
    so a mixer — or a solo button — has something to hold on to later. Later is now.
@@ -5340,7 +5447,9 @@ function buildChannel(into, out){
   merge.connect(master);
   out.connect(revSend); revSend.connect(reverbIn());
   out.connect(dlySend); dlySend.connect(delayIn());
-  return {lo, mid, hi, comp, makeup, panL, panR, revSend, dlySend};
+  /* ⚠️ `merge` is returned because a direct out taps HERE — post-fader, post-pan, before
+     master. Without it there is no node to move an instrument off the main mix by. */
+  return {lo, mid, hi, comp, makeup, panL, panR, revSend, dlySend, merge};
 }
 
 function strip(id){
@@ -5624,6 +5733,13 @@ function setMasterLevel(v){
   const g = clamp(+v || 0, 0, 1.5);
   master.gain.cancelScheduledValues(ctx.currentTime);
   master.gain.setTargetAtTime(g, ctx.currentTime, .02);
+  /* ⚠️ AND EVERY DIRECT OUT WITH IT. A routed instrument bypasses master by construction —
+     that is what leaving the main mix means — so the one volume control on this box would
+     silently stop applying to exactly the instruments somebody had bothered to route. */
+  routes.forEach(r => {
+    r.gain.gain.cancelScheduledValues(ctx.currentTime);
+    r.gain.gain.setTargetAtTime(g, ctx.currentTime, .02);
+  });
   return g;
 }
 
@@ -5707,12 +5823,16 @@ async function setSink(id){
      done about it from here — so this reports rather than throws, and the caller decides
      whether that is worth saying out loud. */
   if (typeof ctx.setSinkId !== "function") return "unsupported";
-  try{ await ctx.setSinkId(sinkId); return "ok"; }
+  /* ⚠️ THE CHANNEL COUNT IS THE DEVICE'S. Moving from a headphone jack to an eight-out
+     interface changes how many pairs exist, so the output stage is rebuilt and every routed
+     strip re-hung — otherwise the pairs stay stereo until a reload. */
+  try{ await ctx.setSinkId(sinkId); openOut(); return "ok"; }
   catch(e){ return (e && e.name) || "failed"; }
 }
 
 return {context, strip, resume, tap, tapOnly, untap, insert, monitor,
         outputs, setSink, get sink(){ return sinkId; },
+        outPairs, setOut, outOf, get outWidth(){ return outWidth; },
         channel, eq, compression, pan, send, masterFx,
         masterLevel, setMasterLevel,
         get masterDefault(){ return MASTER_DEFAULT; },
@@ -26643,17 +26763,135 @@ async function fill(){
       + "it follows the first time you let this page use a microphone.");
   else say(list.length + " output" + (list.length === 1 ? "" : "s") + " available.");
 }
+/* ---- a row per instrument ----
+   ⚠️ THE OUTPUT PAIR IS PER INSTRUMENT AND THE DEVICE IS NOT, which is why one of these is a
+   row and the other is the header above them. See the note in scenes.html. Laid out like the
+   MIDI rows below because it is the same question asked of the same list.
+
+   Built once, like theirs, and for the same reason: a <select> rebuilt under an open menu
+   closes it, and this repaints whenever the device list changes. */
+const rows = box.querySelector("#stAudioRows");
+const built = new Map();
+
+/* The two panels that take audio IN rather than only putting it out. ⚠️ Driven through the
+   panel's own select rather than around it — LP·1 refuses an input change while it is
+   recording and VC·1 has to reopen a stream, and both of those live in the panel's own
+   change handler. Writing the value and firing `change` is the whole adapter. */
+const INPUTS = {lp1: "Records", vc1: "Modulator"};
+function panelSel(id){
+  const root = (Patchwork.roots || []).find(r => r.dataset.instrument === id);
+  return root ? root.querySelector("#inSel") : null;
+}
+
+function cell(labelText){
+  const c = document.createElement("span");
+  c.className = "st-midi-cell";
+  c.appendChild(Object.assign(document.createElement("span"),
+    {className: "st-midi-lab", textContent: labelText}));
+  return c;
+}
+
+/* ⚠️ EVERY PANEL ON THE PAGE, not every panel on the MIDI router. LP·1 takes no notes and
+   therefore never registered a channel — which is the whole reason surface.panel() exists —
+   and it is also the one panel here that most obviously has an audio input. Building this
+   list from the router quietly left out the looper. Roots are what is actually on the page;
+   the name comes from whichever registry happens to know it. */
+function panelList(){
+  const midi = (Patchwork.midi && Patchwork.midi.list) ? Patchwork.midi.list() : [];
+  return (Patchwork.roots || []).map(r => {
+    const id = r.dataset.instrument;
+    const m = midi.find(x => x.id === id);
+    const t = Patchwork.record && Patchwork.record.track ? Patchwork.record.track(id) : null;
+    return {id, name: (m && m.name) || (t && t.name) || id.toUpperCase()};
+  }).filter(x => x.id);
+}
+
+function buildRows(){
+  panelList().forEach(it => {
+    if (built.has(it.id)) return;
+    const row = document.createElement("div");
+    row.className = "st-midi-row";
+    row.dataset.inst = it.id;
+    row.appendChild(Object.assign(document.createElement("span"),
+      {className: "st-midi-name", textContent: it.name}));
+
+    const outCell = cell("out");
+    const outSel = document.createElement("select");
+    outSel.className = "st-midi-ch";
+    outSel.setAttribute("aria-label", it.name + " output channels");
+    outSel.addEventListener("change", () => { A.setOut(it.id, parseInt(outSel.value, 10)); });
+    outCell.appendChild(outSel);
+    row.appendChild(outCell);
+
+    let inSelProxy = null;
+    const src = INPUTS[it.id] ? panelSel(it.id) : null;
+    if (src){
+      const inCell = cell("in");
+      inSelProxy = document.createElement("select");
+      inSelProxy.className = "st-midi-ch";
+      inSelProxy.setAttribute("aria-label", it.name + " audio input");
+      inSelProxy.addEventListener("change", () => {
+        src.value = inSelProxy.value;
+        src.dispatchEvent(new Event("change", {bubbles: true}));
+        /* ⚠️ Read back rather than assumed. LP·1 puts the old value straight back when it
+           refuses — changing the loop length would empty every take — so believing our own
+           write would leave this row lying about what the looper is listening to. */
+        setTimeout(() => { inSelProxy.value = src.value; }, 0);
+      });
+      inCell.appendChild(inSelProxy);
+      row.appendChild(inCell);
+    } else row.appendChild(document.createElement("span")).className = "st-midi-cell st-midi-none";
+
+    rows.appendChild(row);
+    built.set(it.id, {outSel, inSelProxy, src});
+  });
+}
+
+function paintRows(){
+  buildRows();
+  const pairs = A.outPairs();          // the device decides how many there are
+  built.forEach((made, id) => {
+    const want = pairs.map(p => p.pair + ":" + p.label).join(",");
+    if (made.outSel.dataset.built !== want){
+      made.outSel.dataset.built = want;
+      made.outSel.textContent = "";
+      pairs.forEach(o => made.outSel.appendChild(Object.assign(
+        document.createElement("option"), {value: String(o.pair), textContent: o.label})));
+    }
+    made.outSel.value = String(A.outOf(id));
+    /* One pair means a stereo device, and a list with one row on it is a control that only
+       looks like a choice. */
+    made.outSel.disabled = pairs.length < 2;
+    if (made.inSelProxy && made.src){
+      const want2 = [].map.call(made.src.options, o => o.value + ":" + o.textContent).join(",");
+      if (made.inSelProxy.dataset.built !== want2){
+        made.inSelProxy.dataset.built = want2;
+        made.inSelProxy.textContent = "";
+        [].forEach.call(made.src.options, o => made.inSelProxy.appendChild(Object.assign(
+          document.createElement("option"), {value: o.value, textContent: o.textContent})));
+      }
+      made.inSelProxy.value = made.src.value;
+    }
+  });
+}
+
 sel.addEventListener("change", async () => {
   const r = await A.setSink(sel.value);
   const what = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : "default";
-  if (r === "ok") say("Output \u2192 <b>" + what + "</b>.");
+  paintRows();          // a different device can offer a different number of pairs
+  if (r === "ok") say("Output \u2192 <b>" + what + "</b>."
+    + (A.outWidth > 2 ? " " + (A.outWidth / 2 | 0) + " pairs." : ""));
   else if (r === "unsupported")
     say("This browser cannot route audio per device \u2014 "
       + "<code>AudioContext.setSinkId</code> needs Chrome 110+.", true);
   else say("Couldn't switch output (" + r + ").", true);
 });
-scan.addEventListener("click", fill);
+scan.addEventListener("click", () => { fill(); paintRows(); });
 fill();
+/* Late, because the instruments register with the MIDI router as they boot and the panels
+   this proxies have to exist before their selects can be copied. */
+setTimeout(paintRows, 0);
+if (Patchwork.midi && Patchwork.midi.onChange) Patchwork.midi.onChange(paintRows);
 })();
 
 (() => {
