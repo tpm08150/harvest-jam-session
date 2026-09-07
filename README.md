@@ -272,10 +272,25 @@ two outputs.
 
 ## The launcher on the pads
 
-Sixteen rows, sixteen pads, read from the top like the list on screen. **A filled pad plays,
-an empty one records** — the same thing the row's own button does, ▶ where there is something
-and ● where there is not, so there is one gesture rather than two. ⚠️ As on screen, ● only
-captures what is **armed**: arming is how you say which instruments a row should take.
+⚠️ **The pads are the matrix, not the row list.** Sixteen pads and sixteen rows made this one
+pad per row — a tidy coincidence and the wrong picture. The launcher on screen is instruments
+*across* and rows *down*, and a grid flattened to a column of rows could tell you a row held
+something and never which instrument held it.
+
+So the pads are two rows of the real grid: **the top eight are the row the cursor is on, the
+bottom eight the row after it**, and the columns are the instruments in the order the screen
+draws them. The controller's screen says which two rows those are, because two rows out of
+sixteen on pads with no numbers is otherwise a guess every time you look down.
+
+**A press puts that instrument's current pattern into that cell; a second press takes it out
+again** — the same call clicking and shift-clicking the box makes, which is also why a slot
+track records a real audio take here without the pads knowing they did anything different.
+
+⚠️ **A column is an instrument, so a column has its colour** — and one table feeds both views,
+so a box, a pad and the ring round a panel cannot drift apart. Only *full* cells are tinted:
+an empty cell is a hole, and seven colours of hole would be a grid that looked busiest when it
+had nothing in it. Green stays reserved for the one thing louder than either axis — this cell
+is playing right now.
 
 ⚠️ **A cursor is not a page.** All sixteen rows are visible at once, so there is nowhere to
 page to — and still somewhere to point. The pair beside the pads walks the cursor and `>`

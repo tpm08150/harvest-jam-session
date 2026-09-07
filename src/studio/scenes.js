@@ -53,7 +53,27 @@ function slotted(id){
 }
 
 /* What kind of cell this is, decided once when it is built. */
+/* ---- one colour per instrument ----
+   ⚠️ THE BOXES AND THE PADS READ THE SAME TABLE. The launcher was a grid of identical green
+   cells and sixteen identical amber pads: with the columns holding seven different
+   instruments, the one thing neither view said was WHICH — you counted across from the left
+   and hoped. Colour is what a column is for.
+
+   The names on the right are the hardware's palette (see PAL in shell/launchkey.js); the
+   CSS side keys off the same ids in page.css. Chosen to match each panel's own accent, so a
+   pad, a box and the ring around a panel are the same colour by construction rather than by
+   somebody remembering to keep three lists in step. */
+const COLOUR = {dr1: "orchid",    // the purple its stripe already is
+                bs1: "amber",     // bass pedals orange
+                cs1: "red",
+                pm1: "blue",
+                vc1: "pink",      // the vocoder's own identity, not a variant of anything
+                lp1: "turquoise", // the teal the looper is built out of
+                ts1: "yellow"};
+function colour(id){ return COLOUR[id] || "cyan"; }
+
 function mark(b, id){
+  b.dataset.hue = colour(id);
   if (slotted(id)) b.dataset.slots = "1";
   else if (!Patchwork.scenes.instruments.some(i => i.id === id)) b.disabled = true;
 }
@@ -213,7 +233,7 @@ function setCursor(i){
   return cursor;
 }
 
-return {columns, slotted, mark, paintCell, click, fireRow, fireRowShared,
+return {columns, slotted, mark, paintCell, click, fireRow, fireRowShared, colour,
         mountMeasure, stopAll, anyPlaying,
         get cursor(){ return cursor; }, setCursor,
         onCursor: fn => cursorSubs.push(fn)};
@@ -494,14 +514,16 @@ Patchwork.click.onChange(paint);
    to differ — and the controls are this head's own, because they are the ones you would reach
    past the launcher for. */
 if (window.Patchwork && Patchwork.surface){
-  /* ---- the launcher, on sixteen pads ----
-     ⚠️ SIXTEEN ROWS AND SIXTEEN PADS, so the grid is the launcher rather than a view of it.
-     Read from the top like the scene list on screen and unlike CS·1's chord bank: an
-     arrangement goes DOWN the page, so row 1 is the top-left pad. Cell 0 is bottom-left —
-     that is the surface's contract — so the arithmetic lives here. */
-  const cellRow = c => (c < 8 ? c + 8 : c - 8);
+  /* ---- the launcher, on sixteen pads ---- */
   const S = Patchwork.scenes;
-  const filled = ri => S.instruments.some(i => S.has(ri, i.id));
+  /* ⚠️ A SLOT TRACK IS NOT IN `scenes`. LP·1 keeps a real audio take per row rather than a
+     pattern, so asking scenes.has() about it answers "empty" for a row that plainly is not —
+     the same trap fireRow() documents a few lines above. Ask the track. */
+  function hasCell(ri, id){
+    const t = Patchwork.record && Patchwork.record.track ? Patchwork.record.track(id) : null;
+    if (t && t.hasSlot){ try{ return !!t.hasSlot(ri); }catch(e){ return false; } }
+    return S.has(ri, id);
+  }
 
   /* Which row the arrows are pointed at. ⚠️ NOT which row is playing: those are different
      questions and the launcher has always answered the second one on screen. The cursor is
@@ -510,8 +532,27 @@ if (window.Patchwork && Patchwork.surface){
   const L = Patchwork.launch;
   const moveCursor = d => "Row " + (L.setCursor(L.cursor + (d > 0 ? 1 : -1)) + 1);
 
+  /* ⚠️ THE PADS ARE THE MATRIX, NOT THE ROW LIST. Sixteen pads and sixteen rows made this
+     one pad per row — a tidy coincidence and the wrong picture. The launcher on screen is
+     instruments ACROSS and rows DOWN, and a grid flattened to a column of rows could tell
+     you a row held something and never which instrument held it.
+
+     So the pads are two rows of the real grid: the top eight are the row the cursor is on,
+     the bottom eight the one after it, and the columns are the instruments in the order the
+     screen draws them. Which is the eight-wide shape the pads already are. */
+  const COLS = 8;
+  const colsNow = () => Patchwork.launch.columns().slice(0, COLS);
+  /* Cell 0 is bottom-left — the surface's contract. The cursor's row goes on TOP, because a
+     list read downwards puts the row you are on above the one you are heading for. */
+  const padAt = c => (c < 8 ? {ri: L.cursor + 1, ci: c} : {ri: L.cursor, ci: c - 8});
+
   const grid = {
-    label: () => "Scene " + (L.cursor + 1) + (filled(L.cursor) ? "" : "  (empty)"),
+    /* ⚠️ THE SCREEN SAYS WHICH TWO ROWS THESE ARE. Two rows out of sixteen, on pads with no
+       numbers on them, is otherwise a guess every time you look down. */
+    label: () => {
+      const a = L.cursor + 1;
+      return a + 1 <= S.rows.length ? "Scene " + a + " / " + (a + 1) : "Scene " + a;
+    },
     cells: mods => {
       /* Func turns the pads into the desk's mute and solo — the SAME grid the mixer page
          draws, borrowed rather than rebuilt, so the two cannot disagree about what is
@@ -519,34 +560,35 @@ if (window.Patchwork && Patchwork.surface){
       const C = Patchwork.consoleUI;
       if (mods && mods.accent && C && C.padGrid) return C.padGrid.cells();
       const out = new Array(16).fill(null);
-      const queued = S.queued, onRow = S.onRow;
-      S.rows.forEach((row, ri) => {
-        if (ri > 15) return;
-        const cell = cellRow(ri);
-        const has = filled(ri);
-        const armed = S.instruments.some(i => queued.get(i.id) === ri);
-        const live = S.instruments.some(i => onRow.get(i.id) === ri && S.playing(i.id));
-        /* ⚠️ AN EMPTY ROW IS A PAD YOU CAN PRESS NOW, which it was not before: pressing one
-           records into it. So it is lit rather than dark, dimly, and the cursor is the one
-           thing brighter than everything around it. */
-        if (armed) out[cell] = {colour: "amber", on: true, hot: true};
-        else if (live) out[cell] = {colour: "green", on: true};
-        else if (ri === L.cursor) out[cell] = {colour: "white", on: true};
-        else out[cell] = {colour: has ? "amber" : "cyan", on: false};
-      });
+      const cols = colsNow(), queued = S.queued, onRow = S.onRow;
+      for (let c = 0; c < 16; c++){
+        const at = padAt(c), col = cols[at.ci];
+        /* No instrument in that column, or no row down there: a dark pad, not a dim one. */
+        if (!col || at.ri >= S.rows.length) continue;
+        const hue = Patchwork.launch.colour(col.id);
+        const has = hasCell(at.ri, col.id);
+        /* ⚠️ THE COLUMN'S COLOUR IN EVERY STATE, so what a pad SAYS and what it MEANS are
+           two different axes: the hue is which instrument, the brightness is whether there
+           is anything in the cell, and green is reserved for the one thing that is louder
+           than either — this cell is playing right now. */
+        if (queued.get(col.id) === at.ri) out[c] = {colour: hue, on: true, hot: true};
+        else if (onRow.get(col.id) === at.ri && S.playing(col.id))
+          out[c] = {colour: "green", on: true};
+        else out[c] = {colour: hue, on: !!has};
+      }
       return out;
     },
     down: (cell, vel, mods) => {
       const C = Patchwork.consoleUI;
       if (mods && mods.accent && C && C.padGrid){ C.padGrid.down(cell); return; }
-      const ri = cellRow(cell);
-      if (ri >= S.rows.length) return;
-      L.setCursor(ri);
-      /* ⚠️ FILLED PLAYS, EMPTY RECORDS, which is exactly what the row's own button on screen
-         does — ● on a row with nothing in it, ▶ on a row with something. Two gestures would
-         be two things to learn for one question the launcher already answers by looking. */
-      if (filled(ri)) Patchwork.surface.rig.fireRow(ri);
-      else Patchwork.record.captureRow(ri);
+      const at = padAt(cell), col = colsNow()[at.ci];
+      if (!col || at.ri >= S.rows.length) return;
+      /* ⚠️ THE SAME CALL A MOUSE MAKES, including the modifier it would have been holding.
+         A press puts the instrument's current pattern into that cell and a second press
+         takes it out — which is exactly what clicking and shift-clicking the box does, and
+         the reason a slot track records a real audio take here without this knowing that it
+         does anything different. */
+        Patchwork.launch.click({shiftKey: hasCell(at.ri, col.id)}, at.ri, col.id);
     },
     /* The pair beside the pads walks the cursor — see gridMove() in shell/surface.js. */
     move: moveCursor

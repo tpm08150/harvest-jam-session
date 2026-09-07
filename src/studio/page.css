@@ -1755,3 +1755,23 @@ body.gated{overflow:hidden}
 .st-scenes{outline:2px solid transparent;outline-offset:3px;transition:outline-color .12s}
 @media (prefers-reduced-motion:reduce){ .st-scenes{transition:none} }
 .st-scenes.focused{outline-color:var(--cue)}
+
+/* ---- a column is an instrument, so a column has its colour ----
+   ⚠️ THE GRID WAS SEVEN COLUMNS OF IDENTICAL GREEN CELLS, which said a block was full and
+   never which instrument's block it was — you counted across from the left and hoped. The
+   hue comes from one table shared with the pads (see COLOUR in studio/scenes.js), so a box,
+   a pad and the ring round a panel cannot drift apart.
+   Only the FULL state is tinted: an empty cell is a hole, and seven colours of hole would be
+   a grid that looked busiest when it had nothing in it. */
+.st-cell[data-hue="orchid"]   { --hue:var(--stripe-mod) }
+.st-cell[data-hue="amber"]    { --hue:var(--stripe-bass) }
+.st-cell[data-hue="red"]      { --hue:var(--cap-red) }
+.st-cell[data-hue="blue"]     { --hue:var(--accent) }
+.st-cell[data-hue="pink"]     { --hue:var(--stripe-voc) }
+.st-cell[data-hue="turquoise"]{ --hue:var(--lp-ring) }
+.st-cell[data-hue="yellow"]   { --hue:var(--cap-yellow) }
+.st-cell.full::after{background:var(--hue,var(--mint));box-shadow:0 0 7px var(--hue,var(--mint))}
+/* Playing keeps its own ring rather than the column's: "this one is sounding right now" has
+   to win over "this one belongs to the bass", and it is the same green on every column so
+   the eye finds it without reading. */
+.st-cell.live{border-color:var(--mint);box-shadow:0 0 0 1px var(--mint) inset}
