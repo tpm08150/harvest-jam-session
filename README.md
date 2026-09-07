@@ -286,6 +286,14 @@ sixteen on pads with no numbers is otherwise a guess every time you look down.
 again** — the same call clicking and shift-clicking the box makes, which is also why a slot
 track records a real audio take here without the pads knowing they did anything different.
 
+⚠️ **An empty cell sits at the dimmest shade the palette offers.** Each hue has four levels,
+and "nothing here" used to be the middle one — fine on a grid of one colour, and not on a
+launcher whose seven columns are seven colours: every pad lit in *something* makes the few
+holding a pattern hard to pick out, which is the one thing the grid is for. `DIM_STEP` in
+`shell/launchkey.js` is the single number to change if a dark room makes the empty ones
+vanish. Off is not an option: an empty cell you can still press must not look like a pad that
+does nothing.
+
 ⚠️ **A column is an instrument, so a column has its colour** — and one table feeds both views,
 so a box, a pad and the ring round a panel cannot drift apart. Only *full* cells are tinted:
 an empty cell is a hole, and seven colours of hole would be a grid that looked busiest when it

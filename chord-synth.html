@@ -3456,14 +3456,29 @@ const LED_PAD_STATIC = 0x90, LED_PAD_PULSE = 0x92;
 const LED_DRUM_STATIC = 0x99, LED_DRUM_PULSE = 0x9B;
 const LED_BTN = 0xB0;
 
-/* The Launchpad palette, by the indices worth naming. Within a hue, n is full brightness
-   and n+2 is the dark version of the same colour — which is what makes "this pad exists"
-   and "this pad is doing something" the same colour at two levels rather than two colours
-   the eye has to learn. Guide, "Colour palette". */
+/* The Launchpad palette, by the indices worth naming. Hues are four apart because each one
+   has FOUR shades — n is full brightness and n+1 through n+3 step down from it — which is
+   what makes "this pad exists" and "this pad is doing something" the same colour at two
+   levels rather than two colours the eye has to learn. Guide, "Colour palette". */
 const PAL = {off:0, white:3, red:5, amber:9, yellow:13, lime:17, green:21,
              spring:25, turquoise:29, cyan:33, sky:37, ocean:41, blue:45,
              orchid:49, magenta:53, pink:57};
-const dim = c => (c && c !== PAL.white) ? c + 2 : (c === PAL.white ? 1 : 0);
+
+/* ⚠️ HOW FAR DOWN "NOT DOING ANYTHING" SITS, and the one number to change if the answer
+   looks wrong on the hardware. It was n+2, the middle of the three dark shades, and against
+   a launcher whose columns are now seven different colours that was not far enough down —
+   a grid where every pad is lit in some colour makes the four that hold a pattern hard to
+   pick out, which is the one thing the grid is for.
+
+   n+3 is the dimmest the palette offers before off, so a pad that exists still says so and
+   a pad with something in it is unmistakably brighter. Raise it back to 2 if a dark room
+   makes the empty ones vanish; 4 would be off, which is a different statement — an empty
+   cell you can still press must not look like a pad that does nothing. */
+const DIM_STEP = 3;
+/* ⚠️ White is the exception and cannot follow the rule: it lives at 3 with the greys BELOW
+   it — 1 dark, 2 mid, 3 full — so its dark version is found by going down rather than up,
+   and 1 is already as far as it goes. */
+const dim = c => (c && c !== PAL.white) ? c + DIM_STEP : (c === PAL.white ? 1 : 0);
 
 /* An instrument's adapter names a colour; this is the only place those names mean an
    index. An unknown name lights white rather than nothing, because a pad that is on and
