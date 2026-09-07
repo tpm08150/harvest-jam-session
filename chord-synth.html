@@ -7019,7 +7019,6 @@ let nextTime = 0, stepIndex = 0, marks = [];
 function tick(){
   const ctx = Patchwork.audio.ctx;
   if (!ctx) return;
-  const step = stepSeconds();
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
     if (spec.id) Patchwork.scenes.take(spec.id, at);
@@ -7032,15 +7031,20 @@ function tick(){
       const ev = stepEvent(stepIndex, at);
       if (ev){
         ev.t = at;
-        ev.dur = Math.max(.02, step * ev.hold * V.clampf(ev.gate, .05, 1));
+        ev.dur = Math.max(.02, stepSeconds() * ev.hold * V.clampf(ev.gate, .05, 1));
         withLocks(st, () => spec.fire(ev, at));
       }
     }
-    marks.push({i: stepIndex % SEQ.len, t: at, end: at + step});
+    marks.push({i: stepIndex % SEQ.len, t: at, end: at + stepSeconds()});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
        pair, so the pattern's length is unchanged however hard it shuffles — CS·1's model,
        shared so all four instruments shuffle identically */
     const r = Patchwork.clock.rate;
+    /* ⚠️ READ AFTER take(), NOT BEFORE THE LOOP — see the same note in pm1's tick. A queued
+       scene lands inside this loop and can change the rate and the swing; a step length
+       hoisted above it advances the rest of this pass by the wrong amount, and the error goes
+       into nextTime and stays there. */
+    const step = stepSeconds();
     nextTime += r * ((stepIndex % 2 === 0) ? 2*SEQ.swing*step : (2 - 2*SEQ.swing)*step);
     stepIndex++;
   }

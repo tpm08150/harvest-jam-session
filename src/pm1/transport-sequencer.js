@@ -335,7 +335,6 @@ function scheduleStep(i, t){
 }
 
 function tick(){
-  const step = stepSeconds();
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
     /* a queued scene lands on the loop point, ahead of this step being scheduled — see
@@ -346,12 +345,20 @@ function tick(){
        longer running and leave a bar of notes behind after the stop. */
     if (!SEQ.playing) return;
     const ai = scheduleStep(stepIndex, at);
-    marks.push({i:stepIndex % SEQ.len, ai:ai, t:at, end:at + step});
+    marks.push({i:stepIndex % SEQ.len, ai:ai, t:at, end:at + stepSeconds()});
     /* swing advances alternately 2*sw*step and (2-2*sw)*step, summing to 2*step over a
        pair, so the pattern's total length is unchanged however hard it shuffles */
     /* the shared rate trim: PM·1 has no clock follow of its own, so this is how it
        follows external clock at all — it runs at whatever rate the lock has settled on */
     const r = Patchwork.clock.rate;
+    /* ⚠️ READ AFTER take(), NOT BEFORE THE LOOP. This was hoisted out as `const step` — one
+       stepSeconds() for the whole tick — and take() lands a queued scene INSIDE that loop and
+       can change SEQ.rate and SEQ.swing as it does. So the steps already scheduled in this
+       pass advanced by the OLD length: one or two of them at 200 ms of lookahead, which is
+       not a glitch that passes but a phase offset added to nextTime and kept forever.
+       That is the "flipping scenes makes it fire late and you have to stop and restart"
+       bug — restarting cured it because startPlay() re-claims the grid. */
+    const step = stepSeconds();
     nextTime += r * ((stepIndex % 2 === 0) ? 2*SEQ.swing*step : (2 - 2*SEQ.swing)*step);
     stepIndex++;
   }
