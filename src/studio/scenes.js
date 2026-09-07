@@ -194,9 +194,37 @@ function anyPlaying(){
   });
 }
 
+/* ---- which row the hand is pointed at ----
+   ⚠️ NOT WHICH ROW IS PLAYING, and the launcher has always answered that second question:
+   a cell rings when it is live and pulses when it is queued. The cursor is a third state and
+   it belongs to the person rather than to the music — it is where the controller's arrows
+   have walked to, and it means nothing at all until you press ">".
+
+   ⚠️ AND IT LIVES HERE rather than in the surface page that moves it, because the screen has
+   to show it. A cursor only the controller knew about would be a row firing from a button
+   nobody could see the aim of, which is the whole complaint that produced it. */
+let cursor = 0;
+const cursorSubs = [];
+function setCursor(i){
+  const n = Math.max(0, Math.min(Patchwork.scenes.rows.length - 1, i | 0));
+  if (n === cursor) return cursor;
+  cursor = n;
+  cursorSubs.forEach(fn => { try{ fn(cursor); }catch(e){} });
+  return cursor;
+}
+
 return {columns, slotted, mark, paintCell, click, fireRow, fireRowShared,
-        mountMeasure, stopAll, anyPlaying};
+        mountMeasure, stopAll, anyPlaying,
+        get cursor(){ return cursor; }, setCursor,
+        onCursor: fn => cursorSubs.push(fn)};
 })();
+
+/* ⚠️ THE LAUNCHER JOINS THE RACK. instrument() is how a panel becomes selectable and it
+   builds one too, which this is not — so the root is registered with an empty builder. What
+   that buys is everything focus already means: the ring, the controller's rack walk, and the
+   pads and encoders following a click, on the one block of the Studio view that had none of
+   it and is the thing you spend the most time pressing. */
+if (window.Patchwork && Patchwork.instrument) Patchwork.instrument("scenes", function(){});
 
 (() => {
 "use strict";
@@ -219,6 +247,7 @@ function build(){
   Patchwork.scenes.rows.forEach((row, ri) => {
     const el = document.createElement("div");
     el.className = "st-row";
+    el.dataset.row = ri;
     el.appendChild(Object.assign(document.createElement("span"),
       {className: "st-num", textContent: row.name}));
     cols.forEach(c => {
@@ -361,6 +390,11 @@ function paint(){
   const q = Patchwork.scenes.queued, on = Patchwork.scenes.onRow;
   grid.querySelectorAll(".st-cell").forEach(b =>
     Patchwork.launch.paintCell(b, +b.dataset.row, b.dataset.inst, q, on));
+  /* Where the controller's arrows are pointed. Drawn on the ROW rather than on a cell,
+     because it is the row that ">" will fire and a cell is one instrument's corner of it. */
+  const at = Patchwork.launch.cursor;
+  grid.querySelectorAll(".st-row").forEach(r =>
+    r.classList.toggle("st-at", r.dataset.row !== undefined && +r.dataset.row === at));
   /* The row buttons follow the same rule as the live page: with something armed they are
      record, otherwise they are fire. Arming is done on the live page, but a track stays
      armed across views, so the studio has to show the same truth. */
@@ -379,18 +413,27 @@ function paint(){
 grid.addEventListener("click", e => {
   const cell = e.target.closest(".st-cell");
   if (cell){
-    if (!cell.disabled) Patchwork.launch.click(e, +cell.dataset.row, cell.dataset.inst);
+    if (!cell.disabled){
+      /* ⚠️ CLICKING AIMS THE CURSOR TOO. Two ways to say "this row" that disagreed about
+         which row you meant would make ">" fire something you were not looking at. */
+      Patchwork.launch.setCursor(+cell.dataset.row);
+      Patchwork.launch.click(e, +cell.dataset.row, cell.dataset.inst);
+    }
     return;
   }
   const fire = e.target.closest(".st-fire");
   if (!fire) return;
   const ri = +fire.dataset.row;
+  Patchwork.launch.setCursor(ri);
   if (Patchwork.record && Patchwork.record.armedCount) Patchwork.record.captureRow(ri);
   else if (e.shiftKey) Patchwork.scenes.storeAll(ri);
   else Patchwork.launch.fireRowShared(ri);
 });
 
 loadMix();
+/* The controller walks the cursor and the screen has to follow it, which nothing else here
+   would have told it about. */
+Patchwork.launch.onCursor(paint);
 Patchwork.scenes.onChange(paint);
 if (window.Patchwork.record) Patchwork.record.onChange(paint);
 build();
@@ -464,14 +507,11 @@ if (window.Patchwork && Patchwork.surface){
      questions and the launcher has always answered the second one on screen. The cursor is
      for the hand — walk to a row with the pair beside the pads, fire it with ">" — which is
      the whole gesture on a controller you are not looking at. */
-  let cursor = 0;
-  const moveCursor = d => {
-    cursor = Math.max(0, Math.min(S.rows.length - 1, cursor + (d > 0 ? 1 : -1)));
-    return "Row " + (cursor + 1);
-  };
+  const L = Patchwork.launch;
+  const moveCursor = d => "Row " + (L.setCursor(L.cursor + (d > 0 ? 1 : -1)) + 1);
 
   const grid = {
-    label: () => "Scene " + (cursor + 1) + (filled(cursor) ? "" : "  (empty)"),
+    label: () => "Scene " + (L.cursor + 1) + (filled(L.cursor) ? "" : "  (empty)"),
     cells: mods => {
       /* Func turns the pads into the desk's mute and solo — the SAME grid the mixer page
          draws, borrowed rather than rebuilt, so the two cannot disagree about what is
@@ -491,7 +531,7 @@ if (window.Patchwork && Patchwork.surface){
            thing brighter than everything around it. */
         if (armed) out[cell] = {colour: "amber", on: true, hot: true};
         else if (live) out[cell] = {colour: "green", on: true};
-        else if (ri === cursor) out[cell] = {colour: "white", on: true};
+        else if (ri === L.cursor) out[cell] = {colour: "white", on: true};
         else out[cell] = {colour: has ? "amber" : "cyan", on: false};
       });
       return out;
@@ -501,7 +541,7 @@ if (window.Patchwork && Patchwork.surface){
       if (mods && mods.accent && C && C.padGrid){ C.padGrid.down(cell); return; }
       const ri = cellRow(cell);
       if (ri >= S.rows.length) return;
-      cursor = ri;
+      L.setCursor(ri);
       /* ⚠️ FILLED PLAYS, EMPTY RECORDS, which is exactly what the row's own button on screen
          does — ● on a row with nothing in it, ▶ on a row with something. Two gestures would
          be two things to learn for one question the launcher already answers by looking. */
@@ -538,7 +578,12 @@ if (window.Patchwork && Patchwork.surface){
     };
   }
 
-  Patchwork.surface.mount("scenes", {
+  /* ⚠️ MOUNTED AS A PAGE AND REGISTERED AS A PANEL, from one object. The page is the
+     explicit route — Shift and the Sends pad — and the panel is what a CLICK reaches, now
+     that the launcher is selectable like everything else on the rack. Two doors, one room:
+     built once and handed to both, because a second definition would be the two doors
+     leading somewhere subtly different. */
+  const spec = {
     name: "Scenes",
     grid,
     controls: () => {
@@ -562,11 +607,13 @@ if (window.Patchwork && Patchwork.surface){
        it left the one gesture this page exists for with no button at all. */
     actionName: "Launch",
     action: () => {
-      if (cursor >= Patchwork.scenes.rows.length) return null;
-      Patchwork.surface.rig.fireRow(cursor);
-      return "Row " + (cursor + 1);
+      if (L.cursor >= Patchwork.scenes.rows.length) return null;
+      Patchwork.surface.rig.fireRow(L.cursor);
+      return "Row " + (L.cursor + 1);
     }
-  });
+  };
+  Patchwork.surface.mount("scenes", spec);
+  Patchwork.surface.panel("scenes", spec);
 }
 
 
@@ -813,12 +860,20 @@ function cell(labelText){
    the name comes from whichever registry happens to know it. */
 function panelList(){
   const midi = (Patchwork.midi && Patchwork.midi.list) ? Patchwork.midi.list() : [];
-  return (Patchwork.roots || []).map(r => {
-    const id = r.dataset.instrument;
-    const m = midi.find(x => x.id === id);
-    const t = Patchwork.record && Patchwork.record.track ? Patchwork.record.track(id) : null;
-    return {id, name: (m && m.name) || (t && t.name) || id.toUpperCase()};
-  }).filter(x => x.id);
+  /* ⚠️ WHO REGISTERED AS AN INSTRUMENT, not who has a data-instrument attribute. The
+     launcher carries one so that it can be selected like a panel, and it has no strip, no
+     channel and no audio of its own — a row for it here would be three dead selects. Asking
+     the registries rather than the DOM is what keeps the two ideas apart. */
+    const plays = (Patchwork.scenes && Patchwork.scenes.instruments) || [];
+    const takes = (Patchwork.record && Patchwork.record.tracks) || [];
+    const real = id => midi.some(x => x.id === id) || plays.some(x => x.id === id)
+                    || takes.some(x => x.id === id);
+    return (Patchwork.roots || []).map(r => {
+      const id = r.dataset.instrument;
+      const m = midi.find(x => x.id === id);
+      const t = Patchwork.record && Patchwork.record.track ? Patchwork.record.track(id) : null;
+      return {id, name: (m && m.name) || (t && t.name) || id.toUpperCase()};
+    }).filter(x => x.id && real(x.id));
 }
 
 function buildRows(){

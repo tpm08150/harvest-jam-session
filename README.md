@@ -280,6 +280,17 @@ captures what is **armed**: arming is how you say which instruments a row should
 ⚠️ **A cursor is not a page.** All sixteen rows are visible at once, so there is nowhere to
 page to — and still somewhere to point. The pair beside the pads walks the cursor and `>`
 fires the row it is on, which is the whole gesture on a controller you are not looking at.
+**The screen shows where it is aimed** — a marker down the left edge of the row, in a colour
+of its own, because playing is already green here and queued is already amber and a cursor
+borrowing either would read as a row doing something. Clicking a row aims it too: two ways to
+say "this row" that disagreed would make `>` fire something you were not looking at.
+
+⚠️ **And the launcher is selectable like a panel.** It carries a `data-instrument` although it
+is not an instrument — that attribute is what makes a block on this page focusable, and the
+launcher was the one thing on the Studio view you could not point at. Click it and the
+encoders and pads follow, exactly as they do for a synth. The lists that are genuinely *about*
+instruments — the Settings tab's audio and MIDI rows — filter it out by asking the registries
+who registered as one, rather than by reading the attribute.
 Stop is the transport's own square button and always was; spending `>` on a second way to do
 that left the one thing this page exists for with no button at all.
 

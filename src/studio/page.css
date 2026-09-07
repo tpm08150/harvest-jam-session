@@ -1736,3 +1736,22 @@ body.gated{overflow:hidden}
    margin. Here they are the whole page, so they stand on their own. */
 .st-settings .st-midi{margin-top:0}
 @media (max-width:760px){ .st-settings{padding:10px 12px 32px} }
+
+/* ---- where the controller is aimed ----
+   ⚠️ NOT "playing" and not "queued", which this grid already says with a ring and a pulse.
+   This is the row the pair beside the pads has walked to and the row ">" will fire — a fact
+   about where a hand is pointed, and meaningless until that button is pressed. So it is a
+   marker down the left edge rather than anything that competes with the cells: quiet enough
+   to ignore while you are looking at what is playing, and findable when you are not. */
+.st-row.st-at{position:relative}
+.st-row.st-at::before{
+  content:"";position:absolute;left:-9px;top:3px;bottom:3px;width:3px;border-radius:2px;
+  background:var(--cue);box-shadow:0 0 7px var(--cue);
+}
+.st-row.st-at .st-num{color:var(--cue)}
+
+/* The launcher is selectable like a panel now, so it gets the ring a panel gets. Its own
+   teal, because it belongs to no instrument and borrowing one's colour would say it did. */
+.st-scenes{outline:2px solid transparent;outline-offset:3px;transition:outline-color .12s}
+@media (prefers-reduced-motion:reduce){ .st-scenes{transition:none} }
+.st-scenes.focused{outline-color:var(--cue)}

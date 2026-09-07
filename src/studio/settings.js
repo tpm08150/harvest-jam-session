@@ -21,12 +21,20 @@ const opt = (sel, label, short) => Patchwork.surface.option(q(sel), label, short
    built once at boot would be missing whatever registered after it. */
 function panels(){
   const midi = (Patchwork.midi && Patchwork.midi.list) ? Patchwork.midi.list() : [];
-  return (Patchwork.roots || []).map(r => {
-    const id = r.dataset.instrument;
-    const m = midi.find(x => x.id === id);
-    const t = Patchwork.record && Patchwork.record.track ? Patchwork.record.track(id) : null;
-    return {id, name: (m && m.name) || (t && t.name) || id.toUpperCase()};
-  }).filter(x => x.id);
+  /* ⚠️ WHO REGISTERED AS AN INSTRUMENT, not who has a data-instrument attribute. The
+     launcher carries one so that it can be selected like a panel, and it has no strip, no
+     channel and no audio of its own — a row for it here would be three dead selects. Asking
+     the registries rather than the DOM is what keeps the two ideas apart. */
+    const plays = (Patchwork.scenes && Patchwork.scenes.instruments) || [];
+    const takes = (Patchwork.record && Patchwork.record.tracks) || [];
+    const real = id => midi.some(x => x.id === id) || plays.some(x => x.id === id)
+                    || takes.some(x => x.id === id);
+    return (Patchwork.roots || []).map(r => {
+      const id = r.dataset.instrument;
+      const m = midi.find(x => x.id === id);
+      const t = Patchwork.record && Patchwork.record.track ? Patchwork.record.track(id) : null;
+      return {id, name: (m && m.name) || (t && t.name) || id.toUpperCase()};
+    }).filter(x => x.id && real(x.id));
 }
 
 /* ---- the banks ----

@@ -41,6 +41,11 @@
      its :scope and the ring is drawn on the wrapper OUTSIDE it. Same teal LP·1 is built out
      of, and TS·1's is the cap yellow it already uses for the fill and the armed readout. */
   --lp-ring:#5ec8c0;
+  /* ⚠️ WHERE THE HAND IS POINTED, which is a third state on the launcher and wanted a colour
+     of its own: playing is green and queued is amber there already, and a cursor that
+     borrowed either would read as a row doing something. Also the launcher's focus ring,
+     because the launcher belongs to no instrument and taking one's colour would say it did. */
+  --cue:#63d6c9;
   /* named here rather than repeated as literals the way CS·1 does */
   --groove:#12161a;
   --groove-hi:#20262a;
