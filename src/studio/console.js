@@ -441,12 +441,57 @@ let surfBank = 0;
 function surfBanks(){
   return [{name: "Levels"}]
     .concat(stripIds().map(id => ({name: niceName(id)})))
-    .concat([{name: "Returns"}]);
+    .concat([{name: "Returns"}, {name: "Out"}]);
+}
+
+/* ---- which way out, from the controller ----
+   ⚠️ A BOX WITH NO SCREEN HAS TO BE ABLE TO CHOOSE ITS OWN OUTPUT. On a laptop you change
+   the output in the OS and this page never needed to know; on a Raspberry Pi that boots into
+   the rack there is no OS to change it in, and the difference between the headphone jack and
+   a USB interface is the difference between a synth and a brick. So the last bank on the
+   mixer is the output device, and it is a list under an encoder like any other.
+
+   ⚠️ ENUMERATION IS ASYNCHRONOUS AND CONTROLS ARE READ SYNCHRONOUSLY, which is the whole
+   awkwardness here. The list is refreshed in the background and read from a cache — so the
+   first look after boot may be short, and the one after that is right. Refreshed whenever
+   this bank is asked for, which is exactly when it matters and never otherwise. */
+let sinks = [], sinksAt = 0;
+function refreshSinks(){
+  const now = Date.now();
+  if (now - sinksAt < 2000) return;
+  sinksAt = now;
+  A.outputs().then(list => { sinks = list; }).catch(() => {});
+}
+function sinkControls(){
+  refreshSinks();
+  /* "System default" is the empty id, and it is first because it is the answer that works
+     on a machine nobody has configured. */
+  const list = [{id: "", label: "System default"}].concat(sinks);
+  const at = () => {
+    const i = list.findIndex(o => o.id === A.sink);
+    return i < 0 ? 0 : i;
+  };
+  const last = Math.max(1, list.length - 1);
+  const go = i => {
+    const o = list[Math.max(0, Math.min(list.length - 1, i))];
+    if (!o || o.id === A.sink) return;
+    A.setSink(o.id);
+  };
+  return [{
+    id: "sink", label: "Output", short: "Out", stepped: true,
+    /* Device labels are long and the screen is four names wide, so the readout is trimmed
+       rather than left to be cut in the middle of a word. */
+    text: () => { const o = list[at()]; return o ? o.label.slice(0, 14) : ""; },
+    get: () => at() / last,
+    set: v => go(Math.round(v * last)),
+    nudge: d => go(at() + (d > 0 ? 1 : -1))
+  }];
 }
 function surfBankNow(){ return Math.min(surfBank, surfBanks().length - 1); }
 
 function surfControls(){
   const ids = stripIds(), i = surfBankNow();
+  if (i === surfBanks().length - 1) return sinkControls();
   if (i === 0){
     return ids.map(id => ({
       id: "lvl:" + id, label: niceName(id), short: shortName(id),

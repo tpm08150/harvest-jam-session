@@ -237,6 +237,28 @@ no length to record. Playing a shorter note over a longer one takes the old tail
 a part is something you can play again rather than something you have to go and shorten by
 hand afterwards.
 
+## On a Raspberry Pi
+
+Plug a Launchkey into a Pi, power it on, play. `pi/setup.sh` provisions Raspberry Pi OS
+Lite: a local server (Web MIDI needs a secure context, and `http://localhost` is one), then
+Chromium fullscreen inside `cage` at `index.html?kiosk`.
+
+⚠️ **Every default in this app assumes a person is in front of it** — the surface waits to
+be picked from a list, SysEx waits for a deliberate click, the audio context waits for a
+gesture. `?kiosk` says the operator already answered those by building the machine: it asks
+for SysEx up front, brings the audio up, and connects the one detected controller. *One* —
+it will not guess between two, because a rack with two known controllers on it is a
+decision and decisions belong to a person even when the person is not in the room.
+
+The thing that would normally kill this was already fixed for another reason: a
+`setInterval` in a tab you cannot see throttles to about 1.3 Hz, so `shell/clock.js` runs
+the tick off an AudioWorklet. Every sequencer on the box keeps time with no screen attached.
+
+**The output device is selectable from the controller** — the mixer's last encoder bank —
+because a machine with no screen still has to be told whether it is playing out of the
+headphone jack or a USB interface. See `pi/README.md`, and read `pi/setup.sh` before you
+run it: none of it has been run on real hardware yet.
+
 ## Projects
 
 ⚠️ **Everything on this page was persistent except the thing you actually made.** Sounds save

@@ -55,6 +55,29 @@
        way in and every panel grew its own selects to set that — six copies of one question,
        and the answer lived inside whichever panel you had to open to find it. The port was
        always the page's; now the channels are too. -->
+  <!-- ⚠️ ONE OUTPUT FOR THE RACK, and it is one rather than one per instrument because the
+       Web Audio API says so: setSinkId belongs to the AudioContext, and every strip on this
+       page shares a context so that the master, the sends and the tape can all see the same
+       signal. Per-instrument routing is reachable only through a MediaStream hop per strip,
+       which buys a device choice at the price of latency on the one machine — a Pi booting
+       into this — that has the least to spare. Said out loud here because the MIDI panel
+       below IS per instrument, and the asymmetry looks like an oversight otherwise.
+
+       It lives beside MIDI because it is the same kind of question: what the rack is plugged
+       into. On a laptop you would answer it in the OS; on a box with no screen this is the
+       only place to answer it at all. -->
+  <div class="st-midi" id="stAudio">
+    <div class="st-midi-top">
+      <span class="st-lab">Audio</span>
+      <div class="st-midi-port">
+        <label class="st-lab" for="stAudioOut">Output</label>
+        <select id="stAudioOut"><option value="">System default</option></select>
+      </div>
+      <button class="st-xport" id="stAudioScan">Rescan</button>
+    </div>
+    <p class="st-midi-note" id="stAudioNote"></p>
+  </div>
+
   <div class="st-midi" id="stMidi">
     <div class="st-midi-top">
       <span class="st-lab">MIDI</span>

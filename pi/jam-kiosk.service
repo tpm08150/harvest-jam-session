@@ -1,0 +1,36 @@
+[Unit]
+Description=Jam Session — kiosk browser
+After=jam-server.service sound.target
+Requires=jam-server.service
+
+[Service]
+Type=simple
+User=@RUN_USER@
+EnvironmentFile=/etc/jam-session.conf
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+# ⚠️ WAIT FOR THE PORT, not for the unit. systemd calls jam-server started the moment the
+# process exists, which is before python has bound anything — and Chromium reaching a
+# closed port shows an error page and stays on it, with nobody there to reload.
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 40); do \
+  python3 -c "import socket,sys; s=socket.socket(); sys.exit(s.connect_ex((\"127.0.0.1\", int(\"$PORT\"))))" \
+  && exit 0; sleep 0.5; done; exit 1'
+
+# cage is a one-window Wayland compositor: fullscreen, no desktop, nothing to click away.
+ExecStart=/usr/bin/cage -- /usr/bin/chromium-browser \
+  --kiosk \
+  --app=http://localhost:${PORT}/${APP_PAGE}?kiosk \
+  --user-data-dir=@APP_DIR@/profile \
+  --autoplay-policy=no-user-gesture-required \
+  --disable-features=Translate,MediaRouter \
+  --disable-pinch \
+  --overscroll-history-navigation=0 \
+  --noerrdialogs \
+  --disable-session-crashed-bubble \
+  --disable-infobars \
+  --check-for-update-interval=31536000
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

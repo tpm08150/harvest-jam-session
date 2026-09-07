@@ -61,6 +61,7 @@ shell/click.js
 shell/midi.js
 shell/surface.js
 shell/launchkey.js
+shell/kiosk.js
 shell/scenes.js
 shell/chords.js
 shell/kit.js

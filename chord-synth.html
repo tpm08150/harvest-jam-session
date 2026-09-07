@@ -863,7 +863,7 @@ input[type="text"]::placeholder{color:#5a646a}
     </div>
 
     <div class="row">
-      <div class="field">
+      <div data-hosted class="field">
         <label for="audioOut">Output</label>
         <select id="audioOut"><option value="">System default</option></select>
       </div>
@@ -1010,9 +1010,23 @@ const mutes = new Set();    // ids held silent
 const solos = new Set();    // ids held audible — while any exist, everything else is not
 const applied = new Map();  // id -> the gain last written to the node, to ramp from
 
+/* ⚠️ UP HERE, not beside the functions that use it. context() applies the remembered output
+   and is the first thing anything calls; a `let` read before its declaration is evaluated
+   throws rather than reading undefined, so a declaration next to setSink() — where it wants
+   to live — would break the first context built. Same trap as the paint registries. */
+const SINK_KEY = "patchwork-audio-out";
+let sinkId = "";
+try{ sinkId = localStorage.getItem(SINK_KEY) || ""; }catch(e){}
+
 function context(){
   if (!ctx){
     ctx = new (window.AudioContext || window.webkitAudioContext)();
+    /* The remembered output, applied as soon as there is something to apply it to. Fired and
+       forgotten: it is a preference, and a preference that cannot be honoured should not stop
+       the audio graph from being built. */
+    if (sinkId && typeof ctx.setSinkId === "function"){
+      try{ const p = ctx.setSinkId(sinkId); if (p && p.catch) p.catch(() => {}); }catch(e){}
+    }
     master = ctx.createGain();
     /* ⚠️ THE MASTER STARTS DOWN, and this was measured rather than guessed. Seven channels
        summing at unity peaks around +5 dBFS on the default pattern — 91 samples past full
@@ -1443,7 +1457,47 @@ function resume(){
   return ctx.state;
 }
 
+/* ---- which way out ----
+   ⚠️ THE STUDIO HAD NO OUTPUT PICKER AT ALL. CS·1 and PM·1 each grew one for their own
+   standalone page and the page that runs the whole rack never got one, which was survivable
+   on a laptop — you change it in the OS — and is not on a machine with no screen and no
+   mouse. On a Raspberry Pi the choice between the headphone jack and a USB interface has to
+   be reachable from the controller, so it has to be reachable from the shell first.
+
+   ⚠️ AND IT IS REMEMBERED, because the alternative on a box that boots into this is choosing
+   the output again every time the power blinks. Applied on the way up in setSink(), which is
+   why context() takes it rather than leaving it to whoever built the context. */
+/* Labels need microphone permission on some browsers, so a device with no label is still
+   offered — by its id, which is ugly and honest. An empty list means the browser will not
+   enumerate, not that there is one output. */
+async function outputs(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return [];
+  try{
+    const all = await navigator.mediaDevices.enumerateDevices();
+    /* ⚠️ AN OUTPUT WITH NO ID IS NOT A DEVICE YOU CAN PICK. Until a page has been granted
+       audio capture the browser hands back one anonymous entry with an empty deviceId and
+       no label — and an empty id is exactly what "system default" already means, so keeping
+       it would put the same device in the list twice and make the encoder look broken as it
+       stepped between two rows that did the same thing. A short list is the honest answer to
+       "you have not been given permission to see these yet". */
+    return all.filter(d => d.kind === "audiooutput" && d.deviceId && d.deviceId !== "default")
+              .map((d, i) => ({id: d.deviceId, label: d.label || ("Output " + (i + 1))}));
+  }catch(e){ return []; }
+}
+async function setSink(id){
+  context();
+  sinkId = id || "";
+  try{ localStorage.setItem(SINK_KEY, sinkId); }catch(e){}
+  /* ⚠️ Chrome 110+. Older engines route to the system default and there is nothing to be
+     done about it from here — so this reports rather than throws, and the caller decides
+     whether that is worth saying out loud. */
+  if (typeof ctx.setSinkId !== "function") return "unsupported";
+  try{ await ctx.setSinkId(sinkId); return "ok"; }
+  catch(e){ return (e && e.name) || "failed"; }
+}
+
 return {context, strip, resume, tap, tapOnly, untap, insert, monitor,
+        outputs, setSink, get sink(){ return sinkId; },
         channel, eq, compression, pan, send, masterFx,
         masterLevel, setMasterLevel,
         get masterDefault(){ return MASTER_DEFAULT; },
@@ -3970,6 +4024,108 @@ Patchwork.surface.register({
   sysex: true,
   detect, start, stop, message, paint
 });
+})();
+
+/* Kiosk — the page with nobody in front of it.
+
+   ⚠️ THIS EXISTS BECAUSE EVERY DEFAULT IN THE SHELL ASSUMES A PERSON. The surface waits to
+   be chosen from a list, SysEx waits for a deliberate click because it is a scarier-sounding
+   permission than it deserves, and the audio context waits for a gesture because browsers
+   make it. Every one of those is the right default on a laptop and wrong on a box that boots
+   into this with a Launchkey plugged in and no screen, no keyboard and no mouse.
+
+   So this is not a relaxation of those rules, it is a statement that the operator has already
+   answered them — by building the machine. It is off unless asked for:
+
+     ?kiosk        on the URL, which is what the Pi's systemd unit passes
+     localStorage patchwork-kiosk = "1"
+
+   ⚠️ AND IT GRANTS NOTHING BY ITSELF. SysEx and MIDI are still the browser's to give; all
+   this does is ASK without waiting to be told to. On the Pi the answer comes from a Chromium
+   policy file rather than from a dialogue nobody can click — see pi/README.md. On a laptop
+   with kiosk on you get the ordinary prompts, which is the honest behaviour and makes this
+   testable without a Pi. */
+Patchwork.kiosk = (() => {
+"use strict";
+
+const KEY = "patchwork-kiosk";
+function wanted(){
+  try{
+    if (/[?&]kiosk\b/.test(location.search)) return true;
+    return localStorage.getItem(KEY) === "1";
+  }catch(e){ return /[?&]kiosk\b/.test(location.search); }
+}
+const on = wanted();
+
+/* Remembered when it arrives on the URL, so a reload that loses the query string — a crash,
+   a Chromium restart, anything the operator did not type — comes back up in kiosk. */
+if (on){ try{ localStorage.setItem(KEY, "1"); }catch(e){} }
+
+const log = [];
+function note(what){
+  log.push({t: Date.now(), what});
+  if (log.length > 40) log.shift();
+}
+
+/* ---- audio ----
+   ⚠️ A GESTURE IS STILL REQUIRED and Chromium is still the one that decides. The flag the Pi
+   passes (--autoplay-policy=no-user-gesture-required) is what actually permits this; the
+   retry is for everything else, because a context built before the audio device is ready
+   comes up suspended and stays that way with nobody to click. */
+function wake(){
+  if (!Patchwork.audio) return "no bus";
+  const state = Patchwork.audio.resume();
+  note("audio " + state);
+  return state;
+}
+
+/* ---- the controller ----
+   ⚠️ ONLY WHEN THERE IS EXACTLY ONE, which is the whole safety of doing this unasked. The
+   surface's own restore() takes a REMEMBERED choice and there is nothing remembered on a
+   machine that has just been flashed — so this picks the one detected profile, and refuses
+   to guess between two. A rack with two known controllers on it is a decision, and a
+   decision belongs to a person even when the person is not in the room. */
+function claim(){
+  const S = Patchwork.surface;
+  if (!S || S.connected) return false;
+  const found = S.available;
+  if (found.length !== 1){
+    if (found.length) note("waiting: " + found.length + " surfaces detected");
+    return false;
+  }
+  S.connect(found[0].id);
+  note("surface " + found[0].id);
+  return true;
+}
+
+function start(){
+  if (!on) return;
+  /* SysEx is what lights the controller's screen, and asking for it is free where the answer
+     is already a policy. Ordinary MIDI comes with it. */
+  if (Patchwork.midi && !Patchwork.midi.sysex){
+    try{ Patchwork.midi.upgrade(); note("sysex requested"); }catch(e){ note("sysex refused"); }
+  }
+  wake();
+  claim();
+  /* ⚠️ A LOOP, NOT A ONE-SHOT. The controller may be plugged in after boot, the audio device
+     may take longer than the page, and a Pi cold-starts all three of these at once with no
+     agreed order. Cheap enough to run forever: two property reads and, at most, a connect. */
+  setInterval(() => {
+    if (!Patchwork.audio || !Patchwork.audio.ctx || Patchwork.audio.ctx.state !== "running") wake();
+    claim();
+  }, 2000);
+  /* And the moment a cable appears, rather than up to two seconds later. */
+  if (Patchwork.midi && Patchwork.midi.onChange) Patchwork.midi.onChange(claim);
+}
+
+if (on && document.readyState !== "loading") setTimeout(start, 0);
+else if (on) addEventListener("DOMContentLoaded", () => setTimeout(start, 0));
+
+return {get on(){ return on; }, get log(){ return log.slice(); },
+        wake, claim, start,
+        /* Turning it off has to be possible from a browser console on the Pi over SSH, which
+           is the only way in once there is no mouse. */
+        off(){ try{ localStorage.removeItem(KEY); }catch(e){} }};
 })();
 
 /* Scenes.

@@ -22,9 +22,23 @@ const mutes = new Set();    // ids held silent
 const solos = new Set();    // ids held audible — while any exist, everything else is not
 const applied = new Map();  // id -> the gain last written to the node, to ramp from
 
+/* ⚠️ UP HERE, not beside the functions that use it. context() applies the remembered output
+   and is the first thing anything calls; a `let` read before its declaration is evaluated
+   throws rather than reading undefined, so a declaration next to setSink() — where it wants
+   to live — would break the first context built. Same trap as the paint registries. */
+const SINK_KEY = "patchwork-audio-out";
+let sinkId = "";
+try{ sinkId = localStorage.getItem(SINK_KEY) || ""; }catch(e){}
+
 function context(){
   if (!ctx){
     ctx = new (window.AudioContext || window.webkitAudioContext)();
+    /* The remembered output, applied as soon as there is something to apply it to. Fired and
+       forgotten: it is a preference, and a preference that cannot be honoured should not stop
+       the audio graph from being built. */
+    if (sinkId && typeof ctx.setSinkId === "function"){
+      try{ const p = ctx.setSinkId(sinkId); if (p && p.catch) p.catch(() => {}); }catch(e){}
+    }
     master = ctx.createGain();
     /* ⚠️ THE MASTER STARTS DOWN, and this was measured rather than guessed. Seven channels
        summing at unity peaks around +5 dBFS on the default pattern — 91 samples past full
@@ -455,7 +469,47 @@ function resume(){
   return ctx.state;
 }
 
+/* ---- which way out ----
+   ⚠️ THE STUDIO HAD NO OUTPUT PICKER AT ALL. CS·1 and PM·1 each grew one for their own
+   standalone page and the page that runs the whole rack never got one, which was survivable
+   on a laptop — you change it in the OS — and is not on a machine with no screen and no
+   mouse. On a Raspberry Pi the choice between the headphone jack and a USB interface has to
+   be reachable from the controller, so it has to be reachable from the shell first.
+
+   ⚠️ AND IT IS REMEMBERED, because the alternative on a box that boots into this is choosing
+   the output again every time the power blinks. Applied on the way up in setSink(), which is
+   why context() takes it rather than leaving it to whoever built the context. */
+/* Labels need microphone permission on some browsers, so a device with no label is still
+   offered — by its id, which is ugly and honest. An empty list means the browser will not
+   enumerate, not that there is one output. */
+async function outputs(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return [];
+  try{
+    const all = await navigator.mediaDevices.enumerateDevices();
+    /* ⚠️ AN OUTPUT WITH NO ID IS NOT A DEVICE YOU CAN PICK. Until a page has been granted
+       audio capture the browser hands back one anonymous entry with an empty deviceId and
+       no label — and an empty id is exactly what "system default" already means, so keeping
+       it would put the same device in the list twice and make the encoder look broken as it
+       stepped between two rows that did the same thing. A short list is the honest answer to
+       "you have not been given permission to see these yet". */
+    return all.filter(d => d.kind === "audiooutput" && d.deviceId && d.deviceId !== "default")
+              .map((d, i) => ({id: d.deviceId, label: d.label || ("Output " + (i + 1))}));
+  }catch(e){ return []; }
+}
+async function setSink(id){
+  context();
+  sinkId = id || "";
+  try{ localStorage.setItem(SINK_KEY, sinkId); }catch(e){}
+  /* ⚠️ Chrome 110+. Older engines route to the system default and there is nothing to be
+     done about it from here — so this reports rather than throws, and the caller decides
+     whether that is worth saying out loud. */
+  if (typeof ctx.setSinkId !== "function") return "unsupported";
+  try{ await ctx.setSinkId(sinkId); return "ok"; }
+  catch(e){ return (e && e.name) || "failed"; }
+}
+
 return {context, strip, resume, tap, tapOnly, untap, insert, monitor,
+        outputs, setSink, get sink(){ return sinkId; },
         channel, eq, compression, pan, send, masterFx,
         masterLevel, setMasterLevel,
         get masterDefault(){ return MASTER_DEFAULT; },

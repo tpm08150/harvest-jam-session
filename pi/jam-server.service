@@ -1,0 +1,19 @@
+[Unit]
+Description=Jam Session — page server
+Documentation=https://github.com/tpm08150/harvest-jam-session
+After=network.target
+
+[Service]
+# ⚠️ SERVED OVER HTTP RATHER THAN OPENED AS A FILE, and that is not fussiness: Web MIDI
+# needs a secure context, file:// is not one, and http://localhost is. The whole app is
+# static — this exists only to make localhost true.
+Type=simple
+User=@RUN_USER@
+WorkingDirectory=@APP_DIR@
+EnvironmentFile=/etc/jam-session.conf
+ExecStart=/usr/bin/python3 @APP_DIR@/serve.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -646,6 +646,57 @@ paint();
    A second copy of the routing here would be a second thing to disagree with the first, and
    the panels' own selects — which standalone builds still need — would be the ones to go
    stale. */
+/* ---- the rack's output ----
+   ⚠️ THE STUDIO HAD NO OUTPUT CONTROL AND THE SYNTHS EACH HAD ONE. Six copies of a question
+   whose answer is the page's, which is the same mistake the MIDI panel below was written to
+   undo — so this is the same fix, and the panels' own selects step aside with `data-hosted`
+   the way LP·1's metronome already does. Standalone pages keep theirs: there is no page
+   there to own it.
+
+   Enumeration needs a moment and needs permission on some browsers, so the list fills in
+   asynchronously and Rescan is there for a device plugged in after the fact. */
+(() => {
+"use strict";
+const box = document.querySelector("#stAudio");
+const A = window.Patchwork && Patchwork.audio;
+if (!box || !A) return;
+const sel = box.querySelector("#stAudioOut"), note = box.querySelector("#stAudioNote"),
+      scan = box.querySelector("#stAudioScan");
+
+function say(msg, bad){
+  note.innerHTML = msg || "";
+  note.classList.toggle("bad", !!bad);
+}
+async function fill(){
+  const list = await A.outputs();
+  const keep = A.sink;
+  sel.textContent = "";
+  sel.appendChild(Object.assign(document.createElement("option"),
+    {value: "", textContent: "System default"}));
+  list.forEach(d => sel.appendChild(Object.assign(document.createElement("option"),
+    {value: d.id, textContent: d.label})));
+  /* ⚠️ Restored from the BUS rather than from the select, which is the same trap LP·1's
+     input list documents: a rebuild would otherwise drop the choice back to the first row. */
+  if ([].some.call(sel.options, o => o.value === keep)) sel.value = keep;
+  if (!list.length)
+    say("Only the system default is available. A browser lists the individual outputs by "
+      + "name once it has audio permission — on the Pi that is granted by policy, and here "
+      + "it follows the first time you let this page use a microphone.");
+  else say(list.length + " output" + (list.length === 1 ? "" : "s") + " available.");
+}
+sel.addEventListener("change", async () => {
+  const r = await A.setSink(sel.value);
+  const what = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : "default";
+  if (r === "ok") say("Output \u2192 <b>" + what + "</b>.");
+  else if (r === "unsupported")
+    say("This browser cannot route audio per device \u2014 "
+      + "<code>AudioContext.setSinkId</code> needs Chrome 110+.", true);
+  else say("Couldn't switch output (" + r + ").", true);
+});
+scan.addEventListener("click", fill);
+fill();
+})();
+
 (() => {
 "use strict";
 const box = document.querySelector("#stMidi");
