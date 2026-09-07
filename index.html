@@ -1481,8 +1481,16 @@ input[type="text"]::placeholder{color:#5a646a}
 .take.on-rec::after{background:var(--lp-rec)}
 .take.on-arm{border-color:var(--cap-yellow);box-shadow:0 0 0 1px var(--cap-yellow) inset;
   color:var(--cap-yellow);animation:lp-pulse .5s steps(2,end) infinite}
+/* ⚠️ THE LOOPER'S OWN GREEN, not the armed yellow above. Arming is "this take is about to be
+   RECORDED"; queued is "this take is about to PLAY", and the two wait the same way and mean
+   opposite things. Same pulse, so the wait reads identically; different colour, so what is
+   coming does not. The pads say it in exactly these two — see cells() in ui.js. */
+.take.on-queued{border-color:var(--lp-accent);box-shadow:0 0 0 1px var(--lp-accent) inset;
+  color:var(--lp-accent-hi);animation:lp-pulse .5s steps(2,end) infinite}
 @keyframes lp-pulse{50%{opacity:.4}}
-@media (prefers-reduced-motion:reduce){ .take.on-arm{animation:none;opacity:.75} }
+@media (prefers-reduced-motion:reduce){
+  .take.on-arm,.take.on-queued{animation:none;opacity:.75}
+}
 
 .loopmeta{display:flex;align-items:center;gap:12px;margin-top:7px;
   font-family:"DM Mono";font-size:10px;letter-spacing:.06em;color:var(--silk-dim)}
@@ -9350,20 +9358,18 @@ const FEAT_THROUGH = [B_ENC_UP, B_ENC_DN, B_ARROW_UP, B_ARROW_DN,
    So for the most part what Shift produces are simply OTHER BUTTONS, listed above and bound
    like any other, and the one modifier this profile holds is Func.
 
-   ⚠️ TWO THINGS DO READ IT AS STATE, and this note used to say nothing did. layerHeld() takes
-   it as a second way into the alt layer, and Shift+Func hops a linked pair — see jump(). Both
-   are safe for the same reason: they are built on Shift's own report, which always arrives,
-   rather than on some other button changing its number underneath it.
+   ⚠️ ONE THING READS IT AS STATE, and this note used to say nothing did: layerHeld() takes it
+   as a second way into the alt layer. That is safe because it is built on Shift's own report,
+   which always arrives, rather than on some other button changing number underneath it.
 
-   ⚠️ AND THE HOP IS DELIBERATELY ORDER-FREE, which is not politeness — it is insurance. The
-   pair fires on whichever of the two arrives SECOND, so it needs only one of the two presses
-   to reach us. If this device turns out to swallow or renumber Func while Shift is held, the
-   way it already swallows Shift+pad, then holding Func and tapping Shift still works, because
-   Shift's own report is the one thing that always comes through. Neither order was assumed;
-   both are wired.
+   ⚠️ NOTHING ELSE IS, AND THE HOP TRIED TO BE. Shift+Func was the gesture for hopping a linked
+   pair and it read as unreliable on the hardware — which is exactly what the paragraph above
+   predicts: this device does its own combining, and a host that builds a two-key gesture on
+   Shift is competing with the device for the same press. Func + ">" instead, which is two keys
+   this profile owns outright, sitting next to each other under one thumb. See jump().
 
-   If it ever seems dead one way round, `Patchwork.surface.traffic` with the thing plugged in
-   is the answer, and it is the answer to every question in this file. */
+   If a gesture ever seems dead, `Patchwork.surface.traffic` with the thing plugged in is the
+   answer, and it is the answer to every question in this file. */
 
 /* Colouring. "Channel 1: stationary, Channel 2: flashing, Channel 3: pulsing" for
    everything except the drum rack, which uses channels 10, 11 and 12. A pad LED is a note
@@ -9814,13 +9820,7 @@ function message(io, d, rig){
 
   /* Both are state, so both need the release as well as the press. Shift arrives twice —
      here and on the feature channel above — and either road sets the same flag. */
-  /* Either order: hold one, press the other. The blanket rule at the top of message() has
-     already marked Func as used by the time this runs, so its release stays quiet. */
-  if (cc === B_SHIFT){
-    io.state.shift = v > 0;
-    if (v > 0 && io.state.fn) jump(io, rig);
-    return;
-  }
+  if (cc === B_SHIFT){ io.state.shift = v > 0; return; }
   /* ⚠️ FUNC ACTS ON THE RELEASE, for the reason ">" does below: until then nobody knows it
      was a press at all. Held with anything else it is the modifier it has always been; let go
      having modified nothing and it turns the panel you are pointed at to its other face. A
@@ -9828,11 +9828,11 @@ function message(io, d, rig){
   if (cc === B_FUNC){
     if (v > 0){
       io.state.fn = true;
-      /* ⚠️ SPENT ON THE PRESS when Shift is already down, or the release would ALSO turn the
+      /* ⚠️ SPENT ON THE PRESS when ">" is already down, or the release would ALSO turn the
          panel to its other face — the Func message is the one thing the blanket rule at the
          top of message() cannot mark, because that rule is what stops Func marking itself. */
-      io.state.fnUsed = !!io.state.shift;
-      if (io.state.shift) jump(io, rig);
+      io.state.fnUsed = !!io.state.act;
+      if (io.state.act){ io.state.actUsed = true; jump(io, rig); }
       return;
     }
     io.state.fn = false;
@@ -9844,7 +9844,16 @@ function message(io, d, rig){
      the button it has always been. Acting on the press would fire the action every time you
      reached for the layer. */
   if (cc === B_SCENE){
-    if (v > 0){ io.state.act = true; io.state.actUsed = false; return; }
+    if (v > 0){
+      io.state.act = true;
+      /* ⚠️ Func + ">" hops a linked pair, and it is spent HERE so the release does not also
+         fire whatever ">" means on this panel — return-to-zero on the mixer, Loop play/stop
+         on LP·1. Either order: whichever of the two arrives second is the one that fires,
+         which is what makes the gesture need only one of the two presses to reach us. */
+      io.state.actUsed = !!io.state.fn;
+      if (io.state.fn) jump(io, rig);
+      return;
+    }
     io.state.act = false;
     if (!io.state.actUsed) said(io, rig.act());
     return;
@@ -24122,6 +24131,12 @@ const LP = {
   after: "once",            // once | dub
   pos: 0, len: 0, peak: 0,
   slot: 0, filled: [],      // one take per scene row — see the live page
+  /* ⚠️ THE SLOT WAITING FOR THE LOOP LINE, or -1. queueSlot() deliberately does not move
+     LP.slot — see the note there — so between the press and the seam there was NOTHING
+     anywhere that said a take had been asked for. On screen you could at least see the
+     playhead and count; on sixteen pads you pressed one and nothing whatever happened for
+     up to eight beats, which is indistinguishable from a pad that does not work. */
+  queued: -1,
 
   bpmAtRecord: null,        // the tempo the loop was cut at — see the note in the panel
   /* The audio time the armed take starts on, so the panel can count it in. "Armed" with
@@ -24241,6 +24256,9 @@ function onWorklet(m){
     releaseLength();
   }
   if (m.slot != null) LP.slot = m.slot;
+  /* It landed: the wait is over and the pad stops flashing. Cleared on arrival rather than
+     on every `looped`, because a queued slot survives the loop lines it is waiting through. */
+  if (LP.queued >= 0 && LP.slot === LP.queued) LP.queued = -1;
   if (m.ev === "pos"){ LP.pos = m.pos; LP.len = m.len; LP.peak = m.peak; return; }
   if (m.ev === "slots"){ paintState(); return; }
   if (m.ev === "started" || m.ev === "looped"){ setMode(m.mode); }
@@ -24372,6 +24390,7 @@ async function arm(mode, slot){
 function stopLoop(){
   if (!node) return;
   node.port.postMessage({op: "now", mode: "idle"});
+  LP.queued = -1;                 // stopping cancels the take that was waiting
   setMode("idle");
   /* cancelling an arm before it recorded committed no length, and no worklet message is
      coming to say so — this transition is entirely ours */
@@ -24428,7 +24447,13 @@ function queueSlot(i){
   /* LP.slot is deliberately NOT moved here. It follows the worklet's `started` message at
      the seam, so between the press and the loop line the strip and the launcher keep
      ringing the take you can actually still hear. An optimistic update would light the new
-     row while the old one is sounding, which is the one thing the ring is for. */
+     row while the old one is sounding, which is the one thing the ring is for.
+
+     ⚠️ Which is why `queued` is a SECOND field rather than a nudge to that one: the answer to
+     "what is playing" must not change, and the answer to "what did I just ask for" has to be
+     available immediately. Two questions, two fields. */
+  LP.queued = i | 0;
+  paintState();
 }
 
 /* Fire a row on LP·1's OWN panel: immediate, the way an instrument's own Play button is.
@@ -24448,6 +24473,8 @@ function fireSlot(i){
   else stopLoop();
 }
 function selectSlot(i){
+  /* Choosing one outright answers the question a queued one was waiting to answer. */
+  LP.queued = -1;
   LP.slot = i | 0;
   if (node) node.port.postMessage({op: "slot", i: LP.slot});
   paintState();                  // the take strip has to follow, however it was moved
@@ -24460,6 +24487,7 @@ function hasTake(){ return hasSlot(LP.slot); }
 function clearLoop(){
   if (!node) return;
   node.port.postMessage({op: "clear"});
+  LP.queued = -1;
   setMode("idle");
 }
 /* Empty one row's take. The LENGTH survives — bpmAtRecord stays — because the other rows
@@ -24538,6 +24566,8 @@ function paintTakes(){
     b.classList.toggle("on-dub",  sel && m === "dub");
     b.classList.toggle("on-rec",  sel && m === "rec");
     b.classList.toggle("on-arm",  sel && m === "armed");
+    /* the same wait the pads flash, on the screen, so the two views cannot disagree */
+    b.classList.toggle("on-queued", i === LP.queued);
     b.title = "Take " + (i + 1) + " — scene row " + (i + 1)
             + (hasSlot(i) ? ", recorded" : ", empty");
   });
@@ -24922,9 +24952,15 @@ const surfaceGrid = {
     const live = (LP.mode === "idle" || LP.mode === "armed") ? -1 : LP.slot;
     for (let i = 0; i < 16; i++){
       const has = hasSlot(i);
-      if (!has && live !== i) continue;          /* an empty slot is a dark pad, not a dim one */
-      out[slotCell(i)] = live === i ? {colour: "green", on: true}
-                                    : {colour: "cyan", on: false};
+      if (!has && live !== i && LP.queued !== i) continue;   /* empty is dark, not dim */
+      /* ⚠️ FLASHING GREEN IS "COMING", SOLID GREEN IS "PLAYING", and the pad has to say both
+         or the gesture looks broken. A take fires at the next loop line, which at four bars
+         is up to eight beats away — press a pad, get nothing at all for that long, and the
+         only reading available is that the pad does not work. Same colour, because it is the
+         same take; the flashing is the wait, and it stops the instant it lands. */
+      out[slotCell(i)] = LP.queued === i ? {colour: "green", on: true, hot: true}
+                       : live === i      ? {colour: "green", on: true}
+                                         : {colour: "cyan", on: false};
     }
     /* Recording is the one state you must be able to see from across a room. */
     if (LP.mode === "rec" || LP.mode === "dub"){

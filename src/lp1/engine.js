@@ -27,6 +27,12 @@ const LP = {
   after: "once",            // once | dub
   pos: 0, len: 0, peak: 0,
   slot: 0, filled: [],      // one take per scene row — see the live page
+  /* ⚠️ THE SLOT WAITING FOR THE LOOP LINE, or -1. queueSlot() deliberately does not move
+     LP.slot — see the note there — so between the press and the seam there was NOTHING
+     anywhere that said a take had been asked for. On screen you could at least see the
+     playhead and count; on sixteen pads you pressed one and nothing whatever happened for
+     up to eight beats, which is indistinguishable from a pad that does not work. */
+  queued: -1,
 
   bpmAtRecord: null,        // the tempo the loop was cut at — see the note in the panel
   /* The audio time the armed take starts on, so the panel can count it in. "Armed" with
@@ -146,6 +152,9 @@ function onWorklet(m){
     releaseLength();
   }
   if (m.slot != null) LP.slot = m.slot;
+  /* It landed: the wait is over and the pad stops flashing. Cleared on arrival rather than
+     on every `looped`, because a queued slot survives the loop lines it is waiting through. */
+  if (LP.queued >= 0 && LP.slot === LP.queued) LP.queued = -1;
   if (m.ev === "pos"){ LP.pos = m.pos; LP.len = m.len; LP.peak = m.peak; return; }
   if (m.ev === "slots"){ paintState(); return; }
   if (m.ev === "started" || m.ev === "looped"){ setMode(m.mode); }
@@ -277,6 +286,7 @@ async function arm(mode, slot){
 function stopLoop(){
   if (!node) return;
   node.port.postMessage({op: "now", mode: "idle"});
+  LP.queued = -1;                 // stopping cancels the take that was waiting
   setMode("idle");
   /* cancelling an arm before it recorded committed no length, and no worklet message is
      coming to say so — this transition is entirely ours */
@@ -333,7 +343,13 @@ function queueSlot(i){
   /* LP.slot is deliberately NOT moved here. It follows the worklet's `started` message at
      the seam, so between the press and the loop line the strip and the launcher keep
      ringing the take you can actually still hear. An optimistic update would light the new
-     row while the old one is sounding, which is the one thing the ring is for. */
+     row while the old one is sounding, which is the one thing the ring is for.
+
+     ⚠️ Which is why `queued` is a SECOND field rather than a nudge to that one: the answer to
+     "what is playing" must not change, and the answer to "what did I just ask for" has to be
+     available immediately. Two questions, two fields. */
+  LP.queued = i | 0;
+  paintState();
 }
 
 /* Fire a row on LP·1's OWN panel: immediate, the way an instrument's own Play button is.
@@ -353,6 +369,8 @@ function fireSlot(i){
   else stopLoop();
 }
 function selectSlot(i){
+  /* Choosing one outright answers the question a queued one was waiting to answer. */
+  LP.queued = -1;
   LP.slot = i | 0;
   if (node) node.port.postMessage({op: "slot", i: LP.slot});
   paintState();                  // the take strip has to follow, however it was moved
@@ -365,6 +383,7 @@ function hasTake(){ return hasSlot(LP.slot); }
 function clearLoop(){
   if (!node) return;
   node.port.postMessage({op: "clear"});
+  LP.queued = -1;
   setMode("idle");
 }
 /* Empty one row's take. The LENGTH survives — bpmAtRecord stays — because the other rows

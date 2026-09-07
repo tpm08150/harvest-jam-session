@@ -336,7 +336,7 @@ transport and LEDs run over the DAW port, which the surface takes for itself.
 | **Pads, Drum layout** | DR·1's kit, wherever the focus is, one lane per pad in the order the panel lists them |
 | **Encoders** | the focused panel's eight main controls, named on the screen as you turn them |
 | **An encoder over a list** | one detent, one position — see below |
-| **Shift + Func** | hop between a linked pair — LP·1 and whatever it is recording |
+| **Func + `>`** | hop between a linked pair — LP·1 and whatever it is recording |
 | **∧ ∨ right of the encoders** | which eight — the drum lane on DR·1, a parameter bank on PM·1 |
 | **Hold a pad + ∧ ∨ right of the encoders** | that note's length, a step at a time |
 | **Func, tapped** | a panel's other face where it has one — on CS·1, the bass voice and its pattern |
@@ -628,6 +628,14 @@ What the sixteen pads mean follows the panel you clicked:
   take plays it, an empty one records into it, and a recording slot is red so you can see it
   from across the room. `>` is the loop's Play/Stop.
 
+  ⚠️ **A queued take flashes green and goes solid when it lands.** A take fires at the next
+  loop line, which at four bars is up to eight beats away — press a pad, get nothing at all for
+  that long, and the only reading available is that the pad does not work. Same colour, because
+  it is the same take: the flashing *is* the wait. The take strip on screen pulses the same way
+  in the same teal, and deliberately not in the yellow an *arming* take pulses — arming is
+  "about to be recorded", queued is "about to play", and the two wait alike and mean opposite
+  things.
+
   **Func + a pad empties that slot**, and there is no undo — a take is audio and clearing one
   frees the buffer, which is exactly why the only destructive gesture on these pads is the one
   that needs a second hand. An empty slot is left alone rather than armed: a modifier that fell
@@ -650,7 +658,7 @@ What the sixteen pads mean follows the panel you clicked:
   "Studio output" is not a knob but a penance. Choosing between microphones is a setup decision
   and belongs on the page, where you can read them.
 
-  ⚠️ **Pick an instrument and Shift + Func hops between the two panels**, from either end —
+  ⚠️ **Pick an instrument and Func + `>` hops between the two panels**, from either end —
   LP·1 knows what it is recording, but the panel you jumped *to* has no idea it is half of
   anything, so the link is declared once by the end that knows and read in both directions.
   Either order: hold one, press the other. Landing on DR·1 brings up the hardware's **Drum**
@@ -658,11 +666,17 @@ What the sixteen pads mean follows the panel you clicked:
   the DAW layout. With the input set to the studio bus or a microphone there is nowhere to hop
   to, and the gesture does nothing.
 
-  ⚠️ This was the pair beside the encoders and the arrows were wrong for it. They answered
-  *last*, after banks and after the panel's own bump — which kept DR·1's lanes and PM·1's pages
-  intact, and made the hop something you reached by paging to the end of a list first. A toggle
-  you have to walk to is not a toggle. Two modifiers held together are free on every panel:
-  neither does anything on its own press, and nothing else in the profile wants the pair.
+  ⚠️ This was the pair beside the encoders first, and then Shift + Func, and both were wrong.
+  The arrows answered *last*, after banks and after the panel's own bump — which kept DR·1's
+  lanes and PM·1's pages intact, and made the hop something you reached by paging to the end of
+  a list first; a toggle you have to walk to is not a toggle. Shift read as unreliable on the
+  hardware, which is what the profile's own note about Shift predicts: this device does its own
+  combining, and a host building a two-key gesture on Shift is competing with it for the same
+  press. Func and `>` are two keys this profile owns outright, side by side under one thumb.
+
+  Neither loses what it does alone: `>` still fires the panel's action on its release, Func
+  still turns CS·1 to its other face, and the combination does neither — whichever of the two
+  arrives second is the one that fires, and it spends the other's tap on the way past.
 
   ⚠️ LP·1 takes no notes, so it never registered with the MIDI router — which was the only
   door the surface knew, so focusing it left the encoders blank. Claiming a MIDI channel just

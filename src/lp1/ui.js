@@ -48,6 +48,8 @@ function paintTakes(){
     b.classList.toggle("on-dub",  sel && m === "dub");
     b.classList.toggle("on-rec",  sel && m === "rec");
     b.classList.toggle("on-arm",  sel && m === "armed");
+    /* the same wait the pads flash, on the screen, so the two views cannot disagree */
+    b.classList.toggle("on-queued", i === LP.queued);
     b.title = "Take " + (i + 1) + " — scene row " + (i + 1)
             + (hasSlot(i) ? ", recorded" : ", empty");
   });
@@ -432,9 +434,15 @@ const surfaceGrid = {
     const live = (LP.mode === "idle" || LP.mode === "armed") ? -1 : LP.slot;
     for (let i = 0; i < 16; i++){
       const has = hasSlot(i);
-      if (!has && live !== i) continue;          /* an empty slot is a dark pad, not a dim one */
-      out[slotCell(i)] = live === i ? {colour: "green", on: true}
-                                    : {colour: "cyan", on: false};
+      if (!has && live !== i && LP.queued !== i) continue;   /* empty is dark, not dim */
+      /* ⚠️ FLASHING GREEN IS "COMING", SOLID GREEN IS "PLAYING", and the pad has to say both
+         or the gesture looks broken. A take fires at the next loop line, which at four bars
+         is up to eight beats away — press a pad, get nothing at all for that long, and the
+         only reading available is that the pad does not work. Same colour, because it is the
+         same take; the flashing is the wait, and it stops the instant it lands. */
+      out[slotCell(i)] = LP.queued === i ? {colour: "green", on: true, hot: true}
+                       : live === i      ? {colour: "green", on: true}
+                                         : {colour: "cyan", on: false};
     }
     /* Recording is the one state you must be able to see from across a room. */
     if (LP.mode === "rec" || LP.mode === "dub"){

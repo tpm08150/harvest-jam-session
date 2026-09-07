@@ -2884,20 +2884,18 @@ const FEAT_THROUGH = [B_ENC_UP, B_ENC_DN, B_ARROW_UP, B_ARROW_DN,
    So for the most part what Shift produces are simply OTHER BUTTONS, listed above and bound
    like any other, and the one modifier this profile holds is Func.
 
-   ⚠️ TWO THINGS DO READ IT AS STATE, and this note used to say nothing did. layerHeld() takes
-   it as a second way into the alt layer, and Shift+Func hops a linked pair — see jump(). Both
-   are safe for the same reason: they are built on Shift's own report, which always arrives,
-   rather than on some other button changing its number underneath it.
+   ⚠️ ONE THING READS IT AS STATE, and this note used to say nothing did: layerHeld() takes it
+   as a second way into the alt layer. That is safe because it is built on Shift's own report,
+   which always arrives, rather than on some other button changing number underneath it.
 
-   ⚠️ AND THE HOP IS DELIBERATELY ORDER-FREE, which is not politeness — it is insurance. The
-   pair fires on whichever of the two arrives SECOND, so it needs only one of the two presses
-   to reach us. If this device turns out to swallow or renumber Func while Shift is held, the
-   way it already swallows Shift+pad, then holding Func and tapping Shift still works, because
-   Shift's own report is the one thing that always comes through. Neither order was assumed;
-   both are wired.
+   ⚠️ NOTHING ELSE IS, AND THE HOP TRIED TO BE. Shift+Func was the gesture for hopping a linked
+   pair and it read as unreliable on the hardware — which is exactly what the paragraph above
+   predicts: this device does its own combining, and a host that builds a two-key gesture on
+   Shift is competing with the device for the same press. Func + ">" instead, which is two keys
+   this profile owns outright, sitting next to each other under one thumb. See jump().
 
-   If it ever seems dead one way round, `Patchwork.surface.traffic` with the thing plugged in
-   is the answer, and it is the answer to every question in this file. */
+   If a gesture ever seems dead, `Patchwork.surface.traffic` with the thing plugged in is the
+   answer, and it is the answer to every question in this file. */
 
 /* Colouring. "Channel 1: stationary, Channel 2: flashing, Channel 3: pulsing" for
    everything except the drum rack, which uses channels 10, 11 and 12. A pad LED is a note
@@ -3348,13 +3346,7 @@ function message(io, d, rig){
 
   /* Both are state, so both need the release as well as the press. Shift arrives twice —
      here and on the feature channel above — and either road sets the same flag. */
-  /* Either order: hold one, press the other. The blanket rule at the top of message() has
-     already marked Func as used by the time this runs, so its release stays quiet. */
-  if (cc === B_SHIFT){
-    io.state.shift = v > 0;
-    if (v > 0 && io.state.fn) jump(io, rig);
-    return;
-  }
+  if (cc === B_SHIFT){ io.state.shift = v > 0; return; }
   /* ⚠️ FUNC ACTS ON THE RELEASE, for the reason ">" does below: until then nobody knows it
      was a press at all. Held with anything else it is the modifier it has always been; let go
      having modified nothing and it turns the panel you are pointed at to its other face. A
@@ -3362,11 +3354,11 @@ function message(io, d, rig){
   if (cc === B_FUNC){
     if (v > 0){
       io.state.fn = true;
-      /* ⚠️ SPENT ON THE PRESS when Shift is already down, or the release would ALSO turn the
+      /* ⚠️ SPENT ON THE PRESS when ">" is already down, or the release would ALSO turn the
          panel to its other face — the Func message is the one thing the blanket rule at the
          top of message() cannot mark, because that rule is what stops Func marking itself. */
-      io.state.fnUsed = !!io.state.shift;
-      if (io.state.shift) jump(io, rig);
+      io.state.fnUsed = !!io.state.act;
+      if (io.state.act){ io.state.actUsed = true; jump(io, rig); }
       return;
     }
     io.state.fn = false;
@@ -3378,7 +3370,16 @@ function message(io, d, rig){
      the button it has always been. Acting on the press would fire the action every time you
      reached for the layer. */
   if (cc === B_SCENE){
-    if (v > 0){ io.state.act = true; io.state.actUsed = false; return; }
+    if (v > 0){
+      io.state.act = true;
+      /* ⚠️ Func + ">" hops a linked pair, and it is spent HERE so the release does not also
+         fire whatever ">" means on this panel — return-to-zero on the mixer, Loop play/stop
+         on LP·1. Either order: whichever of the two arrives second is the one that fires,
+         which is what makes the gesture need only one of the two presses to reach us. */
+      io.state.actUsed = !!io.state.fn;
+      if (io.state.fn) jump(io, rig);
+      return;
+    }
     io.state.act = false;
     if (!io.state.actUsed) said(io, rig.act());
     return;

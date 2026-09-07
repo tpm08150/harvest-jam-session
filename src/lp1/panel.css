@@ -86,8 +86,16 @@
 .take.on-rec::after{background:var(--lp-rec)}
 .take.on-arm{border-color:var(--cap-yellow);box-shadow:0 0 0 1px var(--cap-yellow) inset;
   color:var(--cap-yellow);animation:lp-pulse .5s steps(2,end) infinite}
+/* ⚠️ THE LOOPER'S OWN GREEN, not the armed yellow above. Arming is "this take is about to be
+   RECORDED"; queued is "this take is about to PLAY", and the two wait the same way and mean
+   opposite things. Same pulse, so the wait reads identically; different colour, so what is
+   coming does not. The pads say it in exactly these two — see cells() in ui.js. */
+.take.on-queued{border-color:var(--lp-accent);box-shadow:0 0 0 1px var(--lp-accent) inset;
+  color:var(--lp-accent-hi);animation:lp-pulse .5s steps(2,end) infinite}
 @keyframes lp-pulse{50%{opacity:.4}}
-@media (prefers-reduced-motion:reduce){ .take.on-arm{animation:none;opacity:.75} }
+@media (prefers-reduced-motion:reduce){
+  .take.on-arm,.take.on-queued{animation:none;opacity:.75}
+}
 
 .loopmeta{display:flex;align-items:center;gap:12px;margin-top:7px;
   font-family:"DM Mono";font-size:10px;letter-spacing:.06em;color:var(--silk-dim)}
