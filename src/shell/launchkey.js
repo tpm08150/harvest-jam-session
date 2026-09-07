@@ -694,6 +694,10 @@ function message(io, d, rig){
       else rig.step(dir);
       return;
     }
+    /* A cursor first, then pages, then the tape — see the fallthrough note above. A grid
+       that has a cursor is one that fits on the pads and has nowhere to page. */
+    const moved = rig.gridMove(dir);
+    if (moved){ if (typeof moved === "string") flash(io, "Scene", moved); return; }
     if (rig.gridPageBy(dir)) return;
     if (rig.scrub(dir, true, "fast")) io.state.scrub = dir;
     return;
@@ -754,7 +758,12 @@ function paintPads(io, rig){
     for (let i = 0; i < 16; i++) cells[i] = rig.drumCell(i);
   } else {
     const g = rig.grid();
-    try{ cells = g ? (g.cells() || []) : []; }catch(e){ cells = []; }
+    /* ⚠️ THE GRID IS TOLD WHAT IS HELD, because a modifier that changes what a pad DOES has
+       to change what it SHOWS. Func on the launcher turns the pads into mute and solo, and a
+       mute grid you cannot see the state of is a row of identical buttons. Every other grid
+       ignores the argument, which is why this is a parameter rather than a second method. */
+    const mods = {accent: !!io.state.fn, act: !!io.state.act, shift: !!io.state.shift};
+    try{ cells = g ? (g.cells(mods) || []) : []; }catch(e){ cells = []; }
   }
 
   for (let i = 0; i < 16; i++){

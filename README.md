@@ -270,6 +270,29 @@ See `pi/README.md`, and read `pi/setup.sh` before you run it: none of the Pi hal
 run on real hardware, and the multi-channel routing has never met an interface with more than
 two outputs.
 
+## The launcher on the pads
+
+Sixteen rows, sixteen pads, read from the top like the list on screen. **A filled pad plays,
+an empty one records** — the same thing the row's own button does, ▶ where there is something
+and ● where there is not, so there is one gesture rather than two. ⚠️ As on screen, ● only
+captures what is **armed**: arming is how you say which instruments a row should take.
+
+⚠️ **A cursor is not a page.** All sixteen rows are visible at once, so there is nowhere to
+page to — and still somewhere to point. The pair beside the pads walks the cursor and `>`
+fires the row it is on, which is the whole gesture on a controller you are not looking at.
+Stop is the transport's own square button and always was; spending `>` on a second way to do
+that left the one thing this page exists for with no button at all.
+
+**Func turns the pads into mute and solo** — the same grid the mixer page draws, borrowed
+rather than rebuilt, so the two cannot disagree about what is muted. ⚠️ The grid is told what
+is held, because a modifier that changes what a pad *does* has to change what it *shows*: a
+mute grid you cannot see the state of is a row of identical buttons.
+
+Two encoder banks: **Levels** first, because the reason you are on this page with your hands
+on a controller is usually that something is too loud — then click, tempo, bars and *lands
+on*. Tempo keeps the pair beside the encoders as well as having a knob, because a nudge of
+exactly one is what that pair is for.
+
 ## MIDI out
 
 ⚠️ **One cable out for the rack, one channel per instrument** — the same shape the input
@@ -436,6 +459,7 @@ learn and no button spent on it.
 
 | | |
 | --- | --- |
+| **Shift + Sends** | Live — the launcher on the pads, ∧∨ walk the rows, `>` fires the one you are on |
 | **Shift + Custom 1** | Settings — a Global bank, then one bank per instrument, and the pads are the banks |
 | **Shift + Plug-in** | Studio, and the encoders follow the focused panel |
 | **Shift + Mixer** | Tape, and the encoders become MX·8 |

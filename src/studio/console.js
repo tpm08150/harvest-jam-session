@@ -383,7 +383,15 @@ function buildMasterFader(){
 }
 
 let built = false, poll = 0;
+/* ⚠️ LENT TO THE LAUNCHER, not copied there. The Scenes page wants quick level control and
+   mute/solo on its own pads, and a second implementation of either would be a second set of
+   nodes to keep in step with these faders — which is the bug the mixer's own `down` already
+   avoids by clicking the panel's buttons rather than calling the bus. One definition, two
+   pages pointing at it. */
 Patchwork.consoleUI = {
+  levelControls(){ const was = surfBank; surfBank = 0;
+                   const out = surfControls(); surfBank = was; return out; },
+  get padGrid(){ return surfGrid; },
   show(){
     if (!built){ buildStrips(); buildMaster(); buildMasterFader(); buildMeters(); built = true; }
     else {

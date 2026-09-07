@@ -420,6 +420,16 @@ const rig = {
     if (!g || typeof g.pages !== "function") return 1;
     try{ return Math.max(1, g.pages() | 0); }catch(e){ return 1; }
   },
+  /* ⚠️ A CURSOR IS NOT A PAGE, although the arrows drive both. A grid that fits on the pads
+     has nowhere to page to and may still have somewhere to POINT — the launcher's sixteen
+     rows are all visible at once, and walking them with the pair beside the pads is the
+     whole gesture on a controller you are not looking at. Asked before paging, because a
+     grid that wants a cursor said so and a grid that does not has none to move. */
+  gridMove(dir){
+    const g = rig.grid();
+    if (!g || typeof g.move !== "function") return null;
+    try{ return g.move(dir) || true; }catch(e){ return null; }
+  },
   gridPage(){
     const g = rig.grid();
     if (!g || typeof g.page !== "function") return 0;

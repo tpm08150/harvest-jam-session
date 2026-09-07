@@ -451,26 +451,120 @@ Patchwork.click.onChange(paint);
    to differ — and the controls are this head's own, because they are the ones you would reach
    past the launcher for. */
 if (window.Patchwork && Patchwork.surface){
+  /* ---- the launcher, on sixteen pads ----
+     ⚠️ SIXTEEN ROWS AND SIXTEEN PADS, so the grid is the launcher rather than a view of it.
+     Read from the top like the scene list on screen and unlike CS·1's chord bank: an
+     arrangement goes DOWN the page, so row 1 is the top-left pad. Cell 0 is bottom-left —
+     that is the surface's contract — so the arithmetic lives here. */
+  const cellRow = c => (c < 8 ? c + 8 : c - 8);
+  const S = Patchwork.scenes;
+  const filled = ri => S.instruments.some(i => S.has(ri, i.id));
+
+  /* Which row the arrows are pointed at. ⚠️ NOT which row is playing: those are different
+     questions and the launcher has always answered the second one on screen. The cursor is
+     for the hand — walk to a row with the pair beside the pads, fire it with ">" — which is
+     the whole gesture on a controller you are not looking at. */
+  let cursor = 0;
+  const moveCursor = d => {
+    cursor = Math.max(0, Math.min(S.rows.length - 1, cursor + (d > 0 ? 1 : -1)));
+    return "Row " + (cursor + 1);
+  };
+
+  const grid = {
+    label: () => "Scene " + (cursor + 1) + (filled(cursor) ? "" : "  (empty)"),
+    cells: mods => {
+      /* Func turns the pads into the desk's mute and solo — the SAME grid the mixer page
+         draws, borrowed rather than rebuilt, so the two cannot disagree about what is
+         muted. See consoleUI.padGrid in studio/console.js. */
+      const C = Patchwork.consoleUI;
+      if (mods && mods.accent && C && C.padGrid) return C.padGrid.cells();
+      const out = new Array(16).fill(null);
+      const queued = S.queued, onRow = S.onRow;
+      S.rows.forEach((row, ri) => {
+        if (ri > 15) return;
+        const cell = cellRow(ri);
+        const has = filled(ri);
+        const armed = S.instruments.some(i => queued.get(i.id) === ri);
+        const live = S.instruments.some(i => onRow.get(i.id) === ri && S.playing(i.id));
+        /* ⚠️ AN EMPTY ROW IS A PAD YOU CAN PRESS NOW, which it was not before: pressing one
+           records into it. So it is lit rather than dark, dimly, and the cursor is the one
+           thing brighter than everything around it. */
+        if (armed) out[cell] = {colour: "amber", on: true, hot: true};
+        else if (live) out[cell] = {colour: "green", on: true};
+        else if (ri === cursor) out[cell] = {colour: "white", on: true};
+        else out[cell] = {colour: has ? "amber" : "cyan", on: false};
+      });
+      return out;
+    },
+    down: (cell, vel, mods) => {
+      const C = Patchwork.consoleUI;
+      if (mods && mods.accent && C && C.padGrid){ C.padGrid.down(cell); return; }
+      const ri = cellRow(cell);
+      if (ri >= S.rows.length) return;
+      cursor = ri;
+      /* ⚠️ FILLED PLAYS, EMPTY RECORDS, which is exactly what the row's own button on screen
+         does — ● on a row with nothing in it, ▶ on a row with something. Two gestures would
+         be two things to learn for one question the launcher already answers by looking. */
+      if (filled(ri)) Patchwork.surface.rig.fireRow(ri);
+      else Patchwork.record.captureRow(ri);
+    },
+    /* The pair beside the pads walks the cursor — see gridMove() in shell/surface.js. */
+    move: moveCursor
+  };
+
+  /* ---- the encoders ----
+     Levels first, because a launcher is a mixing job as much as an arranging one: the reason
+     you are looking at this page with your hands on a controller is usually that something
+     is too loud. The page's own settings are the second bank. */
+  const banks = [{name: "Levels"}, {name: "Set"}];
+  let bank = 0;
+  const bankNow = () => Math.min(bank, banks.length - 1);
+  const settingControls = () => [
+    Patchwork.surface.segment(click, "Click", "Clk"),
+    tempoControl(),
+    Patchwork.surface.segment(barCount, "Bars", "Bar"),
+    Patchwork.surface.segment(quant, "Lands on", "Qnt")
+  ].filter(Boolean);
+  /* Tempo is the one thing on this page that is neither a list nor a grid, so it is the one
+     control here built by hand. 40-240 is the clock's own range. */
+  function tempoControl(){
+    const LO = 40, HI = 240;
+    const set = v => { Patchwork.clock.setBpm(Math.round(LO + v * (HI - LO))); paint(); };
+    return {
+      id: "bpm", label: "Tempo", short: "BPM",
+      text: () => String(Patchwork.clock.shown) + " bpm",
+      get: () => (Patchwork.clock.shown - LO) / (HI - LO),
+      set
+    };
+  }
+
   Patchwork.surface.mount("scenes", {
     name: "Scenes",
-    grid: Patchwork.surface.sceneGrid,
-    controls: () => [
-      Patchwork.surface.segment(quant, "Lands on", "Qnt"),
-      Patchwork.surface.segment(barCount, "Bars", "Bar")
-    ].filter(Boolean),
-    /* Tempo on the pair beside the encoders: it is the number you reach for most on this
-       page and the one thing here that is neither a list nor a grid. */
+    grid,
+    controls: () => {
+      const C = Patchwork.consoleUI;
+      if (bankNow() === 0 && C && C.levelControls) return C.levelControls();
+      return settingControls();
+    },
+    controlBanks: () => banks,
+    controlBank: bankNow,
+    setControlBank: i => { bank = Math.max(0, Math.min(banks.length - 1, i)); },
+    /* Tempo keeps the pair beside the encoders as well as having a knob: it is the number
+       you reach for most here, and a nudge of exactly one is what that pair is for. */
     bumpName: "Tempo",
     bump: dir => {
       Patchwork.clock.setBpm(Patchwork.clock.shown + (dir > 0 ? -1 : 1));
       paint();
       return String(Patchwork.clock.shown);
     },
-    actionName: "All",
+    /* ⚠️ ">" LAUNCHES THE CURSOR'S ROW, which is what the arrows are for walking to. Stop is
+       the transport's own square button and always was; spending ">" on a second way to do
+       it left the one gesture this page exists for with no button at all. */
+    actionName: "Launch",
     action: () => {
-      if (!Patchwork.launch.anyPlaying()) return null;
-      stop.click();
-      return "Stopped";
+      if (cursor >= Patchwork.scenes.rows.length) return null;
+      Patchwork.surface.rig.fireRow(cursor);
+      return "Row " + (cursor + 1);
     }
   });
 }
