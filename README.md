@@ -554,6 +554,18 @@ knob landing between two of them means nothing. The encoder picks an **index** �
 divided by however many options there are — and goes through the panel's own menu, so the
 sequencer rebuilds its grid and re-spells its notes exactly as if you had used it.
 
+⚠️ **A list gets its knob position once and is then left alone.** Continuous controls are
+sent their position constantly, which is what stops a knob jumping when the focus moves to a
+panel whose Cutoff sits somewhere else. Do that to a seven-item list and the knob cannot
+move: it travels a little, rounds to the option it started on, and gets pushed straight back
+there. Steps and Rate were almost immovable and Key and Scale seemed fine, which is exactly
+what two dozen options versus seven predicts.
+
+⚠️ **And the display shows the words, not the number.** The device writes the value itself
+for an ordinary knob, which is right for Cutoff and useless for Scale — `84` says nothing
+about Phrygian. A control that can say what it is in words gets a different display
+arrangement and we fill the value in: `1/32`, `F2`, `Dorian`.
+
 The legend retitles itself to `BS-1  Seq` while you hold it, because the eight names under it
 have just been replaced and a legend that did not say so would look like the bank had changed
 by itself. ⚠️ It names **what the second eight are, not which key reached them** — "Shift"

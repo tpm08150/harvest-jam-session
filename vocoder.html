@@ -2633,9 +2633,9 @@ function configureScreen(io){
   if (!io.sysex) return;
   /* The resting display is the encoder legend: which panel, and what the eight are. */
   sysex(io, [0x04, SCR_STATIONARY, CFG_AUTO | ARR_ENC8]);
-  /* And a name for each encoder, so a turn reads "Cutoff 64" instead of "CC21 64". */
-  for (let i = 0; i < ENC_N; i++)
-    sysex(io, [0x04, SCR_ENC0 + i, CFG_AUTO | ARR_NAME_VALUE]);
+  /* Each encoder's own display is arranged in paintEncoders, because which arrangement it
+     wants depends on what is under it — a number the device can write itself, or a word only
+     we know. */
   /* The global temporary display, for things that happen rather than things that are true.
      No auto bits: the device raises its own temps for the analogue controls, and this one
      is only ever raised deliberately by flash(). */
@@ -2669,6 +2669,9 @@ function start(io, rig){
     btns: {},
     encs: new Array(ENC_N).fill(-1),
     encNames: new Array(ENC_N).fill(""),
+    encIds: new Array(ENC_N).fill(""),     // which control each encoder is on
+    encText: new Array(ENC_N).fill(""),    // the value shown, for the ones that read as words
+    encMode: new Array(ENC_N).fill(""),    // how that encoder's display is arranged
     /* Nine fields of the resting display: title, then the eight encoder names. */
     screen: ["", "", "", "", "", "", "", "", ""],
     inst: "",                          // the panel it is currently describing
@@ -3005,21 +3008,56 @@ function paintEncoders(io, rig){
   const list = rig.controls(altHeld(io));
   for (let i = 0; i < ENC_N; i++){
     const c = list[i] || null;
+    const id = c ? (c.id || "") : "";
+    const arrived = s.encIds[i] !== id;         // a different control is under this knob
+    s.encIds[i] = id;
+
     /* Position feedback. The guide's phrase for the absolute modes is "If the DAW sends
        them position information, they automatically pick that up" — which is what stops a
        parameter jumping the moment an encoder is touched after the focus moved to an
-       instrument whose Cutoff sits somewhere else. */
+       instrument whose Cutoff sits somewhere else.
+
+       ⚠️ NOT FOR A STEPPED CONTROL, EXCEPT ON ARRIVAL, and leaving that out made Steps and
+       Rate almost immovable. Seven options means the position we send back is one of seven
+       values; the knob moves a little, we round it to the same option, and push it straight
+       back to where it started. The knob fights and loses. So a list gets its position once,
+       when it lands under the encoder, and then the encoder is left to travel freely across
+       the range — which is also why Key and Scale, with two dozen options each, were the
+       two that seemed to work. */
     let v = 0;
     if (c && typeof c.get === "function"){
       try{ v = Math.max(0, Math.min(127, Math.round(c.get() * 127))); }catch(e){ v = 0; }
     }
-    if (s.encs[i] !== v){ s.encs[i] = v; io.send([CH_BTN, ENC_CC0 + i, v]); }
+    const push = !!c && (!c.stepped || arrived);
+    if (push && s.encs[i] !== v) io.send([CH_BTN, ENC_CC0 + i, v]);
+    s.encs[i] = v;
 
     if (!io.sysex) continue;
+
+    /* ⚠️ A NUMBER IS NOT ALWAYS THE ANSWER. Arrangement 4 lets the device write the value
+       itself, which is right for Cutoff and useless for Scale — "84" tells you nothing about
+       Phrygian. A control that can say what it is in words gets arrangement 1 instead, and
+       we fill the value field too. Re-arranged only when the kind under the knob changes,
+       because reconfiguring a display is not free. */
+    const wantsText = !!(c && typeof c.text === "function");
+    const mode = !c ? "" : (wantsText ? "t" : "n");
+    if (s.encMode[i] !== mode){
+      s.encMode[i] = mode;
+      s.encText[i] = "\u0000";                   // force the value to be written afresh
+      sysex(io, [0x04, SCR_ENC0 + i,
+                 CFG_AUTO | (wantsText ? ARR_2LINE : ARR_NAME_VALUE)]);
+    }
     const name = c ? (c.label || c.id || "") : "";
-    if (s.encNames[i] === name) continue;
-    s.encNames[i] = name;
-    sysex(io, [0x06, SCR_ENC0 + i, 0].concat(ascii(name, 16)));
+    if (s.encNames[i] !== name){
+      s.encNames[i] = name;
+      sysex(io, [0x06, SCR_ENC0 + i, 0].concat(ascii(name, 16)));
+    }
+    if (!wantsText) continue;
+    let txt = "";
+    try{ txt = String(c.text() == null ? "" : c.text()); }catch(e){ txt = ""; }
+    if (s.encText[i] === txt) continue;
+    s.encText[i] = txt;
+    sysex(io, [0x06, SCR_ENC0 + i, 1].concat(ascii(txt, 16)));
   }
 }
 

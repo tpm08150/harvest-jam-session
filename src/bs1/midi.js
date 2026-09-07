@@ -90,6 +90,15 @@ function optCtl(sel, label, short){
   const last = () => Math.max(1, el.options.length - 1);
   return {
     id: sel.slice(1), label, short,
+    /* ⚠️ `stepped` tells the surface not to keep pushing this knob's position back at it.
+       Seven options means seven positions; a knob nudged between two of them rounds to the
+       one it started on and gets shoved back there. See paintEncoders in shell/launchkey.js.
+       `text` is the option's own words, because "84" says nothing about Phrygian. */
+    stepped: true,
+    text: () => {
+      const o = el.options[el.selectedIndex];
+      return o ? o.textContent.trim() : "";
+    },
     get: () => el.selectedIndex / last(),
     set: v => {
       const i = Math.max(0, Math.min(el.options.length - 1, Math.round(v * last())));
