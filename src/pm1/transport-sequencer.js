@@ -335,6 +335,13 @@ function scheduleStep(i, t){
 }
 
 function tick(){
+  /* ⚠️ ONCE PER TICK AS WELL AS ONCE PER STEP. The check below runs inside the loop, and the
+     loop only runs when a step is due — so at a slow rate (1/4 at 60 bpm is a second a step)
+     a seam landing between steps was not noticed until the next one. Same fault CS·1 had at
+     the scale of a four-bar chord, where it was audible; here it is a step late and still
+     wrong. Harmless when the loop has already dealt with it: take() removes what it ate. */
+  Patchwork.scenes.take("pm1", ctx.currentTime);
+  if (!SEQ.playing) return;
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
     /* a queued scene lands on the loop point, ahead of this step being scheduled — see

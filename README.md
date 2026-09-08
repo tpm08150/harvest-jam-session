@@ -310,6 +310,15 @@ sixteen on pads with no numbers is otherwise a guess every time you look down.
 again** — the same call clicking and shift-clicking the box makes, which is also why a slot
 track records a real audio take here without the pads knowing they did anything different.
 
+**The launcher on screen and the pads say the same thing in the same colours** — empty is dim
+white, full is the column's own hue, playing is green, coming is the hue flashing. One table
+drives both, so what you learn looking down you already know looking up.
+
+⚠️ **And a departing cell flashes white.** Firing a row queues the instruments it has *nothing*
+for as well — their pending pattern is a null meaning "stop at the seam" — and those used to
+flash in the column's own colour, which reads as arriving. An arm with nothing behind it is an
+ending, and white is what this grid already uses for "nothing here".
+
 ⚠️ **Colour means "there is something here."** It used to mean "this column is the bass" in
 every state, with brightness carrying whether the cell was full — so a grid of eight columns
 was lit in eight colours whether or not anything was in it, and the one question you actually

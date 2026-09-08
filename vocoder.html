@@ -6742,6 +6742,11 @@ let nextTime = 0, stepIndex = 0, marks = [];
 function tick(){
   const ctx = Patchwork.audio.ctx;
   if (!ctx) return;
+  /* Once per tick as well as once per step — see the note in pm1's tick. */
+  if (spec.id){
+    Patchwork.scenes.take(spec.id, ctx.currentTime);
+    if (!SEQ.playing) return;
+  }
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
     if (spec.id) Patchwork.scenes.take(spec.id, at);

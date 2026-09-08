@@ -312,18 +312,52 @@ body.shelving .st-head .st-hint{display:none}
   content:"";position:absolute;inset:0;margin:auto;width:7px;height:7px;border-radius:2px;
   background:rgba(255,255,255,.10);
 }
-.st-cell.full::after{background:var(--mint);box-shadow:0 0 7px rgba(99,214,176,.5)}
+/* ⚠️ THE SAME FOUR ANSWERS THE PADS GIVE, in the same colours. The grid and the sixteen pads
+   are one instrument with two faces, and they were speaking different languages: mint for
+   full here against the column's own hue there, yellow for armed here against a flashing hue
+   there. One table drives both (see COLOUR in studio/scenes.js and the cells() beside it), so
+   what you learn looking down you already know looking up.
+
+     empty     white, dim — white belongs to no instrument, so it reads as absence
+     full      the column's colour
+     playing   green, which outranks whose it is
+     coming    the column's colour, flashing
+     going     WHITE, flashing — an arm with nothing behind it is an ending */
+.st-cell[data-hue="orchid"]   { --hue:var(--stripe-mod) }
+.st-cell[data-hue="amber"]    { --hue:var(--stripe-bass) }
+.st-cell[data-hue="red"]      { --hue:var(--cap-red) }
+.st-cell[data-hue="blue"]     { --hue:var(--accent) }
+.st-cell[data-hue="pink"]     { --hue:var(--stripe-voc) }
+.st-cell[data-hue="turquoise"]{ --hue:var(--lp-ring) }
+.st-cell[data-hue="yellow"]   { --hue:var(--cap-yellow) }
+.st-cell.full::after{background:var(--hue,var(--mint));
+  box-shadow:0 0 7px color-mix(in srgb,var(--hue,var(--mint)) 55%,transparent)}
 .st-cell:hover{border-color:var(--silk-dim)}
 /* Playing NOW, out of this row. The other half of the sentence below, and the half that
    was missing: it is what makes "drop a clip into the row you are hearing and it joins"
-   a rule you can see rather than one you have to be told. */
+   a rule you can see rather than one you have to be told.
+   ⚠️ Green rather than the column's hue, exactly as on the pads: "this one is sounding" has
+   to win over "this one is the bass", and the same green everywhere is what lets the eye
+   find it without reading. */
 .st-cell.live{border-color:var(--mint);box-shadow:0 0 0 1px var(--mint) inset}
+.st-cell.live::after{background:var(--mint);box-shadow:0 0 7px rgba(99,214,176,.55)}
 /* Armed and waiting for the loop point. It pulses because "queued" and "playing" have to
    be tellable apart at a glance while something else has your attention. */
-.st-cell.armed{border-color:var(--cap-yellow);box-shadow:0 0 0 1px var(--cap-yellow) inset}
-.st-cell.armed::after{background:var(--cap-yellow);animation:st-pulse .5s steps(2,end) infinite}
+.st-cell.armed{border-color:var(--hue,var(--cap-yellow));
+  box-shadow:0 0 0 1px var(--hue,var(--cap-yellow)) inset}
+.st-cell.armed::after{background:var(--hue,var(--cap-yellow));
+  animation:st-pulse .5s steps(2,end) infinite}
+/* ⚠️ AND AN ENDING FLASHES WHITE. Cueing a row queues the instruments it has nothing for as
+   well — their pending pattern is a null meaning "stop at the seam" — and those flashed in
+   the column's own colour, which reads as arriving. White is what this grid already uses for
+   "nothing here", so a cell on its way to nothing is the honest use of it. */
+.st-cell.ending{border-color:rgba(255,255,255,.5);
+  box-shadow:0 0 0 1px rgba(255,255,255,.45) inset}
+.st-cell.ending::after{background:#fff;animation:st-pulse .5s steps(2,end) infinite}
 @keyframes st-pulse{50%{opacity:.25}}
-@media (prefers-reduced-motion:reduce){ .st-cell.armed::after{animation:none;opacity:.6} }
+@media (prefers-reduced-motion:reduce){
+  .st-cell.armed::after,.st-cell.ending::after{animation:none;opacity:.6}
+}
 
 .st-fire{
   height:26px;border-radius:4px;cursor:pointer;
@@ -344,8 +378,9 @@ body.shelving .st-head .st-hint{display:none}
    launcher, so its column is only on the live page */
 .st-cell:disabled{opacity:.25;cursor:default}
 .st-cell:disabled::after{background:rgba(255,255,255,.06)}
-/* a slot cell holds audio rather than a pattern, and says so */
-.st-cell[data-slots].full::after{background:var(--cap-yellow);box-shadow:0 0 7px rgba(232,178,58,.5)}
+/* A slot cell holds audio rather than a pattern — and it is LP·1's, so it wears LP·1's teal
+   like every other column wears its own. */
+.st-cell[data-slots].full::after{background:var(--lp-ring);box-shadow:0 0 7px rgba(94,200,192,.55)}
 
 /* The header's own segmented control. It cannot borrow the panels' .seg — that lives
    inside @scope (.unit) and does not reach out here — so it is styled to match rather

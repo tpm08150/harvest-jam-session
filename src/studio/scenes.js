@@ -96,8 +96,15 @@ function paintCell(b, ri, id, queued, onRow){
      not arrived is playing by isPlaying() and waiting by every other measure, so its cell wore
      both rings at once — which is not a state anybody can read, and is the pads' answer too:
      they check queued first and stop. */
+  /* ⚠️ A CELL CAN BE ARMED TO STOP, and it looked exactly like one armed to start. Firing a
+     row queues every instrument on it — including the ones the row has NOTHING for, whose
+     pending pattern is a null meaning "stop at the seam". Both flashed the same, so cueing a
+     scene that drops the bass lit the bass's empty cell in the bass's own colour, which reads
+     as the bass arriving. An arm with nothing behind it is an ending. */
   const armed = queued.get(id) === ri;
-  b.classList.toggle("armed", armed);
+  const full = b.classList.contains("full");
+  b.classList.toggle("armed", armed && full);
+  b.classList.toggle("ending", armed && !full);
   b.classList.toggle("live", !armed && (t ? !!(t.liveSlot && t.liveSlot() === ri)
                                           : (onRow.get(id) === ri && Patchwork.scenes.playing(id))));
 }
@@ -588,7 +595,15 @@ if (window.Patchwork && Patchwork.surface){
            Empty is white now, and dim: white is the one shade that belongs to no instrument,
            so it reads as absence rather than as an eighth column. A cell with a pattern in it
            is the only thing wearing a colour, and which colour still says whose it is. */
-        if (queued.get(col.id) === at.ri) out[c] = {colour: hue, on: true, hot: true};
+        /* ⚠️ AN ARM WITH NOTHING BEHIND IT IS AN ENDING, and it flashed like an arrival.
+           Firing a row queues every instrument on it, including the ones the row has nothing
+           for — their pending pattern is a null meaning "stop at the seam" — so cueing a
+           scene that drops the bass flashed the bass's colour on the bass's empty cell. White
+           for going, the column's colour for coming: the same two answers the grid already
+           gives for empty and full, which is what makes them readable without being learnt. */
+        if (queued.get(col.id) === at.ri)
+          out[c] = has ? {colour: hue, on: true, hot: true}
+                       : {colour: "white", on: true, hot: true};
         else if (onRow.get(col.id) === at.ri && S.playing(col.id))
           out[c] = {colour: "green", on: true};
         else out[c] = has ? {colour: hue, on: true} : {colour: "white", on: false};

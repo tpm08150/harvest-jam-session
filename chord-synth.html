@@ -7019,6 +7019,11 @@ let nextTime = 0, stepIndex = 0, marks = [];
 function tick(){
   const ctx = Patchwork.audio.ctx;
   if (!ctx) return;
+  /* Once per tick as well as once per step — see the note in pm1's tick. */
+  if (spec.id){
+    Patchwork.scenes.take(spec.id, ctx.currentTime);
+    if (!SEQ.playing) return;
+  }
   while (nextTime < ctx.currentTime + .2){
     const at = Math.max(ctx.currentTime + .005, nextTime);
     if (spec.id) Patchwork.scenes.take(spec.id, at);
@@ -8666,6 +8671,18 @@ function tick(){
      negative offset pulls playback ahead of an external clock. Lookahead is widened by the
      offset so a negative shift can't ask for a time that has already passed. */
   const off = SYNC.offsetMs / 1000;
+  /* ⚠️ A SEAM CAN FALL INSIDE A CHORD, and the only check was inside the loop below — which
+     runs once per CHORD, not once per bar. A chord here is one, two or four bars long, so a
+     row fired on a bar line while a four-bar chord was sounding was not noticed until that
+     chord ended: CS·1 held on for up to three bars past the cut, which is the "it keeps
+     playing an extra chord when it should have stopped" everybody hears and nobody can
+     reproduce, because it depends on where in the progression you happened to press.
+
+     Asked once per TICK as well, against the clock rather than against the schedule, so a
+     seam that lands mid-chord is acted on within a tick of arriving. Harmless when the loop
+     below has already dealt with it: take() removes what it consumed. */
+  Patchwork.scenes.take("cs1", ctx.currentTime);
+  if (!state.playing) return;
   while (nextTime + off < ctx.currentTime + .2 + Math.abs(off)){
     /* a queued patch lands here, on the seam, before anything for this chord is scheduled —
        so the progression that gets played from this boundary is the new one */
