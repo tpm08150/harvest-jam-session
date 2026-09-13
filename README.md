@@ -122,7 +122,10 @@ a reverb send. The vocoder runs through them as well; a chorused vocoder is most
 
 **Patches.** Twenty factory presets — eight basses, eight leads, and a key, a stab, a sync-ish
 scream and a pad. Program change 0–19 recalls them. Saved patches live alongside the factory
-bank and shadow it rather than overwriting it, so the bank is always recoverable.
+bank and shadow it rather than overwriting it, so the bank is always recoverable. A saved or
+exported patch carries the sequence along with the sound: every step, with its chord, accent,
+slide, tie and parameter locks. ⚠️ **Until 2026-09-13 a saved patch dropped the chords**, so a
+chord step saved before then holds only its root in the file, and loads as that.
 
 ### Levels
 

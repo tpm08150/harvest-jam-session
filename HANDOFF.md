@@ -646,6 +646,29 @@ CCs to knobs. CS·1 plays the changes; MS·1 plays the line over them.
   happens to clamp its own input, plenty of parameters do not (`aa` has a floor but no
   ceiling, and a huge attack simply eats the note).
 
+- **A step's chord is the ninth element of a saved step**, after its locks, and
+  `PATCH_VERSION` is 3 for it. ⚠️ It was not saved at all until 2026-09-13: `writeStep()`
+  stacked a held chord on the step as `add`, scenes and jams kept it because they copy whole
+  step objects, and `snapshot()` listed eight fields — so every chord step saved or exported
+  came back as its root. `restore()` reads the shape rather than the version: a v2 patch loads
+  its steps as the single notes the file holds, and an older build reading a v3 file stops at
+  eight and plays roots, as it always did.
+
+  **A loaded chord goes through `stepAdd()`, the rule `writeStep()` itself writes to** — whole
+  semitones 1–48, deduplicated, sorted, five at most — so the two cannot drift apart. An
+  interval outside it is dropped, not clamped like a lock, because a clamped interval is a
+  different note.
+
+  Measured in `poly-synth.html` through the real Save button, patch menu and Import. Before, a
+  Cmaj7 on step 0 (`add: [4,7,11]`, scheduled `[60,64,67,71]`) was stored as
+  `[1,0,2,0.5,0,0,0,null]` and loaded playing `[60]`. After, it is stored with `[4,7,11]` as the
+  ninth element; an imported file with chords on steps nothing else on the page held loads them
+  (`[62,66,69,73]`, and `[60,63,67]` beside an accent and a lock); the patch the old build saved
+  still loads, as its root. A ninth element of `[4,4,"7",7.5,0,-3,49,1e400,null,true,12,3,24,36,48,11]`
+  loads as `[3,4,11,12,24]`; a string, an object, nested arrays or a list with nothing in range
+  load no chord, and the step keeps its root. `writeStep()` writes the same `add` as before
+  across ten edge cases — rounding, NaN, ±Infinity, strings, more than five, none.
+
 - **`writeStep()` splits a played note across `oct` AND `pitch`.** Pitch alone is only ±24,
   so forcing `oct` to 0 silently truncated anything beyond two octaves from the root —
   G4 over a C2 root recorded as C4.

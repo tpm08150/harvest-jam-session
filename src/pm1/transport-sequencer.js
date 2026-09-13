@@ -53,9 +53,24 @@ function writeStep(st, midi, extra){
   st.oct = oct;
   st.pitch = rel - 12*oct;
   st.on = 1; st.tie = 0;
-  const ivs = (extra || []).map(n => Math.round(n)).filter(n => n > 0 && n <= 48);
-  if (ivs.length) st.add = [...new Set(ivs)].sort((a, b) => a - b).slice(0, 5);
+  const add = stepAdd((extra || []).map(n => Math.round(n)));
+  if (add) st.add = add;
   else delete st.add;
+}
+/* The shape a step's chord may have: whole semitones 1 to 48 above the root, each once,
+   lowest first, five at most. null when none survive, so a caller deletes `add` rather than
+   leaving an empty one behind.
+
+   ⚠️ ONE DEFINITION FOR BOTH ROADS IN. writeStep() takes a chord from the keys, and
+   restore() in patches.js takes one from a patch, which may be a file somebody edited by
+   hand. A loader keeping its own copy of these limits would drift from the writer, and a
+   chord the grid could write would come back from a save cut down to the old rule, with
+   nothing on screen to say so. It rounds nothing: writeStep() rounds what the keys played
+   before it asks, and an interval of 4.5 in a patch is not one this sequencer wrote, so it
+   is dropped rather than guessed at. */
+function stepAdd(ivs){
+  const ok = ivs.filter(n => Number.isInteger(n) && n >= 1 && n <= 48);
+  return ok.length ? [...new Set(ok)].sort((a, b) => a - b).slice(0, 5) : null;
 }
 /* ⚠️ EMPTY, AND IT USED TO BE A C-MINOR ACID LINE. The demo pattern was here so that accent,
    tie and slide were audible on a first Play without anyone having to build something to hear

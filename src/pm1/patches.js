@@ -2,7 +2,11 @@
 /* Deliberately still the MS·1 key. PM·1 is what MS·1 became once the vocoder and bass
    moved out, and renaming this would silently orphan every patch anyone had saved. */
 const PATCH_KEY = "patchwork-ms1-patches";
-const PATCH_VERSION = 2;      // v2 added the vocoder section; v1 patches take its defaults
+/* v2 added the vocoder section; v1 patches take its defaults. v3 added the chord on a step,
+   as its ninth element; v2 steps load as single notes, which is all the file holds. Nothing
+   branches on the number — restore() reads the shape it is given — but a file should say
+   which format wrote it. */
+const PATCH_VERSION = 3;
 const patchSel = $("#patchSel"), patchName = $("#patchName"), patchNote = $("#patchNote"),
       patchFile = $("#patchFile");
 
@@ -26,8 +30,10 @@ function snapshot(){
     seq:{motion:SEQ.motion, keyTrig:SEQ.keyTrig, len:SEQ.len, rate:SEQ.rate, gate:SEQ.gate, swing:SEQ.swing,
          dir:SEQ.dir, octaves:SEQ.octaves, root:SEQ.root, scale:SEQ.scale, vel:SEQ.vel,
          accentAmt:SEQ.accentAmt,
+         /* each step by position, so a field only ever goes on the END: an older build reads
+            the first eight, ignores the chord, and plays the root as it always has */
          steps:SEQ.steps.map(s => [s.on,s.pitch,s.oct,s.gate,s.accent,s.slide,s.tie,
-                                   s.locks || null])}
+                                   s.locks || null, s.add || null])}
   };
 }
 const oneOf = (v, list, dflt) => list.indexOf(v) >= 0 ? v : dflt;
@@ -102,6 +108,21 @@ function restore(s){
             L[k] = clampf(a[7][k], r[0], r[1]);
         });
         if (Object.keys(L).length) st.locks = L;
+      }
+      /* ⚠️ A CHORD SAVED INTO A PATCH CAME BACK AS ITS ROOT. writeStep() stacks the rest of a
+         held chord on the step as `add`, and scenes and a jam kept it because they copy whole
+         steps — but this format lists a step's fields by position and never gained a ninth,
+         so Save and Export wrote every step without its chord, and nothing said so but the
+         step's label (C4 where it had read C4·4).
+
+         Read as defensively as the locks, and held to the shape writeStep() writes (stepAdd).
+         Unlike a lock, an interval out of range is DROPPED, not clamped: a clamped filter
+         setting is still a setting, but a clamped interval is a different note, and a chord
+         with a wrong note in it is worse than one with a note missing. A v2 patch has no
+         ninth element, so its steps load as the single notes they were saved as. */
+      if (Array.isArray(a) && Array.isArray(a[8])){
+        const add = stepAdd(a[8]);
+        if (add) st.add = add;
       }
       SEQ.steps.push(st);
     }
