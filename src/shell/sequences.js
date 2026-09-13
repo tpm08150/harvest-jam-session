@@ -411,6 +411,8 @@ return {register, select, copyTo, around, capture, load, count, slotOf, COUNT,
         mount(){ mount(); if (!timer) timer = setInterval(paint, 400); },
         has: id => book.has(id),
         at: id => (book.has(id) ? book.get(id).at : -1),
+        /* what this instrument calls one of its sixteen — "Progression" on CS·1 — for a screen */
+        label: id => (book.has(id) ? book.get(id).label : ""),
         get ids(){ return [...book.keys()]; },
         onChange: fn => subs.push(fn)};
 })();

@@ -2485,19 +2485,24 @@ const rig = {
     const f = rig.focus;
     if (!f) return [];
     const key = layer === "act" ? "actControls" : layer === "alt" ? "shiftControls" : null;
+    let list = [];
     if (key && typeof f.spec[key] === "function"){
-      try{
-        const list = f.spec[key]() || [];
-        if (list.length) return list.slice(0, 8);
-      }catch(e){}
+      try{ list = (f.spec[key]() || []).slice(0, 8); }catch(e){ list = []; }
     }
-    if (typeof f.spec.controls !== "function") return [];
-    try{ return (f.spec.controls() || []).slice(0, 8); }catch(e){ return []; }
+    if (!list.length && typeof f.spec.controls === "function"){
+      try{ list = (f.spec.controls() || []).slice(0, 8); }catch(e){ list = []; }
+    }
+    /* ⚠️ THE EIGHTH OF THE SECOND EIGHT IS THE SEQUENCE, on every panel that keeps sixteen — see
+       sequence() below. Composed here rather than asked of each panel, because it means the same
+       thing on all of them and an instrument that registers later should not have to be told. */
+    return layer === "alt" ? withSequence(list, f.id) : list;
   },
   /* Whether holding that key would actually change anything here, for a display that should
      only announce a layer when there is one. */
   hasLayer(layer){
     const f = rig.focus;
+    /* a panel with no second eight of its own still has one knob that changes under the key */
+    if (f && layer === "alt" && sequence(f.id)) return true;
     const key = layer === "act" ? "actControls" : layer === "alt" ? "shiftControls" : null;
     if (!f || !key || typeof f.spec[key] !== "function") return false;
     try{ return (f.spec[key]() || []).length > 0; }catch(e){ return false; }
@@ -3025,6 +3030,43 @@ function option(el, label, short){
     },
     nudge: stepper(() => el.options.length, () => el.selectedIndex, pick)
   };
+}
+
+/* ---- which of an instrument's sixteen sequences is up, as a control ----
+   ⚠️ FUNC AND THE EIGHTH ENCODER, ON EVERY INSTRUMENT THAT KEEPS SEQUENCES. The strip was the only
+   way to choose one, and it is on the screen rather than under the hands, so writing a song from
+   the controller meant reaching for the mouse between parts.
+
+   A list like any other on the encoders: one detent, one sequence, and it stops at 1 and 16 rather
+   than wrapping, because overshooting from 16 to 1 on a running instrument would jump to a
+   different part entirely. Choosing is sequences.select(), which is exactly what a click on the
+   strip does — an empty sequence comes up blank, and walking through one leaves it empty. From a
+   grid no sequence holds (the strip's ring out) the first detent goes to 1.
+
+   ⚠️ IT SELECTS ON EVERY DETENT, as the strip does on every click. Spun quickly past several
+   sequences on a running instrument, a step of one in between can sound on its way past. */
+function sequence(id){
+  const Q = window.Patchwork && Patchwork.sequences;
+  if (!id || !Q || !Q.has(id)) return null;
+  const at = () => Q.at(id);
+  const go = i => { if (i !== at()) Q.select(id, i); };
+  return {
+    id: "sequence-" + id, label: Q.label(id), short: "Seq", stepped: true,
+    text: () => (at() < 0 ? "none" : String(at() + 1)),
+    get: () => Math.max(0, at()) / (Q.COUNT - 1),
+    set: v => go(Math.round(Math.max(0, Math.min(1, v)) * (Q.COUNT - 1))),
+    nudge: d => go(at() < 0 ? 0 : Math.max(0, Math.min(Q.COUNT - 1, at() + (d > 0 ? 1 : -1))))
+  };
+}
+/* The eighth knob, whatever the panel put there: seven of the list the key opened, then the
+   sequence. A panel that keeps no sequences gets its list back untouched. */
+function withSequence(list, id){
+  const c = sequence(id);
+  if (!c) return list;
+  const out = list.slice(0, 7);
+  while (out.length < 7) out.push(null);
+  out.push(c);
+  return out;
 }
 
 /* ---- a segmented control as a control ----
@@ -5499,6 +5541,8 @@ return {register, select, copyTo, around, capture, load, count, slotOf, COUNT,
         mount(){ mount(); if (!timer) timer = setInterval(paint, 400); },
         has: id => book.has(id),
         at: id => (book.has(id) ? book.get(id).at : -1),
+        /* what this instrument calls one of its sixteen — "Progression" on CS·1 — for a screen */
+        label: id => (book.has(id) ? book.get(id).label : ""),
         get ids(){ return [...book.keys()]; },
         onChange: fn => subs.push(fn)};
 })();

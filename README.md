@@ -567,6 +567,7 @@ exactly as you left it.
 | --- | --- |
 | **click a number** | bring that sequence up. An empty one starts blank, at the same length, rate and key |
 | **shift-click a number** | copy the grid into it and go there — how a variation starts. Over a slot that holds something it replaces it, so copying a blank grid over one is how a slot is emptied |
+| **Func + the eighth encoder**, on a Launchkey | step to the next or previous one — see *Controllers* |
 
 A lit number has something in it; the ring is the one on the grid. CS·1 has no such thing as an
 empty progression, so an empty slot there starts as a copy of the one you are on and stays unlit
@@ -631,6 +632,7 @@ transport and LEDs run over the DAW port, which the surface takes for itself.
 | **Pads, Drum layout** | DR·1's kit, wherever the focus is, one lane per pad in the order the panel lists them |
 | **Encoders** | the focused panel's eight main controls, named on the screen as you turn them |
 | **An encoder over a list** | one detent, one position — see below |
+| **Func + the eighth encoder** | step through the focused panel's sixteen sequences — progressions on CS·1 — stopping at 1 and 16 |
 | **Func + `>`** | hop between a linked pair — LP·1 and whatever it is recording |
 | **∧ ∨ right of the encoders** | which eight — the drum lane on DR·1, a parameter bank on PM·1 |
 | **Hold a pad + ∧ ∨ right of the encoders** | that note's length, a step at a time |
@@ -1067,9 +1069,17 @@ rather than its sound:
 
 | | second eight |
 | --- | --- |
-| **CS·1** | `Key Mod Len M/m Arp Pls Swg Bas` — key, mood, chord count, major/minor, arp rate, pulse, swing, bass |
 | **PM·1, BS·1, VC·1** | `Stp Rat Key Scl` — steps, rate, key, scale |
 | **DR·1** | `Stp Rat` — a drum pattern has no key and no scale |
+| **CS·1, SQ·1** | none of their own — the ordinary eight stay under the hand |
+
+⚠️ **The eighth of the second eight is always the sequence**, on every panel that keeps sixteen —
+DR·1, BS·1, PM·1, VC·1, SQ·1, and CS·1, where it is the progression. Hold Func, turn the eighth
+encoder, and the panel steps through its sequences a detent at a time, stopping at 1 and 16 rather
+than wrapping: overshooting from 16 to 1 on a running instrument would jump to a different part.
+It is a click on the strip, so an empty sequence comes up blank and walking through one leaves it
+empty, and the screen says which — *Sequence 3*. Like the strip it chooses on every detent, so a
+fast spin past several sequences on a running instrument can let a step of one sound on the way.
 
 **BS·1 also uses the two spare buttons.** It has one encoder bank and no tape, so the pair
 beside the encoders and the `>` beside the pads are both free:

@@ -1442,7 +1442,20 @@ without sequences left all three of its sequences untouched. CS·1 kept playing 
 progressions and a New progression. BS·1 and SQ·1 blanked and restored (VC·1 shares BS·1's sequencer
 and was only selected). A project reopened every bank, selection and cell number. Every standalone
 page mounts the strip and selects without a console error. **Not exercised:** a jam — no relay was
-run — and the Launchkey, which has no gesture for sequences.
+run.
+
+**On a Launchkey, Func + the eighth encoder steps through them.** `rig.controls("alt")` in
+`shell/surface.js` pins a sequence control to the eighth knob of the layer Func (or Shift) opens, on
+every panel `sequences.has()` — composed there rather than asked of six panels, so an instrument
+that registers later has it too, and the knob's own control without Func is untouched. It is a
+list like every other on the encoders: one detent, one `select()`, stopping at 1 and 16.
+`hasLayer("alt")` now says yes on CS·1 and SQ·1, which have no second eight of their own but do
+have that knob; `sequences.label()` is what puts *Progression* on CS·1's screen. Verified in
+`tools/build-surface-harness.py` only: on all six, Func + encoder 8 went 1 → 2 → 3 → 2 with the
+screen reading *Sequence 2*, an empty slot walked through stayed empty, the knob without Func left
+the sequence alone, BS·1 stopped at 16 and at 1, CS·1's Func tap still turned the face while Func
+and a turn did not, and TS·1, LP·1 and the mixer page got no pin. Nobody has turned it on the
+device.
 
 ## Live faces
 
