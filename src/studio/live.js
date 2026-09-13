@@ -530,6 +530,7 @@ seg.addEventListener("click", e => {
 Patchwork.launch.mountMeasure(document.querySelector("#liveBars"));
 Patchwork.scenes.onChange(paint);
 Patchwork.record.onChange(paint);
+if (Patchwork.sequences) Patchwork.sequences.onChange(paint);
 Patchwork.clock.onTempo("live", () => paint(), null);
 build();
 show("studio");

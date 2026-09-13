@@ -20,6 +20,7 @@ shell/launchkey-art.js
 shell/launchkey.js
 shell/kiosk.js
 shell/scenes.js
+shell/sequences.js
 shell/chords.js
 shell/kit.js
 shell/patches.js

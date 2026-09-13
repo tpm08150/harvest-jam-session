@@ -213,4 +213,27 @@ input[type="text"]::placeholder{color:#5a646a}
   position:absolute;bottom:3px;left:0;right:0;text-align:center;
   font-family:"DM Mono";font-size:8px;color:#9aa0a3;pointer-events:none;
 }
+
+/* ---------- the sixteen sequences ----------
+   Built by shell/sequences.js rather than written into six panel.html files. SQ·1's track strip
+   had already settled what sixteen numbers in a row should say — a lit number has something in
+   it, the ring is the one you are on — so this says it the same way, in the mint that means
+   "there is something here" everywhere else on the page. */
+.seqs{display:flex;align-items:center;gap:10px;margin-top:12px}
+.seqs-lab{flex:0 0 auto}
+.seqs-row{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:3px;flex:1 1 auto;min-width:0}
+.seqs-n{
+  font-family:"DM Mono",ui-monospace,monospace;font-size:10px;line-height:1;
+  min-width:0;padding:6px 0;border-radius:4px;cursor:pointer;
+  background:var(--slot);border:1px solid var(--groove);color:#5a646a;
+  box-shadow:0 1px 2px rgba(0,0,0,.5) inset;
+}
+.seqs-n:hover{color:var(--silk)}
+.seqs-n.has{color:var(--mint);border-color:#2f6b5a}
+.seqs-n.cur{box-shadow:0 0 0 2px var(--silk-dim) inset;color:var(--chrome-hi)}
+.seqs-n.cur.has{box-shadow:0 0 0 2px var(--mint) inset}
+.seqs-n:focus-visible{outline:2px solid var(--mint);outline-offset:1px}
+/* On none of them — a scene, a jam or an older patch put a pattern on the grid that no slot
+   holds. The ring is already gone; the label dims so the strip reads as not in charge. */
+.seqs.loose .seqs-lab{opacity:.5}
 }

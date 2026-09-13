@@ -252,7 +252,11 @@ function applyPatch(id, params){
   const it = patchKit.find(x => x.id === id);
   if (!it) return;
   applying = true;
-  try{ it.apply(params); }catch(e){}
+  /* ⚠️ Through sequences.around(): SQ·1's patch is its whole sequencer, so a patch CAN move a
+     pattern, and a pattern arriving from a jam must not land in the sequence you were on. For
+     every other instrument the pattern does not change, and around() changes nothing. */
+  const run = () => it.apply(params);
+  try{ Patchwork.sequences ? Patchwork.sequences.around(id, run) : run(); }catch(e){}
   finally { applying = false; }
   /* remember what we just took, or the next poll sees a difference and sends it back */
   try{ patchSeen.set(id, JSON.stringify(it.capture())); }catch(e){}

@@ -1232,6 +1232,73 @@ paint, not about the assignment above it.
 - **CS·1's loop point is its whole progression**, so an armed scene can wait several bars —
   four chords at 120 bpm is eight seconds. That is correct, not a hang.
 
+### Sixteen sequences per instrument
+
+`shell/sequences.js`. Every instrument that registers keeps sixteen patterns, and the grid is
+whichever one is up. It exists because a scene cell is a copy: once a part had been stored into a
+row and written over, the instrument had no way to get it back onto the grid.
+
+- **A sequence is a scene pattern.** What is kept is what `scenes.register()`'s `capture()`
+  returns and its `apply()` takes. `sequences.register(id, …)` adds only `blank` (what an empty one
+  is) and `used` (whether a pattern holds anything) — plus, for PM·1, an `apply` and an `ignore`
+  list, below. CS·1 registers neither, so an empty slot there starts as a copy.
+- ⚠️ **The sequence that is up is never kept in step.** Nothing watches the grid. While a sequence
+  is up the grid IS it, and `keep()` copies it into its slot at the moments the slot must be true:
+  leaving it, `capture()` for a patch or project, and `around()`. The polling bargain session.js
+  makes, for its reason — a step grid has a dozen ways to change.
+- ⚠️ **`around(id, fn)` wraps every write from outside:** `fire()` on a stopped instrument, `take()`
+  at the seam and `setLivePattern()` (a jam, a project) through `applyTo()` in `shell/scenes.js`;
+  `session.applyPatch()`, because SQ·1's patch is its sequencer; and CS·1's and PM·1's `restore()` —
+  patch recall, CS·1's program-change recall, CS·1's project share. Before, the grid goes into its
+  slot. After, if the pattern changed: bind to the slot holding exactly that pattern, else stay if
+  the slot you were on is empty, else bind to none (`at = -1`; the strip rings nothing and its label
+  dims). Without it, firing row 2 while on sequence 1 turned sequence 1 into row 2's copy the next
+  time the grid was put away.
+- **An empty slot walked into stays empty** until something is written there: `fresh` holds the key
+  of what walking in put on the grid, and leaving it unchanged stores null. Otherwise browsing
+  CS·1's strip left a trail of identical copies lit behind it.
+- **Matching is by content** — `JSON.stringify` of the capture, less any `ignore`d keys. A launcher
+  cell shows a sequence's number only while the two are equal (`slotOf()`); a tag written at store
+  time would go on saying "3" after sequence 3 was rewritten. Cell keys are cached in a WeakMap
+  (cells are replaced, never mutated) and the grid's capture for 250 ms, so painting every cell
+  captures each instrument once.
+- ⚠️ **A cell's number sits beside its dot.** The dot is an absolutely positioned `::after` centred
+  in the cell and the text was centred too, so the digit was painted underneath it — 5.4 px of
+  numeral under a 7 px square, measured. LP·1's take numbers were hidden the same way. A cell with
+  text is now a flex row of number and dot (`studio/page.css`); an empty cell is unchanged. ⚠️ The
+  browser pane only repaints a DOM change after a frame, so a screenshot taken straight after one
+  shows the page as it was — which is how the first check of this said the fix did nothing.
+- ⚠️ **PM·1: choosing a sequence does not choose a motion.** Its scene `apply()` is now
+  `applyLine()` then `motionForScene()`; a sequence lands through `applyLine()` alone, and
+  `ignore: ["motion"]` lets a row that forced Seq still match a sequence stored at Off.
+- **Saved beside the sound, never inside it.** The object handed to `session.registerPatch()` is what
+  a jam polls every tick and a project saves as `sounds`; sixteen patterns inside it would go to
+  everybody on every knob move. `shell/patches.js`, CS·1 and PM·1 write `seqs` next to the sound, and
+  the project has its own `sequences` share, registered straight after `scenes` so it applies after
+  the live patterns are down. CS·1's `snapshot()` is also its project share, so its `seqs` are added
+  at Save and Export only — once per project, not twice.
+- ⚠️ **Packed on the shelf.** One SQ·1 capture measured 91 KB of JSON, nearly all the same empty
+  step. `capture()` writes a run of three or more identical array items as `{"~run": [n, item]}`: an
+  SQ·1 bank holding one sequence came to 1.4 KB, and `load(capture())` round-tripped byte-identically
+  on all six instruments. `unpack()` passes plain data through unchanged.
+- **CS·1 folds `nextIndex` back into range** in its scene `apply()`, exactly as `applyPatch()` already
+  did: choosing a shorter progression mid-play otherwise leaves the index past the end, a silent bar.
+- The strip's repaint does not check `document.hidden`. It did, and the browser pane reports every
+  tab hidden, so nothing was ever drawn there; a hidden tab throttles the timer by itself.
+
+Measured in the studio through the panels' own controls — strip numbers, DR·1's pads, PM·1's steps
+(which listen for `pointerdown`), launcher cells and ▶, patch Save and the patch menu, a project saved
+and reopened by reloading — with every strip muted. DR·1's default beat stayed in sequence 1 while
+sequence 2 was written, and both came back note for note. A cell stored from sequence 2 read "2",
+lost it when sequence 2 was edited, and firing it then left DR·1 on no sequence with the edited
+sequence 2 intact. A DR·1 patch recalled all three sequences and the one that was up. PM·1 stayed on
+Motion Off through selection, bound to sequence 2 when a fired row forced Seq, and an older patch
+without sequences left all three of its sequences untouched. CS·1 kept playing through switching
+progressions and a New progression. BS·1 and SQ·1 blanked and restored (VC·1 shares BS·1's sequencer
+and was only selected). A project reopened every bank, selection and cell number. Every standalone
+page mounts the strip and selects without a console error. **Not exercised:** a jam — no relay was
+run — and the Launchkey, which has no gesture for sequences.
+
 ## Live faces
 
 Each instrument shows a small performance face, with its full panel one click away.

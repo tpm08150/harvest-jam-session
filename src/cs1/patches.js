@@ -227,12 +227,33 @@ patchProg.addEventListener("change", () => {
     : "Program " + patchProg.value + " now recalls <b>" + name + "</b>.");
 });
 
+/* ---- the sixteen progressions, saved with the patch ----
+   See shell/sequences.js. Beside snapshot() rather than inside it, because snapshot() is also this
+   instrument's share of a project, and a project saves the sequences on its own account — once.
+
+   ⚠️ restore() WRITES THE PROGRESSION FROM OUTSIDE, which is what sequences.around() is for: the
+   one you were on is put away first, so an older patch with no progressions of its own cannot
+   write over it. A patch that has them replaces all sixteen. */
+function withSeqs(o){
+  if (Patchwork.sequences) o.seqs = Patchwork.sequences.capture("cs1");
+  return o;
+}
+function recallPatch(s){
+  const run = () => restore(s);
+  if (Patchwork.sequences) Patchwork.sequences.around("cs1", run); else run();
+  if (s && s.seqs && Patchwork.sequences) Patchwork.sequences.load("cs1", s.seqs);
+}
+function seqsSaid(s){
+  const n = s && s.seqs && Patchwork.sequences ? Patchwork.sequences.count(s.seqs) : -1;
+  return n < 0 ? "" : " with " + (n || "no") + (n === 1 ? " progression" : " progressions");
+}
+
 $("#patchSave").addEventListener("click", () => {
   const name = (patchName.value || "").trim()
     || (noteName(state.keyPc, state.keyPc, keyMinor()) + " " + (state.prog ? title(state.prog.mood) : "patch"));
   const store = loadStore();
   const existed = !!store[name];
-  store[name] = Object.assign(snapshot(), {name});
+  store[name] = withSeqs(Object.assign(snapshot(), {name}));
   if (!saveStore(store)) return;
   patchName.value = name;
   refreshPatchList(name);
@@ -260,10 +281,10 @@ patchSel.addEventListener("change", () => {
   if (!name) return;
   const store = loadStore();
   try{
-    restore(store[name]);
+    recallPatch(store[name]);
     patchName.value = name;
     refreshProgSel();
-    patchSay("Loaded <b>" + name + "</b>.");
+    patchSay("Loaded <b>" + name + "</b>" + seqsSaid(store[name]) + ".");
   }catch(err){
     patchSay("Couldn't load that patch (" + (err && err.message) + ").", true);
   }
@@ -271,7 +292,7 @@ patchSel.addEventListener("change", () => {
 
 $("#patchExport").addEventListener("click", () => {
   const name = (patchName.value || "patchwork-patch").trim();
-  const data = Object.assign(snapshot(), {name});
+  const data = withSeqs(Object.assign(snapshot(), {name}));
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -296,9 +317,9 @@ patchFile.addEventListener("change", () => {
     try{ data = JSON.parse(rd.result); }
     catch(e){ patchSay("That file isn't valid JSON.", true); return; }
     try{
-      restore(data);
+      recallPatch(data);
       if (data.name) patchName.value = data.name;
-      patchSay("Imported <b>" + (data.name || f.name) + "</b>. Save it to keep it in this browser.");
+      patchSay("Imported <b>" + (data.name || f.name) + "</b>" + seqsSaid(data) + ". Save it to keep it in this browser.");
     }catch(err){
       patchSay("That doesn't look like a Patchwork patch (" + (err && err.message) + ").", true);
     }
@@ -347,8 +368,18 @@ Patchwork.scenes.register("cs1", {
     buildVoicings(state.prog);
     openPad = null;
     renderProgression();
+    /* ⚠️ FOLDED BACK INTO RANGE — the fix applyPatch() in midi.js already carries for a recalled
+       patch. A shorter progression arriving mid-flight leaves the transport's index past its end,
+       and an index past the end is a silent bar. Rare while only a seam or a jam applied one;
+       choosing one of sixteen progressions while CS·1 plays makes it an ordinary thing to do. */
+    if (state.playing && state.prog.chords.length) nextIndex = nextIndex % state.prog.chords.length;
   }
 });
+
+/* ---- sixteen of them ----
+   See shell/sequences.js. A progression has no empty state — there is always a chord to play — so
+   an empty slot starts as a copy of the one you are on, and stays empty until you change it. */
+Patchwork.sequences.register("cs1", {label: "Progression"});
 
 /* CS·1 is armable like everything else. It has no write(): a played note cannot be
    written into a chord progression the way it can into a step grid, so nothing is captured
@@ -369,7 +400,12 @@ Patchwork.record.register("cs1", {name: "CS\u00b71"});
    same state. This one lands last and is the fuller of the two. */
 Patchwork.project && Patchwork.project.part("cs1", {
   capture: () => snapshot(),
-  apply: s => { try{ restore(s); }catch(e){} }
+  /* through around(), so a project's patch cannot write over the progression that is up — the
+     project's own "sequences" share has already put the right one there, and finds it unchanged */
+  apply: s => {
+    const run = () => restore(s);
+    try{ if (Patchwork.sequences) Patchwork.sequences.around("cs1", run); else run(); }catch(e){}
+  }
 });
 
 /* A test hook, not a feature — the same one MS·1 carries. It exists so the MIDI input

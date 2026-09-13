@@ -405,6 +405,15 @@ return {
     }
     return n;
   },
+  /* A captured pattern with nothing in it — the same length, rate, key and scale, every step
+     empty — and whether a captured pattern holds anything. countPattern()'s question, asked of
+     a copy rather than of the grid, for the sequences a panel keeps put away; see
+     shell/sequences.js. */
+  blankOf(p){ return Object.assign({}, p, {steps: Array.from({length: MAX}, () => S())}); },
+  usedIn(p){
+    return !!(p && Array.isArray(p.steps) && p.steps.some(st =>
+      st && (st.on || st.tie || (st.locks && Object.keys(st.locks).length))));
+  },
   capture(){ return {steps: JSON.parse(JSON.stringify(steps.slice(0, MAX))),
                      len: SEQ.len, rate: SEQ.rate, swing: SEQ.swing,
                      root: SEQ.root, scale: SEQ.scale, gate: SEQ.gate,

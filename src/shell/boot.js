@@ -9,6 +9,8 @@
 Patchwork.faces.mount();
 /* after faces, so the plate buttons land in a stable order */
 Patchwork.record.mount();
+/* The sequences' strip, once every instrument has said whether it keeps any. */
+if (Patchwork.sequences) Patchwork.sequences.mount();
 Patchwork.session.mountOwners();
 
 /* The default derives from the page rather than from a per-build flag: a lone instrument

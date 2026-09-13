@@ -32,6 +32,23 @@ Patchwork.scenes.register("sq1", {
   }
 });
 
+/* ---- sixteen of them ----
+   See shell/sequences.js. A sequence here is all sixteen tracks, for the reason a scene cell is:
+   they are one instrument, and choosing a sequence changes the whole sequencer. The strip sits
+   above the track row, because a sequence holds tracks and not the other way round. Any track's
+   shared sequencer knows what an empty synth half is. */
+Patchwork.sequences.register("sq1", {
+  after: ".plate",
+  blank: p => ({tracks: ((p && Array.isArray(p.tracks)) ? p.tracks : []).map(t => Object.assign({}, t, {
+    drum: Object.assign({}, t && t.drum, {lanes: ((t && t.drum && t.drum.lanes) || []).map(l =>
+      ({note: l.note, steps: new Array(MAX_STEPS).fill(0)}))}),
+    synth: track(0).synth.seq.blankOf(t && t.synth)
+  }))}),
+  used: p => !!(p && Array.isArray(p.tracks) && p.tracks.some(t => t && (
+    ((t.drum && t.drum.lanes) || []).some(l => (l.steps || []).some(v => v))
+    || track(0).synth.seq.usedIn(t.synth))))
+});
+
 /* The whole sequencer as a patch, so a set of channel assignments and lane notes is
    something you can keep — which for outboard gear is most of the setup. */
 Patchwork.session.registerPatch("sq1", {

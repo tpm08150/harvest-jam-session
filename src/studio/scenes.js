@@ -90,6 +90,17 @@ function paintCell(b, ri, id, queued, onRow){
     const n = t.takeAt(ri);
     b.textContent = n == null ? "" : String(n + 1);
   }
+  /* ⚠️ AND A PATTERN CELL SAYS WHICH SEQUENCE IT IS, now that an instrument keeps sixteen. A column
+     down the launcher then reads as the song's form — 1, 1, 2, 1, 3 — which is the thing being
+     arranged, and without it two rows holding different parts look identical. By content: a
+     cell whose sequence has been rewritten since it was stored shows no number, because it is no
+     longer that sequence. See slotOf() in shell/sequences.js. */
+  else if (!t && Patchwork.sequences){
+    const row = Patchwork.scenes.rows[ri];
+    const n = row && row.cells[id] ? Patchwork.sequences.slotOf(id, row.cells[id]) : -1;
+    const txt = n < 0 ? "" : String(n + 1);
+    if (b.textContent !== txt) b.textContent = txt;
+  }
   /* a slot track keeps its own transport, so what it is playing comes from the track
      rather than from the scene model, which has never heard of it */
   /* ⚠️ ARMED OUTRANKS LIVE, and both were being set. An instrument started on a seam that has
@@ -497,6 +508,8 @@ loadMix();
    would have told it about. */
 Patchwork.launch.onCursor(paint);
 Patchwork.scenes.onChange(paint);
+/* a cell's number changes when a sequence is chosen or copied, which the scene model never hears */
+if (Patchwork.sequences) Patchwork.sequences.onChange(paint);
 if (window.Patchwork.record) Patchwork.record.onChange(paint);
 build();
 /* ⚠️ An instrument's OWN Play button changes what is playing without telling the scene

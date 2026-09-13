@@ -150,16 +150,34 @@ patchSel.addEventListener("change", () => {
   if (v.startsWith("f:")) return loadFactory(name);
   const store = loadStore();
   try{
-    restore(store[name]);
+    recallPatch(store[name]);
     patchName.value = name; patchTag.textContent = name;
-    sayPatch("Loaded <b>" + name + "</b>.");
+    sayPatch("Loaded <b>" + name + "</b>" + seqsSaid(store[name]) + ".");
   }catch(err){ sayPatch("Couldn't load that patch (" + (err && err.message) + ").", true); }
 });
+/* ---- the sixteen sequences, saved with the patch ----
+   See shell/sequences.js. restore() writes the grid from outside, so it goes through around(): the
+   sequence you were on is put away first, and an older patch without sequences of its own cannot
+   write over it. A patch that has them replaces all sixteen. */
+function withSeqs(o){
+  if (Patchwork.sequences) o.seqs = Patchwork.sequences.capture("pm1");
+  return o;
+}
+function recallPatch(s){
+  const run = () => restore(s);
+  if (Patchwork.sequences) Patchwork.sequences.around("pm1", run); else run();
+  if (s && s.seqs && Patchwork.sequences) Patchwork.sequences.load("pm1", s.seqs);
+}
+function seqsSaid(s){
+  const n = s && s.seqs && Patchwork.sequences ? Patchwork.sequences.count(s.seqs) : -1;
+  return n < 0 ? "" : " with " + (n || "no") + (n === 1 ? " sequence" : " sequences");
+}
+
 $("#patchSave").addEventListener("click", () => {
   const name = (patchName.value || "").trim() || "Untitled";
   const store = loadStore();
   const existed = !!store[name];
-  store[name] = Object.assign(snapshot(), {name});
+  store[name] = withSeqs(Object.assign(snapshot(), {name}));
   if (!saveStore(store)) return;
   patchName.value = name; patchTag.textContent = name;
   refreshPatchList("u:"+name);
@@ -177,7 +195,7 @@ $("#patchDelete").addEventListener("click", () => {
 });
 $("#patchExport").addEventListener("click", () => {
   const name = (patchName.value || "patchwork-pm1-patch").trim();
-  const data = Object.assign(snapshot(), {name});
+  const data = withSeqs(Object.assign(snapshot(), {name}));
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -198,9 +216,9 @@ patchFile.addEventListener("change", () => {
     try{ data = JSON.parse(rd.result); }
     catch(e){ sayPatch("That file isn't valid JSON.", true); return; }
     try{
-      restore(data);
+      recallPatch(data);
       if (data.name) patchName.value = data.name;
-      sayPatch("Imported <b>" + (data.name || f.name) + "</b>. Save it to keep it in this browser.");
+      sayPatch("Imported <b>" + (data.name || f.name) + "</b>" + seqsSaid(data) + ". Save it to keep it in this browser.");
     }catch(err){
       sayPatch("That doesn't look like a Patchwork PM·1 patch (" + (err && err.message) + ").", true);
     }

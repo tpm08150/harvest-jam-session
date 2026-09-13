@@ -55,6 +55,25 @@ function mount(root, id, spec){
     return names;
   }
 
+  /* ---- the sequences, saved with the sound ----
+     ⚠️ BESIDE THE SOUND, NOT INSIDE IT. `sound` is the object a jam polls and sends and a project
+     saves as "sounds" (see the note at the top), and sixteen patterns riding along inside it
+     would go to everybody in a jam on every knob move. A patch carries both; the registry that
+     defines a sound still defines only a sound. An older patch has no `seqs`, and recalling it
+     leaves the sequences alone. See shell/sequences.js. */
+  const Q = () => (Patchwork.sequences && Patchwork.sequences.has(id) ? Patchwork.sequences : null);
+  function withSeqs(o){
+    const q = Q();
+    if (q) o.seqs = q.capture(id);
+    return o;
+  }
+  function recall(p){
+    const q = Q();
+    if (!q || !p || !p.seqs || !q.load(id, p.seqs)) return "";
+    const n = q.count(p.seqs);
+    return " with " + (n || "no") + (n === 1 ? " sequence" : " sequences");
+  }
+
   sel.addEventListener("change", () => {
     const name = sel.value;
     if (!name) return;
@@ -62,7 +81,7 @@ function mount(root, id, spec){
     if (!p){ say("That patch is gone.", true); refresh(); return; }
     try{ spec.apply(p.sound); }catch(e){ say("Couldn't load that patch.", true); return; }
     nameEl.value = name;
-    say("Loaded <b>" + name + "</b>.");
+    say("Loaded <b>" + name + "</b>" + recall(p) + ".");
   });
 
   /* Save takes the NAME BOX, not the selection: typing a new name over a loaded patch and
@@ -73,7 +92,7 @@ function mount(root, id, spec){
     if (!name){ say("Give it a name first.", true); nameEl.focus(); return; }
     const s = load();
     const existed = !!s[name];
-    s[name] = {app: APP, v: 1, name, sound: spec.capture()};
+    s[name] = withSeqs({app: APP, v: 1, name, sound: spec.capture()});
     if (!store(s)) return;
     refresh(name);
     nameEl.value = name;
@@ -94,7 +113,7 @@ function mount(root, id, spec){
   const expBtn = $("#patchExport");
   if (expBtn) expBtn.addEventListener("click", () => {
     const name = (nameEl.value || sel.value || id + "-patch").trim();
-    const data = {app: APP, v: 1, name, sound: spec.capture()};
+    const data = withSeqs({app: APP, v: 1, name, sound: spec.capture()});
     const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -130,8 +149,8 @@ function mount(root, id, spec){
         try{ spec.apply(data.sound); }
         catch(err){ say("Couldn't apply that patch.", true); return; }
         if (data.name) nameEl.value = data.name;
-        say("Imported <b>" + (data.name || f.name)
-          + "</b>. Press Save to keep it in this browser.");
+        say("Imported <b>" + (data.name || f.name) + "</b>" + recall(data)
+          + ". Press Save to keep it in this browser.");
       };
       rd.readAsText(f);
     });

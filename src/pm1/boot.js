@@ -124,6 +124,22 @@ function motionForScene(){
   paintMeta();
 }
 
+/* The line and how it is read — steps, length, rate, swing, direction, range, key, scale and
+   gate — without deciding whether PM·1 runs it. A scene decides that straight after; a sequence
+   does not decide it at all. See below. */
+function applyLine(pat){
+  if (pat.steps) SEQ.steps = JSON.parse(JSON.stringify(pat.steps));
+  ["len","rate","swing","dir","octaves","root","scale","gate"].forEach(k => {
+    if (pat[k] != null) SEQ[k] = pat[k];
+  });
+  seqLenSel.value = String(SEQ.len);
+  seqRateSel.value = SEQ.rate;
+  paintSeqKey();
+  paintSteps();
+  renderRoll();
+  paintMeta();
+}
+
 Patchwork.scenes.register("pm1", {
   name: "PM·1",
   isPlaying: () => SEQ.playing,
@@ -134,18 +150,30 @@ Patchwork.scenes.register("pm1", {
                    motion: SEQ.motion, dir: SEQ.dir, octaves: SEQ.octaves,
                    root: SEQ.root, scale: SEQ.scale, gate: SEQ.gate}),
   apply: pat => {
-    if (pat.steps) SEQ.steps = JSON.parse(JSON.stringify(pat.steps));
-    ["len","rate","swing","motion","dir","octaves","root","scale","gate"].forEach(k => {
-      if (pat[k] != null) SEQ[k] = pat[k];
-    });
+    if (pat.motion != null) SEQ.motion = pat.motion;
+    applyLine(pat);
     /* here as well as in start(), because a row landing at a SEAM applies without
        starting — an Off in the clip would leave the transport running and silent */
     motionForScene();
-    seqLenSel.value = String(SEQ.len);
-    seqRateSel.value = SEQ.rate;
-    paintSeqKey();
-    paintSteps();
   }
+});
+
+/* ---- sixteen of them ----
+   See shell/sequences.js. The pattern is the scene's, with one difference in how it lands.
+
+   ⚠️ CHOOSING A SEQUENCE DOES NOT CHOOSE A MOTION. A scene puts PM·1 into Seq or Arp as it
+   lands, because a scene that played nothing was the bug motionForScene() fixed. Choosing one of
+   sixteen is editing, not performing: Motion Off is where you write a line over a stopped grid,
+   and a number that flipped it to Seq would be one control quietly changing another. So a
+   sequence lands through applyLine(), and motion is not part of what makes two patterns the same
+   sequence — a row stored from sequence 2 is sequence 2 whether PM·1 sat on Off or Seq when it
+   was stored, and a scene that lands it on Seq has not made it a different one. */
+Patchwork.sequences.register("pm1", {
+  apply: applyLine,
+  ignore: ["motion"],
+  blank: p => Object.assign({}, p, {steps: Array.from({length: MAX_STEPS}, () => S(0,0,0,.5,0,0,0))}),
+  used: p => !!(p && Array.isArray(p.steps) && p.steps.some(st =>
+    st && (st.on || st.tie || (st.locks && Object.keys(st.locks).length))))
 });
 
 /* PM·1 keeps MS·1's richer sequencer, so recording writes through writeStep() — the same

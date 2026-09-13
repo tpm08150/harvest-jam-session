@@ -17,6 +17,10 @@ Patchwork.scenes.register("vc1", {
   }
 });
 
+/* Sixteen of them — see shell/sequences.js. The pattern is the scene's, and the shared
+   sequencer knows what an empty one is. */
+Patchwork.sequences.register("vc1", {blank: p => seq.blankOf(p), used: p => seq.usedIn(p)});
+
 Patchwork.record.register("vc1", {
   name: "VC·1",
   write: (midi, vel, when) => {

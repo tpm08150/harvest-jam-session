@@ -579,7 +579,7 @@ function applyPatch(name, why){
   /* A patch remembers the tempo it was saved at, which would fight an external clock for
      the fraction of a second before the follower pulls it back. Keep the clock's tempo. */
   const extBpm = MIDI.sync === "ext" ? state.bpmExact : null;
-  try{ restore(patch); }
+  try{ recallPatch(patch); }
   catch(err){ patchSay(why + " couldn't load <b>" + name + "</b>.", true); return; }
   if (extBpm != null) setBpm(extBpm, true);
 

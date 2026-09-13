@@ -78,6 +78,9 @@ or hardware directly; they register adapters:
 - `scenes.register(id, {capture, apply, start, stop, …})` — the launcher. A row lands on a seam, a
   boundary each client computes from a shared clock origin, never "now"; `clock.js` ticks from an
   AudioWorklet so timing survives background tabs.
+- `sequences.register(id, {blank, used})` — sixteen patterns per instrument (the strip under the
+  patch row); the grid is whichever one is up. Anything that writes a pattern from outside a panel
+  goes through `sequences.around(id, fn)`, or the sequence you were on absorbs it.
 - `record.register`, `patches.mount`, the `chords` and `kit` registries, and
   `session.registerPatch` / `registerVoice` for jams: patterns and patches are polled and diffed,
   fires, notes and takes are pushed, and only looper takes, the metronome and talkback travel as

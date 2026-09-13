@@ -112,6 +112,19 @@ Patchwork.scenes.register("dr1", {
   }
 });
 
+/* ---- sixteen of them ----
+   See shell/sequences.js. The pattern is the scene's; what an empty one is, is DR·1's: the same
+   length, rate, swing and accent, with no hits and no locks. */
+Patchwork.sequences.register("dr1", {
+  blank: p => Object.assign({}, p, {
+    steps: ORDER.reduce((o, k) => { o[k] = new Array(MAX_STEPS).fill(0); return o; }, {}),
+    locks: {}
+  }),
+  used: p => !!p && ORDER.some(k =>
+    ((p.steps && p.steps[k]) || []).some(v => v)
+    || !!(p.locks && p.locks[k] && Object.keys(p.locks[k]).length))
+});
+
 /* A drum grid records differently: the note picks the LANE, not a pitch, and the same
    nearest-step rounding applies. GM numbers come in from a pad controller; an audition
    click passes the lane id straight through. */

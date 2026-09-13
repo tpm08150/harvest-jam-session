@@ -254,6 +254,16 @@ function clear(row, id){
   stopping.forEach(x => fire(row, x));
 }
 
+/* ⚠️ EVERY PATTERN A SCENE PUTS ON AN INSTRUMENT GOES THROUGH sequences.around(). A scene writes
+   the grid without asking which of the instrument's sixteen sequences is up, and left alone the
+   one you were on would take the row's copy the next time it was put away — see
+   shell/sequences.js. Fire, the seam and a jam's live pattern are the three ways in, and all
+   three come here. */
+function applyTo(it, pat){
+  const run = () => it.apply(JSON.parse(JSON.stringify(pat)));
+  return Patchwork.sequences ? Patchwork.sequences.around(it.id, run) : run();
+}
+
 /* Arm a pattern. With the whole rack stopped there is no seam coming, so the row takes
    effect immediately — otherwise firing a scene into silence does nothing visible and looks
    broken. With something already playing there IS one, and everything the row touches waits
@@ -307,7 +317,7 @@ function fire(row, id){
            Anything still queued for it is void: this pattern is the answer to that question,
            and a stale queue is how a track came back for one step and stopped again. */
         pending.delete(it.id);
-        it.apply(JSON.parse(JSON.stringify(pat)));
+        applyTo(it, pat);
         queued.delete(it.id);
         onRow.set(it.id, row);
         it.start();
@@ -389,7 +399,7 @@ function take(id, when){
   if (!it){ notify(); return true; }
   /* a queued null means the row had nothing for this instrument: stop, at the seam */
   if (pat === null){ it.stop(); onRow.delete(id); }
-  else { it.apply(JSON.parse(JSON.stringify(pat))); if (row != null) onRow.set(id, row); }
+  else { applyTo(it, pat); if (row != null) onRow.set(id, row); }
   notify();
   return true;
 }
@@ -410,7 +420,7 @@ function livePattern(id){
 function setLivePattern(id, pat){
   const it = insts.find(x => x.id === id);
   if (!it || !pat) return;
-  try{ it.apply(JSON.parse(JSON.stringify(pat))); }catch(e){}
+  try{ applyTo(it, pat); }catch(e){}
 }
 
 /* Whether an instrument's own transport is running. The live page needs it to draw a

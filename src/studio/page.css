@@ -1816,3 +1816,9 @@ body.gated{overflow:hidden}
    without it. Small and dim: the dot is still what says "there is something here". */
 .st-cell{font-family:"DM Mono",ui-monospace,monospace;font-size:9px;color:var(--silk-dim)}
 .st-cell.full{color:var(--mint)}
+/* ⚠️ THE NUMBER BESIDE THE DOT, NOT UNDER IT. Both were centred and the dot is positioned, so it was
+   painted over the digit: 5.4 px of numeral under a 7 px square, measured — and LP·1's take numbers
+   sat under it the same way. A cell with a number lays the two out in a row; an empty cell keeps
+   its dot alone in the middle, exactly as before. */
+.st-cell:not(:empty){display:flex;align-items:center;justify-content:center;gap:4px;line-height:1}
+.st-cell:not(:empty)::after{position:static;margin:0;flex:none}

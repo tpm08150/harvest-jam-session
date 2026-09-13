@@ -516,7 +516,7 @@ than a way to lose work.
 Writing out "rows, live patterns, sounds, mixer, tempo" in one place would mean a project
 silently missing whatever is added next — and the thing added next is exactly the thing nobody
 remembers to come back and add. Today that is the transport, the scenes, every instrument's
-sound, CS·1's whole patch and the desk.
+sixteen sequences and its sound, CS·1's whole patch and the desk.
 
 Two things it took a round-trip test to notice:
 
@@ -544,6 +544,44 @@ Nothing lands where you click it. A fired scene is *armed* — the cell pulses �
 effect at that instrument's next loop point, so switching mid-bar stays in time instead of
 lurching. A scene changes what an instrument **plays**, never the sound it plays with; the
 patch you dialled survives the switch.
+
+## Sequences
+
+Every instrument that plays a pattern keeps **sixteen of them**. The strip of numbers under the
+patch row — on DR·1, BS·1, PM·1 and VC·1, above the track row on SQ·1, and called *Progression*
+on CS·1 — is the bank. The grid is whichever one is up; click another number and the one you were
+on is put away and that one comes up, empty if nothing has been written there. Go back and it is
+exactly as you left it.
+
+| gesture | what it does |
+| --- | --- |
+| **click a number** | bring that sequence up. An empty one starts blank, at the same length, rate and key |
+| **shift-click a number** | copy the grid into it and go there — how a variation starts. Over a slot that holds something it replaces it, so copying a blank grid over one is how a slot is emptied |
+
+A lit number has something in it; the ring is the one on the grid. CS·1 has no such thing as an
+empty progression, so an empty slot there starts as a copy of the one you are on and stays unlit
+until you change it — *New progression* makes it yours.
+
+**The launcher is how they become a song.** A cell still copies what the instrument is playing,
+which is now the sequence that is up, so writing a song is: write sequence 1 and click the rows it
+belongs in, pick 2, write it, click its rows. **Each cell says which sequence it holds**, so a
+column reads as the song's form — 1, 1, 2, 1. A cell shows a number only while it and that sequence
+still match: rewrite sequence 2 and the cells stored from the old one stop claiming to be it.
+Firing a row brings up the sequence it holds, so editing while you play edits that sequence.
+
+⚠️ **A pattern that is in no slot is left on the grid, never filed into one.** A row holding
+something no sequence matches, a jam partner's edit, or an older patch puts a pattern on the grid
+and the ring goes out — the sequence you were on keeps what it had. Edits then live on the grid
+only, and the next number you click replaces them, which is what firing another row always did to
+an edit nobody stored. **Shift-click a number to keep it.** An empty slot has nothing to lose, so a
+pattern arriving while you are on one lands in it.
+
+**Sequences save with the patch.** Save a patch and all sixteen go with it; recall it and they come
+back, with the one that was up — *Loaded Acid with 4 sequences*. An older patch carries none and
+leaves them alone. A project saves every instrument's sixteen as well. On PM·1, choosing a sequence
+never touches Motion — Off stays Off — though firing a row still puts it into Seq, as it always has.
+
+A jam shares the grid, not the bank: your sixteen are yours.
 
 ## Faces
 
