@@ -621,6 +621,14 @@ function makeIo(profile, det){
       record(bytes, sent);
       try{ o.send(bytes); }catch(e){}
     },
+    /* The device's other cable, for the rare message that belongs there — see keys() in a
+       profile. Logged with the rest and marked, so the log says which port it left by. */
+    sendKeys(bytes){
+      const o = det.keysOut ? Patchwork.midi.output(det.keysOut) : null;
+      if (!o){ record(bytes, sent, "no keys port"); return false; }
+      record(bytes, sent, "keys port");
+      try{ o.send(bytes); return true; }catch(e){ return false; }
+    },
     sendSysex(bytes){
       /* ⚠️ Recorded even when it cannot be sent, and marked. "We never sent it" and "we sent
          it and the device ignored it" are different faults with the same symptom — a dark
@@ -694,6 +702,47 @@ function start(profile, det){
     if (!(profile.quiet && profile.quiet(ev.data))) record(ev.data);
     try{ profile.message(io, ev.data, rig); }catch(e){ console.error("surface message failed", e); }
   });
+  /* ⚠️ AND WHAT THE DEVICE SAYS ON ITS OTHER PORT, when the profile says it is its own. A
+     Launchkey's knobs move to its MIDI port in a Custom encoder mode — read off the wire on
+     2026-09-13 — so the port handed to the router below still carries surface messages some of the
+     time, and only the profile knows when. Kept ones are logged in the traffic like the DAW port's,
+     marked, because "the knob sent nothing" and "the knob sent it down the other cable" otherwise
+     look exactly the same. */
+  if (det.keysIn && typeof profile.keys === "function"){
+    const releaseClaim = live.release;
+    /* ⚠️ HEARD STRAIGHT FROM THE PORT, not through the router. The router hears only the port that is
+       the page input, and one of the things Settings' knobs change IS the page input — turn MIDI in to
+       another keyboard and the knob doing it went deaf half-way through the turn. So the port is
+       listened to with addEventListener, which leaves its one onmidimessage to the router as the rule
+       above requires, and opened in case the router is not holding it. */
+    const pt = Patchwork.midi.ports("inputs").find(p => p.id === det.keysIn) || null;
+    const hear = ev => {
+      if (!live || live.io !== io) return;
+      let mine = false;
+      try{ mine = profile.keys(io, ev.data, rig) === true; }
+      catch(e){ console.error("surface keys-port message failed", e); }
+      if (mine) record(ev.data, null, "keys port");
+    };
+    if (pt && pt.addEventListener){
+      pt.addEventListener("midimessage", hear);
+      try{ const o = pt.open && pt.open(); if (o && o.catch) o.catch(() => {}); }catch(e){}
+    }
+    /* ...and kept from the instruments when that port is the page input, which is the usual case: the
+       router asks before it delivers, and hears "mine" only for what the profile owns. Turning is
+       done above, once; this only says no. */
+    const releaseTap = Patchwork.midi.intercept(ev => {
+      if (!live || live.io !== io) return false;
+      const p = Patchwork.midi.port;
+      if (!p || p.id !== det.keysIn) return false;
+      try{ return typeof profile.ownsKeys === "function" && profile.ownsKeys(io, ev.data) === true; }
+      catch(e){ return false; }
+    });
+    live.release = () => {
+      releaseTap();
+      if (pt && pt.removeEventListener) pt.removeEventListener("midimessage", hear);
+      releaseClaim();
+    };
+  }
 
   /* The page's performance input follows the profile's word for it. This is the whole
      "pick it from a list and play" claim: on a two-port controller the keys are on the

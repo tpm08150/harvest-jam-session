@@ -18,6 +18,7 @@ DAW port, and lets a test press a pad the way the hardware would.
     __lk.pad(3, 100)            # press DAW-layout pad cell 3 (bottom row, 4th)
     __lk.drumPad(0, 100)        # press Drum-layout pad cell 0 (note 36, the kick)
     __lk.enc(0, 64)             # first encoder to halfway
+    __lk.customEnc(0, 5)        # the same knob in Custom 1: channel 1, on the MIDI port
     __lk.btn(115)               # Play
     __lk.leds()                 # the last colour sent to each of the 16 pads
     __lk.bitmaps()              # every screen bitmap sent, decoded into rows of "#" and "."
@@ -42,8 +43,15 @@ function Port(id, name, type){
 }
 Port.prototype.open = function(){ return Promise.resolve(this); };
 Port.prototype.close = function(){ return Promise.resolve(this); };
-Port.prototype.addEventListener = function(){};
-Port.prototype.removeEventListener = function(){};
+/* ⚠️ LISTENERS AS WELL AS THE PROPERTY. The surface hears the Launchkey's MIDI port with addEventListener
+   so the router keeps its one onmidimessage — see start() in shell/surface.js — and a fake that only
+   called the property would test a path nothing uses. */
+Port.prototype.addEventListener = function(type, fn){
+  if (type === "midimessage") (this.listeners || (this.listeners = [])).push(fn);
+};
+Port.prototype.removeEventListener = function(type, fn){
+  if (this.listeners) this.listeners = this.listeners.filter(f => f !== fn);
+};
 Port.prototype.send = function(){};
 Port.prototype.clear = function(){};
 
@@ -70,7 +78,10 @@ dawOut.send = function(bytes){
   if (R.bitmapAck && m[0] === 0xF0 && m[5] === 0x13 && m[6] === 0x09)
     setTimeout(() => feed(dawIn, [0xF0, 0x00, 0x20, 0x29, 0x02, 0x13, 0x09, 0xF7]), R.bitmapMs);
 };
-keysOut.send = function(){};
+/* ⚠️ RECORDED, because the keys port is not only the keys: in Custom 1 the Launchkey's knobs speak
+   on it, and the profile asks them back to the middle there. See keys() in shell/launchkey.js. */
+const keysSent = [];
+keysOut.send = function(bytes){ keysSent.push(Array.from(bytes)); };
 
 const access = {
   inputs: new Map([["lk-midi-in", keysIn], ["lk-daw-in", dawIn]]),
@@ -88,12 +99,14 @@ const DRUM_BOT = [36,37,38,39,44,45,46,47], DRUM_TOP = [40,41,42,43,48,49,50,51]
 const cellNote = (bot, top, i) => i < 8 ? bot[i] : top[i - 8];
 
 function feed(port, bytes){
-  if (port.onmidimessage)
-    port.onmidimessage({data:new Uint8Array(bytes), receivedTime:performance.now(), target:port});
+  const ev = {data:new Uint8Array(bytes), receivedTime:performance.now(), target:port};
+  if (port.onmidimessage) port.onmidimessage(ev);
+  (port.listeners || []).forEach(fn => fn(ev));
 }
 
 const R = window.__lk = {
   out: sent,
+  keysOut: keysSent,
   bitmapAck: true, bitmapMs: 85,
   dawIn, keysIn, dawOut,
   reset(){ sent.length = 0; },
@@ -109,6 +122,10 @@ const R = window.__lk = {
   padOff(cell){ feed(dawIn, [0x80, cellNote(DAW_BOT, DAW_TOP, cell), 0]); },
   drumPad(cell, vel){ feed(dawIn, [0x99, cellNote(DRUM_BOT, DRUM_TOP, cell), vel == null ? 100 : vel]); },
   enc(i, v){ feed(dawIn, [0xBF, 21 + i, v]); },
+  /* ⚠️ A KNOB IN CUSTOM 1 IS A DIFFERENT MESSAGE ON A DIFFERENT PORT: CC 21-28 on channel 1 of the
+     MIDI port, absolute from the device's own counter. Read off a Mini MK4 25 on 2026-09-13 with
+     _midimon.html bound to that port; the DAW port carries nothing for them. */
+  customEnc(i, v){ feed(keysIn, [0xB0, 21 + i, v]); },
   /* ⚠️ Channel 1 and CC 51/52, because that is what a real Launchkey Mini MK4 sends for the
      two buttons beside the encoders — not the channel-16 55/56 its figure prints. Captured
      with Patchwork.surface.traffic; the harness follows the hardware, not the document, or

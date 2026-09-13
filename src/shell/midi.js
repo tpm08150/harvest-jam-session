@@ -163,7 +163,26 @@ function retarget(s, d){
   return {data: out};
 }
 
+/* ---- a surface's word on the keys port ----
+   ⚠️ A CONTROLLER DOES NOT ALWAYS KEEP ITS CONTROLS ON THE PORT IT KEPT FOR ITSELF. The Launchkey
+   claims its DAW port for the pads and knobs and hands its MIDI port to this router for the keys —
+   but in a Custom encoder mode its knobs speak on the MIDI port, and they arrived here as ordinary
+   control changes and went on to whichever panel had the focus. So a surface may look at what comes
+   in on the page input before the instruments do, and keep what is its own.
+
+   One at a time, like the surface itself, and handed back with the function this returns. A filter
+   that throws must not cost the instruments their MIDI, so it is caught and the message goes on. */
+let intercept = null;
+function interceptInput(fn){
+  const mine = typeof fn === "function" ? fn : null;
+  intercept = mine;
+  return () => { if (intercept === mine) intercept = null; };
+}
+
 function fanout(e){
+  if (intercept){
+    try{ if (intercept(e) === true) return; }catch(err){ console.error("midi intercept failed", err); }
+  }
   const d = e.data;
   if (!follow || !d || !d.length){ subs.forEach(s => deliver(s, e)); return; }
   const st = d[0];
@@ -375,7 +394,7 @@ function setFollow(on){
 }
 
 return {open, upgrade, ports, route, select, list, setFollow,
-        claim, claimed, output, selectOut, sender, portTime,
+        claim, claimed, output, selectOut, sender, portTime, intercept: interceptInput,
         get outPort(){ return outPort; },
         get outId(){ return outId; },
         onChange: fn => watchers.push(fn),

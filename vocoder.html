@@ -2009,7 +2009,26 @@ function retarget(s, d){
   return {data: out};
 }
 
+/* ---- a surface's word on the keys port ----
+   ⚠️ A CONTROLLER DOES NOT ALWAYS KEEP ITS CONTROLS ON THE PORT IT KEPT FOR ITSELF. The Launchkey
+   claims its DAW port for the pads and knobs and hands its MIDI port to this router for the keys —
+   but in a Custom encoder mode its knobs speak on the MIDI port, and they arrived here as ordinary
+   control changes and went on to whichever panel had the focus. So a surface may look at what comes
+   in on the page input before the instruments do, and keep what is its own.
+
+   One at a time, like the surface itself, and handed back with the function this returns. A filter
+   that throws must not cost the instruments their MIDI, so it is caught and the message goes on. */
+let intercept = null;
+function interceptInput(fn){
+  const mine = typeof fn === "function" ? fn : null;
+  intercept = mine;
+  return () => { if (intercept === mine) intercept = null; };
+}
+
 function fanout(e){
+  if (intercept){
+    try{ if (intercept(e) === true) return; }catch(err){ console.error("midi intercept failed", err); }
+  }
   const d = e.data;
   if (!follow || !d || !d.length){ subs.forEach(s => deliver(s, e)); return; }
   const st = d[0];
@@ -2221,7 +2240,7 @@ function setFollow(on){
 }
 
 return {open, upgrade, ports, route, select, list, setFollow,
-        claim, claimed, output, selectOut, sender, portTime,
+        claim, claimed, output, selectOut, sender, portTime, intercept: interceptInput,
         get outPort(){ return outPort; },
         get outId(){ return outId; },
         onChange: fn => watchers.push(fn),
@@ -2853,6 +2872,14 @@ function makeIo(profile, det){
       record(bytes, sent);
       try{ o.send(bytes); }catch(e){}
     },
+    /* The device's other cable, for the rare message that belongs there — see keys() in a
+       profile. Logged with the rest and marked, so the log says which port it left by. */
+    sendKeys(bytes){
+      const o = det.keysOut ? Patchwork.midi.output(det.keysOut) : null;
+      if (!o){ record(bytes, sent, "no keys port"); return false; }
+      record(bytes, sent, "keys port");
+      try{ o.send(bytes); return true; }catch(e){ return false; }
+    },
     sendSysex(bytes){
       /* ⚠️ Recorded even when it cannot be sent, and marked. "We never sent it" and "we sent
          it and the device ignored it" are different faults with the same symptom — a dark
@@ -2926,6 +2953,47 @@ function start(profile, det){
     if (!(profile.quiet && profile.quiet(ev.data))) record(ev.data);
     try{ profile.message(io, ev.data, rig); }catch(e){ console.error("surface message failed", e); }
   });
+  /* ⚠️ AND WHAT THE DEVICE SAYS ON ITS OTHER PORT, when the profile says it is its own. A
+     Launchkey's knobs move to its MIDI port in a Custom encoder mode — read off the wire on
+     2026-09-13 — so the port handed to the router below still carries surface messages some of the
+     time, and only the profile knows when. Kept ones are logged in the traffic like the DAW port's,
+     marked, because "the knob sent nothing" and "the knob sent it down the other cable" otherwise
+     look exactly the same. */
+  if (det.keysIn && typeof profile.keys === "function"){
+    const releaseClaim = live.release;
+    /* ⚠️ HEARD STRAIGHT FROM THE PORT, not through the router. The router hears only the port that is
+       the page input, and one of the things Settings' knobs change IS the page input — turn MIDI in to
+       another keyboard and the knob doing it went deaf half-way through the turn. So the port is
+       listened to with addEventListener, which leaves its one onmidimessage to the router as the rule
+       above requires, and opened in case the router is not holding it. */
+    const pt = Patchwork.midi.ports("inputs").find(p => p.id === det.keysIn) || null;
+    const hear = ev => {
+      if (!live || live.io !== io) return;
+      let mine = false;
+      try{ mine = profile.keys(io, ev.data, rig) === true; }
+      catch(e){ console.error("surface keys-port message failed", e); }
+      if (mine) record(ev.data, null, "keys port");
+    };
+    if (pt && pt.addEventListener){
+      pt.addEventListener("midimessage", hear);
+      try{ const o = pt.open && pt.open(); if (o && o.catch) o.catch(() => {}); }catch(e){}
+    }
+    /* ...and kept from the instruments when that port is the page input, which is the usual case: the
+       router asks before it delivers, and hears "mine" only for what the profile owns. Turning is
+       done above, once; this only says no. */
+    const releaseTap = Patchwork.midi.intercept(ev => {
+      if (!live || live.io !== io) return false;
+      const p = Patchwork.midi.port;
+      if (!p || p.id !== det.keysIn) return false;
+      try{ return typeof profile.ownsKeys === "function" && profile.ownsKeys(io, ev.data) === true; }
+      catch(e){ return false; }
+    });
+    live.release = () => {
+      releaseTap();
+      if (pt && pt.removeEventListener) pt.removeEventListener("midimessage", hear);
+      releaseClaim();
+    };
+  }
 
   /* The page's performance input follows the profile's word for it. This is the whole
      "pick it from a list and play" claim: on a two-port controller the keys are on the
@@ -3528,7 +3596,12 @@ const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends sen
      Patchwork.surface.traffic     // press it, then read the tail
 
    A mode report is `b6 1e NN` on the feature channel. Put NN here. An unrecognised mode is
-   also announced on the console rather than dropped in silence, for the same reason. */
+   also announced on the console rather than dropped in silence, for the same reason.
+
+   ⚠️ AND ITS KNOBS LEAVE THE DAW PORT. Seen 2026-09-13 on the same Mini MK4 25, through a monitor
+   bound to its MIDI port: in Custom 1 the encoders send CC 21-28 on channel 1 there, absolute, from
+   a counter of the device's own. keys() takes them back — without it Settings had pads that worked
+   and knobs that did nothing. */
 const ENC_CUSTOM1 = 6;
 const ENC_VIEW = {1: {view: "tape",   page: "mixer"},
                   2: {view: "studio", page: ""},
@@ -3822,11 +3895,13 @@ function detect(inputs, outputs){
   const ctrlOut = outs.find(isDaw) || (outs.length > 1 ? outs[1] : null);
   if (!ctrlIn || !ctrlOut) return null;
   const keysIn = ins.find(p => p.id !== ctrlIn.id) || null;
+  const keysOut = outs.find(p => p.id !== ctrlOut.id) || null;
 
   return {
     ctrlIn: ctrlIn.id,
     ctrlOut: ctrlOut.id,
     keysIn: keysIn ? keysIn.id : null,
+    keysOut: keysOut ? keysOut.id : null,
     /* The port name carries the key count — "Launchkey Mini MK4 37" — so the label the
        picker shows is the device's own word for itself rather than a guess. */
     label: (ctrlIn.name || "Launchkey MK4").replace(/\s*(daw|midi)\s*(in|out)?\s*$/i, "").trim()
@@ -3941,6 +4016,16 @@ function start(io, rig){
     /* Where each encoder last reported itself, so a list can be moved by the CHANGE rather
        than by the value. Null means "no baseline yet" — the control under it just changed. */
     encAt: new Array(ENC_N).fill(null),
+    /* The device's own encoder layout, as it last reported it, and for Custom 1 — see keys() —
+       where each knob's counter last was, whether it has been asked back to the middle since, and
+       the channel it speaks on. */
+    encLayout: ENC_PLUGIN,
+    customAt: new Array(ENC_N).fill(null),
+    customParked: new Array(ENC_N).fill(false),
+    customCh: 0,
+    customSeen: false,                 // a Custom 1 knob has been heard on the MIDI port
+    centres: null, centreVotes: 0,     // whether a Custom 1 knob takes a re-centre — see customTurn()
+    turnFlashAt: 0, turnFlashTimer: null,
     scrub: 0,                          // which arrow is scrubbing the tape, if either
     /* Pads currently down, newest last. A range gesture needs to know what a finger is
        still holding, and note-on/note-off is the only place that is knowable. */
@@ -3986,6 +4071,7 @@ function start(io, rig){
 }
 
 function stop(io){
+  if (io.state && io.state.turnFlashTimer){ clearTimeout(io.state.turnFlashTimer); io.state.turnFlashTimer = null; }
   if (io.state && io.state.unload){
     window.removeEventListener("pagehide", io.state.unload);
     io.state.unload = null;
@@ -4009,6 +4095,119 @@ function stop(io){
 }
 
 /* ---- in ----------------------------------------------------------------------- */
+
+/* ---- the knobs in Custom 1 ----
+   ⚠️ THEY ARRIVE ON THE MIDI PORT, AS A COUNTER. Read off a Mini MK4 25 on 2026-09-13: in Custom 1
+   the encoders send CC 21-28 on channel 1 of the port handed to the router, as absolute values from
+   the device's own counter — which starts at 0, stops at 0 and 127, and took no notice of the
+   positions this profile parks DAW-mode knobs at. So on Settings, the one page on a Custom mode, the
+   pads worked and the knobs went to whichever panel had the focus as ordinary control changes.
+
+   So they are the surface's while the device says it is on Custom 1: ownsKeys() keeps them from the
+   instruments, keys() turns them, and a list still moves one detent, one position. The first report
+   from each knob is only a baseline. */
+function ownsKeys(io, d){
+  const s = io.state;
+  return !!(s && d && d.length >= 3 && s.encLayout === ENC_CUSTOM1
+            && (d[0] & 0xF0) === 0xB0 && d[1] >= ENC_CC0 && d[1] < ENC_CC0 + ENC_N);
+}
+function keys(io, d, rig){
+  if (!ownsKeys(io, d)) return false;
+  const s = io.state;
+  /* a turn while Func or ">" is down spends it, exactly as a turn on the DAW port does */
+  if (s.fn) s.fnUsed = true;
+  if (s.act) s.actUsed = true;
+  s.customSeen = true;
+  s.customCh = d[0] & 0x0F;
+  customTurn(io, rig, d[1] - ENC_CC0, d[2]);
+  return true;
+}
+
+/* ⚠️ WHICH WAY IT TURNED, WITHOUT KNOWING WHETHER THE MIDDLE STUCK. A counter at 0 cannot be turned
+   lower, so a knob nearing either end is asked back to 64 on the port it spoke on — and whether a
+   Custom mode honours that is not known. The first cut decided it afresh from every report, and got
+   it wrong whenever the device's answer and the hand's next detent crossed on the wire: a fast turn
+   read as no turn, which is the glitch. So it is LEARNED, from reports only one answer explains — a
+   report near 64 from a knob that had been far from it means the middle stuck, a report beside the
+   last one and far from 64 means it did not — and two agreeing settle it. A device that does not
+   honour it is not asked again. Until it is settled each report is read from whichever baseline it is
+   nearer, never from one it has not moved from; and exactly 64 straight after asking is the device
+   repeating us, not a turn. */
+function customTurn(io, rig, i, v){
+  const s = io.state;
+  const c = rig.controls(layerHeld(io))[i];
+  const prev = s.customAt[i], parked = s.customParked[i];
+  s.customAt[i] = v;
+  s.customParked[i] = false;
+  if (!c) return;
+  if (typeof c.nudge !== "function"){
+    if (typeof c.set === "function"){ try{ c.set(v / 127); }catch(e){} }
+    showTurn(io, c);
+    return;
+  }
+  if (parked && v === ENC_MID) return;
+  if (prev != null){
+    const fromLast = v - prev, fromMid = v - ENC_MID;
+    let d = fromLast;
+    if (parked && s.centres === true) d = Math.abs(fromMid) <= 6 ? fromMid : fromLast;
+    else if (parked && s.centres == null){
+      if (Math.abs(prev - ENC_MID) > 8){
+        if (Math.abs(fromMid) <= 3) s.centreVotes++;
+        else if (Math.abs(fromLast) <= 3) s.centreVotes--;
+        if (s.centreVotes >= 2) s.centres = true;
+        else if (s.centreVotes <= -2) s.centres = false;
+      }
+      d = !fromLast ? fromMid : !fromMid ? fromLast
+        : (Math.abs(fromMid) < Math.abs(fromLast) ? fromMid : fromLast);
+    }
+    if (!d) return;
+    try{ c.nudge(d > 0 ? 1 : -1); }catch(e){}
+  }
+  /* ⚠️ ONLY NEAR THE ENDS, AND BEFORE THE SCREEN. On 2026-09-13 Tyler saw the screen bounce between the
+     flash below and the device's own generic readout for a Custom 1 knob. A re-centre is a control change
+     sent to that knob, and if the device answers one the way it answers a turn — not known — a re-centre
+     after every turn put its readout back over the flash every time. So it goes only when the counter is
+     within CUSTOM_EDGE of an end, the one time it is needed, and ahead of the flash, so the flash is drawn
+     last either way. */
+  if (s.centres !== false && (v <= CUSTOM_EDGE || v >= 127 - CUSTOM_EDGE)) parkCustom(io, i);
+  showTurn(io, c);
+}
+const CUSTOM_EDGE = 12;
+function parkCustom(io, i){
+  io.state.customParked[i] = true;
+  if (io.sendKeys) io.sendKeys([0xB0 | io.state.customCh, ENC_CC0 + i, ENC_MID]);
+}
+
+/* ⚠️ AND SAY WHAT IT DID. In Custom 1 the per-encoder displays paintEncoders fills never come up for
+   these knobs — the device puts up a generic readout of its own instead — so Settings changed with
+   nothing useful on the screen. The global temporary display, as for a button.
+
+   ⚠️ AT ONCE, NOT PACED. It was held to one message every 50 ms while a knob spun. The device draws its
+   own readout when a knob moves, so for as long as the pacing waited that readout could be all the
+   screen showed — and Tyler saw the two take turns. Reports closer together than 20 ms, about a frame,
+   are still folded into one, and the last always shows the value the knob finished on.
+
+   ⚠️ AND THE SCREEN STILL BOUNCES. With this, the re-centre kept to the ends in customTurn() and no auto
+   bits on the encoder displays in paintEncoders(), Tyler still saw the flash and the device's readout
+   take turns on 2026-09-13. None of the three was enough; HANDOFF.md, "Settings' knobs speak on the MIDI
+   port", lists where to look next. */
+function showTurn(io, c){
+  const s = io.state;
+  if (s.turnFlashTimer) return;               // one is already on its way, and will read the latest
+  const send = () => {
+    s.turnFlashTimer = null;
+    s.turnFlashAt = performance.now();
+    let text = "";
+    try{
+      if (typeof c.text === "function") text = String(c.text() == null ? "" : c.text());
+      else if (typeof c.get === "function") text = Math.round(c.get() * 100) + "%";
+    }catch(e){}
+    flash(io, c.label || c.id || "", text);
+  };
+  const wait = 20 - (performance.now() - (s.turnFlashAt || 0));
+  if (wait <= 0) send();
+  else s.turnFlashTimer = setTimeout(send, wait);
+}
 
 function message(io, d, rig){
   if (!d || !d.length || !io.state) return;
@@ -4051,6 +4250,7 @@ function message(io, d, rig){
        already offers rather than growing a mode of its own that the device knows nothing
        about and cannot light. */
     if (d[1] === F_ENCS){
+      io.state.encLayout = d[2];
       const to = ENC_VIEW[d[2]];
       /* A Custom mode we have not claimed is somebody else's; leave the app where it is
          rather than guessing — but SAY which one, so a mode that surprises anyone can be
@@ -4146,6 +4346,11 @@ function message(io, d, rig){
   const cc = d[1], v = d[2];
 
   if (cc >= ENC_CC0 && cc < ENC_CC0 + ENC_N){
+    /* ⚠️ NOT WHILE THE MIDI PORT HAS THE KNOBS. On Custom 1 they speak there — see keys() — and a copy
+       arriving here as well would be read against a parked middle the device never took, and pull the
+       other way. Only once the MIDI port has actually been heard from, so a device that keeps Custom 1
+       on this port still works. */
+    if (io.state.encLayout === ENC_CUSTOM1 && io.state.customSeen) return;
     /* Turning a knob while ">" is down is what makes it a modifier rather than a press. */
     if (io.state.act) io.state.actUsed = true;
     const list = rig.controls(layerHeld(io));
@@ -4433,12 +4638,17 @@ function paintEncoders(io, rig){
        we fill the value field too. Re-arranged only when the kind under the knob changes,
        because reconfiguring a display is not free. */
     const wantsText = !!(c && typeof c.text === "function");
-    const mode = !c ? "" : (wantsText ? "t" : "n");
+    /* ⚠️ NO AUTOMATIC READOUT ON CUSTOM 1. The auto bits are what make the device raise these displays
+       itself when a knob moves, which is right for a DAW-mode turn and competes with showTurn()'s flash on
+       Custom 1. Whether a Custom mode's own readout listens to them is not known; if it does, this is what
+       stops it. Part of the cache key, so leaving Custom 1 puts them back. */
+    const auto = s.encLayout === ENC_CUSTOM1 ? 0 : CFG_AUTO;
+    const mode = !c ? (auto ? "" : "x") : (wantsText ? "t" : "n") + (auto ? "a" : "");
     if (s.encMode[i] !== mode){
       s.encMode[i] = mode;
       s.encText[i] = "\u0000";                   // force the value to be written afresh
       sysex(io, [0x04, SCR_ENC0 + i,
-                 CFG_AUTO | (wantsText ? ARR_2LINE : ARR_NAME_VALUE)]);
+                 auto | (wantsText ? ARR_2LINE : ARR_NAME_VALUE)]);
     }
     const name = c ? (c.label || c.id || "") : "";
     if (s.encNames[i] !== name){
@@ -4546,6 +4756,7 @@ Patchwork.surface.register({
   detect, start, stop, message, paint,
   /* eleven answers a second while a picture runs would push everything else out of
      Patchwork.surface.traffic, which is the one log for "what did that button send" */
+  keys, ownsKeys,
   quiet: isBitmapAck
 });
 })();

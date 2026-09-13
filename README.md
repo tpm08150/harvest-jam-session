@@ -690,6 +690,17 @@ Mixer is the only one that also retargets the encoders, because it is the only o
 four that is a thing to turn knobs at. A Custom mode is somebody else's and leaves the app
 where it is rather than guessing.
 
+⚠️ **In Custom 1 the knobs talk down the other cable.** On a Launchkey Mini MK4 they send CC 21–28
+on channel 1 of the *MIDI* port — the one your keys use — rather than the DAW port the rest of the
+controller lives on, and as a counter of the device's own rather than the parked positions the other
+modes take. So while the device is on Custom 1 the app takes those eight CCs off the keys port, turns
+them into knob turns for Settings, and keeps them away from the instruments. The first click of each
+knob after connecting only sets where it starts. The screen names the setting and shows its new
+value as you turn. ⚠️ **Known issue:** the device puts up a generic readout of its own for these knobs
+too, and while one turns the screen switches back and forth between the two. **Controller is not on a
+knob**: one detent from the Launchkey is *none*, which disconnected the controller being turned —
+change it on the Settings tab.
+
 ⚠️ **The tab strip is in the Launchkey's order** — Studio, Tape, Live, Library — rather than
 the order the views were built in. The controller's four pads read Plug-in, Mixer, Sends,
 Transport left to right, and Shift and one of them is how you change view now; a tab strip in

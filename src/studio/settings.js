@@ -51,7 +51,10 @@ function globalControls(){
     opt("#stAudioOut", "Output device", "Dev"),
     opt("#stMidiIn", "MIDI in", "MIn"),
     opt("#stMidiOut", "MIDI out", "MOu"),
-    opt("#stSurface", "Controller", "Ctl"),
+    /* ⚠️ NOT THE CONTROLLER. It was the fourth knob, and one detent from the Launchkey is "none": the
+       knob disconnected the controller turning it, taking DAW mode, the pads and the screen with it.
+       Which controller is connected is not a question that controller can answer with a knob — it
+       stays on the Settings tab. */
     /* A checkbox is not a list, so it is the one control here that has to be built by hand.
        Two positions, and nudge() is what makes a two-position control usable on an encoder
        at all — see stepper() in shell/surface.js. */

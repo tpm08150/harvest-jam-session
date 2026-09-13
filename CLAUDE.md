@@ -25,7 +25,7 @@ drive it from the console:
 
 | Command | Page | What it supplies |
 | --- | --- | --- |
-| `python3 tools/build-surface-harness.py` | `_surfacetest.html` | a fake Launchkey MK4 on both USB ports: `__lk.connect()`, `.pad(cell, vel)`, `.padOff(cell)`, `.btn(cc)`, `.enc(i, v)`, `.raw(bytes)`, `.leds()`, `.text()`, `.bitmaps()`, `.out` |
+| `python3 tools/build-surface-harness.py` | `_surfacetest.html` | a fake Launchkey MK4 on both USB ports: `__lk.connect()`, `.pad(cell, vel)`, `.padOff(cell)`, `.btn(cc)`, `.enc(i, v)`, `.customEnc(i, v)` (a knob in Custom 1, on the MIDI port), `.raw(bytes)`, `.leds()`, `.text()`, `.bitmaps()`, `.out` |
 | `python3 tools/build-midi-harness.py` | `_miditest.html` | a fake MIDI input for the router: `__midi.note(ch, n, vel)`, `.raw(bytes)`, `.seen`, `.handlers()` |
 | `python3 tools/build-phase-harness.py` | `_phasetest.html` | a synthetic 24 ppqn clock and recorded oscillator times: `__phase.start(120)`, `.slope()`, `.step(ms)`, `.stop()` — plays audio until stopped |
 | `python3 tools/build-capture-harness.py` | `_capture.html` | CS·1 with a 10 s master recorder and an injected test click, for "is this artefact in the audio?" |

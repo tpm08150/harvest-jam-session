@@ -1802,6 +1802,92 @@ name; `rig.picture` for anything a page says is happening — only the tape page
 - Checked by decoding the bytes sent into contact sheets and looking at them. Nobody has watched
   it on the glass.
 
+### Settings' knobs speak on the MIDI port
+
+⚠️ **On Shift + Custom 1 the pads worked and the knobs did nothing.** Custom 1 is the one encoder mode
+this profile gives a page — Settings — and the one nobody had watched on the device. Read off Tyler's
+Mini MK4 25 on 2026-09-13 with `_midimon.html` bound to the Launchkey's MIDI port (the pads report on
+the DAW port and none of his pad presses showed, which is how the port is known): in Custom 1 the
+encoders send **CC 21–28 on channel 1 of the MIDI port**, absolute, from a counter of the device's own
+that started near 0 and went no lower. The surface listened only on the DAW port, so the turns went to
+the router and on to the focused panel as ordinary control changes. The harness could not show it: it
+had only ever sent knobs on the DAW port, channel 16.
+
+- **Heard straight from the port.** `surface.js` listens to the controller's own MIDI port with
+  `addEventListener`, which leaves the router its one `onmidimessage`, and hands messages to
+  `profile.keys()`; kept ones go in `Patchwork.surface.traffic` marked `[keys port]`. Not through the
+  router, because Settings' MIDI in knob changes the page input, and the knob went deaf the moment it
+  moved it away.
+- **Kept from the instruments** by `Patchwork.midi.intercept(fn)`, which the router asks before it
+  delivers anything from the page input; `profile.ownsKeys()` says which messages are the surface's.
+- **Only on Custom 1.** `keys()` in `shell/launchkey.js` takes CC 21–28 only while the device last
+  reported encoder layout 6. A list moves one detent per report; each knob's first report is a baseline.
+- ⚠️ **Whether a knob takes a re-centre is learned.** A knob at 12 or below, or 115 or above, is asked
+  back to 64 on the MIDI port, because a counter at 0 cannot be turned lower. Tyler found the first cut
+  working "but pretty glitchy". Its likeliest fault: it decided from every single report whether the
+  re-centre had stuck, and a fast turn read as no turn whenever the device's answer and the next detent
+  crossed on the wire. Now a report only one answer explains casts a vote — near 64 from a knob that had
+  been far from it, or beside the last report and far from 64 — two agreeing votes settle it, and a device
+  that ignores re-centres is not asked again. Until then a report straight after a re-centre is read from
+  whichever baseline it is nearer and has moved from, and exactly 64 there is an echo, not a turn; any
+  other report is read from the one before it.
+- **DAW-port copies are ignored** in Custom 1 once the MIDI port has been heard from, so a device sending
+  both cannot pull two ways; one that keeps Custom 1 on the DAW port still works.
+- ⚠️ **The screen says what a turn did.** `showTurn()` flashes the setting and its value on the global
+  temporary display, always ending on the value the knob landed on.
+- ⚠️ **And tries to draw it last — the screen still bounces.** This pass first believed the device raised
+  nothing for these knobs. It raises a generic control-change readout, and Tyler saw the screen bounce
+  between that and the flash. Three changes followed, and with all three in, Tyler still saw it bounce
+  the same day:
+  - the flash goes out with the report that caused it, and only reports under 20 ms apart are folded into
+    one. It was one per 50 ms, and the device draws its readout when the knob moves, so in between that
+    readout could be all there was;
+  - the re-centre goes only near an end, where it used to follow every turn, and ahead of the flash. It
+    is a control change sent to the knob, and if the device answers one with its readout as it answers a
+    turn, the readout came back over every flash;
+  - the eight encoder displays lose their auto bits while the device is on Custom 1, and get them back
+    when it leaves, in case its readout is raised through them.
+- ⚠️ **Controller is off the knobs.** It was the Global bank's fourth, and one detent from the Launchkey is
+  *none*: the knob disconnected the controller turning it. It stays on the Settings tab.
+- `detect()` also returns `keysOut`, and `io.sendKeys()` writes to it.
+
+Verified in `tools/build-surface-harness.py`, which now sends the real message with `__lk.customEnc(i,
+v)`, records the keys port's output in `__lk.keysOut` and fires `addEventListener` listeners, driving
+DR·1's MIDI out ch knob from a small emulated device. Ignoring re-centres: reports a detent apart moved it
+0 1 2 1 0 1 2 3, and it stopped asking after the second. Honouring them at once, and one report late:
+0 1 2 1 2 both. An echo of 64 moved nothing, a DAW-port copy moved nothing, and with the page input set to
+none two turns still moved it two. The screen read *MIDI out ch / 11* after a turn; a spin of eight sent
+two flashes while it lasted and finished on the value the select showed. No CC 21–28 reached an
+instrument on Custom 1. The DAW-port path on Settings, for a device that never speaks on the MIDI port,
+and Func + encoder 8 were unchanged. **Not seen on the device:** whether Custom 1 honours a re-centre,
+whether anything also arrives on its DAW port, and whether a full-size MK4 does the same.
+
+The bounce, in the same harness with every message out timestamped. On Custom 1 the encoder displays
+were configured `01`/`04` where Plug-in had them `61`, and `64` again once the device reported leaving.
+A knob that honours re-centres, its counter starting at 0, was asked back at 1 and not again until it
+reached 115, both times before the flash; reports 1 65 66 65 64 63 left the channel at 10 11 12 11 10 9.
+Detents 60 ms apart each got their own flash in the same millisecond; at 12 ms apart 39 of 60 were
+followed by one within 14 ms and the rest were folded into the next; a spin of twenty in 99 ms sent six
+and ended on *MIDI out ch / Omni*, the select's value. A knob that ignores re-centres was asked at 115 and
+116 and never again, and moved one channel a detent from Omni to 16. **On the device it did not stop the
+bounce** (Tyler, 2026-09-13): the harness proves the three changes do what they say, and nothing more.
+
+⚠️ **Open: the screen still bounces on Custom 1.** Where to start:
+- **Which message raises the device's readout.** Turn one knob slowly in the middle of its travel, where
+  no re-centre is sent (13–114). If it still bounces, the readout comes from the turn itself, and it is
+  drawn before any answer from the app can arrive.
+- **What crossed the cable.** On the device, `Patchwork.surface.traffic` holds the knob reports marked
+  `[keys port]`, and `.sent` the flashes and any re-centre, also marked; their order and spacing say
+  whether the flash arrives late or is simply drawn over.
+- **What the firmware will give up.** `tools/probe-launchkey.py` reaches the device over CoreMIDI
+  without the page. With it on Custom 1, try writing the setting into the encoder displays (0x15–0x1C)
+  rather than the global temporary one, and look for any display configuration or feature control that
+  quiets a Custom mode's own readout.
+- **Not a Custom mode at all.** In the DAW encoder modes the knobs come in on the DAW port and their
+  displays are the app's to configure, and no bounce has been reported on those pages. Settings could
+  keep a DAW layout and be reached some other way — a bigger change, since README documents Shift +
+  Custom 1.
+
 ## One sequencer model, three instruments
 
 ⚠️ **`seq/step-seq.js` used to be deliberately the simpler of the two models** — no lanes,
