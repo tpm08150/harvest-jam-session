@@ -9931,7 +9931,12 @@ if (!window.Patchwork || !Patchwork.surface) return;
 
 /* SysEx header. The last byte is the only difference between the full-size and the Mini
    SKUs, and getting it wrong is silent: the device ignores a message addressed to a
-   product it is not. Guide, "SysEx message format used by the device". */
+   product it is not. Guide, "SysEx message format used by the device".
+
+   A universal device inquiry (`f0 7e 7f 06 01 f7`) is answered on both ports. A Mini MK4 25
+   says `f0 7e 00 06 02 00 20 29 41 01 00 0N 01 01 09 5c f7`, N being 1 on the DAW port and 0
+   on the MIDI port, followed by what reads as a firmware version. Recorded here in case the
+   header ever needs choosing rather than doubling — see sysex() — but nothing uses it. */
 const HDR_FULL = [0xF0, 0x00, 0x20, 0x29, 0x02, 0x14];
 const HDR_MINI = [0xF0, 0x00, 0x20, 0x29, 0x02, 0x13];
 
@@ -9949,7 +9954,9 @@ const F_PADS = 0x1D,      // 29 — pad layout select
       F_DRUM = 0x54,      // 84 — DAW takes the drum rack (0 leaves it in MIDI mode)
       F_TIMEOUT = 0x71;   // 113 — temporary display timeout, in tenths of a second
 /* Feature controls are queried by sending the same CC on channel 8; the answer comes back
-   on channel 7. Guide, "Launchkey MK4 feature controls". */
+   on channel 7. Guide, "Launchkey MK4 feature controls". Confirmed on the wire: `b7 71 00`
+   is answered by `b6 71 NN`, and a plain SET is echoed back in the same shape — which is why
+   the first-reply rule in message() is load-bearing and not tidiness. */
 const FEAT_ASK = 0xB7;
 /* ⚠️ HALF A SECOND, DOWN FROM THE DEVICE'S OWN FOUR OR FIVE. A temporary display is an answer
    to something you just did, and it sits on top of the legend while it lasts — so anything
@@ -9958,8 +9965,10 @@ const FEAT_ASK = 0xB7;
    the hand stops moving.
 
    The guide gives the units as tenths of a second and says "minimum of 1 sec at 0", which
-   leaves it unclear whether anything under ten is honoured. Five is the ask; a device that
-   clamps it will land on one second, which was the previous setting and no worse.
+   left it unclear whether anything under ten is honoured. Asked back on 2026-09-08 (a Mini
+   MK4 25, tools/probe-launchkey.py): set 5, reads back 5; set 0, reads back 0; set 10, reads
+   back 10. The number is stored as given and not clamped. Whether the glass then holds a
+   half-second display for exactly half a second is still a thing only eyes can check.
 
    ⚠️ AND IT IS NON-VOLATILE, marked (*) in the guide: it survives a power cycle, so this is
    not a setting to change and walk away from. It is read before it is written and put back
@@ -9977,12 +9986,18 @@ const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends sen
    the app's four performing views; Settings has no place among them and needed somewhere,
    and the pad right of Transport is a mode this profile was previously handing straight back.
 
-   ⚠️ THE NUMBER IS A GUESS AND THE OTHERS ARE NOT. Every constant in this file that came from
-   the guide rather than from the wire has been wrong at least once — the encoder arrows were
-   55/56 on paper and 51/52 in fact. The four below are confirmed against hardware; this one
-   is not, because Custom modes are barely documented and there was no device here to ask.
+   ⚠️ SIX, READ OFF THE WIRE RATHER THAN THE GUIDE — 2026-09-08, tools/probe-launchkey.py
+   against a Mini MK4 25. Every constant in this file that came from the guide rather than the
+   wire has been wrong at least once (the encoder arrows were 55/56 on paper and 51/52 in
+   fact), and this one was a guess until two things settled it. Told to leave DAW mode, the
+   device announced the layout it falls back to on its own — `b6 1e 06` — and standalone has
+   no Plugin, Mixer, Sends or Transport to fall back to, only Custom. And set-then-ask over
+   0-15 found it accepts 1, 2, 4-10 and nothing else: the four named modes, then four in a row
+   where four Custom modes would be, then one more (10, unclaimed here; likely the Arp page).
+   3 lands on Mixer and 0 on Plugin, so neither exists on this SKU.
 
-   If Shift + Custom 1 does nothing, one press settles it:
+   What has NOT been seen is the screen saying "Custom 1" over a `06`, because nobody was at
+   the keys. If Shift + Custom 1 ever opens the wrong thing, one press settles it:
 
      Patchwork.surface.traffic     // press it, then read the tail
 
@@ -10431,11 +10446,11 @@ function message(io, d, rig){
     if (d[1] === F_ENCS){
       const to = ENC_VIEW[d[2]];
       /* A Custom mode we have not claimed is somebody else's; leave the app where it is
-         rather than guessing — but SAY which one, because the only reason Custom 1's number
-         is a guess is that there was no hardware here to ask. */
+         rather than guessing — but SAY which one, so a mode that surprises anyone can be
+         given a job by number. Custom 2-4 report 7-9; 10 is the one past them. */
       if (to){ rig.setMode(to.page); rig.goto(to.view); }
       else console.info("launchkey: encoder mode " + d[2] + " is not mapped — "
-                      + "see ENC_CUSTOM1 in shell/launchkey.js");
+                      + "see ENC_VIEW in shell/launchkey.js");
       return;
     }
     /* ⚠️ SHIFT IS STATE AGAIN, and this time it earns it. It cannot be combined with another

@@ -620,7 +620,6 @@ learn and no button spent on it.
 | **Shift + Custom 1** | Settings — a Global bank, then one bank per instrument, and the pads are the banks |
 | **Shift + Plug-in** | Studio, and the encoders follow the focused panel |
 | **Shift + Mixer** | Tape, and the encoders become MX·8 |
-| **Shift + Sends** | Live |
 | **Shift + Transport** | Library |
 
 Mixer is the only one that also retargets the encoders, because it is the only one of the
@@ -1196,6 +1195,14 @@ a wrong *number*, and three of the numbers in `shell/launchkey.js` turned out to
 - **Shift** cannot be combined with anything: the device remaps the keys instead of passing
   a modifier, so "Shift + arrow" is not a thing to listen for — 103 and 102 are. Two wrong
   guesses came from assuming otherwise.
+- **Custom 1 is encoder layout 6.** The guide barely documents the Custom modes, so this was
+  a guess until the device was asked directly: it falls back to layout 6 on leaving DAW mode,
+  where only a Custom layout is possible, and it keeps layouts 1, 2 and 4-10 and no others.
+
+`tools/probe-launchkey.py` asks that kind of question over CoreMIDI with no browser in the
+way — useful because the desktop app's preview pane is never granted Web MIDI. It reads
+every setting before it writes one and puts them all back; see its docstring, and disconnect
+the controller in Settings first if a page is holding it.
 
 `Patchwork.surface.traffic` is what settled each of those: the last 64 messages from the
 surface port, as hex, readable from the console while the thing is plugged in. Reach for it
