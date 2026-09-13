@@ -3485,7 +3485,6 @@ function pack(c){
   return out;
 }
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const ease = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
 function type(c, px){ c.font = "700 " + px + "px " + FACE; }
 /* the largest size at which `text` fits `width` */
 function fit(c, text, width, max, min){
@@ -3585,25 +3584,28 @@ const PLACES = {
   punch: ["PUNCH-IN FX", "bolt"], settings: ["RACK SETUP", "gear"]
 };
 
-/* `t` runs 0 → 1 over the card's life. The name and its picture glide in from the right and
-   land in the first ~quarter second; the word over them types itself out; a bar along the
-   bottom fills to say how long until the controls come back. */
+/* `t` runs 0 → 1 over the card's life, and only the bar along the bottom moves with it —
+   filling to say how long until the controls come back.
+
+   ⚠️ ONE PICTURE, NOT A SEQUENCE. The name used to glide in and its word type itself out, and at
+   eleven frames a second the first frames — a name with no picture beside it yet — read as a
+   different screen from the card that followed. Reported from the hardware as two screens, of
+   which the second, with its picture, was the one to keep: so the card arrives whole. */
 function card(to, t){
   const c = blank();
   const place = PLACES[to && to.id] || null;
   const name = String((to && to.name) || "").toUpperCase();
   const icon = place && ICONS[place[1]];
-  const glide = Math.round((1 - ease(t / .42)) * 40);
   fit(c, name, icon ? 92 : 120, 36, 12);
-  c.fillText(name, 4 + glide, 45);
-  if (icon) icon(c, 100 + glide, 18);
+  c.fillText(name, 4, 45);
+  if (icon) icon(c, 100, 18);
   if (place){
     /* ⚠️ ELEVEN PIXELS AND SPACED, not nine. At nine, thresholded to one bit, an S came out as a
        5 and "DRUMS" read DRUM5: small anti-aliased type loses exactly the curves that tell
        letters apart. */
     type(c, 11);
     if ("letterSpacing" in c) c.letterSpacing = "1px";
-    c.fillText(place[0].slice(0, Math.ceil(place[0].length * ease(t / .5))), 4, 12);
+    c.fillText(place[0], 4, 12);
     if ("letterSpacing" in c) c.letterSpacing = "0px";
   }
   c.fillRect(4, 59, Math.round(120 * clamp(t, 0, 1)), 2);
@@ -3677,7 +3679,9 @@ function tape(pic, now){
   if (pic.state === "rec"){
     if (blink){ c.beginPath(); c.arc(64, 9, 4, 0, Math.PI * 2); c.fill(); }
   } else if (pic.state === "rew"){
-    [59, 66].forEach(tx => { c.beginPath(); c.moveTo(tx, 5); c.lineTo(tx - 5, 9); c.lineTo(tx, 13); c.closePath(); c.fill(); });
+    [63, 70].forEach(tx => { c.beginPath(); c.moveTo(tx, 5); c.lineTo(tx - 5, 9); c.lineTo(tx, 13); c.closePath(); c.fill(); });
+  } else if (pic.state === "ff"){
+    [58, 65].forEach(tx => { c.beginPath(); c.moveTo(tx, 5); c.lineTo(tx + 5, 9); c.lineTo(tx, 13); c.closePath(); c.fill(); });
   } else {
     c.beginPath(); c.moveTo(61, 5); c.lineTo(68, 9); c.lineTo(61, 13); c.closePath(); c.fill();
   }
@@ -4050,9 +4054,10 @@ const CFG_SHOW = 0x7F;                // "bring up the display with its current 
    which is all a page without SysEx input will ever get. */
 const CMD_BITMAP = 0x09;
 const ACK_WAIT = 300;
-/* How long a card stays up before the controls come back. Half a second was asked for; at
-   eleven frames a second that is six of them. */
-const CARD_MS = 560;
+/* How long a card stays up before the controls come back. Half a second was asked for first
+   and a second once it had been seen on the hardware; at eleven frames a second that is about
+   eleven of them, the bar moving on each. */
+const CARD_MS = 1000;
 const isBitmapAck = d => !!d && d.length >= 8 && d[0] === 0xF0 && d[1] === 0x00 && d[2] === 0x20
   && d[3] === 0x29 && d[4] === 0x02 && (d[5] === 0x13 || d[5] === 0x14) && d[6] === CMD_BITMAP;
 
@@ -4168,22 +4173,36 @@ function sendBitmap(io, target, bytes){
 /* ---- what the screen shows instead of words ----
    A card for where you have just gone, then whatever the page says is happening, and when
    neither applies the legend comes back — once. Run from paint() and again the moment a frame
-   is answered, so an animation goes as fast as the device can draw it and never faster. */
+   is answered, so an animation goes as fast as the device can draw it and never faster.
+
+   ⚠️ THE CARD GOES ON THE TEMPORARY DISPLAY, the page's picture on the stationary one. A button
+   that moves you — Track, or Shift and a mode pad — raises the device's own temporary display of
+   its name, and a card on the stationary display underneath it only showed once the device's
+   had timed out: two screens one after the other, reported from the hardware. On the temporary
+   display the card takes the device's place. It is put away by cancelling that display and
+   bringing the words back up, which were written underneath all along. */
 function artTick(io, rig){
   const a = io.state && io.state.art, Art = Patchwork.launchkeyArt;
   if (!a || !io.sysex || !Art) return;
   const now = performance.now();
   if (a.waiting && now - a.sentAt < ACK_WAIT) return;
   a.waiting = false;
-  let frame = null;
+  if (a.card && now - a.card.at >= CARD_MS) a.card = null;
   if (a.card){
-    const t = (now - a.card.at) / CARD_MS;
-    if (t < 1){ try{ frame = Art.card(a.card, t); }catch(e){ frame = null; } }
-    else a.card = null;
+    let card = null;
+    try{ card = Art.card(a.card, (now - a.card.at) / CARD_MS); }catch(e){ card = null; }
+    if (card){ sendBitmap(io, SCR_TEMP, card); a.cardUp = true; return; }
+    a.card = null;
   }
-  if (!frame && !a.card){
-    const pic = rig.picture;
-    if (pic){ try{ frame = Art.picture(pic, now); }catch(e){ frame = null; } }
+  let frame = null;
+  const pic = rig.picture;
+  if (pic){ try{ frame = Art.picture(pic, now); }catch(e){ frame = null; } }
+  if (a.cardUp){
+    a.cardUp = false;
+    sysex(io, [0x04, SCR_TEMP, 0x00]);
+    /* not when a picture is about to take the stationary display: the words would blink up
+       between the card and its first frame */
+    if (!frame && !a.shown) sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]);
   }
   if (frame){ sendBitmap(io, SCR_STATIONARY, frame); a.shown = true; return; }
   /* "triggering the normal display" is how a bitmap is put away, and its words were kept */
@@ -4220,7 +4239,7 @@ function start(io, rig){
     page: null,                        // null until the first paint, so connecting is not an "event"
     /* The picture on the screen, if any: the card in progress, whether a frame is out waiting
        to be answered, which header the device answered to, and whether a bitmap is up. */
-    art: {card: null, waiting: false, sentAt: 0, hdr: null, shown: false},
+    art: {card: null, cardUp: false, waiting: false, sentAt: 0, hdr: null, shown: false},
     unload: null
   };
 
@@ -4770,7 +4789,7 @@ function paintScreen(io, rig){
      only changes when something else already has. */
   /* ...except over a picture. Its words are kept underneath and come back when it ends (see
      artTick), where bringing them up now would blink the legend between two frames. */
-  if (wrote && !(s.art && (s.art.shown || s.art.card))) sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]);
+  if (wrote && !(s.art && (s.art.shown || s.art.card || s.art.cardUp))) sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]);
 
   /* Paging is a press, so it gets a temp display. ⚠️ Not on the first paint, and not on the
      pass that changed panels: arriving at an instrument that happens to be parked on page 3

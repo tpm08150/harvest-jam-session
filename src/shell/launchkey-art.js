@@ -48,7 +48,6 @@ function pack(c){
   return out;
 }
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const ease = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
 function type(c, px){ c.font = "700 " + px + "px " + FACE; }
 /* the largest size at which `text` fits `width` */
 function fit(c, text, width, max, min){
@@ -148,25 +147,28 @@ const PLACES = {
   punch: ["PUNCH-IN FX", "bolt"], settings: ["RACK SETUP", "gear"]
 };
 
-/* `t` runs 0 → 1 over the card's life. The name and its picture glide in from the right and
-   land in the first ~quarter second; the word over them types itself out; a bar along the
-   bottom fills to say how long until the controls come back. */
+/* `t` runs 0 → 1 over the card's life, and only the bar along the bottom moves with it —
+   filling to say how long until the controls come back.
+
+   ⚠️ ONE PICTURE, NOT A SEQUENCE. The name used to glide in and its word type itself out, and at
+   eleven frames a second the first frames — a name with no picture beside it yet — read as a
+   different screen from the card that followed. Reported from the hardware as two screens, of
+   which the second, with its picture, was the one to keep: so the card arrives whole. */
 function card(to, t){
   const c = blank();
   const place = PLACES[to && to.id] || null;
   const name = String((to && to.name) || "").toUpperCase();
   const icon = place && ICONS[place[1]];
-  const glide = Math.round((1 - ease(t / .42)) * 40);
   fit(c, name, icon ? 92 : 120, 36, 12);
-  c.fillText(name, 4 + glide, 45);
-  if (icon) icon(c, 100 + glide, 18);
+  c.fillText(name, 4, 45);
+  if (icon) icon(c, 100, 18);
   if (place){
     /* ⚠️ ELEVEN PIXELS AND SPACED, not nine. At nine, thresholded to one bit, an S came out as a
        5 and "DRUMS" read DRUM5: small anti-aliased type loses exactly the curves that tell
        letters apart. */
     type(c, 11);
     if ("letterSpacing" in c) c.letterSpacing = "1px";
-    c.fillText(place[0].slice(0, Math.ceil(place[0].length * ease(t / .5))), 4, 12);
+    c.fillText(place[0], 4, 12);
     if ("letterSpacing" in c) c.letterSpacing = "0px";
   }
   c.fillRect(4, 59, Math.round(120 * clamp(t, 0, 1)), 2);
@@ -240,7 +242,9 @@ function tape(pic, now){
   if (pic.state === "rec"){
     if (blink){ c.beginPath(); c.arc(64, 9, 4, 0, Math.PI * 2); c.fill(); }
   } else if (pic.state === "rew"){
-    [59, 66].forEach(tx => { c.beginPath(); c.moveTo(tx, 5); c.lineTo(tx - 5, 9); c.lineTo(tx, 13); c.closePath(); c.fill(); });
+    [63, 70].forEach(tx => { c.beginPath(); c.moveTo(tx, 5); c.lineTo(tx - 5, 9); c.lineTo(tx, 13); c.closePath(); c.fill(); });
+  } else if (pic.state === "ff"){
+    [58, 65].forEach(tx => { c.beginPath(); c.moveTo(tx, 5); c.lineTo(tx + 5, 9); c.lineTo(tx, 13); c.closePath(); c.fill(); });
   } else {
     c.beginPath(); c.moveTo(61, 5); c.lineTo(68, 9); c.lineTo(61, 13); c.closePath(); c.fill();
   }

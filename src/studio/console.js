@@ -639,11 +639,18 @@ if (window.Patchwork && Patchwork.surface){
                 || (T && (T.state === "play" || T.state === "rec")));
     },
     /* The deck, for a controller's screen to draw while it moves — see `picture` in
-       shell/surface.js. Only while the tape is really going: stopped, the screen keeps its words. */
+       shell/surface.js. Only while the tape is really going: stopped, the screen keeps its words.
+
+       ⚠️ A SCRUB MOVES THE TAPE WITHOUT THE DECK KNOWING. It is a seek (see scrub below), so the
+       deck's state stays "stop" while the arrows wind it — and the screen showed words for the one
+       gesture on this page that is nothing but tape moving. This page knows it is scrubbing, and
+       which way, even though the deck does not. */
     picture: () => {
       const T = Patchwork.tape;
-      if (!T || (T.state !== "play" && T.state !== "rec" && T.state !== "rew")) return null;
-      return {kind: "tape", state: T.state, position: T.position, reel: T.reelSeconds};
+      if (!T) return null;
+      const state = scrubDir ? (scrubDir < 0 ? "rew" : "ff") : T.state;
+      if (state !== "play" && state !== "rec" && state !== "rew" && state !== "ff") return null;
+      return {kind: "tape", state, position: T.position, reel: T.reelSeconds};
     },
     /* ⚠️ Instant, and it stops first — "back to the top" is a thing you do in order to play
        from there, and arriving still rolling means arriving somewhere else. */
@@ -663,6 +670,7 @@ if (window.Patchwork && Patchwork.surface){
       const T = Patchwork.tape;
       if (!T) return;
       clearInterval(scrubTimer);
+      scrubDir = on ? dir : 0;               // for the screen — see picture above
       if (!on) return;
       if (T.state === "play" || T.state === "rec") T.stop();
       /* ⚠️ HOW FAST "FAST" IS BELONGS HERE, not to the controller that asked for it — it is
@@ -677,7 +685,7 @@ if (window.Patchwork && Patchwork.surface){
     }
   });
 }
-let scrubTimer = 0;
+let scrubTimer = 0, scrubDir = 0;
 
 
 /* ---- the desk's share of a project ----

@@ -1535,6 +1535,13 @@ name; `rig.picture` for anything a page says is happening — only the tape page
   trigger, which `artTick()` sends once when the picture ends.
 - **Quiet and short in the logs.** The profile's `quiet()` keeps answers out of
   `Patchwork.surface.traffic`, and `record()` logs any message over 48 bytes by its head.
+- ⚠️ **The card is one picture, on the temporary display.** It glided in at first, and it sat on
+  the stationary display, under the device's own temporary display for the button that moved you
+  — reported from the hardware as two screens in a row. Now only its bar moves, and it goes where
+  the device's display would be. Whether that really replaces the device's is unseen.
+- **A scrub shows the deck.** The tape page's scrub is a seek, so the deck's state stays "stop";
+  the page reports its own scrub as `rew` or `ff` in `picture`, and the reels wind from the
+  measured motion like any other.
 - Checked by decoding the bytes sent into contact sheets and looking at them. Nobody has watched
   it on the glass.
 

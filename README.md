@@ -1123,12 +1123,14 @@ of the page open at once both answer the same pad — one punching, one launchin
 
 The Launchkey MK4's screen takes 128 × 64 bitmaps as well as text, and the app uses both.
 
-- **Moving somewhere** — another panel, a page, the punch page — shows a card for about half a
+- **Moving somewhere** — another panel, a page, the punch page — shows a card for about a
   second: the name, a word for what it is, a small picture, and a bar counting down to the
-  controls coming back.
-- **On the Tape page, while the tape moves**, the screen is the deck: two reels that fill and
-  empty by area and turn at the tape's speed over their own radius, the counter, and a play or
-  rewind mark. **Recording** blinks a dot and a REC badge. Stop, and the controls come back.
+  controls coming back. It arrives whole, and on the screen's temporary display, where the
+  Launchkey shows the name of a button you press — so the two do not show one after the other.
+- **On the Tape page, while the tape moves** — playing, recording, rewinding, or scrubbed with the
+  arrows beside the pads — the screen is the deck: two reels that fill and empty by area and turn
+  at the tape's speed over their own radius, the counter, and a play, rewind or fast-forward
+  mark. **Recording** blinks a dot and a REC badge. Stop, and the controls come back.
 
 ⚠️ **About eleven frames a second is all there is.** The device answers each bitmap once it has
 drawn it — 84–88 ms later on a Mini MK4 25 — and the next frame waits for that answer, so every

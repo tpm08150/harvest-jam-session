@@ -344,9 +344,10 @@ const CFG_SHOW = 0x7F;                // "bring up the display with its current 
    which is all a page without SysEx input will ever get. */
 const CMD_BITMAP = 0x09;
 const ACK_WAIT = 300;
-/* How long a card stays up before the controls come back. Half a second was asked for; at
-   eleven frames a second that is six of them. */
-const CARD_MS = 560;
+/* How long a card stays up before the controls come back. Half a second was asked for first
+   and a second once it had been seen on the hardware; at eleven frames a second that is about
+   eleven of them, the bar moving on each. */
+const CARD_MS = 1000;
 const isBitmapAck = d => !!d && d.length >= 8 && d[0] === 0xF0 && d[1] === 0x00 && d[2] === 0x20
   && d[3] === 0x29 && d[4] === 0x02 && (d[5] === 0x13 || d[5] === 0x14) && d[6] === CMD_BITMAP;
 
@@ -462,22 +463,36 @@ function sendBitmap(io, target, bytes){
 /* ---- what the screen shows instead of words ----
    A card for where you have just gone, then whatever the page says is happening, and when
    neither applies the legend comes back — once. Run from paint() and again the moment a frame
-   is answered, so an animation goes as fast as the device can draw it and never faster. */
+   is answered, so an animation goes as fast as the device can draw it and never faster.
+
+   ⚠️ THE CARD GOES ON THE TEMPORARY DISPLAY, the page's picture on the stationary one. A button
+   that moves you — Track, or Shift and a mode pad — raises the device's own temporary display of
+   its name, and a card on the stationary display underneath it only showed once the device's
+   had timed out: two screens one after the other, reported from the hardware. On the temporary
+   display the card takes the device's place. It is put away by cancelling that display and
+   bringing the words back up, which were written underneath all along. */
 function artTick(io, rig){
   const a = io.state && io.state.art, Art = Patchwork.launchkeyArt;
   if (!a || !io.sysex || !Art) return;
   const now = performance.now();
   if (a.waiting && now - a.sentAt < ACK_WAIT) return;
   a.waiting = false;
-  let frame = null;
+  if (a.card && now - a.card.at >= CARD_MS) a.card = null;
   if (a.card){
-    const t = (now - a.card.at) / CARD_MS;
-    if (t < 1){ try{ frame = Art.card(a.card, t); }catch(e){ frame = null; } }
-    else a.card = null;
+    let card = null;
+    try{ card = Art.card(a.card, (now - a.card.at) / CARD_MS); }catch(e){ card = null; }
+    if (card){ sendBitmap(io, SCR_TEMP, card); a.cardUp = true; return; }
+    a.card = null;
   }
-  if (!frame && !a.card){
-    const pic = rig.picture;
-    if (pic){ try{ frame = Art.picture(pic, now); }catch(e){ frame = null; } }
+  let frame = null;
+  const pic = rig.picture;
+  if (pic){ try{ frame = Art.picture(pic, now); }catch(e){ frame = null; } }
+  if (a.cardUp){
+    a.cardUp = false;
+    sysex(io, [0x04, SCR_TEMP, 0x00]);
+    /* not when a picture is about to take the stationary display: the words would blink up
+       between the card and its first frame */
+    if (!frame && !a.shown) sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]);
   }
   if (frame){ sendBitmap(io, SCR_STATIONARY, frame); a.shown = true; return; }
   /* "triggering the normal display" is how a bitmap is put away, and its words were kept */
@@ -514,7 +529,7 @@ function start(io, rig){
     page: null,                        // null until the first paint, so connecting is not an "event"
     /* The picture on the screen, if any: the card in progress, whether a frame is out waiting
        to be answered, which header the device answered to, and whether a bitmap is up. */
-    art: {card: null, waiting: false, sentAt: 0, hdr: null, shown: false},
+    art: {card: null, cardUp: false, waiting: false, sentAt: 0, hdr: null, shown: false},
     unload: null
   };
 
@@ -1064,7 +1079,7 @@ function paintScreen(io, rig){
      only changes when something else already has. */
   /* ...except over a picture. Its words are kept underneath and come back when it ends (see
      artTick), where bringing them up now would blink the legend between two frames. */
-  if (wrote && !(s.art && (s.art.shown || s.art.card))) sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]);
+  if (wrote && !(s.art && (s.art.shown || s.art.card || s.art.cardUp))) sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]);
 
   /* Paging is a press, so it gets a temp display. ⚠️ Not on the first paint, and not on the
      pass that changed panels: arriving at an instrument that happens to be parked on page 3
