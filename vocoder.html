@@ -3608,6 +3608,13 @@ const ENC_VIEW = {1: {view: "tape",   page: "mixer"},
                   4: {view: "live",   page: "scenes"},
                   5: {view: "lib",    page: ""}};
 ENC_VIEW[ENC_CUSTOM1] = {view: "set", page: "settings"};
+/* What Settings lends the knobs while Shift is up, and how long an answer to that counts as ours —
+   see lendKnobs(). ⚠️ GENEROUS ON PURPOSE. The answer is a USB round trip, but it is read on the main
+   thread, which is drawing Settings and its card at that very moment; fed 400 ms late in the harness,
+   an answer was followed as a press and the app went to Studio. A Shift change ends the wait sooner —
+   see setShift() — so this only has to outlast a stall. */
+const ENC_LENT = ENC_PLUGIN;
+const LAYOUT_ECHO_MS = 1500;
 
 /* Pads. DAW layout reports as notes on channel 1; Drum layout on channel 10 once the DAW
    has taken the rack. Guide, "DAW mode" and "Drum mode" pad index figures.
@@ -4020,6 +4027,7 @@ function start(io, rig){
        where each knob's counter last was, whether it has been asked back to the middle since, and
        the channel it speaks on. */
     encLayout: ENC_PLUGIN,
+    lent: false, layoutSet: null, layoutSetAt: 0,   // Settings' borrowed layout — see lendKnobs()
     customAt: new Array(ENC_N).fill(null),
     customParked: new Array(ENC_N).fill(false),
     customCh: 0,
@@ -4187,10 +4195,10 @@ function parkCustom(io, i){
    screen showed — and Tyler saw the two take turns. Reports closer together than 20 ms, about a frame,
    are still folded into one, and the last always shows the value the knob finished on.
 
-   ⚠️ AND THE SCREEN STILL BOUNCES. With this, the re-centre kept to the ends in customTurn() and no auto
+   ⚠️ AND THE SCREEN STILL BOUNCED. With this, the re-centre kept to the ends in customTurn() and no auto
    bits on the encoder displays in paintEncoders(), Tyler still saw the flash and the device's readout
-   take turns on 2026-09-13. None of the three was enough; HANDOFF.md, "Settings' knobs speak on the MIDI
-   port", lists where to look next. */
+   take turns on 2026-09-13. None of the three was enough. What stopped it was not being in Custom 1
+   while the knobs turn — see lendKnobs() — so this now only answers a knob turned with Shift held. */
 function showTurn(io, c){
   const s = io.state;
   if (s.turnFlashTimer) return;               // one is already on its way, and will read the latest
@@ -4207,6 +4215,59 @@ function showTurn(io, c){
   const wait = 20 - (performance.now() - (s.turnFlashAt || 0));
   if (wait <= 0) send();
   else s.turnFlashTimer = setTimeout(send, wait);
+}
+
+/* ---- Settings lends its knobs a DAW layout ----
+   ⚠️ CUSTOM 1 IS FOR THE MODE PADS, NOT FOR THE KNOBS. A knob turned in a Custom mode is the device's
+   own: it puts up a generic readout of the control change as the knob moves, and on 2026-09-13
+   nothing the page sent kept that off the screen — not a flash within 20 ms of every report, not
+   re-centres kept to the ends, not the auto bits taken off the encoder displays. Tyler saw the flash
+   and the readout take turns through all three. No other page has shown that readout: their knobs are
+   on DAW layouts, where the displays are the app's to raise.
+
+   And Custom 1 only has to be the layout while Shift is down. It is how the device says "Settings",
+   and what the mode pads under Shift light and change from; once Shift is up, nothing reads the
+   layout but the knobs. So Settings asks for Plug-in when Shift comes up — the knobs then speak on
+   the DAW port and move Settings through the same list code as every other page, under their own
+   displays — and asks for Custom 1 back the moment Shift goes down, so any mode pad pressed is still
+   a change the device reports, Plug-in included, and Custom 1 is what is lit.
+
+   The device echoes a layout it is sent (tools/probe-launchkey.py, 2026-09-08); the F_ENCS report
+   in message() notes an echo of our own request instead of following it. One request at a time. A
+   lost echo leaves the knobs where they were, and the next Shift asks again.
+
+   Tried on Tyler's Mini MK4 25 on 2026-09-13: lent, the knobs worked and the screen stopped bouncing.
+   Not reported: whether a sent layout puts a mode name on the screen. If Settings' knobs ever go dead
+   once Shift is up, the lend did not take. */
+function lendKnobs(io, rig){
+  const s = io.state;
+  if (!s || rig.mode !== ENC_VIEW[ENC_CUSTOM1].page) return;
+  if (s.layoutSet != null && performance.now() - s.layoutSetAt < LAYOUT_ECHO_MS) return;
+  let want = null;
+  if (!s.shift && s.encLayout === ENC_CUSTOM1) want = ENC_LENT;
+  else if (s.shift && s.lent && s.encLayout === ENC_LENT) want = ENC_CUSTOM1;
+  if (want == null) return;
+  s.layoutSet = want;
+  s.layoutSetAt = performance.now();
+  io.send([FEAT, F_ENCS, want]);
+}
+/* Shift arrives by two roads; both end here, and only a change does anything. ⚠️ A CHANGE ALSO ENDS
+   ANY WAIT FOR AN ANSWER. The device answers a request before it reports anything the hand does after
+   it, so an answer not in by the time Shift moves is not coming, and a layout reported from here on is
+   the hand's choice — the only way a mode pad is reached at all is with Shift down. */
+function setShift(io, rig, down){
+  if (!io.state || io.state.shift === down) return;
+  io.state.shift = down;
+  io.state.layoutSet = null;
+  lendKnobs(io, rig);
+}
+/* ⚠️ THE KNOBS CHANGE PORTS UNDER THE SAME CONTROLS, so paintEncoders() would not notice: nothing
+   arrived, so no list is parked mid-travel and no baseline set, and the first detent on the DAW port
+   would be read against wherever the knob was last left in Plug-in. Every knob is made to arrive
+   again, and painted now rather than on a tick a turn could beat. */
+function reseat(io, rig){
+  io.state.encIds.fill("\u0000");
+  paintEncoders(io, rig);
 }
 
 function message(io, d, rig){
@@ -4250,7 +4311,20 @@ function message(io, d, rig){
        already offers rather than growing a mode of its own that the device knows nothing
        about and cannot light. */
     if (d[1] === F_ENCS){
-      io.state.encLayout = d[2];
+      const s = io.state;
+      /* ⚠️ AN ANSWER TO OUR OWN REQUEST IS NOT A PAD PRESS. Settings lends the knobs a layout — see
+         lendKnobs() — and the device echoes what it is sent. Followed like a press, lending Plug-in
+         would take the app straight to Studio. Noted instead, and the lending carries on from there. */
+      const ours = s.layoutSet === d[2] && performance.now() - s.layoutSetAt < LAYOUT_ECHO_MS;
+      s.encLayout = d[2];
+      if (ours){
+        s.layoutSet = null;
+        s.lent = d[2] === ENC_LENT;
+        if (s.lent) reseat(io, rig);
+        lendKnobs(io, rig);               // Shift may have moved while the answer was on its way
+        return;
+      }
+      s.lent = false;
       const to = ENC_VIEW[d[2]];
       /* A Custom mode we have not claimed is somebody else's; leave the app where it is
          rather than guessing — but SAY which one, so a mode that surprises anyone can be
@@ -4258,6 +4332,7 @@ function message(io, d, rig){
       if (to){ rig.setMode(to.page); rig.goto(to.view); }
       else console.info("launchkey: encoder mode " + d[2] + " is not mapped — "
                       + "see ENC_VIEW in shell/launchkey.js");
+      lendKnobs(io, rig);                 // Settings reached with Shift already up lends at once
       return;
     }
     /* ⚠️ SHIFT IS STATE AGAIN, and this time it earns it. It cannot be combined with another
@@ -4265,7 +4340,7 @@ function message(io, d, rig){
        here, and an ENCODER is not a button: turning one while Shift is down still sends its
        own CC. So the one thing Shift can modify is the eight knobs, which is exactly where a
        second handful of controls was wanted. */
-    if (d[1] === F_SHIFT){ io.state.shift = d[2] > 0; return; }
+    if (d[1] === F_SHIFT){ setShift(io, rig, d[2] > 0); return; }
     /* The answer to the query in start(). ⚠️ FIRST REPLY ONLY: the device may also confirm
        the value we then set, and capturing that would mean "restoring" our own setting and
        losing theirs for good. MIDI is ordered, so the first answer is the one we asked for. */
@@ -4387,7 +4462,7 @@ function message(io, d, rig){
 
   /* Both are state, so both need the release as well as the press. Shift arrives twice —
      here and on the feature channel above — and either road sets the same flag. */
-  if (cc === B_SHIFT){ io.state.shift = v > 0; return; }
+  if (cc === B_SHIFT){ setShift(io, rig, v > 0); return; }
   /* ⚠️ FUNC ACTS ON THE RELEASE, for the reason ">" does below: until then nobody knows it
      was a press at all. Held with anything else it is the modifier it has always been; let go
      having modified nothing and it turns the panel you are pointed at to its other face. A
@@ -4640,8 +4715,9 @@ function paintEncoders(io, rig){
     const wantsText = !!(c && typeof c.text === "function");
     /* ⚠️ NO AUTOMATIC READOUT ON CUSTOM 1. The auto bits are what make the device raise these displays
        itself when a knob moves, which is right for a DAW-mode turn and competes with showTurn()'s flash on
-       Custom 1. Whether a Custom mode's own readout listens to them is not known; if it does, this is what
-       stops it. Part of the cache key, so leaving Custom 1 puts them back. */
+       Custom 1. Taking them off did not stop the device's own Custom-mode readout on 2026-09-13, so that is
+       not raised through them; kept because it costs nothing, while Settings now lends the knobs a DAW
+       layout instead — see lendKnobs(). Part of the cache key, so leaving Custom 1 puts them back. */
     const auto = s.encLayout === ENC_CUSTOM1 ? 0 : CFG_AUTO;
     const mode = !c ? (auto ? "" : "x") : (wantsText ? "t" : "n") + (auto ? "a" : "");
     if (s.encMode[i] !== mode){

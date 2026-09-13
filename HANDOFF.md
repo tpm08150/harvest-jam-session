@@ -1835,10 +1835,10 @@ had only ever sent knobs on the DAW port, channel 16.
   both cannot pull two ways; one that keeps Custom 1 on the DAW port still works.
 - ⚠️ **The screen says what a turn did.** `showTurn()` flashes the setting and its value on the global
   temporary display, always ending on the value the knob landed on.
-- ⚠️ **And tries to draw it last — the screen still bounces.** This pass first believed the device raised
-  nothing for these knobs. It raises a generic control-change readout, and Tyler saw the screen bounce
-  between that and the flash. Three changes followed, and with all three in, Tyler still saw it bounce
-  the same day:
+- ⚠️ **And tries to draw it last, which was not enough** — the fourth attempt below is what worked. This
+  pass first believed the device raised nothing for these knobs. It raises a generic control-change
+  readout, and Tyler saw the screen bounce between that and the flash. Three changes followed, and with
+  all three in, Tyler still saw it bounce the same day:
   - the flash goes out with the report that caused it, and only reports under 20 ms apart are folded into
     one. It was one per 50 ms, and the device draws its readout when the knob moves, so in between that
     readout could be all there was;
@@ -1872,7 +1872,8 @@ and ended on *MIDI out ch / Omni*, the select's value. A knob that ignores re-ce
 116 and never again, and moved one channel a detent from Omni to 16. **On the device it did not stop the
 bounce** (Tyler, 2026-09-13): the harness proves the three changes do what they say, and nothing more.
 
-⚠️ **Open: the screen still bounces on Custom 1.** Where to start:
+⚠️ **Where the search would have started**, left for the record — the fourth attempt below went round
+the question instead, and stopped the bounce:
 - **Which message raises the device's readout.** Turn one knob slowly in the middle of its travel, where
   no re-centre is sent (13–114). If it still bounces, the readout comes from the turn itself, and it is
   drawn before any answer from the app can arrive.
@@ -1887,6 +1888,44 @@ bounce** (Tyler, 2026-09-13): the harness proves the three changes do what they 
   displays are the app's to configure, and no bounce has been reported on those pages. Settings could
   keep a DAW layout and be reached some other way — a bigger change, since README documents Shift +
   Custom 1.
+
+⚠️ **The fourth attempt, which held: Settings lends the knobs Plug-in while Shift is up.** The first
+three leads above
+needed a live look at the device: Claude in Chrome was not connected, and a CoreMIDI probe takes the
+device out of DAW mode under Tyler's open tab. The fourth needed neither, and needs no answer to what
+raises the readout — only to stop being in a Custom mode while the knobs are turned. Custom 1 has to
+be the layout only while Shift is down: it is how the device says "Settings", and what the mode pads
+under Shift light and change from. So `lendKnobs()` in `shell/launchkey.js` asks for Plug-in
+(`B6 1E 02`) when Shift comes up on Settings, and for Custom 1 back (`B6 1E 06`) the moment Shift goes
+down. Lent, the knobs report on the DAW port and move Settings through the same list code as every
+other page, under per-encoder displays with the auto bits back, and `showTurn()` never runs.
+`start()` has always set Plug-in the same way at connect.
+- **An answer is noted, not followed.** The device echoes a layout it is sent. The `F_ENCS` report
+  treats one matching the request as state — followed as a press, lending Plug-in would go to Studio.
+  The wait ends with the answer, with any Shift change (the device answers before it reports what the
+  hand does next, and a mode pad needs Shift down), or after 1.5 s. It was 400 ms at first, and an
+  answer fed 400 ms late in the harness was followed as a press.
+- **The knobs are re-seated** when the lend is answered: every knob's control made to arrive again, so
+  lists are parked at 64 and given a baseline before the first detent on the DAW port.
+- **Only from Custom 1, only on Settings.** A Plug-in the app did not lend is never taken back, and a
+  report of 6 with Shift already up — the device falling back out of DAW mode — lends at once.
+- `setShift()` is now where both of Shift's roads (the feature channel and the button channel) end.
+
+Verified in `tools/build-surface-harness.py` only, with the device's answers fed by hand, since the fake
+device does not echo. Shift + Custom 1 brought Settings up and asked for nothing while Shift was held;
+letting go asked for `02`, and its answer left Settings up, put the encoder displays' auto bits back and
+parked the knobs at 64. DR·1's MIDI out ch then went 10 → 11 → 12 → 11 on DAW-port turns, with no flash
+and nothing sent on the keys port, and a Custom 1 control change on the MIDI port while lent moved
+nothing. Shift down asked for `06`, whose answer changed no view and raised no card, and Mixer and
+Plug-in pressed under Shift still went to the mixer and Studio. A report of 6 with Shift already up lent
+at once, and its answer 400 ms on — the case the first window followed as a press — was noted. So was an
+answer 900 ms late with no Shift change; one lost when Shift went down let the next Plug-in press
+through; a late `06` arriving after Shift had come back up only led to a fresh request; and Shift on
+the button channel, or on both channels at once, asked exactly once each way.
+
+**On the device it worked.** Tyler tried it on the Mini MK4 25 on 2026-09-13: the knobs work once Shift
+is up, and the screen no longer bounces. Not reported: whether a sent layout puts a mode name on the
+screen, and whether Plug-in and Mixer pressed under Shift from Settings still change the view there.
 
 ## One sequencer model, three instruments
 
