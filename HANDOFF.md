@@ -1214,6 +1214,7 @@ mid-take.
 | PM·1 | the step sequence, plus len/rate/motion/scale |
 | BS·1, VC·1 | the step sequence, plus len/rate/key/scale |
 | DR·1 | the eight lanes, plus len/rate/swing/accent |
+| SQ·1 | all sixteen tracks — each one's drum lanes and synth steps with their len/rate/swing, its style and its mute |
 
 ### A scene puts PM·1 into a motion mode
 
@@ -1240,6 +1241,88 @@ already correct and an early return skipped the repaint it came for — the sequ
 the arp while the panel read OFF and showed the step grid. What has to be true after a
 scene acts is that the panel agrees with what is sounding, which is a claim about the
 paint, not about the assignment above it.
+
+### SQ·1 asks for a row from every track
+
+⚠️ **SQ·1 never called `take()`, so a row fired while it played never landed.** `fire()` queues
+a pattern for any instrument that is playing when a seam is coming, and relies on that
+instrument's scheduling loop to ask for it. CS·1, PM·1, DR·1 and the shared sequencer (given an
+`id`) ask; SQ·1's drum tracks had no call at all and its synth tracks were built without an
+`id`, so the shared tick skipped its own. The cell pulsed armed for as long as SQ·1 kept playing,
+and a row with nothing for SQ·1 never stopped it. Instant and a stopped SQ·1 were unaffected,
+since neither waits for a seam. Measured in the studio on Bar: 3.7 s past the seam the cell still
+read armed, `take("sq1")` had been called zero times and all sixteen notes sent after the line
+were the old row's; a queued stop was still playing four seconds after its seam.
+
+**Every playing track asks — before every step, and once per tick — all under `"sq1"`:**
+`makeDrum().tick` in `sq1/engine.js` directly, the synth tracks through the shared sequencer's
+`id`. One appointed track cannot do it. Sixteen transports schedule their own steps in whatever
+order the clock runs their ticks, a track goes to the back of that order whenever it restarts,
+and an asker that came second would find a faster track had already put the old pattern on the
+seam. With all of them asking, the first step at or past the seam on any track lands the row for
+all sixteen, and nothing after it on any track comes from the old one. The drum tick now reads
+its step length after `take()` as well: the stale step PM·1 and the shared sequencer were fixed
+for, latent here only because nothing had ever landed inside the loop.
+
+⚠️ **One landing per row, and never one inside another.**
+
+- There is one pending entry under `"sq1"`, and `take()` deletes it before it applies, so the
+  other fifteen tracks asking find nothing.
+- A track that SQ·1's scene `apply()` starts or restyles ticks before `start()` returns, and that
+  tick asks. With a row queued for the bar it starts on, a pattern arriving from outside — a
+  jam's live pattern, a project, a sequence chosen on the strip — had the row land in the middle
+  of that apply, which then wrote the rest of its own pattern over the row's. Measured with a
+  live pattern set 13 ms past the bar a row was queued for: one track of the row, fifteen of the
+  other pattern, and the launcher saying the row was playing. `landing` (`sq1/engine.js`) is up
+  for the whole apply and no track asks while it is — the synth tracks' `id` is a getter that
+  answers null then. After: the two applies ran one after the other and all sixteen tracks held
+  the row. What it costs is at most one step, on a track that outside pattern started, when the
+  row is due on that track's very first step.
+
+⚠️ **A row's mutes take effect on a running sequencer.** Mute on SQ·1 is a stopped transport
+(`setMute()`), and the scene apply wrote the flag and left the transport alone. From silence
+that was invisible, because `playAll()` reads the flags; on Instant a row that muted a playing
+track left it sending under a lit Mute, and at a seam nothing is started at all. `apply()` now
+stops what the row mutes — before `setStyle()`, which would otherwise restart it — and starts
+what it unmutes, only while SQ·1 is running. The same reason PM·1's `motionForScene()` runs from
+its `apply()`. Everything that goes through that apply gets it: a jam's live pattern, a project,
+a sequence chosen on the strip.
+
+⚠️ **The clock's grid is held through the apply.** Stopping the only track the clock is running
+empties it, an empty clock forgets its origin, and the next track to start invents a grid at the
+moment it asks — which, called from `take()`, is most of a lookahead before the seam. `apply()`
+keeps a tick that schedules nothing in `Patchwork.clock` for as long as it runs.
+
+| Bar, one track running | before | after |
+| --- | --- | --- |
+| a row swapping it for another track by mute | in 160 ms ahead of the seam, and the grid 160 ms ahead from then on | on the seam, origin unchanged |
+| a row switching it from drum to synth | in 155 ms ahead of the seam, the grid moved with it | on the seam, origin unchanged |
+
+Measured after, in the studio — sixteen tracks, eight drum and eight synth, at every rate from
+1/4 to 1/32 with the triplets, lengths 3 to 64, every step on, and the incoming row changing every
+note, rate and length:
+
+| | |
+| --- | --- |
+| **Bar** | one `take()`, exactly on the seam and 185 ms ahead of it in wall time; one apply; every track's first new note on the seam, no old note at or past it; the cell armed → live |
+| **Pattern, 2 bars** | the seam two bars into the grid, and the same split on all sixteen |
+| **A row with nothing for SQ·1** | stopped at the seam: its last note 62.5 ms before, none after; the cell's ending cleared |
+| **DR·1 on the same row** | DR·1 and SQ·1 both took exactly on the seam |
+| **A row muting track 3 and unmuting track 2** | track 2's first note on the seam, track 3's last 500 ms before it, fifteen playing |
+| **Instant, and a stopped SQ·1** | as before |
+
+`take()` spent 4–7 ms landing SQ·1's row, which includes `sequences.around()` capturing the grid
+either side of the apply — well inside the 200 ms lookahead. Measured in the desktop app's browser
+pane with `?relay=off`, with wrappers on `scenes.take`, `clock.pin` and each track's MIDI sender,
+and synth timestamps mapped back from `performance.now()` to audio time. **No MIDI output was
+connected**: this is what SQ·1 handed the sender, not what arrived at a cable.
+
+⚠️ **Found on the way, not fixed here: SQ·1's drum hits leave as soon as they are scheduled.**
+`makeDrum()`'s `fire()` passes `send.noteOn()` and `noteOff()` the audio-clock time in seconds,
+and the sender hands that to Web MIDI's `send()`, which takes a `performance.now()` timestamp in
+milliseconds — so every drum hit is in the past on arrival and goes out immediately, up to the
+lookahead early. The synth tracks convert (`ms()` in `makeSynth()`). Seen while reproducing: a
+drum hit timestamped 132.24 against a `performance.now()` of 132269.
 
 ### Details worth not undoing
 

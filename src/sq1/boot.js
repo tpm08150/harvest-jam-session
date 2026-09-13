@@ -17,17 +17,55 @@ Patchwork.scenes.register("sq1", {
                                              synth: t.synth.capture()}))}),
   apply: pat => {
     if (!pat || !Array.isArray(pat.tracks)) return;
-    pat.tracks.forEach((s, i) => {
-      const t = track(i);
-      if (!s) return;
-      /* ⚠️ Both halves are restored whatever the style, for the reason both halves exist:
-         a scene that dropped the drum pattern of a track set to synth would quietly empty it
-         the first time somebody switched over to look. */
-      t.drum.apply(s.drum);
-      t.synth.apply(s.synth);
-      t.mute = !!s.mute;
-      setStyle(i, s.style === "drum" ? "drum" : "synth");
-    });
+    /* ⚠️ A MUTED TRACK IS A STOPPED ONE, and this wrote the flag and left the transport alone.
+       setMute() and playAll() both treat mute as "not running", so a row started from silence
+       honoured it — but on a running sequencer a row that muted a track left it sending notes
+       under a lit Mute (measured on Instant), and a seam applies without starting anything, so a
+       track the row unmuted would not have come in at all. The same reason PM·1's
+       motionForScene() is called from its apply().
+
+       Only while the sequencer is running: stopped, fire() starts it straight after this and
+       playAll() reads the flags. A jam's live pattern arrives through here too, so a track muted
+       on the other machine now stops on this one rather than only saying so. */
+    const running = anyPlaying();
+    /* ⚠️ THE GRID IS HELD WHILE TRACKS STOP AND START. An empty clock forgets its origin, and the
+       next track to start invents a new grid at the moment it asks — so a row that stopped the
+       only track running and started another, or changed a lone track's style, restarted SQ·1
+       off the seam and on a grid of its own. Measured before this, on Bar: the track swapped in
+       came in 160 ms ahead of the seam (155 on a style change), and the grid stayed 160 ms ahead
+       of where it had been. A tick that schedules nothing keeps the clock's grid through the
+       swap, so every start below claims the bar line the rack is already counting: the seam,
+       when a seam is what called. */
+    const hold = function(){};
+    if (running) Patchwork.clock.run(hold);
+    /* ⚠️ AND NOTHING IN HERE MAY LAND A ROW. A track started below ticks before start() returns,
+       and a tick asks take() — so with a row queued for the bar it starts on, a pattern arriving
+       from outside (a jam, a project, a sequence chosen on the strip) had the row land in the
+       middle of this loop, which then wrote the rest of its own pattern over the row's. Measured
+       before this, with a live pattern set 13 ms past the bar a row was queued for: the row
+       landed inside it, and the sequencer came out holding one track of the row and fifteen of
+       the other pattern while the launcher said the row was playing. While `landing` is up no
+       track asks, and the row lands whole on the next step that does. */
+    landing = true;
+    try{
+      pat.tracks.forEach((s, i) => {
+        const t = track(i);
+        if (!s) return;
+        /* ⚠️ Both halves are restored whatever the style, for the reason both halves exist:
+           a scene that dropped the drum pattern of a track set to synth would quietly empty it
+           the first time somebody switched over to look. */
+        t.drum.apply(s.drum);
+        t.synth.apply(s.synth);
+        t.mute = !!s.mute;
+        /* before the style changes, so setStyle() does not restart a track the row has muted */
+        if (t.mute && t.playing) stopTrack(t);
+        setStyle(i, s.style === "drum" ? "drum" : "synth");
+        if (running && !t.mute && !t.playing) t.live.start();
+      });
+    } finally {
+      landing = false;
+      if (running) Patchwork.clock.stop(hold);
+    }
     showTrack();
   }
 });

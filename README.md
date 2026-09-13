@@ -467,6 +467,13 @@ synth track and the eight on a drum one, as a wash and a left edge rather than a
 outline, and only while a surface is connected. A window nobody can move is a window that
 means nothing.
 
+⚠️ **A scene lands on SQ·1 on the row's seam, like everything else.** It used to wait forever:
+SQ·1 never asked for a queued row, so firing one while it played left the cell flashing armed,
+and a row with nothing for SQ·1 never stopped it. Every playing track asks now, and the first step
+at or past the seam on any of them changes all sixteen — notes, lengths, rates, styles and mutes.
+**A track the row mutes stops on the seam and one it unmutes comes in on it**, which holds for a
+jam's live pattern and a sequence chosen on the strip too.
+
 ## MIDI out
 
 ⚠️ **One cable out for the rack, one channel per instrument** — the same shape the input

@@ -31,6 +31,12 @@ const RATES = {"1/4":1, "1/4t":1.5, "1/8":2, "1/8t":3, "1/16":4, "1/16t":6, "1/3
 const clampf = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const beatSeconds = () => 60 / (Patchwork.clock.bpm || 120);
 
+/* ⚠️ UP WHILE A PATTERN IS BEING PUT DOWN ON THE TRACKS — see the scene apply in boot.js. A track
+   that apply() starts or restyles ticks before its start() returns, and every tick asks take() for
+   a queued row; asking from in there could land a row halfway through somebody else's pattern. So
+   while this is up no track asks, and the row lands whole on the next step that does. */
+let landing = false;
+
 /* ---- a drum track ----
    Eight lanes of on/off/accent, which is DR·1's model with the voices taken out: there is no
    kit here, only note numbers, and 0/1/2 in a flat array is what a hundred and twenty-eight
@@ -89,10 +95,44 @@ function makeDrum(ch, send){
     tick: function tick(){
       const ctx = Patchwork.audio.ctx;
       if (!ctx || !T.playing) return;
-      const step = stepSeconds();
+      /* Once per tick as well as once per step — see the note in pm1's tick. */
+      if (!landing) Patchwork.scenes.take("sq1", ctx.currentTime);
+      if (!T.playing) return;
       while (nextTime < ctx.currentTime + .2){
         const at = Math.max(ctx.currentTime + .005, nextTime);
+        /* ⚠️ EVERY PLAYING TRACK ASKS, BEFORE EVERY STEP, AND ALL UNDER ONE NAME.
+
+           A row fired at a running rack waits in shell/scenes.js until the instrument calls take()
+           from inside its own scheduling loop, and nothing in SQ·1 ever did. So a row that changed
+           it while it played flashed armed for as long as it kept playing, and a row with nothing
+           for it never stopped it. Measured on Bar before this: nearly two bars past the seam the
+           cell still read armed, take() had not been called for "sq1" once, and all sixteen notes
+           sent after the line were the old row's.
+
+           WHICH track asks was the real question, and the answer is every one that is playing.
+           The rule every other instrument keeps is that nothing at or past the seam is scheduled
+           from the old pattern. Here sixteen transports at their own rates each schedule their own
+           steps, in whatever order the clock runs their ticks — and a track goes to the back of
+           that order every time it restarts — so one appointed track could ask second, after a
+           faster one had already put the old pattern on the line. With every track asking before
+           every step, the first step at or past the seam, on whichever track reaches it, lands
+           the row for all sixteen, and nothing after it on any track is scheduled from the old
+           row.
+
+           ⚠️ AND THE ROW LANDS ONCE. There is one pending entry, under "sq1", and take() deletes
+           it before it calls apply() — so the other fifteen find nothing left to take. The one
+           way left to run an apply inside another is from apply() itself, where a track it starts
+           ticks at once and would ask; `landing` is what stops that. */
+        if (!landing) Patchwork.scenes.take("sq1", at);
+        /* take() can stop this track: a row with nothing for SQ·1 stops all sixteen, and one that
+           mutes this track or changes its style stops this half of it. Scheduling on would leave
+           a step of the old row sounding after the stop. */
+        if (!T.playing) return;
         fire(stepIndex, at);
+        /* ⚠️ READ AFTER take(), NOT BEFORE THE LOOP — see the same note in pm1's tick. A row can
+           change this track's rate and swing, and a length read above the loop would advance the
+           rest of this pass by the old one, with the error kept in nextTime for good. */
+        const step = stepSeconds();
         marks.push({i: stepIndex % T.len, t: at, end: at + step});
         const r = Patchwork.clock.rate;
         nextTime += r * ((stepIndex % 2 === 0) ? 2*T.swing*step : (2 - 2*T.swing)*step);
@@ -143,6 +183,15 @@ function makeSynth(ch, send){
   let seq = null;
   const outNote = ev => clampf(Math.round(ev.n), 0, 127);
   seq = Patchwork.makeSeq({
+    /* ⚠️ THE SAME id ON ALL SIXTEEN. Without one the shared sequencer's tick never calls take(),
+       which is how a queued row never landed on a synth track; and it is the instrument's name
+       rather than the track's, because a row is for the whole sequencer. See the drum track's
+       tick above for why every track asks, and why sixteen of them asking still lands it once.
+
+       ⚠️ A GETTER, because the tick reads it before every call and skips the call without one —
+       the only say the shared sequencer gives a caller over whether it asks. None while
+       `landing`. */
+    get id(){ return landing ? null : "sq1"; },
     maxSteps: MAX_STEPS, len: 16, rate: "1/16", root: 48,
     fire: (ev, at) => {
       const c = Patchwork.audio.ctx;
