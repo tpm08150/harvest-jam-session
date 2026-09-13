@@ -20,6 +20,7 @@ DAW port, and lets a test press a pad the way the hardware would.
     __lk.enc(0, 64)             # first encoder to halfway
     __lk.btn(115)               # Play
     __lk.leds()                 # the last colour sent to each of the 16 pads
+    __lk.bitmaps()              # every screen bitmap sent, decoded into rows of "#" and "."
 """
 import pathlib
 import sys
@@ -59,7 +60,16 @@ const keysOut = new Port("lk-midi-out", "Launchkey MK4 37 MIDI In",  "output");
 const dawOut  = new Port("lk-daw-out",  "Launchkey MK4 37 DAW In",   "output");
 
 const sent = [];
-dawOut.send = function(bytes){ sent.push(Array.from(bytes)); };
+/* ⚠️ A MINI ANSWERS A BITMAP, and only one addressed to it: `f0 00 20 29 02 13 09 f7`, 84-88 ms
+   after the frame, read off a Mini MK4 25 on 2026-09-13. The profile paces its animations on
+   that answer, so a fake that never gave one would only ever test the fallback. Turn
+   `__lk.bitmapAck` off to test the fallback on purpose. */
+dawOut.send = function(bytes){
+  const m = Array.from(bytes);
+  sent.push(m);
+  if (R.bitmapAck && m[0] === 0xF0 && m[5] === 0x13 && m[6] === 0x09)
+    setTimeout(() => feed(dawIn, [0xF0, 0x00, 0x20, 0x29, 0x02, 0x13, 0x09, 0xF7]), R.bitmapMs);
+};
 keysOut.send = function(){};
 
 const access = {
@@ -84,6 +94,7 @@ function feed(port, bytes){
 
 const R = window.__lk = {
   out: sent,
+  bitmapAck: true, bitmapMs: 85,
   dawIn, keysIn, dawOut,
   reset(){ sent.length = 0; },
 
@@ -148,6 +159,19 @@ const R = window.__lk = {
     const out = new Array(8).fill(null);
     sent.forEach(m => { if (m[0] === 0xBF && m[1] >= 21 && m[1] < 29) out[m[1] - 21] = m[2]; });
     return out;
+  },
+  /* Every screen bitmap sent, decoded: {target, sku, rows}, each row 128 characters of "#" and
+     "." — enough to read a frame in the console and to turn into a picture outside it. */
+  bitmaps(){
+    return sent.filter(m => m[0] === 0xF0 && m[6] === 0x09 && m.length === 1225).map(m => {
+      const rows = [];
+      for (let y = 0; y < 64; y++){
+        let line = "";
+        for (let x = 0; x < 128; x++) line += (m[8 + y * 19 + ((x / 7) | 0)] >> (6 - x % 7)) & 1 ? "#" : ".";
+        rows.push(line);
+      }
+      return {target: m[7], sku: m[5], rows};
+    });
   },
   /* Did the DAW-port handler get bound, and only once? */
   bound(){ return {daw: !!dawIn.onmidimessage, keys: !!keysIn.onmidimessage}; }

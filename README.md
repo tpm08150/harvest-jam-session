@@ -593,7 +593,7 @@ transport and LEDs run over the DAW port, which the surface takes for itself.
 | **Func + a pad** | the accent |
 | **Hold a pad, press another** | tie the steps between them into one held note |
 | **Func + Record** | panic |
-| **Screen** | which panel, which bank, and what all eight encoders are |
+| **Screen** | which panel, which bank, and what all eight encoders are — and pictures: see *The screen* |
 
 Eight encoders and more than eight things worth turning — every synth here, and PM·1 by a
 factor of ten — so the arrows beside the encoders move **which eight they point at**. The
@@ -1118,6 +1118,23 @@ down cannot strand an effect in.
 
 ⚠️ **One tab.** Web MIDI hands a controller's input to every tab listening to it, so two copies
 of the page open at once both answer the same pad — one punching, one launching.
+
+### The screen
+
+The Launchkey MK4's screen takes 128 × 64 bitmaps as well as text, and the app uses both.
+
+- **Moving somewhere** — another panel, a page, the punch page — shows a card for about half a
+  second: the name, a word for what it is, a small picture, and a bar counting down to the
+  controls coming back.
+- **On the Tape page, while the tape moves**, the screen is the deck: two reels that fill and
+  empty by area and turn at the tape's speed over their own radius, the counter, and a play or
+  rewind mark. **Recording** blinks a dot and a REC badge. Stop, and the controls come back.
+
+⚠️ **About eleven frames a second is all there is.** The device answers each bitmap once it has
+drawn it — 84–88 ms later on a Mini MK4 25 — and the next frame waits for that answer, so every
+picture is drawn from the clock rather than counted in frames. The answer is
+`f0 00 20 29 02 13 09 f7`; the guide ends both it and the bitmap message in `7F`, where they end
+in `F7`.
 
 ## Running it
 

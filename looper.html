@@ -2176,7 +2176,10 @@ function notify(){ watchers.forEach(fn => { try{ fn(); }catch(e){} }); }
 /* A profile registers itself; shell/launchkey.js is the only caller today.
 
      {id, name, sysex, detect(inputs, outputs), start(io), stop(io), message(io, data),
-      paint(io, rig)}
+      paint(io, rig), quiet(data)}
+
+   `quiet` is optional: true for a message not worth a line in `traffic` — an answer the device
+   sends eleven times a second would otherwise push every button press out of it.
 
    `detect` gets the port lists and returns null, or the ports it wants:
      {ctrlIn, ctrlOut, keysIn, label}
@@ -2338,6 +2341,18 @@ const rig = {
     const f = rig.focus;
     if (f && f.spec && typeof f.spec.rolling === "boolean") return f.spec.rolling;
     return rig.playing;
+  },
+  /* ---- what a screen could show instead of words ----
+     A page says what is HAPPENING — the tape is recording, at this point on a reel this long —
+     and a profile with a screen decides what that looks like. Null is the ordinary case, and a
+     kind a profile does not know how to draw is one it simply leaves as words. */
+  get picture(){
+    const f = rig.focus;
+    if (!f || !f.spec || !("picture" in f.spec)) return null;
+    try{
+      const p = typeof f.spec.picture === "function" ? f.spec.picture() : f.spec.picture;
+      return p || null;
+    }catch(e){ return null; }
   },
   /* ---- the two spare buttons ----
    ⚠️ NAMED FOR THE GESTURE, NOT FOR THE MEANING, because the meaning is the panel's. `>` is
@@ -2709,7 +2724,12 @@ const sent = [];
 function record(d, into, note){
   const log = into || traffic;
   if (!d || !d.length) return;
-  const hex = Array.from(d).map(b => (b < 16 ? "0" : "") + b.toString(16)).join(" ");
+  /* ⚠️ A SCREEN BITMAP IS 1225 BYTES. Spelled out, every one would be a paragraph of hex in a
+     log that is read for which LED got which colour; a long message is logged by its head. */
+  const long = d.length > 48;
+  let hex = Array.from(d).slice(0, long ? 10 : d.length)
+    .map(b => (b < 16 ? "0" : "") + b.toString(16)).join(" ");
+  if (long) hex += " … +" + (d.length - 10) + " bytes";
   log.push(note ? hex + "   [" + note + "]" : hex);
   if (log.length > (log === traffic ? TRAFFIC : SENT)) log.shift();
 }
@@ -2805,7 +2825,7 @@ function start(profile, det){
   live = {profile, io, timer: null, release: function(){}};
   live.release = Patchwork.midi.claim(det.ctrlIn, ev => {
     if (!live || live.io !== io) return;
-    record(ev.data);
+    if (!(profile.quiet && profile.quiet(ev.data))) record(ev.data);
     try{ profile.message(io, ev.data, rig); }catch(e){ console.error("surface message failed", e); }
   });
 
@@ -3000,6 +3020,275 @@ return {register, mount, panel, onView, option, segment, sceneGrid,
         get status(){ return status; },
         get error(){ return failed; },
         onChange: fn => watchers.push(fn)};
+})();
+
+/* ---- the Launchkey's screen, as pictures ----
+   shell/launchkey.js speaks to the screen; this draws what the screen shows when it is not
+   showing words. Two pictures so far: a card that says where you have just gone, and the tape
+   deck turning while it rolls.
+
+   ⚠️ DRAWN ON A CANVAS AND THRESHOLDED, not set pixel by pixel. The screen is 128 × 64 and one
+   bit deep, and the browser already has type, arcs and anti-aliasing — a hand-made pixel font
+   and a hand-rolled circle would be a second, worse copy of both. White is lit; a canvas pixel
+   brighter than THRESH on its red channel lights one.
+
+   ⚠️ ELEVEN FRAMES A SECOND AT BEST, read off the wire on 2026-09-13: a Mini MK4 25 answers each
+   bitmap in 84-88 ms and the profile waits for the answer before sending another. So everything
+   here is drawn from the CLOCK rather than from a frame count — a late frame lands further along
+   the motion instead of slowing it down. */
+Patchwork.launchkeyArt = (() => {
+"use strict";
+
+const W = 128, H = 64, ROW = 19;
+const THRESH = 110;
+const FACE = "'Saira Semi Condensed', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif";
+
+let cx = null;
+function ctx(){
+  if (cx) return cx;
+  const cv = typeof OffscreenCanvas === "function" ? new OffscreenCanvas(W, H)
+           : Object.assign(document.createElement("canvas"), {width: W, height: H});
+  cx = cv.getContext("2d", {willReadFrequently: true});
+  return cx;
+}
+function blank(){
+  const c = ctx();
+  c.globalCompositeOperation = "source-over";
+  c.fillStyle = "#000"; c.fillRect(0, 0, W, H);
+  c.fillStyle = "#fff"; c.strokeStyle = "#fff"; c.lineWidth = 1;
+  c.textBaseline = "alphabetic"; c.textAlign = "left";
+  if ("letterSpacing" in c) c.letterSpacing = "0px";
+  return c;
+}
+/* The screen's own packing: nineteen 7-bit bytes a row, the highest bit the leftmost pixel.
+   Guide, "Bitmap". */
+function pack(c){
+  const px = c.getImageData(0, 0, W, H).data;
+  const out = new Array(ROW * H).fill(0);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++)
+      if (px[(y * W + x) * 4] > THRESH) out[y * ROW + ((x / 7) | 0)] |= 1 << (6 - x % 7);
+  return out;
+}
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const ease = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+function type(c, px){ c.font = "700 " + px + "px " + FACE; }
+/* the largest size at which `text` fits `width` */
+function fit(c, text, width, max, min){
+  for (let px = max; px > min; px--){ type(c, px); if (c.measureText(text).width <= width) return px; }
+  type(c, min);
+  return min;
+}
+
+/* ---- the card ---- */
+/* A little picture per place, in a 24 × 24 box. Drawn rather than stored, so each is a handful
+   of shapes you can read and change. */
+const ICONS = {
+  keys(c, x, y){
+    c.fillRect(x, y + 3, 24, 18);
+    c.fillStyle = "#000";
+    for (let k = 1; k < 4; k++) c.fillRect(x + k * 6, y + 3, 1, 18);
+    [6, 12, 18].forEach(b => c.fillRect(x + b - 2, y + 3, 4, 11));
+    c.fillStyle = "#fff";
+  },
+  saw(c, x, y){
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(x, y + 19); c.lineTo(x + 8, y + 5); c.lineTo(x + 8, y + 19);
+    c.lineTo(x + 16, y + 5); c.lineTo(x + 16, y + 19); c.lineTo(x + 24, y + 5);
+    c.stroke();
+    c.lineWidth = 1;
+  },
+  voice(c, x, y){
+    c.beginPath();
+    if (c.roundRect) c.roundRect(x + 8, y + 1, 8, 13, 4); else c.rect(x + 8, y + 1, 8, 13);
+    c.fill();
+    c.lineWidth = 2;
+    c.beginPath(); c.arc(x + 12, y + 9, 8, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
+    c.beginPath(); c.moveTo(x + 12, y + 17); c.lineTo(x + 12, y + 22);
+    c.moveTo(x + 7, y + 23); c.lineTo(x + 17, y + 23); c.stroke();
+    c.lineWidth = 1;
+  },
+  pads(c, x, y){
+    for (let r = 0; r < 2; r++) for (let k = 0; k < 3; k++){
+      const px = x + k * 8 + 1, py = y + 5 + r * 8;
+      if ((r + k) % 2) c.fillRect(px, py, 6, 6); else c.strokeRect(px + .5, py + .5, 5, 5);
+    }
+  },
+  loop(c, x, y){
+    c.lineWidth = 2;
+    c.beginPath(); c.arc(x + 12, y + 12, 8, 0.25 * Math.PI, 1.85 * Math.PI); c.stroke();
+    const a = 1.85 * Math.PI, ex = x + 12 + Math.cos(a) * 8, ey = y + 12 + Math.sin(a) * 8;
+    c.beginPath(); c.moveTo(ex + 5, ey - 1); c.lineTo(ex - 2, ey - 5); c.lineTo(ex - 1, ey + 3); c.closePath(); c.fill();
+    c.lineWidth = 1;
+  },
+  sweep(c, x, y){
+    c.lineWidth = 2;
+    c.beginPath(); c.moveTo(x + 1, y + 21); c.quadraticCurveTo(x + 17, y + 21, x + 19, y + 7); c.stroke();
+    c.beginPath(); c.moveTo(x + 19, y + 1); c.lineTo(x + 24, y + 10); c.lineTo(x + 14, y + 9); c.closePath(); c.fill();
+    c.lineWidth = 1;
+  },
+  steps(c, x, y){
+    [9, 16, 5, 20, 12, 7].forEach((h, k) => c.fillRect(x + k * 4, y + 22 - h, 3, h));
+  },
+  grid(c, x, y){
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 3; k++){
+      const px = x + 2 + k * 7, py = y + 2 + r * 7;
+      if (r === 1 && k === 1) c.fillRect(px, py, 6, 6); else c.strokeRect(px + .5, py + .5, 5, 5);
+    }
+  },
+  reels(c, x, y){
+    [x + 6, x + 18].forEach(rx => {
+      c.beginPath(); c.arc(rx, y + 10, 5.5, 0, Math.PI * 2); c.stroke();
+      c.beginPath(); c.arc(rx, y + 10, 1.5, 0, Math.PI * 2); c.fill();
+    });
+    c.fillRect(x + 2, y + 19, 20, 2);
+  },
+  bolt(c, x, y){
+    c.beginPath();
+    c.moveTo(x + 14, y); c.lineTo(x + 4, y + 13); c.lineTo(x + 11, y + 13);
+    c.lineTo(x + 8, y + 24); c.lineTo(x + 20, y + 9); c.lineTo(x + 13, y + 9);
+    c.closePath(); c.fill();
+  },
+  gear(c, x, y){
+    const gx = x + 12, gy = y + 12;
+    for (let k = 0; k < 8; k++){
+      c.save(); c.translate(gx, gy); c.rotate(k * Math.PI / 4); c.fillRect(-2, -12, 4, 6); c.restore();
+    }
+    c.beginPath(); c.arc(gx, gy, 8, 0, Math.PI * 2); c.fill();
+    c.fillStyle = "#000"; c.beginPath(); c.arc(gx, gy, 3.5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = "#fff";
+  }
+};
+/* What each place is, in a word over its name, and its picture. Keyed by the id the surface
+   already reports for a panel or a page — a panel added later gets a card with its name and
+   nothing else rather than needing to be taught one. */
+const PLACES = {
+  cs1: ["CHORDS", "keys"], pm1: ["POLY SYNTH", "keys"], bs1: ["BASS", "saw"],
+  vc1: ["VOCODER", "voice"], dr1: ["DRUMS", "pads"], lp1: ["LOOPER", "loop"],
+  ts1: ["TRANSITIONS", "sweep"], sq1: ["SEQUENCER", "steps"],
+  scenes: ["LAUNCHER", "grid"], mixer: ["TAPE + DESK", "reels"],
+  punch: ["PUNCH-IN FX", "bolt"], settings: ["RACK SETUP", "gear"]
+};
+
+/* `t` runs 0 → 1 over the card's life. The name and its picture glide in from the right and
+   land in the first ~quarter second; the word over them types itself out; a bar along the
+   bottom fills to say how long until the controls come back. */
+function card(to, t){
+  const c = blank();
+  const place = PLACES[to && to.id] || null;
+  const name = String((to && to.name) || "").toUpperCase();
+  const icon = place && ICONS[place[1]];
+  const glide = Math.round((1 - ease(t / .42)) * 40);
+  fit(c, name, icon ? 92 : 120, 36, 12);
+  c.fillText(name, 4 + glide, 45);
+  if (icon) icon(c, 100 + glide, 18);
+  if (place){
+    /* ⚠️ ELEVEN PIXELS AND SPACED, not nine. At nine, thresholded to one bit, an S came out as a
+       5 and "DRUMS" read DRUM5: small anti-aliased type loses exactly the curves that tell
+       letters apart. */
+    type(c, 11);
+    if ("letterSpacing" in c) c.letterSpacing = "1px";
+    c.fillText(place[0].slice(0, Math.ceil(place[0].length * ease(t / .5))), 4, 12);
+    if ("letterSpacing" in c) c.letterSpacing = "0px";
+  }
+  c.fillRect(4, 59, Math.round(120 * clamp(t, 0, 1)), 2);
+  return pack(c);
+}
+
+/* ---- the deck ----
+   The deck the Tape view draws, at the size of a thumbnail: two reels whose packs grow and
+   shrink by AREA, turning at the tape's speed over their own radius — so the emptier reel
+   spins faster, the way a real machine's does. The rate is measured from how far the tape
+   actually moved, as the view's is, so rewind turns them backwards with no case of its own. */
+const HUB = 5, FULL = 18, FLANGE = 20;
+const SUP = {x: 29, y: 26}, TAKE = {x: 99, y: 26};
+/* tape speed in pixels a second, scaled so a full reel turns at the Tape view's rate */
+const SPEED = 34;
+let deck = null;
+const packR = f => Math.sqrt(HUB * HUB + (FULL * FULL - HUB * HUB) * clamp(f, 0, 1));
+
+function reel(c, at, r, ang){
+  c.beginPath(); c.arc(at.x, at.y, FLANGE, 0, Math.PI * 2); c.stroke();
+  c.beginPath(); c.arc(at.x, at.y, r, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#000"; c.beginPath(); c.arc(at.x, at.y, HUB, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#fff"; c.beginPath(); c.arc(at.x, at.y, 1.5, 0, Math.PI * 2); c.fill();
+  /* ⚠️ THE SPOKES INVERT what they cross, so they read black on the tape pack and white off it
+     — one colour would vanish on one or the other, and the pack is most of the reel at the
+     start of a take and almost none of it at the end. */
+  c.globalCompositeOperation = "difference";
+  c.lineWidth = 2;
+  for (let k = 0; k < 3; k++){
+    const a = ang + k * 2 * Math.PI / 3;
+    c.beginPath();
+    c.moveTo(at.x + Math.cos(a) * (HUB + 1), at.y + Math.sin(a) * (HUB + 1));
+    c.lineTo(at.x + Math.cos(a) * (FLANGE - 2), at.y + Math.sin(a) * (FLANGE - 2));
+    c.stroke();
+  }
+  c.globalCompositeOperation = "source-over";
+  c.lineWidth = 1;
+}
+function ribbon(c, rs, rt){
+  const L = {x: 47, y: 55}, R = {x: 81, y: 55};
+  c.beginPath();
+  c.moveTo(SUP.x + rs * .6, SUP.y + rs * .8); c.lineTo(L.x, L.y);
+  c.lineTo(R.x, R.y); c.lineTo(TAKE.x - rt * .6, TAKE.y + rt * .8);
+  c.stroke();
+  [L, R].forEach(p => { c.beginPath(); c.arc(p.x, p.y, 2, 0, Math.PI * 2); c.fill(); });
+  c.fillRect(61, 56, 6, 5);                   // the head
+}
+
+/* `pic` is what the tape page says is happening: {state, position, reel} in seconds. */
+function tape(pic, now){
+  const c = blank();
+  const len = +pic.reel || 1, pos = Math.max(0, +pic.position || 0);
+  if (!deck || now - deck.at > 1000) deck = {angS: 0, angT: 0, pos, at: now};
+  const dt = (now - deck.at) / 1000;
+  const rate = dt > 0 ? clamp((pos - deck.pos) / dt, -20, 20) : 0;
+  deck.pos = pos; deck.at = now;
+  const f = clamp(pos / len, 0, 1);
+  const rs = packR(1 - f), rt = packR(f);
+  /* ⚠️ A TURN IS CAPPED PER FRAME. At eleven frames a second a rewinding empty reel would jump
+     most of a revolution between two of them, and three spokes stepping 100° read as turning
+     the other way. Under a third of the gap between spokes, rewind still reads as fast. */
+  const turn = r => clamp(SPEED * rate / r * dt, -0.7, 0.7);
+  deck.angS += turn(rs);
+  deck.angT += turn(rt);
+  reel(c, SUP, rs, deck.angS);
+  reel(c, TAKE, rt, deck.angT);
+  ribbon(c, rs, rt);
+
+  const blink = Math.floor(now / 260) % 2 === 0;
+  c.textAlign = "center";
+  if (pic.state === "rec"){
+    if (blink){ c.beginPath(); c.arc(64, 9, 4, 0, Math.PI * 2); c.fill(); }
+  } else if (pic.state === "rew"){
+    [59, 66].forEach(tx => { c.beginPath(); c.moveTo(tx, 5); c.lineTo(tx - 5, 9); c.lineTo(tx, 13); c.closePath(); c.fill(); });
+  } else {
+    c.beginPath(); c.moveTo(61, 5); c.lineTo(68, 9); c.lineTo(61, 13); c.closePath(); c.fill();
+  }
+  type(c, 12);
+  c.fillText(Math.floor(pos / 60) + ":" + String(Math.floor(pos % 60)).padStart(2, "0"), 64, 31);
+  if (pic.state === "rec"){
+    /* and in words, in a box that blinks with the dot — recording is the one state on this page
+       worth being impossible to miss */
+    type(c, 10);
+    if (blink){
+      c.fillRect(49, 37, 30, 12);
+      c.fillStyle = "#000"; c.fillText("REC", 64, 47); c.fillStyle = "#fff";
+    } else c.fillText("REC", 64, 47);
+  }
+  c.textAlign = "left";
+  return pack(c);
+}
+
+/* A page's picture, drawn, or null for a kind this screen does not know how to draw. */
+function picture(pic, now){
+  if (pic && pic.kind === "tape") return tape(pic, now);
+  return null;
+}
+
+return {width: W, height: H, card, picture, get places(){ return PLACES; }};
 })();
 
 /* Novation Launchkey MK4 — the numbers in here come from Novation's Programmer's
@@ -3335,6 +3624,24 @@ const ARR_NAME_VALUE = 4;             // Parameter name over a numeric value
 const CFG_AUTO = 0x60;                // bits 5 and 6: let the device raise its own temps
 const CFG_SHOW = 0x7F;                // "bring up the display with its current contents"
 
+/* ---- bitmaps ----
+   Guide, "Bitmap": F0 00 20 29 02 13 09 <target> <1216 bytes> F7, to the stationary or the
+   global temporary display, one bitmap held at a time. What it shows is drawn in
+   shell/launchkey-art.js.
+
+   ⚠️ THE GUIDE PRINTS 7Fh WHERE BOTH THIS MESSAGE AND ITS ANSWER END, and they end in F7h like
+   every other SysEx. Read off a Mini MK4 25 on 2026-09-13, the answer is
+   `f0 00 20 29 02 13 09 f7`, 84-88 ms after each frame. That answer is the pacing — a frame is
+   not sent until the last one has been answered, or until ACK_WAIT has passed without one,
+   which is all a page without SysEx input will ever get. */
+const CMD_BITMAP = 0x09;
+const ACK_WAIT = 300;
+/* How long a card stays up before the controls come back. Half a second was asked for; at
+   eleven frames a second that is six of them. */
+const CARD_MS = 560;
+const isBitmapAck = d => !!d && d.length >= 8 && d[0] === 0xF0 && d[1] === 0x00 && d[2] === 0x20
+  && d[3] === 0x29 && d[4] === 0x02 && (d[5] === 0x13 || d[5] === 0x14) && d[6] === CMD_BITMAP;
+
 /* The screen takes ASCII 32-126 and reassigns four control codes for symbols it has. The
    instrument names on this page are full of characters it does not have — CS·1's middle
    dot, a flat sign in a chord name — so anything outside the range is folded rather than
@@ -3432,6 +3739,43 @@ function flash(io, name, value){
   sysex(io, [0x04, SCR_TEMP, CFG_SHOW]);
 }
 
+function sendBitmap(io, target, bytes){
+  const a = io.state.art;
+  const body = [CMD_BITMAP, target].concat(bytes, [0xF7]);
+  /* Both headers until the device has answered one. The answer carries its own, and from then
+     on a frame goes once — 1225 bytes is not a message to double for nothing eleven times a
+     second. */
+  if (a.hdr != null) io.sendSysex(HDR_MINI.slice(0, 5).concat([a.hdr], body));
+  else { io.sendSysex(HDR_FULL.concat(body)); io.sendSysex(HDR_MINI.concat(body)); }
+  a.waiting = true;
+  a.sentAt = performance.now();
+}
+
+/* ---- what the screen shows instead of words ----
+   A card for where you have just gone, then whatever the page says is happening, and when
+   neither applies the legend comes back — once. Run from paint() and again the moment a frame
+   is answered, so an animation goes as fast as the device can draw it and never faster. */
+function artTick(io, rig){
+  const a = io.state && io.state.art, Art = Patchwork.launchkeyArt;
+  if (!a || !io.sysex || !Art) return;
+  const now = performance.now();
+  if (a.waiting && now - a.sentAt < ACK_WAIT) return;
+  a.waiting = false;
+  let frame = null;
+  if (a.card){
+    const t = (now - a.card.at) / CARD_MS;
+    if (t < 1){ try{ frame = Art.card(a.card, t); }catch(e){ frame = null; } }
+    else a.card = null;
+  }
+  if (!frame && !a.card){
+    const pic = rig.picture;
+    if (pic){ try{ frame = Art.picture(pic, now); }catch(e){ frame = null; } }
+  }
+  if (frame){ sendBitmap(io, SCR_STATIONARY, frame); a.shown = true; return; }
+  /* "triggering the normal display" is how a bitmap is put away, and its words were kept */
+  if (a.shown){ a.shown = false; sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]); }
+}
+
 function start(io, rig){
   io.state = {
     padMode: PAD_DAW,
@@ -3460,6 +3804,9 @@ function start(io, rig){
     inst: "",                          // the panel it is currently describing
     timeout: null,                     // the device's own display timeout, to be given back
     page: null,                        // null until the first paint, so connecting is not an "event"
+    /* The picture on the screen, if any: the card in progress, whether a frame is out waiting
+       to be answered, which header the device answered to, and whether a bitmap is up. */
+    art: {card: null, waiting: false, sentAt: 0, hdr: null, shown: false},
     unload: null
   };
 
@@ -3513,6 +3860,12 @@ function message(io, d, rig){
   if (!d || !d.length || !io.state) return;
   const st = d[0];
 
+  /* A frame answered — see CMD_BITMAP. The answer names the header the device listens to. */
+  if (isBitmapAck(d)){
+    const a = io.state.art;
+    if (a){ a.hdr = d[5]; a.waiting = false; artTick(io, rig); }
+    return;
+  }
   /* The DAW port also carries the device's own clock and transport when it is running its
      arpeggiator. The page's clock is the page's; ignore all of it. */
   if (st >= 0xF0) return;
@@ -3973,8 +4326,12 @@ function paintScreen(io, rig){
     const c = list[i];
     want.push(c ? (c.short || c.label || c.id || "") : "");
   }
-  const moved = s.inst !== inst;                // the focus changed on this pass
+  const was = s.inst;
+  const moved = was !== inst;                   // the focus changed on this pass
   s.inst = inst;
+  /* ⚠️ A CARD FOR WHERE YOU WENT, and only for going somewhere: the first paint after connecting
+     is arriving rather than moving, and a card for it would be noise at every page load. */
+  if (moved && was && f && s.art) s.art.card = {name: inst, id: f.id, at: performance.now()};
   /* ⚠️ THREE CHARACTERS, because the device does not pad — it packs. Four five-letter names
      across the row came out as `CutofResoEnvAmKeyTk`, one unbroken word, and the eye cannot
      find the boundaries. The row is about twenty characters wide whatever you put in it, so
@@ -3997,7 +4354,9 @@ function paintScreen(io, rig){
      7Fh is the guide's "bring up the display with its current contents", and it is a
      special value that leaves the arrangement alone. One extra message on a display that
      only changes when something else already has. */
-  if (wrote) sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]);
+  /* ...except over a picture. Its words are kept underneath and come back when it ends (see
+     artTick), where bringing them up now would blink the legend between two frames. */
+  if (wrote && !(s.art && (s.art.shown || s.art.card))) sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]);
 
   /* Paging is a press, so it gets a temp display. ⚠️ Not on the first paint, and not on the
      pass that changed panels: arriving at an instrument that happens to be parked on page 3
@@ -4021,6 +4380,7 @@ function paint(io, rig){
   paintButtons(io, rig);
   paintEncoders(io, rig);
   paintScreen(io, rig);
+  artTick(io, rig);
 }
 
 Patchwork.surface.register({
@@ -4029,7 +4389,10 @@ Patchwork.surface.register({
   /* Optional, not required: the pads, encoders and transport are all plain MIDI. SysEx
      buys the screen and nothing else, so a refused permission costs a readout. */
   sysex: true,
-  detect, start, stop, message, paint
+  detect, start, stop, message, paint,
+  /* eleven answers a second while a picture runs would push everything else out of
+     Patchwork.surface.traffic, which is the one log for "what did that button send" */
+  quiet: isBitmapAck
 });
 })();
 

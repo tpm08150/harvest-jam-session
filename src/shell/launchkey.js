@@ -332,6 +332,24 @@ const ARR_NAME_VALUE = 4;             // Parameter name over a numeric value
 const CFG_AUTO = 0x60;                // bits 5 and 6: let the device raise its own temps
 const CFG_SHOW = 0x7F;                // "bring up the display with its current contents"
 
+/* ---- bitmaps ----
+   Guide, "Bitmap": F0 00 20 29 02 13 09 <target> <1216 bytes> F7, to the stationary or the
+   global temporary display, one bitmap held at a time. What it shows is drawn in
+   shell/launchkey-art.js.
+
+   ⚠️ THE GUIDE PRINTS 7Fh WHERE BOTH THIS MESSAGE AND ITS ANSWER END, and they end in F7h like
+   every other SysEx. Read off a Mini MK4 25 on 2026-09-13, the answer is
+   `f0 00 20 29 02 13 09 f7`, 84-88 ms after each frame. That answer is the pacing — a frame is
+   not sent until the last one has been answered, or until ACK_WAIT has passed without one,
+   which is all a page without SysEx input will ever get. */
+const CMD_BITMAP = 0x09;
+const ACK_WAIT = 300;
+/* How long a card stays up before the controls come back. Half a second was asked for; at
+   eleven frames a second that is six of them. */
+const CARD_MS = 560;
+const isBitmapAck = d => !!d && d.length >= 8 && d[0] === 0xF0 && d[1] === 0x00 && d[2] === 0x20
+  && d[3] === 0x29 && d[4] === 0x02 && (d[5] === 0x13 || d[5] === 0x14) && d[6] === CMD_BITMAP;
+
 /* The screen takes ASCII 32-126 and reassigns four control codes for symbols it has. The
    instrument names on this page are full of characters it does not have — CS·1's middle
    dot, a flat sign in a chord name — so anything outside the range is folded rather than
@@ -429,6 +447,43 @@ function flash(io, name, value){
   sysex(io, [0x04, SCR_TEMP, CFG_SHOW]);
 }
 
+function sendBitmap(io, target, bytes){
+  const a = io.state.art;
+  const body = [CMD_BITMAP, target].concat(bytes, [0xF7]);
+  /* Both headers until the device has answered one. The answer carries its own, and from then
+     on a frame goes once — 1225 bytes is not a message to double for nothing eleven times a
+     second. */
+  if (a.hdr != null) io.sendSysex(HDR_MINI.slice(0, 5).concat([a.hdr], body));
+  else { io.sendSysex(HDR_FULL.concat(body)); io.sendSysex(HDR_MINI.concat(body)); }
+  a.waiting = true;
+  a.sentAt = performance.now();
+}
+
+/* ---- what the screen shows instead of words ----
+   A card for where you have just gone, then whatever the page says is happening, and when
+   neither applies the legend comes back — once. Run from paint() and again the moment a frame
+   is answered, so an animation goes as fast as the device can draw it and never faster. */
+function artTick(io, rig){
+  const a = io.state && io.state.art, Art = Patchwork.launchkeyArt;
+  if (!a || !io.sysex || !Art) return;
+  const now = performance.now();
+  if (a.waiting && now - a.sentAt < ACK_WAIT) return;
+  a.waiting = false;
+  let frame = null;
+  if (a.card){
+    const t = (now - a.card.at) / CARD_MS;
+    if (t < 1){ try{ frame = Art.card(a.card, t); }catch(e){ frame = null; } }
+    else a.card = null;
+  }
+  if (!frame && !a.card){
+    const pic = rig.picture;
+    if (pic){ try{ frame = Art.picture(pic, now); }catch(e){ frame = null; } }
+  }
+  if (frame){ sendBitmap(io, SCR_STATIONARY, frame); a.shown = true; return; }
+  /* "triggering the normal display" is how a bitmap is put away, and its words were kept */
+  if (a.shown){ a.shown = false; sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]); }
+}
+
 function start(io, rig){
   io.state = {
     padMode: PAD_DAW,
@@ -457,6 +512,9 @@ function start(io, rig){
     inst: "",                          // the panel it is currently describing
     timeout: null,                     // the device's own display timeout, to be given back
     page: null,                        // null until the first paint, so connecting is not an "event"
+    /* The picture on the screen, if any: the card in progress, whether a frame is out waiting
+       to be answered, which header the device answered to, and whether a bitmap is up. */
+    art: {card: null, waiting: false, sentAt: 0, hdr: null, shown: false},
     unload: null
   };
 
@@ -510,6 +568,12 @@ function message(io, d, rig){
   if (!d || !d.length || !io.state) return;
   const st = d[0];
 
+  /* A frame answered — see CMD_BITMAP. The answer names the header the device listens to. */
+  if (isBitmapAck(d)){
+    const a = io.state.art;
+    if (a){ a.hdr = d[5]; a.waiting = false; artTick(io, rig); }
+    return;
+  }
   /* The DAW port also carries the device's own clock and transport when it is running its
      arpeggiator. The page's clock is the page's; ignore all of it. */
   if (st >= 0xF0) return;
@@ -970,8 +1034,12 @@ function paintScreen(io, rig){
     const c = list[i];
     want.push(c ? (c.short || c.label || c.id || "") : "");
   }
-  const moved = s.inst !== inst;                // the focus changed on this pass
+  const was = s.inst;
+  const moved = was !== inst;                   // the focus changed on this pass
   s.inst = inst;
+  /* ⚠️ A CARD FOR WHERE YOU WENT, and only for going somewhere: the first paint after connecting
+     is arriving rather than moving, and a card for it would be noise at every page load. */
+  if (moved && was && f && s.art) s.art.card = {name: inst, id: f.id, at: performance.now()};
   /* ⚠️ THREE CHARACTERS, because the device does not pad — it packs. Four five-letter names
      across the row came out as `CutofResoEnvAmKeyTk`, one unbroken word, and the eye cannot
      find the boundaries. The row is about twenty characters wide whatever you put in it, so
@@ -994,7 +1062,9 @@ function paintScreen(io, rig){
      7Fh is the guide's "bring up the display with its current contents", and it is a
      special value that leaves the arrangement alone. One extra message on a display that
      only changes when something else already has. */
-  if (wrote) sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]);
+  /* ...except over a picture. Its words are kept underneath and come back when it ends (see
+     artTick), where bringing them up now would blink the legend between two frames. */
+  if (wrote && !(s.art && (s.art.shown || s.art.card))) sysex(io, [0x04, SCR_STATIONARY, CFG_SHOW]);
 
   /* Paging is a press, so it gets a temp display. ⚠️ Not on the first paint, and not on the
      pass that changed panels: arriving at an instrument that happens to be parked on page 3
@@ -1018,6 +1088,7 @@ function paint(io, rig){
   paintButtons(io, rig);
   paintEncoders(io, rig);
   paintScreen(io, rig);
+  artTick(io, rig);
 }
 
 Patchwork.surface.register({
@@ -1026,6 +1097,9 @@ Patchwork.surface.register({
   /* Optional, not required: the pads, encoders and transport are all plain MIDI. SysEx
      buys the screen and nothing else, so a refused permission costs a readout. */
   sysex: true,
-  detect, start, stop, message, paint
+  detect, start, stop, message, paint,
+  /* eleven answers a second while a picture runs would push everything else out of
+     Patchwork.surface.traffic, which is the one log for "what did that button send" */
+  quiet: isBitmapAck
 });
 })();

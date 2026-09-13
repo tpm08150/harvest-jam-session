@@ -638,6 +638,13 @@ if (window.Patchwork && Patchwork.surface){
       return !!((Patchwork.transport && Patchwork.transport.anyPlaying)
                 || (T && (T.state === "play" || T.state === "rec")));
     },
+    /* The deck, for a controller's screen to draw while it moves — see `picture` in
+       shell/surface.js. Only while the tape is really going: stopped, the screen keeps its words. */
+    picture: () => {
+      const T = Patchwork.tape;
+      if (!T || (T.state !== "play" && T.state !== "rec" && T.state !== "rew")) return null;
+      return {kind: "tape", state: T.state, position: T.position, reel: T.reelSeconds};
+    },
     /* ⚠️ Instant, and it stops first — "back to the top" is a thing you do in order to play
        from there, and arriving still rolling means arriving somewhere else. */
     actionName: "Tape",

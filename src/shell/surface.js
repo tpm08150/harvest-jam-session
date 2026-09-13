@@ -35,7 +35,10 @@ function notify(){ watchers.forEach(fn => { try{ fn(); }catch(e){} }); }
 /* A profile registers itself; shell/launchkey.js is the only caller today.
 
      {id, name, sysex, detect(inputs, outputs), start(io), stop(io), message(io, data),
-      paint(io, rig)}
+      paint(io, rig), quiet(data)}
+
+   `quiet` is optional: true for a message not worth a line in `traffic` — an answer the device
+   sends eleven times a second would otherwise push every button press out of it.
 
    `detect` gets the port lists and returns null, or the ports it wants:
      {ctrlIn, ctrlOut, keysIn, label}
@@ -197,6 +200,18 @@ const rig = {
     const f = rig.focus;
     if (f && f.spec && typeof f.spec.rolling === "boolean") return f.spec.rolling;
     return rig.playing;
+  },
+  /* ---- what a screen could show instead of words ----
+     A page says what is HAPPENING — the tape is recording, at this point on a reel this long —
+     and a profile with a screen decides what that looks like. Null is the ordinary case, and a
+     kind a profile does not know how to draw is one it simply leaves as words. */
+  get picture(){
+    const f = rig.focus;
+    if (!f || !f.spec || !("picture" in f.spec)) return null;
+    try{
+      const p = typeof f.spec.picture === "function" ? f.spec.picture() : f.spec.picture;
+      return p || null;
+    }catch(e){ return null; }
   },
   /* ---- the two spare buttons ----
    ⚠️ NAMED FOR THE GESTURE, NOT FOR THE MEANING, because the meaning is the panel's. `>` is
@@ -568,7 +583,12 @@ const sent = [];
 function record(d, into, note){
   const log = into || traffic;
   if (!d || !d.length) return;
-  const hex = Array.from(d).map(b => (b < 16 ? "0" : "") + b.toString(16)).join(" ");
+  /* ⚠️ A SCREEN BITMAP IS 1225 BYTES. Spelled out, every one would be a paragraph of hex in a
+     log that is read for which LED got which colour; a long message is logged by its head. */
+  const long = d.length > 48;
+  let hex = Array.from(d).slice(0, long ? 10 : d.length)
+    .map(b => (b < 16 ? "0" : "") + b.toString(16)).join(" ");
+  if (long) hex += " … +" + (d.length - 10) + " bytes";
   log.push(note ? hex + "   [" + note + "]" : hex);
   if (log.length > (log === traffic ? TRAFFIC : SENT)) log.shift();
 }
@@ -664,7 +684,7 @@ function start(profile, det){
   live = {profile, io, timer: null, release: function(){}};
   live.release = Patchwork.midi.claim(det.ctrlIn, ev => {
     if (!live || live.io !== io) return;
-    record(ev.data);
+    if (!(profile.quiet && profile.quiet(ev.data))) record(ev.data);
     try{ profile.message(io, ev.data, rig); }catch(e){ console.error("surface message failed", e); }
   });
 

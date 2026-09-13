@@ -1513,6 +1513,31 @@ rack it plays. The effects are still `shell/fx.js`, and a press still goes throu
   the first report of the punch page "launching scenes" came with a second copy of the app open.
 - Verified against `tools/build-surface-harness.py` only. Nobody has pressed it on the Mini MK4.
 
+### The Launchkey's screen, as pictures
+
+`shell/launchkey-art.js` draws on a 128 × 64 canvas and thresholds it to one bit;
+`shell/launchkey.js` packs it (guide, "Bitmap": command `09`, nineteen 7-bit bytes a row, the
+highest bit leftmost), sends it, and decides when. A card when the surface's target changes
+name; `rig.picture` for anything a page says is happening — only the tape page says anything yet.
+
+- ⚠️ **The guide ends both the bitmap message and its answer in `7F`; they end in `F7`.** The
+  answer is `f0 00 20 29 02 13 09 f7`, read off a Mini MK4 25 on 2026-09-13 by sending it ten
+  frames over CoreMIDI — ten answered, 84–88 ms each.
+- ⚠️ **The answer paces everything.** `artTick()` sends a frame only once the last one has been
+  answered, or 300 ms have passed without an answer, which is all a page with no SysEx input gets.
+  It runs from the 60 ms paint and again the moment an answer lands. In the surface harness, with
+  the fake answering at 85 ms, frames went out 87 ms apart.
+- **The answer names the SKU**, so after the first frame bitmaps go under one header rather than
+  both — the one place this profile stops sending both, because it is the one message big
+  enough for doubling to matter.
+- **A picture is put away by triggering the normal display**, whose words are kept underneath it.
+  `paintScreen()` still writes the legend's fields while a picture is up and holds back only its
+  trigger, which `artTick()` sends once when the picture ends.
+- **Quiet and short in the logs.** The profile's `quiet()` keeps answers out of
+  `Patchwork.surface.traffic`, and `record()` logs any message over 48 bytes by its head.
+- Checked by decoding the bytes sent into contact sheets and looking at them. Nobody has watched
+  it on the glass.
+
 ## One sequencer model, three instruments
 
 ⚠️ **`seq/step-seq.js` used to be deliberately the simpler of the two models** — no lanes,
