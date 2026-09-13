@@ -222,6 +222,13 @@ than carrying the previous row's part underneath.
 **When** a fired row lands is a setting — instant, next bar, or when CS·1's progression comes
 round, which is the default. **Cmd-shift-click** empties a block.
 
+**Punch** is the row of pads over the launcher: sixteen master effects you **hold** — press and
+the effect is in, let go and it is out. The number row plays them too (`1`–`0`, then `Q`–`Y`),
+the arrows or the wheel move the last one's number, and **Latch** turns every press into a
+toggle for when both hands are busy. They sit after the looper's taps, so a stutter thrown over
+a take is not printed into it. On a Launchkey, Func opens them as a page of their own — see
+*The punch page*.
+
 ⚠️ **An LP·1 cell names a take rather than holding one.** Clicking it puts the take the looper
 is currently on into that row — the same sentence every other cell answers, theirs holding a
 pattern and this one a take number, which is why the cell shows the number. Two rows can name
@@ -579,7 +586,7 @@ transport and LEDs run over the DAW port, which the surface takes for itself.
 | **Func + `>`** | hop between a linked pair — LP·1 and whatever it is recording |
 | **∧ ∨ right of the encoders** | which eight — the drum lane on DR·1, a parameter bank on PM·1 |
 | **Hold a pad + ∧ ∨ right of the encoders** | that note's length, a step at a time |
-| **Func, tapped** | a panel's other face where it has one — on CS·1, the bass voice and its pattern |
+| **Func, tapped** | a panel's other face where it has one — on CS·1, the bass voice and its pattern; on the launcher, it opens the punch page |
 | **▶ / ■** | the rack transport, the same button the launcher's Play is |
 | **∧ ∨ left of the pads** | page the grid — see the sequencers below |
 | **Shift + ∧ ∨**, or **Func + ∧ ∨** | move the focus to the previous / next panel |
@@ -623,7 +630,7 @@ learn and no button spent on it.
 
 | | |
 | --- | --- |
-| **Shift + Sends** | Live — the launcher on the pads, ∧∨ walk the rows, `>` fires the one you are on |
+| **Shift + Sends** | Live — the launcher on the pads, ∧∨ walk the rows, `>` fires the one you are on; **Func** opens the punch page |
 | **Shift + Custom 1** | Settings — a Global bank, then one bank per instrument, and the pads are the banks |
 | **Shift + Plug-in** | Studio, and the encoders follow the focused panel |
 | **Shift + Mixer** | Tape, and the encoders become MX·8 |
@@ -1084,6 +1091,33 @@ nothing else. The answer is remembered.
 
 ⚠️ **Record does nothing on purpose.** It is the one button whose obvious meaning — capture
 into the armed scene row — cannot be undone, and a stray thumb should not overwrite a take.
+
+### The punch page
+
+**Tap Func on the Live page** and the controller opens the punch page: the sixteen pads become
+the punch rack, in the order the rack is drawn — LP, HP, Iso, Stutter, Loop, Reverse, Repitch
+and Gate across the top; Pump, Delay, Space, Flange, Ring, Drive, Crush and Stop along the
+bottom. Tap Func again to go back. Each pad wears its family's colour and brightens while its
+effect is in, and the rack on screen is ringed while the page is up.
+
+| | |
+| --- | --- |
+| **Hold a pad** | the effect is in until you let go |
+| **Func + a pad** | latch it — it stays in, and its pad pulses so it can be found again |
+| **Press a pad that is already in** | it comes out when you let go |
+| **Encoders** | the numbers of the row you last touched; ∧ ∨ right of the encoders swap rows |
+| **`>`** | takes every effect out |
+| **∧ ∨ left of the pads** | nothing |
+
+⚠️ **Nothing else answers while it is up.** It was first the launcher's other face and kept the
+launcher's buttons: `>` still launched the row under the cursor, the arrows still walked it, and
+anything that moved the focus took the pads with it. A page outranks the focus, so the pads,
+encoders, `>` and arrows are the rack's alone; the keys still play, and Play and Stop still run
+the rack. A pad's release always reaches the page that had its press, so leaving with a finger
+down cannot strand an effect in.
+
+⚠️ **One tab.** Web MIDI hands a controller's input to every tab listening to it, so two copies
+of the page open at once both answer the same pad — one punching, one launching.
 
 ## Running it
 

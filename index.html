@@ -2216,6 +2216,12 @@ body.soloing .st-head .st-hint::after{content:" — press Escape to go back"}
   background:linear-gradient(180deg,#454e55,#333a3f);color:var(--paper);
   box-shadow:0 1px 0 rgba(255,255,255,.12) inset;
 }
+/* ⚠️ WHERE THE CONTROLLER'S PADS ARE POINTED. Func opens the punch page and closes it again,
+   and a pad that throws an effect when you reached for a cell is the surface and the window
+   disagreeing about where you are — so the rack says so for as long as it has them. */
+.st-fx.st-onpads{border-color:var(--mint)}
+.st-fx-where{display:none;font-family:"DM Mono";font-size:9.5px;color:var(--mint);letter-spacing:.04em}
+.st-fx.st-onpads .st-fx-where{display:inline}
 .st-xport,.st-rec{
   font-family:"Saira Semi Condensed",system-ui,sans-serif;
   font-size:12px;letter-spacing:.14em;text-transform:uppercase;
@@ -5106,6 +5112,7 @@ body.gated{overflow:hidden}
     <span class="st-fx-lab">Punch</span>
     <div class="st-fx-pads" id="stFxPads"></div>
     <div class="st-fx-side">
+      <span class="st-fx-where" title="Func on the controller opens the punch page, and closes it again">on the pads</span>
       <button class="st-fx-latch" id="stFxLatch" aria-pressed="false"
               title="Hold is the gesture; latch is for when both hands are busy">Latch</button>
       <span class="st-fx-hint" id="stFxHint"></span>
@@ -10368,6 +10375,7 @@ function start(io, rig){
     /* Pads currently down, newest last. A range gesture needs to know what a finger is
        still holding, and note-on/note-off is the only place that is knowable. */
     down: [],
+    pressedOn: new Map(),              // pad -> the grid its press went to, for its release
     pads: new Array(16).fill(-1),      // last colour SENT, so paint() can send only changes
     btns: {},
     encs: new Array(ENC_N).fill(-1),
@@ -10454,6 +10462,7 @@ function message(io, d, rig){
       io.state.padMode = d[2] === PAD_DRUM ? PAD_DRUM : PAD_DAW;
       io.state.pads.fill(-1);            // different note numbers; nothing cached applies
       io.state.down.length = 0;          // and nothing held under the old layout still is
+      io.state.pressedOn.clear();
       return;
     }
     /* ⚠️ THE DEVICE'S OWN ENCODER MODE PICKS WHAT THE ENCODERS ARE FOR. Shift and the Mixer
@@ -10518,13 +10527,20 @@ function message(io, d, rig){
     if (ch !== 0) return;
     const i = noteCell(PAD_DAW, d[1]);
     if (i < 0) return;
-    const g = rig.grid();
     const held = io.state.down;
+    /* ⚠️ A RELEASE GOES TO THE GRID THAT HAD THE PRESS, not to whichever grid is up when the
+       finger lifts. A press and its release are one gesture: the punch page holds an effect in
+       until its pad comes up, so leaving the page with a finger still down — Func, or Shift and
+       a mode pad — handed the release to a grid with nothing to let go of, and the effect stayed
+       in with no pad left that knew it was holding it. CS·1's chord pads had the same hole across
+       a change of focus. */
+    const pressed = io.state.pressedOn;
+    const g = on || !pressed.has(i) ? rig.grid() : pressed.get(i);
     /* ⚠️ TRACKED WHETHER OR NOT THERE IS A GRID. A pad pressed while one panel is focused
        and released while another is would otherwise stay "down" forever, and the next press
        anywhere would read as a range from a pad nobody is touching. */
-    if (on){ if (held.indexOf(i) < 0) held.push(i); }
-    else { const k = held.indexOf(i); if (k >= 0) held.splice(k, 1); }
+    if (on){ if (held.indexOf(i) < 0) held.push(i); pressed.set(i, g); }
+    else { const k = held.indexOf(i); if (k >= 0) held.splice(k, 1); pressed.delete(i); }
     if (!g) return;
     try{
       /* The grid is told what the press MEANS, not which button is down — `accent` rather
@@ -28635,6 +28651,10 @@ if (window.Patchwork && Patchwork.surface){
   const spec = {
     name: "Scenes",
     grid,
+    /* ⚠️ FUNC TAPPED OPENS THE PUNCH PAGE — a page of its own rather than a face of this one,
+       so that nothing on this page still answers while it is up. See studio/live.js. */
+    face: () => (Patchwork.punchUI ? Patchwork.punchUI.open() : null),
+    faceName: "Pads",
     controls: () => {
       const C = Patchwork.consoleUI;
       if (bankNow() === 0 && C && C.levelControls) return C.levelControls();
@@ -29379,23 +29399,27 @@ if (!live || !window.Patchwork || !Patchwork.record) return;
    see, and an effect is the thing in front of you. The handler preventDefaults, which is
    what keys.js checks. */
 const FXKEYS = "1234567890qwerty";
+/* `short` is the controller's legend, which packs three characters to a field; `pad` is the
+   colour the effect's pad wears there, by family — the filters, the ones that play time back,
+   the chops, the rooms, the modulations, the ones that break it, and the one that stops the
+   machine — because a pad hit without looking is found by colour before it is found by place. */
 const FX = [
-  {id: "lp",      name: "LP",      hint: "how far down the top comes off"},
-  {id: "hp",      name: "HP",      hint: "how far up the bottom goes"},
-  {id: "iso",     name: "Iso",     hint: "which slice is left"},
-  {id: "stutter", name: "Stutter", hint: "how long a slice repeats"},
-  {id: "loop",    name: "Loop",    hint: "how much goes round"},
-  {id: "reverse", name: "Reverse", hint: "how long a slice plays backwards"},
-  {id: "repitch", name: "Repitch", hint: "how far it is shifted"},
-  {id: "gate",    name: "Gate",    hint: "how fast it chops"},
-  {id: "pump",    name: "Pump",    hint: "how fast it breathes"},
-  {id: "delay",   name: "Delay",   hint: "how much it feeds back"},
-  {id: "space",   name: "Space",   hint: "how much goes to the room"},
-  {id: "flange",  name: "Flange",  hint: "how fast the notch sweeps"},
-  {id: "ring",    name: "Ring",    hint: "what it is multiplied by"},
-  {id: "drive",   name: "Drive",   hint: "how hard it is pushed"},
-  {id: "crush",   name: "Crush",   hint: "how many bits are left"},
-  {id: "stop",    name: "Stop",    hint: "how long the machine takes to stop"}
+  {id: "lp",      name: "LP",      short: "LP",  pad: "cyan",    hint: "how far down the top comes off"},
+  {id: "hp",      name: "HP",      short: "HP",  pad: "cyan",    hint: "how far up the bottom goes"},
+  {id: "iso",     name: "Iso",     short: "Iso", pad: "cyan",    hint: "which slice is left"},
+  {id: "stutter", name: "Stutter", short: "Stt", pad: "orchid",  hint: "how long a slice repeats"},
+  {id: "loop",    name: "Loop",    short: "Lop", pad: "orchid",  hint: "how much goes round"},
+  {id: "reverse", name: "Reverse", short: "Rev", pad: "orchid",  hint: "how long a slice plays backwards"},
+  {id: "repitch", name: "Repitch", short: "Pit", pad: "orchid",  hint: "how far it is shifted"},
+  {id: "gate",    name: "Gate",    short: "Gat", pad: "lime",    hint: "how fast it chops"},
+  {id: "pump",    name: "Pump",    short: "Pmp", pad: "lime",    hint: "how fast it breathes"},
+  {id: "delay",   name: "Delay",   short: "Dly", pad: "blue",    hint: "how much it feeds back"},
+  {id: "space",   name: "Space",   short: "Spc", pad: "blue",    hint: "how much goes to the room"},
+  {id: "flange",  name: "Flange",  short: "Flg", pad: "magenta", hint: "how fast the notch sweeps"},
+  {id: "ring",    name: "Ring",    short: "Rng", pad: "magenta", hint: "what it is multiplied by"},
+  {id: "drive",   name: "Drive",   short: "Drv", pad: "amber",   hint: "how hard it is pushed"},
+  {id: "crush",   name: "Crush",   short: "Crs", pad: "amber",   hint: "how many bits are left"},
+  {id: "stop",    name: "Stop",    short: "Stp", pad: "red",     hint: "how long the machine takes to stop"}
 ];
 const fxPads = document.querySelector("#stFxPads");
 const fxLatch = document.querySelector("#stFxLatch");
@@ -29434,18 +29458,30 @@ function paintFx(){
   const f = FX.find(x => x.id === focus);
   fxHint.textContent = f ? "\u2190 \u2192  " + f.name + " \u00b7 " + f.hint : "";
 }
-/* Latched, a press is a toggle; held, it is a press. One function so the pointer and the
-   number row cannot end up with different ideas about which. */
-function fxDown(id){
-  if (latched && Patchwork.fx.active(id)) Patchwork.fx.release(id);
-  else Patchwork.fx.press(id);
+/* Latched, a press is a toggle; held, it is a press. One function so the pointer, the number
+   row and the controller's pads cannot end up with different ideas about which.
+
+   `stick` latches this one press and no other — Func and a pad on the controller, where a hand
+   on the pads cannot reach over to the Latch button. The answer is whether the matching
+   release should let go, which only a caller that remembers its presses one by one asks. */
+function fxDown(id, stick){
+  const toggle = latched || !!stick;
+  if (toggle && Patchwork.fx.active(id)){ Patchwork.fx.release(id); return false; }
+  Patchwork.fx.press(id);
+  return !toggle;
 }
 function fxUp(id){ if (!latched) Patchwork.fx.release(id); }
+
+/* What each pointer and each key is holding, so that letting go of one lets go of that one
+   and nothing else — see the release note below. */
+const byPointer = new Map();
+const byKey = new Set();
 
 if (fxPads){
   fxPads.addEventListener("pointerdown", e => {
     const b = e.target.closest(".st-fx-pad"); if (!b) return;
     if (e.pointerId != null) try{ b.setPointerCapture(e.pointerId); }catch(x){}
+    byPointer.set(e.pointerId != null ? e.pointerId : 0, b.dataset.fx);
     fxDown(b.dataset.fx);
     e.preventDefault();
   });
@@ -29461,11 +29497,27 @@ if (fxPads){
   /* ⚠️ RELEASED FROM THE WINDOW, not from the pad. A pad stuck down is an effect you cannot
      turn off, which is the worst failure available to this control — and every way of
      letting go that does not end in a pointerup ON the pad leads there: dragging off it,
-     a capture that did not take, the pointer being cancelled, the window losing focus. */
-  const letGo = () => { if (!latched) Patchwork.fx.releaseAll(); };
+     a capture that did not take, the pointer being cancelled, the window losing focus.
+
+     ⚠️ BUT ONLY WHAT THAT POINTER WAS HOLDING. This released everything, which came to the same
+     thing while the pointer and the number row were the only hands on the rack — and stopped
+     being the same thing when the controller's pads became a third: a click anywhere on the
+     page cut an effect a finger on the pads was still holding. Losing the window still lets go
+     of whatever the pointer and the keys hold, because their releases will never arrive here.
+     A controller's will, so its pads are left alone. */
+  const letGo = e => {
+    const k = e && e.pointerId != null ? e.pointerId : 0;
+    if (!byPointer.has(k)) return;
+    const id = byPointer.get(k);
+    byPointer.delete(k);
+    fxUp(id);
+  };
   window.addEventListener("pointerup", letGo);
   window.addEventListener("pointercancel", letGo);
-  window.addEventListener("blur", letGo);
+  window.addEventListener("blur", () => {
+    byPointer.forEach(id => fxUp(id)); byPointer.clear();
+    byKey.forEach(id => fxUp(id)); byKey.clear();
+  });
 
   fxLatch.addEventListener("click", () => {
     latched = !latched;
@@ -29492,20 +29544,114 @@ if (fxPads){
      before every bubble listener on it, and preventDefault here is what keys.js checks for
      before it does anything. On the live page an octave is the wrong thing for an arrow to
      mean anyway: you cannot see the keyboard it would be moving. */
+  /* ⚠️ AND STOPPED THERE, not only prevented. host.js hands every key to the focused panel's own
+     shortcuts whether or not something already took it, and the panels are hidden on this page —
+     so a punch key carried on to a panel you could not see: CS·1 plays a chord on the digits, and
+     a held key played it again on every repeat. keys.js was the one handler that looked. */
   document.addEventListener("keydown", e => {
     if (mine(e) && (e.key === "ArrowLeft" || e.key === "ArrowRight")){
-      if (Patchwork.fx.nudge(e.key === "ArrowRight" ? 1 : -1)) e.preventDefault();
+      if (Patchwork.fx.nudge(e.key === "ArrowRight" ? 1 : -1)){ e.preventDefault(); e.stopPropagation(); }
       return;
     }
-    const id = keyFx(e); if (!id || e.repeat) return;
-    fxDown(id); e.preventDefault();
+    const id = keyFx(e); if (!id) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.repeat) return;
+    fxDown(id); byKey.add(id);
   }, true);
   document.addEventListener("keyup", e => {
     const id = keyFx(e); if (!id) return;
+    e.stopPropagation();
+    byKey.delete(id);
     fxUp(id);
   }, true);
   Patchwork.fx.onChange(paintFx);
   buildFx();
+}
+
+/* ---- the rack, as a page on the controller ----
+   ⚠️ A PAGE, NOT A FACE, and it was a face first. As the launcher's other face it kept the
+   launcher's buttons — ">" still launched the row under the cursor, the arrows still walked it,
+   and anything that moved the focus took the pads away with it — which, played, was the punch
+   page launching scenes. A page outranks the focus for as long as it is up (rig.focus in
+   shell/surface.js), so nothing but this spec answers the pads, the encoders, ">" or the arrows.
+   The keys still play, and Play and Stop still run the rack.
+
+   Func tapped on the launcher opens it and Func tapped here closes it, back to wherever the
+   surface was before. Shift and a mode pad leaves it too, like any page. */
+const Surf = window.Patchwork && Patchwork.surface;
+if (Surf && Surf.mount && Patchwork.fx){
+  let back = "";                             // the mode it was opened from
+  let bank = 0;
+  const BANKS = [{name: "Top row"}, {name: "Bottom row"}];
+  /* reading order onto the surface's cells, where cell 0 is bottom-left — its own inverse */
+  const cellOf = i => (i < 8 ? i + 8 : i - 8);
+  /* cell -> whether that finger's release lets its effect go, decided at the press: by the
+     release, a latched press and a held one look the same to the rack */
+  const fingers = new Map();
+  const padGrid = {
+    label: () => "Punch",
+    cells: () => {
+      const out = new Array(16).fill(null);
+      FX.forEach((f, i) => {
+        const cell = cellOf(i), on = Patchwork.fx.active(f.id);
+        /* ⚠️ IN WITH NO FINGER ON IT PULSES. A latched effect is the one you can forget is in,
+           and an effect you cannot find to take out is the worst failure this rack has. */
+        out[cell] = {colour: f.pad, on, hot: on && !fingers.has(cell)};
+      });
+      return out;
+    },
+    /* Func and a pad latches that pad; the Latch button on screen latches all of them */
+    down: (cell, vel, mods) => {
+      const f = FX[cellOf(cell)]; if (!f) return;
+      fingers.set(cell, fxDown(f.id, !!(mods && mods.accent)));
+      bank = cell >= 8 ? 0 : 1;              // the encoders follow the row you just played
+    },
+    up: cell => {
+      const f = FX[cellOf(cell)], lets = fingers.get(cell);
+      fingers.delete(cell);
+      if (f && lets) fxUp(f.id);
+    }
+  };
+  Surf.mount("punch", {
+    name: "Punch",
+    /* read by paint() below, to ring the rack while the pads are on it */
+    punching: true,
+    show: () => Surf.rig.goto("live"),
+    grid: padGrid,
+    /* One control per effect: its number, the one the arrows and the wheel move on screen, by
+       detent. It takes the focus with it, so the ring on screen follows the knob. */
+    controls: () => FX.slice(bank * 8, bank * 8 + 8).map(f => ({
+      id: "fx-" + f.id, label: f.name, short: f.short, stepped: true,
+      text: () => Patchwork.fx.paramText(f.id),
+      nudge: d => { Patchwork.fx.setFocus(f.id); Patchwork.fx.nudge(d); }
+    })),
+    controlBanks: () => BANKS,
+    controlBank: () => bank,
+    setControlBank: i => { bank = Math.max(0, Math.min(BANKS.length - 1, i)); },
+    face: () => {
+      Surf.rig.setMode(back);
+      const f = Surf.rig.focus;
+      return f ? f.name : "Off";
+    },
+    faceName: "Pads",
+    /* ">" takes everything out: the one thing a hand on the pads cannot otherwise do in one
+       press, and the answer to a latched effect you have lost track of */
+    actionName: "Punch",
+    action: () => {
+      if (!Patchwork.fx.any) return null;
+      Patchwork.fx.releaseAll();
+      return "All out";
+    }
+  });
+  Patchwork.punchUI = {
+    open(){
+      const was = Surf.rig.mode;
+      if (was === "punch") return null;
+      back = was;
+      Surf.rig.setMode("punch");
+      return "Punch";
+    }
+  };
 }
 
 function build(){
@@ -29575,6 +29721,11 @@ function paint(){
     b.classList.toggle("st-sel", b.dataset.q === Patchwork.scenes.quantum));
   quant.querySelector('[data-q="pattern"]').title =
     "Every " + Patchwork.scenes.patternBars + " bars — the pattern length in the Scenes head";
+  /* Whether the controller's pads are on the rack, asked of the surface rather than kept here:
+     the answer is wherever the pads point, and that is the surface's to know. */
+  const Sf = Patchwork.surface, f = Sf && Sf.connected ? Sf.rig.focus : null;
+  const rackEl = document.querySelector("#stFx");
+  if (rackEl) rackEl.classList.toggle("st-onpads", !!(f && f.spec && f.spec.punching));
 }
 
 grid.addEventListener("click", e => {

@@ -1488,6 +1488,31 @@ LP·1 answers for its own column. It has no scene row, so `scenes.onRow` has nev
 it — the record spec grows a `liveSlot()` instead, and the live grid asks a slot track
 which slot it is working out of rather than asking the scene model.
 
+### The punch page on the controller
+
+Tapping Func on the launcher opens a surface page, `punch`, mounted in `studio/live.js` beside the
+rack it plays. The effects are still `shell/fx.js`, and a press still goes through `fxDown()` and
+`fxUp()`, so the pointer, the number row and the pads share one rule for hold and latch.
+
+- ⚠️ **A page, not a face — it was a face first, and that was a bug.** As the launcher's other face
+  it kept the launcher's buttons. Measured in the surface harness before the change: `>` started
+  DR·1 from the row under the cursor, the arrows walked the cursor, and moving the focus to DR·1
+  sent the next pad press to DR·1's steps. A page outranks the focus, so while it is up nothing
+  but its own spec answers the pads, encoders, `>` (all effects out) and the arrows (nothing).
+  Func closes it, back to the mode it was opened from.
+- ⚠️ **A pad's release goes to the grid that had its press** (`pressedOn` in `shell/launchkey.js`).
+  Leaving for Settings with Iso held used to hand the release to the Settings grid, and Iso stayed
+  in. CS·1's chord pads had the same hole across a change of focus.
+- ⚠️ **Each finger remembers whether its release lets go**, decided at the press — by the release,
+  a Func-latched press and a held one look the same to the rack.
+- ⚠️ **The number row stops at the live page.** `host.js` hands every key to the focused panel
+  whether or not something took it, and the panels are hidden here: with CS·1 focused, "1" put LP
+  in and also played CS·1's first chord (peak 0.25 at its strip). Stopped, not only prevented. A
+  mouse-up releases only what that pointer held.
+- ⚠️ **Two tabs both answer the controller.** Web MIDI delivers input to every page listening, and
+  the first report of the punch page "launching scenes" came with a second copy of the app open.
+- Verified against `tools/build-surface-harness.py` only. Nobody has pressed it on the Mini MK4.
+
 ## One sequencer model, three instruments
 
 ⚠️ **`seq/step-seq.js` used to be deliberately the simpler of the two models** — no lanes,

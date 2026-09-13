@@ -3861,6 +3861,7 @@ function start(io, rig){
     /* Pads currently down, newest last. A range gesture needs to know what a finger is
        still holding, and note-on/note-off is the only place that is knowable. */
     down: [],
+    pressedOn: new Map(),              // pad -> the grid its press went to, for its release
     pads: new Array(16).fill(-1),      // last colour SENT, so paint() can send only changes
     btns: {},
     encs: new Array(ENC_N).fill(-1),
@@ -3947,6 +3948,7 @@ function message(io, d, rig){
       io.state.padMode = d[2] === PAD_DRUM ? PAD_DRUM : PAD_DAW;
       io.state.pads.fill(-1);            // different note numbers; nothing cached applies
       io.state.down.length = 0;          // and nothing held under the old layout still is
+      io.state.pressedOn.clear();
       return;
     }
     /* ⚠️ THE DEVICE'S OWN ENCODER MODE PICKS WHAT THE ENCODERS ARE FOR. Shift and the Mixer
@@ -4011,13 +4013,20 @@ function message(io, d, rig){
     if (ch !== 0) return;
     const i = noteCell(PAD_DAW, d[1]);
     if (i < 0) return;
-    const g = rig.grid();
     const held = io.state.down;
+    /* ⚠️ A RELEASE GOES TO THE GRID THAT HAD THE PRESS, not to whichever grid is up when the
+       finger lifts. A press and its release are one gesture: the punch page holds an effect in
+       until its pad comes up, so leaving the page with a finger still down — Func, or Shift and
+       a mode pad — handed the release to a grid with nothing to let go of, and the effect stayed
+       in with no pad left that knew it was holding it. CS·1's chord pads had the same hole across
+       a change of focus. */
+    const pressed = io.state.pressedOn;
+    const g = on || !pressed.has(i) ? rig.grid() : pressed.get(i);
     /* ⚠️ TRACKED WHETHER OR NOT THERE IS A GRID. A pad pressed while one panel is focused
        and released while another is would otherwise stay "down" forever, and the next press
        anywhere would read as a range from a pad nobody is touching. */
-    if (on){ if (held.indexOf(i) < 0) held.push(i); }
-    else { const k = held.indexOf(i); if (k >= 0) held.splice(k, 1); }
+    if (on){ if (held.indexOf(i) < 0) held.push(i); pressed.set(i, g); }
+    else { const k = held.indexOf(i); if (k >= 0) held.splice(k, 1); pressed.delete(i); }
     if (!g) return;
     try{
       /* The grid is told what the press MEANS, not which button is down — `accent` rather

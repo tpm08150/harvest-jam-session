@@ -660,6 +660,10 @@ if (window.Patchwork && Patchwork.surface){
   const spec = {
     name: "Scenes",
     grid,
+    /* ⚠️ FUNC TAPPED OPENS THE PUNCH PAGE — a page of its own rather than a face of this one,
+       so that nothing on this page still answers while it is up. See studio/live.js. */
+    face: () => (Patchwork.punchUI ? Patchwork.punchUI.open() : null),
+    faceName: "Pads",
     controls: () => {
       const C = Patchwork.consoleUI;
       if (bankNow() === 0 && C && C.levelControls) return C.levelControls();
