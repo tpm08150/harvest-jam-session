@@ -1897,6 +1897,29 @@ master already did, so whatever a panel does when it stops happens here too. A s
 has no Play in the rack sense, so LP·1 offers `stop()` through its record spec — otherwise
 a master stop leaves the looper running.
 
+⚠️ **Each panel's own Play is found by `data-transport`, not by `#play`.** Every panel's
+transport button carries the attribute, and the three places that press one from outside ask
+for it: `toggleAll()` in `studio/live.js` (Play all and Stop all on the Live page, the Tape
+page's console, the Launchkey), `launch.stopAll()`, and the standalone fallback in `rig.toggle()`
+(`shell/surface.js`). All three asked for `#play`, and SQ·1's button is `#sqPlay`: Play all never
+started the sequencer and nothing stopped it, while `anyPlaying` counted it — so a running SQ·1
+kept Stop all reading *Stop* over a transport it could not reach, and on SQ·1's own page a
+controller's Play did nothing. Measured in the studio before the change, with SQ·1 started from
+its own button: it survived Stop all, the launcher's Stop and `rig.stopAll()` (the Launchkey's
+Stop), and Play all from silence started DR·1, BS·1, CS·1 and VC·1 but not SQ·1. After: each of
+those stops it, Play all starts it with its sixteen tracks, the surface harness's Stop (CC 116)
+and Play (CC 115) do the same, and `rig.toggle()` starts and stops it on `sequencer.html`. TS·1's
+Arm and LP·1's transport carry no marker, deliberately: Play all has never armed a transition or
+started the looper.
+
+⚠️ **The launcher's Stop was disabled over a playing rack.** It is disabled while nothing plays,
+and its head repainted only on a scene, record or tempo change — which a panel's own Play and
+Play all never cause, because both press buttons the scene model does not hear. Measured: a full
+second after Play all had five instruments running, `#stStop` was still disabled, and a click on
+it did nothing. That hid the fix above from the launcher's Stop until the head took the grid's
+400 ms repaint; it now enables within one repaint of any start, and stops SQ·1, DR·1 and the
+whole rack.
+
 ⚠️ **An instrument's own Play button does not reach the scene model**, so a cell stayed
 ringed after its instrument had stopped. This predates the button — it arrived with the
 ring. `scenes.changed()` covers the explicit case immediately, and the launcher now carries
@@ -2182,6 +2205,7 @@ adding a comment about the slot field. There is a note in the file now.
 
 - The master Play presses the instruments' own Play buttons rather than reaching into
   their transports, so arm checks, autostart and painting happen as they would from a panel.
+  It finds each by `data-transport`, never by id — see *A stop for the launcher*.
 - ⚠️ `[hidden]` needed `display:none !important` — the attribute is `display:none` from the
   UA sheet, which any explicit `display` on a class beats, and `.st-rack` is `display:grid`.
 - ⚠️ The live page must live OUTSIDE `.st-rack`, or hiding the rack hides it too.

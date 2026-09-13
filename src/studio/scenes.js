@@ -215,7 +215,9 @@ function stopAll(){
   Patchwork.roots.forEach(r => {
     const id = r.dataset.instrument;
     if (!Patchwork.scenes.playing(id)) return;
-    const btn = r.querySelector("#play");
+    /* the panel's own transport by its marker, not by #play — SQ·1's is #sqPlay, and asking for
+       the name left a running sequencer playing through Stop. See toggleAll() in studio/live.js. */
+    const btn = r.querySelector("[data-transport]");
     if (btn) btn.click();
   });
   Patchwork.record.tracks.forEach(t => {
@@ -750,6 +752,12 @@ Patchwork.clock.onTempo("studio", paint, null);
 Patchwork.scenes.onChange(paint);
 Patchwork.record.onChange(paint);
 paint();
+/* ⚠️ AND ON A TIMER, because Stop is disabled when nothing is playing and nothing here heard the
+   rack start. A panel's own Play and Play all both press panel buttons, and neither reaches the
+   scene model — so Stop sat disabled over a rack playing five instruments, measured a full second
+   after Play all, and a disabled button's click does nothing at all. The grid above repaints every
+   400 ms for the same reason; the head that holds its Stop now does too. */
+setInterval(paint, 400);
 Patchwork.launch.mountMeasure(document.querySelector("#stBars"));
 })();
 

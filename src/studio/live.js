@@ -426,7 +426,12 @@ function toggleAll(){
   }
   Patchwork.roots.forEach(r => {
     const id = r.dataset.instrument;
-    const btn = r.querySelector("#play");
+    /* ⚠️ FOUND BY WHAT IT IS, NOT BY WHAT IT IS CALLED. This asked for #play, and SQ·1's button is
+       #sqPlay — so Play all never started the sequencer and Stop all never stopped it, while
+       rackPlaying() counted it all the same: a running SQ·1 kept this button reading "Stop all"
+       over a transport it could not reach. Each panel marks its own Play with data-transport,
+       so a panel with its own name for the button is reached without anyone coming back here. */
+    const btn = r.querySelector("[data-transport]");
     if (!btn) return;
     const isSeq = Patchwork.scenes.instruments.some(i => i.id === id);
     if (!isSeq) return;                     // the looper is not part of "play all"

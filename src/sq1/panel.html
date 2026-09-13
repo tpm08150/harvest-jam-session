@@ -90,8 +90,10 @@
   </div>
 
   <div class="rule"></div>
+  <!-- data-transport is what the rack's Play all and Stop, and a controller's Play, look for:
+       this button is not called #play, and the lookup asked for that name until it did not. -->
   <div data-face class="row">
-    <button class="btn play" id="sqPlay">&#9654; Play</button>
+    <button class="btn play" id="sqPlay" data-transport>&#9654; Play</button>
     <span class="grow"></span>
     <button class="btn sm panic" id="sqPanic" title="All notes off on every channel">Panic</button>
   </div>

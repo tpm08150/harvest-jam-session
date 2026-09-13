@@ -573,8 +573,10 @@ input[type="text"]::placeholder{color:#5a646a}
   </div>
 
   <div class="rule"></div>
+  <!-- data-transport is what the rack's Play all and Stop, and a controller's Play, look for:
+       this button is not called #play, and the lookup asked for that name until it did not. -->
   <div data-face class="row">
-    <button class="btn play" id="sqPlay">&#9654; Play</button>
+    <button class="btn play" id="sqPlay" data-transport>&#9654; Play</button>
     <span class="grow"></span>
     <button class="btn sm panic" id="sqPanic" title="All notes off on every channel">Panic</button>
   </div>
@@ -2630,7 +2632,9 @@ const rig = {
   toggle(){
     if (Patchwork.transport) return Patchwork.transport.toggleAll();
     const r = Patchwork.focused || Patchwork.roots[0];
-    const b = r && r.querySelector("#play");
+    /* by the marker every panel's own Play carries, not by #play — SQ·1's page has #sqPlay, and a
+       controller's Play did nothing there */
+    const b = r && r.querySelector("[data-transport]");
     if (b) b.click();
   },
   get bpm(){ return Patchwork.clock ? Patchwork.clock.bpm : 120; },

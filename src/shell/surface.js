@@ -478,7 +478,9 @@ const rig = {
   toggle(){
     if (Patchwork.transport) return Patchwork.transport.toggleAll();
     const r = Patchwork.focused || Patchwork.roots[0];
-    const b = r && r.querySelector("#play");
+    /* by the marker every panel's own Play carries, not by #play — SQ·1's page has #sqPlay, and a
+       controller's Play did nothing there */
+    const b = r && r.querySelector("[data-transport]");
     if (b) b.click();
   },
   get bpm(){ return Patchwork.clock ? Patchwork.clock.bpm : 120; },

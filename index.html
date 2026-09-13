@@ -3687,7 +3687,7 @@ body.gated{overflow:hidden}
   <div data-face class="rule"></div>
 
   <div data-face class="transport">
-    <button class="btn primary" id="play">▶ Play</button>
+    <button class="btn primary" id="play" data-transport>▶ Play</button>
     <button class="btn ghost" id="clearPat">Clear</button>
     <button class="btn ghost" id="defaultPat">Reset pattern</button>
     <div class="tempo" data-hosted>
@@ -3870,7 +3870,7 @@ body.gated{overflow:hidden}
   </div>
 
   <div data-face class="transport">
-    <button class="btn primary" id="play">▶ Play</button>
+    <button class="btn primary" id="play" data-transport>▶ Play</button>
     <button class="btn ghost" id="hold">Hold</button>
     <div class="tempo" data-hosted>
       <button id="bpmDown" aria-label="Slower">−</button>
@@ -4028,7 +4028,7 @@ body.gated{overflow:hidden}
 
   <div data-face class="transport">
     <button class="btn primary" id="gen">New progression</button>
-    <button class="btn play" id="play">▶ Play</button>
+    <button class="btn play" id="play" data-transport>▶ Play</button>
   </div>
 
   <div data-face class="row">
@@ -4307,7 +4307,7 @@ body.gated{overflow:hidden}
 
   <div data-face class="transport">
     <button class="btn primary" id="init">Init patch</button>
-    <button class="btn play" id="play">▶ Play</button>
+    <button class="btn play" id="play" data-transport>▶ Play</button>
     <button class="btn ghost tog" id="hold" aria-pressed="false">Hold</button>
     <div class="field" data-hosted style="flex:0 0 128px">
       <label for="tempoOut">Tempo</label>
@@ -4638,7 +4638,7 @@ body.gated{overflow:hidden}
   </div>
 
   <div data-face class="transport">
-    <button class="btn primary" id="play">▶ Play</button>
+    <button class="btn primary" id="play" data-transport>▶ Play</button>
     <button class="btn ghost" id="hold">Hold</button>
     <button class="btn ghost" id="listen">Listen</button>
     <div class="tempo" data-hosted>
@@ -5108,8 +5108,10 @@ body.gated{overflow:hidden}
   </div>
 
   <div class="rule"></div>
+  <!-- data-transport is what the rack's Play all and Stop, and a controller's Play, look for:
+       this button is not called #play, and the lookup asked for that name until it did not. -->
   <div data-face class="row">
-    <button class="btn play" id="sqPlay">&#9654; Play</button>
+    <button class="btn play" id="sqPlay" data-transport>&#9654; Play</button>
     <span class="grow"></span>
     <button class="btn sm panic" id="sqPanic" title="All notes off on every channel">Panic</button>
   </div>
@@ -9576,7 +9578,9 @@ const rig = {
   toggle(){
     if (Patchwork.transport) return Patchwork.transport.toggleAll();
     const r = Patchwork.focused || Patchwork.roots[0];
-    const b = r && r.querySelector("#play");
+    /* by the marker every panel's own Play carries, not by #play — SQ·1's page has #sqPlay, and a
+       controller's Play did nothing there */
+    const b = r && r.querySelector("[data-transport]");
     if (b) b.click();
   },
   get bpm(){ return Patchwork.clock ? Patchwork.clock.bpm : 120; },
@@ -29216,7 +29220,9 @@ function stopAll(){
   Patchwork.roots.forEach(r => {
     const id = r.dataset.instrument;
     if (!Patchwork.scenes.playing(id)) return;
-    const btn = r.querySelector("#play");
+    /* the panel's own transport by its marker, not by #play — SQ·1's is #sqPlay, and asking for
+       the name left a running sequencer playing through Stop. See toggleAll() in studio/live.js. */
+    const btn = r.querySelector("[data-transport]");
     if (btn) btn.click();
   });
   Patchwork.record.tracks.forEach(t => {
@@ -29751,6 +29757,12 @@ Patchwork.clock.onTempo("studio", paint, null);
 Patchwork.scenes.onChange(paint);
 Patchwork.record.onChange(paint);
 paint();
+/* ⚠️ AND ON A TIMER, because Stop is disabled when nothing is playing and nothing here heard the
+   rack start. A panel's own Play and Play all both press panel buttons, and neither reaches the
+   scene model — so Stop sat disabled over a rack playing five instruments, measured a full second
+   after Play all, and a disabled button's click does nothing at all. The grid above repaints every
+   400 ms for the same reason; the head that holds its Stop now does too. */
+setInterval(paint, 400);
 Patchwork.launch.mountMeasure(document.querySelector("#stBars"));
 })();
 
@@ -30835,7 +30847,12 @@ function toggleAll(){
   }
   Patchwork.roots.forEach(r => {
     const id = r.dataset.instrument;
-    const btn = r.querySelector("#play");
+    /* ⚠️ FOUND BY WHAT IT IS, NOT BY WHAT IT IS CALLED. This asked for #play, and SQ·1's button is
+       #sqPlay — so Play all never started the sequencer and Stop all never stopped it, while
+       rackPlaying() counted it all the same: a running SQ·1 kept this button reading "Stop all"
+       over a transport it could not reach. Each panel marks its own Play with data-transport,
+       so a panel with its own name for the button is reached without anyone coming back here. */
+    const btn = r.querySelector("[data-transport]");
     if (!btn) return;
     const isSeq = Patchwork.scenes.instruments.some(i => i.id === id);
     if (!isSeq) return;                     // the looper is not part of "play all"
