@@ -81,7 +81,7 @@ const OUT = Patchwork.midi.sender(() => MIDI.outCh);
 function sendLanding(landAt){
   const c = Patchwork.audio.ctx;
   if (!c) return;
-  const at = performance.now() + Math.max(0, landAt - c.currentTime) * 1000;
+  const at = Patchwork.midi.portTime(landAt);   // port time, not audio time — see shell/midi.js
   OUT.noteOn(TS_NOTE, 110, at);
   /* A trigger with no length: a receiver wants an edge, and a note left on is a note
      somebody else has to chase. */

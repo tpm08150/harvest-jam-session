@@ -39,9 +39,8 @@ const seq = Patchwork.makeSeq({
        a bass sequencer. A slide is one continuous gesture here and two notes on the wire —
        there is no MIDI for "glide into this without re-attacking", and a receiver's own
        portamento is the only place that can be honoured. */
-    const at = perfAt(t);
-    OUT.noteOn(ev.n, vel, at);
-    OUT.noteOff(ev.n, perfAt(t + ev.dur));
+    OUT.noteOn(ev.n, vel, Patchwork.midi.portTime(t));      // port time — see shell/midi.js
+    OUT.noteOff(ev.n, Patchwork.midi.portTime(t + ev.dur));
     /* Slide glides into a step without re-attacking it — a 303 line, and the reason the
        bass needed a sequencer of its own rather than borrowing notes from elsewhere. */
     if (ev.slide && cur && !cur.released) cur.setPitch(t, ev.n, Math.max(.02, P.glide || .06));
@@ -60,16 +59,6 @@ const seq = Patchwork.makeSeq({
     if (!on) allNotesOff();
   }
 });
-/* ⚠️ AUDIO TIME INTO PORT TIME. The sequencer schedules on the AudioContext clock and
-   MIDIOutput.send wants performance.now() milliseconds — two different origins for the same
-   instant. Getting this wrong does not fail loudly; it sends everything early or late by a
-   constant nobody thinks to measure. */
-function perfAt(t){
-  const c = Patchwork.audio.ctx;
-  if (!c) return 0;
-  return performance.now() + Math.max(0, (t - c.currentTime)) * 1000;
-}
-
 /* What is under a finger right now — the note a click on a step will write. Lowest, the
    same priority the voice itself uses, so what you hear and what lands agree. */
 const heldNote = () => { const n = pick(); return n == null ? null : n; };

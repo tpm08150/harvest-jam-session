@@ -246,13 +246,41 @@ function selectOut(portId){
   return outPort;
 }
 
+/* ---- audio time into port time ----
+   ⚠️ TWO CLOCKS, AND THE PORT READS THE OTHER ONE. Every sequencer in the rack schedules on the
+   AudioContext clock, in seconds since the context was made; MIDIOutput.send takes a
+   performance.now() timestamp, in milliseconds since the page was. An audio time handed to the
+   port is a moment long gone, so the message goes out the instant it is scheduled — up to a
+   whole lookahead early — and nothing anywhere fails. SQ·1's drum tracks did exactly that (a hit
+   timestamped 132.24 against a performance.now() of 132269) while its synth tracks, further down
+   the same file, converted; VC·1's sequencer sent no timestamp at all, which the port reads as
+   "now".
+
+   So the conversion lives here, beside the one door their MIDI goes out of, rather than once
+   per instrument: BS·1, TS·1 and SQ·1's synth tracks each carried a copy of this line. It is the
+   plain mapping those copies used — now, plus how far ahead the audio time is.
+
+   ⚠️ CS·1 AND PM·1 DO NOT USE IT. They send through ports of their own with their own
+   perfTime(), which asks getOutputTimestamp() and so lands a note when its audio frame leaves the
+   device rather than when it is rendered — later than this by the output latency. The two have
+   not been made one; see HANDOFF.md, "SQ·1 asks for a row from every track". */
+function portTime(t){
+  const c = Patchwork.audio && Patchwork.audio.ctx;
+  if (!c || t == null) return performance.now();
+  return performance.now() + Math.max(0, t - c.currentTime) * 1000;
+}
+
 /* A sender for one instrument. ⚠️ IT REMEMBERS WHAT IT SENT, which is the whole reason this
    is an object rather than a function: a note-off for a note nobody sent is noise on the
    wire, and a note-on left hanging by a panic or a port change is a stuck note on somebody
    else's synth — the one MIDI bug that outlives the page that caused it.
 
    `ch` is a getter rather than a number so the sender does not go stale when the channel is
-   changed from the Settings tab, which is exactly where it will be changed from. */
+   changed from the Settings tab, which is exactly where it will be changed from.
+
+   ⚠️ `when` IS PORT TIME — performance.now() milliseconds — or nothing, for now. Anything
+   scheduled on the audio clock goes through portTime() first: nothing here can tell 132.24
+   seconds from 132.24 milliseconds, and the port will not say. */
 function sender(chOf){
   const live = new Set();
   const at = t => (t == null ? 0 : t);
@@ -344,7 +372,7 @@ function setFollow(on){
 }
 
 return {open, upgrade, ports, route, select, list, setFollow,
-        claim, claimed, output, selectOut, sender,
+        claim, claimed, output, selectOut, sender, portTime,
         get outPort(){ return outPort; },
         get outId(){ return outId; },
         onChange: fn => watchers.push(fn),

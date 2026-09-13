@@ -212,8 +212,14 @@ function buildCarrier(midi, vel, t){
 function noteOn(midi, vel, when){
   ensureAudio();
   const t = when == null ? ctx.currentTime + .003 : when;
-  /* Every note this instrument sings, hand or sequencer — see the note on noteOff below. */
-  OUT.noteOn(midi, vel);
+  /* Every note this instrument sings, hand or sequencer — see the note on noteOff below.
+
+     ⚠️ AND THE SEQUENCER'S GO WITH THEIR TIME ON THEM. This sent no timestamp, which the port
+     reads as "now": a step went out when it was scheduled, up to the lookahead early, and its
+     note-off — scheduled in the same breath by fire() in ui.js — went straight out after it, so
+     every sequenced note on the wire was a blip with no length. A hand's note has no `when` and
+     still goes now. See portTime() in shell/midi.js. */
+  OUT.noteOn(midi, vel, when == null ? null : Patchwork.midi.portTime(when));
   const old = carriers.get(midi);
   if (old) old.release(t);
   /* Six at a time. Past that the bank is being asked to resolve a cluster it cannot, and
@@ -232,7 +238,7 @@ function noteOff(midi, when){
      only; the port wants every note this instrument sings, and this panel's sequencer plays
      through here rather than around it — which is the very reason the recorder needed the
      `when` test in the first place. */
-  OUT.noteOff(midi);
+  OUT.noteOff(midi, when == null ? null : Patchwork.midi.portTime(when));
   /* ⚠️ ONLY A HAND'S RELEASE, and `when` is what tells them apart: every path a person
      lets go through — MIDI, the on-screen keys, the computer keyboard — asks for "now" and
      passes nothing, while the sequencer voicing its own grid schedules an exact end time.

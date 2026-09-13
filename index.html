@@ -8991,13 +8991,41 @@ function selectOut(portId){
   return outPort;
 }
 
+/* ---- audio time into port time ----
+   ⚠️ TWO CLOCKS, AND THE PORT READS THE OTHER ONE. Every sequencer in the rack schedules on the
+   AudioContext clock, in seconds since the context was made; MIDIOutput.send takes a
+   performance.now() timestamp, in milliseconds since the page was. An audio time handed to the
+   port is a moment long gone, so the message goes out the instant it is scheduled — up to a
+   whole lookahead early — and nothing anywhere fails. SQ·1's drum tracks did exactly that (a hit
+   timestamped 132.24 against a performance.now() of 132269) while its synth tracks, further down
+   the same file, converted; VC·1's sequencer sent no timestamp at all, which the port reads as
+   "now".
+
+   So the conversion lives here, beside the one door their MIDI goes out of, rather than once
+   per instrument: BS·1, TS·1 and SQ·1's synth tracks each carried a copy of this line. It is the
+   plain mapping those copies used — now, plus how far ahead the audio time is.
+
+   ⚠️ CS·1 AND PM·1 DO NOT USE IT. They send through ports of their own with their own
+   perfTime(), which asks getOutputTimestamp() and so lands a note when its audio frame leaves the
+   device rather than when it is rendered — later than this by the output latency. The two have
+   not been made one; see HANDOFF.md, "SQ·1 asks for a row from every track". */
+function portTime(t){
+  const c = Patchwork.audio && Patchwork.audio.ctx;
+  if (!c || t == null) return performance.now();
+  return performance.now() + Math.max(0, t - c.currentTime) * 1000;
+}
+
 /* A sender for one instrument. ⚠️ IT REMEMBERS WHAT IT SENT, which is the whole reason this
    is an object rather than a function: a note-off for a note nobody sent is noise on the
    wire, and a note-on left hanging by a panic or a port change is a stuck note on somebody
    else's synth — the one MIDI bug that outlives the page that caused it.
 
    `ch` is a getter rather than a number so the sender does not go stale when the channel is
-   changed from the Settings tab, which is exactly where it will be changed from. */
+   changed from the Settings tab, which is exactly where it will be changed from.
+
+   ⚠️ `when` IS PORT TIME — performance.now() milliseconds — or nothing, for now. Anything
+   scheduled on the audio clock goes through portTime() first: nothing here can tell 132.24
+   seconds from 132.24 milliseconds, and the port will not say. */
 function sender(chOf){
   const live = new Set();
   const at = t => (t == null ? 0 : t);
@@ -9089,7 +9117,7 @@ function setFollow(on){
 }
 
 return {open, upgrade, ports, route, select, list, setFollow,
-        claim, claimed, output, selectOut, sender,
+        claim, claimed, output, selectOut, sender, portTime,
         get outPort(){ return outPort; },
         get outId(){ return outId; },
         onChange: fn => watchers.push(fn),
@@ -17318,9 +17346,8 @@ const seq = Patchwork.makeSeq({
        a bass sequencer. A slide is one continuous gesture here and two notes on the wire —
        there is no MIDI for "glide into this without re-attacking", and a receiver's own
        portamento is the only place that can be honoured. */
-    const at = perfAt(t);
-    OUT.noteOn(ev.n, vel, at);
-    OUT.noteOff(ev.n, perfAt(t + ev.dur));
+    OUT.noteOn(ev.n, vel, Patchwork.midi.portTime(t));      // port time — see shell/midi.js
+    OUT.noteOff(ev.n, Patchwork.midi.portTime(t + ev.dur));
     /* Slide glides into a step without re-attacking it — a 303 line, and the reason the
        bass needed a sequencer of its own rather than borrowing notes from elsewhere. */
     if (ev.slide && cur && !cur.released) cur.setPitch(t, ev.n, Math.max(.02, P.glide || .06));
@@ -17339,16 +17366,6 @@ const seq = Patchwork.makeSeq({
     if (!on) allNotesOff();
   }
 });
-/* ⚠️ AUDIO TIME INTO PORT TIME. The sequencer schedules on the AudioContext clock and
-   MIDIOutput.send wants performance.now() milliseconds — two different origins for the same
-   instant. Getting this wrong does not fail loudly; it sends everything early or late by a
-   constant nobody thinks to measure. */
-function perfAt(t){
-  const c = Patchwork.audio.ctx;
-  if (!c) return 0;
-  return performance.now() + Math.max(0, (t - c.currentTime)) * 1000;
-}
-
 /* What is under a finger right now — the note a click on a step will write. Lowest, the
    same priority the voice itself uses, so what you hear and what lands agree. */
 const heldNote = () => { const n = pick(); return n == null ? null : n; };
@@ -25264,8 +25281,14 @@ function buildCarrier(midi, vel, t){
 function noteOn(midi, vel, when){
   ensureAudio();
   const t = when == null ? ctx.currentTime + .003 : when;
-  /* Every note this instrument sings, hand or sequencer — see the note on noteOff below. */
-  OUT.noteOn(midi, vel);
+  /* Every note this instrument sings, hand or sequencer — see the note on noteOff below.
+
+     ⚠️ AND THE SEQUENCER'S GO WITH THEIR TIME ON THEM. This sent no timestamp, which the port
+     reads as "now": a step went out when it was scheduled, up to the lookahead early, and its
+     note-off — scheduled in the same breath by fire() in ui.js — went straight out after it, so
+     every sequenced note on the wire was a blip with no length. A hand's note has no `when` and
+     still goes now. See portTime() in shell/midi.js. */
+  OUT.noteOn(midi, vel, when == null ? null : Patchwork.midi.portTime(when));
   const old = carriers.get(midi);
   if (old) old.release(t);
   /* Six at a time. Past that the bank is being asked to resolve a cluster it cannot, and
@@ -25284,7 +25307,7 @@ function noteOff(midi, when){
      only; the port wants every note this instrument sings, and this panel's sequencer plays
      through here rather than around it — which is the very reason the recorder needed the
      `when` test in the first place. */
-  OUT.noteOff(midi);
+  OUT.noteOff(midi, when == null ? null : Patchwork.midi.portTime(when));
   /* ⚠️ ONLY A HAND'S RELEASE, and `when` is what tells them apart: every path a person
      lets go through — MIDI, the on-screen keys, the computer keyboard — asks for "now" and
      passes nothing, while the sequencer voicing its own grid schedules an exact end time.
@@ -28150,7 +28173,7 @@ const OUT = Patchwork.midi.sender(() => MIDI.outCh);
 function sendLanding(landAt){
   const c = Patchwork.audio.ctx;
   if (!c) return;
-  const at = performance.now() + Math.max(0, landAt - c.currentTime) * 1000;
+  const at = Patchwork.midi.portTime(landAt);   // port time, not audio time — see shell/midi.js
   OUT.noteOn(TS_NOTE, 110, at);
   /* A trigger with no length: a receiver wants an edge, and a note left on is a note
      somebody else has to chase. */
@@ -28266,16 +28289,22 @@ function makeDrum(ch, send){
   const stepSeconds = () => beatSeconds() / (RATES[T.rate] || 4);
   function fire(i, at){
     const gate = stepSeconds() * .5;
+    /* ⚠️ PORT TIME, NOT AUDIO TIME — see portTime() in shell/midi.js. These were handed `at` as
+       it came, which is AudioContext seconds, and the port reads performance.now() milliseconds:
+       every hit was already in the past on arrival and went out the moment it was scheduled, up
+       to the lookahead early, while the synth tracks below converted. Worked out once per step,
+       because every lane that fires on it fires at the same instant. */
+    const on = Patchwork.midi.portTime(at), off = Patchwork.midi.portTime(at + gate);
     lanes.forEach(l => {
       const v = l.steps[i % T.len];
       if (!v) return;
       const vel = clampf(Math.round(T.vel * (v === 2 ? 1 + T.accentAmt : 1)), 1, 127);
-      send.noteOn(l.note, vel, at);
+      send.noteOn(l.note, vel, on);
       /* ⚠️ A drum is a trigger and the note-off is a courtesy, but it is not optional: a
          receiver that latches would hold the note forever, and "forever" on a hi-hat is a
          sound nobody can explain afterwards. Half a step is long enough to register and
          short enough never to overlap the next hit. */
-      send.noteOff(l.note, at + gate);
+      send.noteOff(l.note, off);
     });
   }
   return {
@@ -28404,14 +28433,14 @@ function makeSynth(ch, send){
     get id(){ return landing ? null : "sq1"; },
     maxSteps: MAX_STEPS, len: 16, rate: "1/16", root: 48,
     fire: (ev, at) => {
-      const c = Patchwork.audio.ctx;
-      const ms = t => performance.now() + Math.max(0, t - (c ? c.currentTime : 0)) * 1000;
       const n = outNote(ev);
       const vel = clampf(Math.round(127 * ev.vel), 1, 127);
-      send.noteOn(n, vel, ms(at));
+      /* port time, not audio time — see portTime() in shell/midi.js, which is this line's old
+         copy moved to where every instrument's copy could share it */
+      send.noteOn(n, vel, Patchwork.midi.portTime(at));
       /* `hold` is how many steps a tie carries the note through, and `dur` already has the
          gate applied — so the length written on the grid is the length on the wire. */
-      send.noteOff(n, ms(at + ev.dur));
+      send.noteOff(n, Patchwork.midi.portTime(at + ev.dur));
     }
   });
   return {

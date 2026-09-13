@@ -1317,12 +1317,36 @@ pane with `?relay=off`, with wrappers on `scenes.take`, `clock.pin` and each tra
 and synth timestamps mapped back from `performance.now()` to audio time. **No MIDI output was
 connected**: this is what SQ·1 handed the sender, not what arrived at a cable.
 
-⚠️ **Found on the way, not fixed here: SQ·1's drum hits leave as soon as they are scheduled.**
-`makeDrum()`'s `fire()` passes `send.noteOn()` and `noteOff()` the audio-clock time in seconds,
-and the sender hands that to Web MIDI's `send()`, which takes a `performance.now()` timestamp in
-milliseconds — so every drum hit is in the past on arrival and goes out immediately, up to the
-lookahead early. The synth tracks convert (`ms()` in `makeSynth()`). Seen while reproducing: a
-drum hit timestamped 132.24 against a `performance.now()` of 132269.
+⚠️ **Found on the way, and fixed: SQ·1's drum hits and VC·1's steps left the port the moment they
+were scheduled.** Web MIDI's `send()` takes a `performance.now()` timestamp in milliseconds, and
+every sequencer here schedules in AudioContext seconds. `makeDrum()`'s `fire()` handed the sender
+its audio time as it came, so every hit was already in the past on arrival (one timestamped 132.24
+against a `performance.now()` of 132269). VC·1's sequencer plays through `noteOn()`/`noteOff()`,
+which sent no timestamp at all, so each step went out up to a lookahead early with its note-off
+straight behind it. Nothing failed in either case. `Patchwork.midi.portTime(t)` in
+`shell/midi.js` is now the one conversion for everything that leaves through
+`Patchwork.midi.sender()`: SQ·1's drum and synth tracks, VC·1's sequenced notes (a hand's note
+still goes now), and BS·1 and TS·1, whose own copies of the same line it replaced. The sender's
+`when` is documented as port time.
+
+Measured in the studio with a fake Web MIDI output bound through `Patchwork.midi.upgrade()`,
+recording each note's timestamp against `performance.now()` at the moment it was sent. Correct is
+between 0 and the 200 ms lookahead:
+
+| | before | after |
+| --- | --- | --- |
+| **SQ·1 drum track** | −3148 to −1745 ms: every hit already in the past | +30 to +199 ms; a 1/16 hit 62.5 ms long on the wire |
+| **VC·1 sequencer** | no timestamp on any note-on or note-off | +19 to +197 ms; a 1/8 step 127 ms long |
+| SQ·1 synth track, BS·1, TS·1 | +30 to +198 ms; TS·1's landing 4030 ms ahead | the same, through `portTime()` |
+| DR·1 | +30 to +197 ms | unchanged: it converts in `sendHit()` |
+
+⚠️ **CS·1 and PM·1 still map the two clocks their own way.** Their `perfTime()` asks
+`getOutputTimestamp()`, which lands a note when its audio frame leaves the device rather than when
+it is rendered: 12–15 ms later than `portTime()` in the same run, where Chrome reported 8.0 ms of
+output latency and 5.3 ms of base latency. Whether the rest should follow them is a choice about
+what outboard gear lines up with, and it has not been made. Their scheduled sends were read, not
+measured: the test output did not bind to their own port selects. **No real MIDI port was
+connected** for any of this.
 
 ### Details worth not undoing
 

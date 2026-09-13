@@ -56,16 +56,22 @@ function makeDrum(ch, send){
   const stepSeconds = () => beatSeconds() / (RATES[T.rate] || 4);
   function fire(i, at){
     const gate = stepSeconds() * .5;
+    /* ⚠️ PORT TIME, NOT AUDIO TIME — see portTime() in shell/midi.js. These were handed `at` as
+       it came, which is AudioContext seconds, and the port reads performance.now() milliseconds:
+       every hit was already in the past on arrival and went out the moment it was scheduled, up
+       to the lookahead early, while the synth tracks below converted. Worked out once per step,
+       because every lane that fires on it fires at the same instant. */
+    const on = Patchwork.midi.portTime(at), off = Patchwork.midi.portTime(at + gate);
     lanes.forEach(l => {
       const v = l.steps[i % T.len];
       if (!v) return;
       const vel = clampf(Math.round(T.vel * (v === 2 ? 1 + T.accentAmt : 1)), 1, 127);
-      send.noteOn(l.note, vel, at);
+      send.noteOn(l.note, vel, on);
       /* ⚠️ A drum is a trigger and the note-off is a courtesy, but it is not optional: a
          receiver that latches would hold the note forever, and "forever" on a hi-hat is a
          sound nobody can explain afterwards. Half a step is long enough to register and
          short enough never to overlap the next hit. */
-      send.noteOff(l.note, at + gate);
+      send.noteOff(l.note, off);
     });
   }
   return {
@@ -194,14 +200,14 @@ function makeSynth(ch, send){
     get id(){ return landing ? null : "sq1"; },
     maxSteps: MAX_STEPS, len: 16, rate: "1/16", root: 48,
     fire: (ev, at) => {
-      const c = Patchwork.audio.ctx;
-      const ms = t => performance.now() + Math.max(0, t - (c ? c.currentTime : 0)) * 1000;
       const n = outNote(ev);
       const vel = clampf(Math.round(127 * ev.vel), 1, 127);
-      send.noteOn(n, vel, ms(at));
+      /* port time, not audio time — see portTime() in shell/midi.js, which is this line's old
+         copy moved to where every instrument's copy could share it */
+      send.noteOn(n, vel, Patchwork.midi.portTime(at));
       /* `hold` is how many steps a tie carries the note through, and `dur` already has the
          gate applied — so the length written on the grid is the length on the wire. */
-      send.noteOff(n, ms(at + ev.dur));
+      send.noteOff(n, Patchwork.midi.portTime(at + ev.dur));
     }
   });
   return {
