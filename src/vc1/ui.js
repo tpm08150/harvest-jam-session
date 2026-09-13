@@ -12,7 +12,11 @@ const playBtn = $("#play"), tempoOut = $("#tempoOut"), nowNote = $("#nowNote"),
 const NOTES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
 const noteName = n => NOTES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
 
-function say(msg, bad){ vocNote.innerHTML = msg; vocNote.classList.toggle("err", !!bad); }
+/* ⚠️ NOT `say`. midi.js declares a `say` of its own in this same scope, for the MIDI status
+   line, and a later function declaration silently replaces an earlier one — so every modulator
+   message, "Couldn't open that input" included, was written under the MIDI heading and lit the
+   MIDI LED, while this line went on saying "Press Listen". The same split CS·1 makes with ioSay. */
+function vocSay(msg, bad){ vocNote.innerHTML = msg; vocNote.classList.toggle("err", !!bad); }
 
 /* ---- the sequencer ---- */
 const seq = Patchwork.makeSeq({
@@ -93,13 +97,66 @@ $("#hold").addEventListener("click", () => {
   $("#hold").classList.toggle("on", latch);
   if (!latch) allNotesOff();
 });
+/* ---- which input is the modulator ----
+   ⚠️ A DEVICE, NOT "THE MICROPHONE". The list held the default microphone and the studio bus,
+   and both handlers here reduced anything else to "" — so an interface the looper could already
+   record from was one this panel could not be pointed at, and whatever the list said, it opened
+   the system default. Laid out like LP·1's list, which got this right first. */
+const inSel = $("#inSel");
+const canListen = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+let inputs = [];
+/* ⚠️ Restored from here, never from the select: a rebuild when something is plugged in would
+   otherwise drop the choice back to the first row. The same trap LP·1's buildInputs() names. */
+let inChoice = canListen ? "__mic" : "__bus";
+const inOption = (value, text) => Object.assign(document.createElement("option"), {value, textContent: text});
+function buildInputs(){
+  inSel.textContent = "";
+  const here = document.createElement("optgroup");
+  here.label = "From this page";
+  here.appendChild(inOption("__bus", "Studio output"));
+  inSel.appendChild(here);
+  if (canListen){
+    const devs = document.createElement("optgroup");
+    devs.label = "Audio input";
+    devs.appendChild(inOption("__mic", "Default input"));
+    inputs.forEach((d, i) => devs.appendChild(inOption(d.deviceId, d.label || ("Input " + (i + 1)))));
+    inSel.appendChild(devs);
+  }
+  /* a device that has gone away shows as the default, which is what Listen would open */
+  inSel.value = [].some.call(inSel.options, o => o.value === inChoice) ? inChoice
+              : (canListen ? "__mic" : "__bus");
+}
+async function listInputs(){
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices){
+    try{
+      /* ⚠️ Not the "default" row, and not a row with no id. Chrome lists the default input a
+         second time as "Default - …", which "Default input" already is; and until the page has
+         been allowed an input every entry comes back with an empty id, which is not a device
+         anybody can pick. */
+      inputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput"
+        && d.deviceId && d.deviceId !== "default" && d.deviceId !== "communications");
+    }catch(e){}
+  }
+  buildInputs();
+}
+buildInputs();
+listInputs();
+if (navigator.mediaDevices) navigator.mediaDevices.addEventListener("devicechange", listInputs);
+
 $("#listen").addEventListener("click", async () => {
   ensureAudio();
-  if (modStream){ closeInput(); $("#listen").classList.remove("on"); say("Modulator closed."); return; }
-  const ok = await openInput($("#inSel").value === "__bus" ? "__bus" : "");
+  if (modStream){ closeInput(); $("#listen").classList.remove("on"); vocSay("Modulator closed."); return; }
+  const ok = await openInput(inSel.value);
+  $("#listen").classList.toggle("on", !!ok);
+  /* Names arrive with permission, and permission arrives with the first input opened. */
+  if (ok) listInputs();
+});
+inSel.addEventListener("change", async () => {
+  inChoice = inSel.value;
+  if (!modStream) return;
+  const ok = await openInput(inChoice);
   $("#listen").classList.toggle("on", !!ok);
 });
-$("#inSel").addEventListener("change", () => { if (modStream) openInput($("#inSel").value === "__bus" ? "__bus" : ""); });
 
 /* ---- carrier keyboard ----
    ⚠️ The OCTAVE MOVES THE KEYS, rather than being added to whatever they send. It used to be

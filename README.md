@@ -284,9 +284,16 @@ interface, put the drums on 3-4 and the bass on 5-6, take separate feeds to a de
 takes the instrument off the main mix; the tape and the looper are unaffected, because they
 tap strips directly rather than the master sum. LP·1 and VC·1 get an audio *input* row too.
 
+⚠️ **The browser decides how many channels a device has.** On a Mac, Chrome counts only the
+outputs named in **Audio MIDI Setup → Configure Speakers**. The EP-136 in Multi mode has four
+(`1 L/R` and `2 L/R`) and opened as stereo, every row greyed out, until they were named; then
+the rows offered 3-4. Reload the page after changing it. Inputs have no such fix: Chrome on a
+Mac opens any input with more than two channels as its first two, so VC·1 and LP·1 hear the
+EP-136's `MAIN L/R` and never `CH1`, `CH2` or `AUX`. Nobody has yet listened to what arrives at
+the mixer on 3-4.
+
 See `pi/README.md`, and read `pi/setup.sh` before you run it: none of the Pi half has been
-run on real hardware, and the multi-channel routing has never met an interface with more than
-two outputs.
+run on real hardware.
 
 ## The launcher on the pads
 

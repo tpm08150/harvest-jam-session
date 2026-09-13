@@ -263,34 +263,67 @@ async function openInput(deviceId){
     modSrc = Patchwork.audio.tap("vc1");
     modSrc.connect(modGain); modSrc.connect(modMeter);
     modStream = "__bus";
-    say("Modulating with the <b>studio output</b> — hold notes to hear the other "
+    vocSay("Modulating with the <b>studio output</b> — hold notes to hear the other "
       + "instruments through the bank.");
     return true;
   }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    say("This browser can't open an audio input.", true); return false;
+    vocSay("This browser can't open an audio input.", true); return false;
   }
   closeInput();
+  /* "__mic" is the system default rather than a device, so it is asked for with no id at all */
+  const id = deviceId && deviceId !== "__mic" ? deviceId : "";
   try{
     /* The three processing flags MUST be off: echo cancellation and noise suppression are
        built to remove exactly the signal a vocoder wants, and AGC pumps the band
        envelopes. */
     modStream = await navigator.mediaDevices.getUserMedia({audio:{
-      deviceId: deviceId ? {exact: deviceId} : undefined,
+      deviceId: id ? {exact: id} : undefined,
       echoCancellation:false, noiseSuppression:false, autoGainControl:false
     }});
     modSrc = ctx.createMediaStreamSource(modStream);
     modSrc.connect(modGain); modSrc.connect(modMeter);
-    say("Listening. Hold notes to sound them through your voice — <b>use headphones</b>, "
-      + "a microphone into speakers will feed back.");
+    /* Named from the track rather than from the list: what opened, not what was asked for. */
+    const track = modStream.getAudioTracks()[0], opened = modStream;
+    const name = ((track && track.label) || "the default input")
+      .replace(/[&<>]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"})[c]);
+    const listening = "Listening on <b>" + name + "</b>. Hold notes to sound them through it — "
+      + "<b>use headphones</b>, a microphone into speakers will feed back.";
+    vocSay(listening);
+    playsHere(track).then(same => {
+      if (same && modStream === opened) vocSay(listening + " <b>It is also the rack's output</b> — "
+        + "if the mix it sends back includes VC·1, the bank is listening to itself.");
+    });
     return true;
   }catch(e){
-    say("Couldn't open that input (" + ((e && e.name) || e) + ").", true);
+    vocSay("Couldn't open that input (" + ((e && e.name) || e) + ").", true);
     return false;
   }
 }
+/* ⚠️ ONE BOX IN AND OUT closes a loop that sounds like the vocoder ringing, not like routing.
+   A mixer that is also the rack's output hands its mix back up the same cable — Chrome on a Mac
+   records only an interface's first two channels, which on the EP-136 are MAIN — and a bank
+   analysing a mix it is part of feeds back. "The same box" is the browser's own answer: an
+   input and an output that share a groupId are one piece of hardware. */
+async function playsHere(track){
+  try{
+    const group = track && track.getSettings ? track.getSettings().groupId : "";
+    if (!group) return false;
+    const out = Patchwork.audio.sink || "default";
+    const all = await navigator.mediaDevices.enumerateDevices();
+    return all.some(d => d.kind === "audiooutput" && d.deviceId === out && d.groupId === group);
+  }catch(e){ return false; }
+}
 function closeInput(){
-  if (modSrc){ try{ modSrc.disconnect(); }catch(e){} modSrc = null; }
+  /* ⚠️ RELEASE THE TAP, don't just disconnect it. The studio output is a tap every strip is wired
+     INTO, and dropping only its output left it hanging off the whole desk for the life of the
+     page — see untap() in shell/bus.js, and LP·1's closeInput(), which learnt this first. With
+     devices in the list, changing the modulator is an ordinary gesture. Harmless on a microphone. */
+  if (modSrc){
+    try{ Patchwork.audio.untap(modSrc); }catch(e){}
+    try{ modSrc.disconnect(); }catch(e){}
+    modSrc = null;
+  }
   if (modStream && modStream !== "__bus"){
     modStream.getTracks().forEach(t => { try{ t.stop(); }catch(e){} });
   }

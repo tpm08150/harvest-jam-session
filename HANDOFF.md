@@ -421,6 +421,34 @@ only accumulates while the proportional term is unsaturated — without that ant
 message. Clock alone is ~48/sec at 120bpm. If sync turns out jittery on hardware, batching
 into an array flushed on a timer is the fix.
 
+### Multichannel on a Mac: the browser's count, measured on an EP-136
+
+The per-instrument output pairs and VC·1's input first met a real multichannel interface on
+2026-09-13: an EP-136 in Multi mode, which CoreAudio lists as one device with four outputs
+(`1 L`, `1 R`, `2 L`, `2 R`) and eight inputs (`MAIN`, `CH1`, `CH2`, `AUX`, each L and R).
+Chrome 152, from a throwaway headless profile with the real devices:
+
+| Asked | Chrome reported |
+| --- | --- |
+| Output count, speaker setup unnamed (all four channels `Unknown`) | 2, so every pair row greyed out |
+| Output count after Configure Speakers named them L, R, Ls, Rs | 4, so the rows offer 3-4 |
+| A context moving from the MacBook speakers to the EP-136, in the tick `setSinkId` is called | still 2 |
+| The same context once the promise resolves, and at `sinkchange` | 4 |
+| An input asked for 8 channels, processing off | 2 (by Chromium's code, the first two: `MAIN L/R`) |
+
+- ⚠️ **The count is Chrome's, and on a Mac it comes from the speaker setup.** Chromium counts
+  the labelled channels of the device's preferred layout (Audio MIDI Setup → Configure
+  Speakers) and falls back to stereo when none are labelled. Nothing a page does widens it.
+  Reload after changing it.
+- ⚠️ **An input cannot be widened at all.** Chromium opens any input with more than two
+  channels as stereo, so VC·1 and LP·1 get this mixer's `MAIN L/R` and nothing else. If `MAIN`
+  carries the rack back, a vocoder listening to it is listening to itself — VC·1 says so when
+  its input and the rack's output share a `groupId`.
+- The third and fourth rows are why `context()` in `shell/bus.js` counts again when a
+  remembered device lands. It used to count in the same tick, and kept the default device's
+  pairs until the output was picked again.
+- Unproven: what arrives at the mixer on 3-4. Everything above is a count; nobody has listened.
+
 
 ## MS·1 — mono synthesizer
 

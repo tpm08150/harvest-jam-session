@@ -878,9 +878,24 @@ if (!box || !A) return;
 const sel = box.querySelector("#stAudioOut"), note = box.querySelector("#stAudioNote"),
       scan = box.querySelector("#stAudioScan");
 
+/* ⚠️ SAY WHY THERE IS ONE PAIR. A row of greyed-out selects reads as a fault on this page, and
+   the count is not this page's to give: the browser decides how many channels a device has, and
+   Chrome on a Mac counts only the ones its speaker setup names. See openOut() in shell/bus.js. */
+const pairsNote = document.createElement("span");
+function paintPairs(){
+  const n = A.outPairs().length;
+  pairsNote.innerHTML = n > 1
+    ? " " + A.outWidth + " channels \u2014 " + n + " pairs."
+    : " This output is stereo to the browser, so every instrument plays on 1-2."
+      + (/Mac/.test(navigator.platform || "")
+        ? " A Mac gives an interface only the channels named in <b>Audio MIDI Setup \u2192 "
+          + "Configure Speakers</b>; name them there, then reload."
+        : "");
+}
 function say(msg, bad){
   note.innerHTML = msg || "";
   note.classList.toggle("bad", !!bad);
+  if (!bad){ note.appendChild(pairsNote); paintPairs(); }
 }
 async function fill(){
   const list = await A.outputs();
@@ -996,6 +1011,11 @@ function buildRows(){
       });
       inCell.appendChild(inSelProxy);
       row.appendChild(inCell);
+      /* ⚠️ AND FOLLOW IT. A panel's list fills late — device names arrive after an async
+         enumerate, and again whenever something is plugged in — so a copy taken when this row
+         was built showed neither, and a device the panel offered was missing here until
+         somebody pressed Rescan. Watching the select is what keeps a copy a copy. */
+      new MutationObserver(paintRows).observe(src, {childList: true, subtree: true});
     } else row.appendChild(document.createElement("span")).className = "st-midi-cell st-midi-none";
 
     rows.appendChild(row);
@@ -1023,8 +1043,8 @@ function paintRows(){
       if (made.inSelProxy.dataset.built !== want2){
         made.inSelProxy.dataset.built = want2;
         made.inSelProxy.textContent = "";
-        [].forEach.call(made.src.options, o => made.inSelProxy.appendChild(Object.assign(
-          document.createElement("option"), {value: o.value, textContent: o.textContent})));
+        /* the groups as well as the rows: "From this page" and a list of devices are two lists */
+        [].forEach.call(made.src.children, n => made.inSelProxy.appendChild(n.cloneNode(true)));
       }
       made.inSelProxy.value = made.src.value;
     }
@@ -1035,8 +1055,7 @@ sel.addEventListener("change", async () => {
   const r = await A.setSink(sel.value);
   const what = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : "default";
   paintRows();          // a different device can offer a different number of pairs
-  if (r === "ok") say("Output \u2192 <b>" + what + "</b>."
-    + (A.outWidth > 2 ? " " + (A.outWidth / 2 | 0) + " pairs." : ""));
+  if (r === "ok") say("Output \u2192 <b>" + what + "</b>.");
   else if (r === "unsupported")
     say("This browser cannot route audio per device \u2014 "
       + "<code>AudioContext.setSinkId</code> needs Chrome 110+.", true);
@@ -1048,6 +1067,8 @@ fill();
    this proxies have to exist before their selects can be copied. */
 setTimeout(paintRows, 0);
 if (Patchwork.midi && Patchwork.midi.onChange) Patchwork.midi.onChange(paintRows);
+/* A remembered output lands after the page is up, and can bring more pairs with it. */
+if (A.onOut) A.onOut(() => { paintRows(); paintPairs(); });
 })();
 
 (() => {

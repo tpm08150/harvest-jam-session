@@ -5633,7 +5633,16 @@ function context(){
        forgotten: it is a preference, and a preference that cannot be honoured should not stop
        the audio graph from being built. */
     if (sinkId && typeof ctx.setSinkId === "function"){
-      try{ const p = ctx.setSinkId(sinkId); if (p && p.catch) p.catch(() => {}); }catch(e){}
+      try{
+        const p = ctx.setSinkId(sinkId);
+        /* ⚠️ AND COUNT THE PAIRS AGAIN WHEN IT LANDS. openOut() below runs in this same tick,
+           and until the switch completes the destination still describes the system default:
+           measured in Chrome 152, a context moving from stereo speakers to a four-output
+           interface reads 2 in the tick it asks and 4 once the promise resolves. So a
+           remembered interface came up with the default device's pairs and kept them until it
+           was picked again — setSink(), the path that waits, was the only one that was right. */
+        if (p && p.then) p.then(() => { openOut(); tellOut(); }, () => {});
+      }catch(e){}
     }
     master = ctx.createGain();
     /* ⚠️ THE MASTER STARTS DOWN, and this was measured rather than guessed. Seven channels
@@ -5672,12 +5681,22 @@ function context(){
    ⚠️ DISCRETE, NOT SPEAKERS. The default channelInterpretation would UPMIX a stereo master
    into whatever surround layout it thinks eight channels means — centre, LFE, the lot — and
    quietly put the drums somewhere nobody asked for. Discrete means channel n is output n and
-   nothing is invented. */
+   nothing is invented.
+
+   ⚠️ AND THE BROWSER SAYS HOW MANY, NOT THE DEVICE. maxChannelCount is Chrome's count, and on a
+   Mac Chrome counts only the output channels the device's speaker setup names — Audio MIDI
+   Setup → Configure Speakers — falling back to stereo when none are. The EP-136 in Multi mode
+   has four outputs and read as 2, every row greyed out, until the four were named; then 4. */
 let outMerge = null, endSplit = null, outWidth = 2;
 /* id -> {pair, gain, split} for every strip NOT on the main mix. ⚠️ Declared above openOut()
    rather than beside the functions that fill it: openOut() walks it to re-hang routes after
    a device change, and a `const` read before its declaration is evaluated throws. */
 const routes = new Map();
+/* Told whenever the output stage is rebuilt, because the pair count can change after the page
+   is up — the remembered device lands late, see context(). */
+const outWatch = [];
+function onOut(fn){ outWatch.push(fn); }
+function tellOut(){ outWatch.forEach(fn => { try{ fn(outWidth); }catch(e){} }); }
 function openOut(){
   const dst = ctx.destination;
   outWidth = Math.max(2, dst.maxChannelCount || 2);
@@ -6210,13 +6229,13 @@ async function setSink(id){
   /* ⚠️ THE CHANNEL COUNT IS THE DEVICE'S. Moving from a headphone jack to an eight-out
      interface changes how many pairs exist, so the output stage is rebuilt and every routed
      strip re-hung — otherwise the pairs stay stereo until a reload. */
-  try{ await ctx.setSinkId(sinkId); openOut(); return "ok"; }
+  try{ await ctx.setSinkId(sinkId); openOut(); tellOut(); return "ok"; }
   catch(e){ return (e && e.name) || "failed"; }
 }
 
 return {context, strip, resume, tap, tapOnly, untap, insert, monitor,
         outputs, setSink, get sink(){ return sinkId; },
-        outPairs, setOut, outOf, get outWidth(){ return outWidth; },
+        outPairs, setOut, outOf, onOut, get outWidth(){ return outWidth; },
         channel, eq, compression, pan, send, masterFx,
         masterLevel, setMasterLevel,
         get masterDefault(){ return MASTER_DEFAULT; },
@@ -24251,34 +24270,67 @@ async function openInput(deviceId){
     modSrc = Patchwork.audio.tap("vc1");
     modSrc.connect(modGain); modSrc.connect(modMeter);
     modStream = "__bus";
-    say("Modulating with the <b>studio output</b> — hold notes to hear the other "
+    vocSay("Modulating with the <b>studio output</b> — hold notes to hear the other "
       + "instruments through the bank.");
     return true;
   }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    say("This browser can't open an audio input.", true); return false;
+    vocSay("This browser can't open an audio input.", true); return false;
   }
   closeInput();
+  /* "__mic" is the system default rather than a device, so it is asked for with no id at all */
+  const id = deviceId && deviceId !== "__mic" ? deviceId : "";
   try{
     /* The three processing flags MUST be off: echo cancellation and noise suppression are
        built to remove exactly the signal a vocoder wants, and AGC pumps the band
        envelopes. */
     modStream = await navigator.mediaDevices.getUserMedia({audio:{
-      deviceId: deviceId ? {exact: deviceId} : undefined,
+      deviceId: id ? {exact: id} : undefined,
       echoCancellation:false, noiseSuppression:false, autoGainControl:false
     }});
     modSrc = ctx.createMediaStreamSource(modStream);
     modSrc.connect(modGain); modSrc.connect(modMeter);
-    say("Listening. Hold notes to sound them through your voice — <b>use headphones</b>, "
-      + "a microphone into speakers will feed back.");
+    /* Named from the track rather than from the list: what opened, not what was asked for. */
+    const track = modStream.getAudioTracks()[0], opened = modStream;
+    const name = ((track && track.label) || "the default input")
+      .replace(/[&<>]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"})[c]);
+    const listening = "Listening on <b>" + name + "</b>. Hold notes to sound them through it — "
+      + "<b>use headphones</b>, a microphone into speakers will feed back.";
+    vocSay(listening);
+    playsHere(track).then(same => {
+      if (same && modStream === opened) vocSay(listening + " <b>It is also the rack's output</b> — "
+        + "if the mix it sends back includes VC·1, the bank is listening to itself.");
+    });
     return true;
   }catch(e){
-    say("Couldn't open that input (" + ((e && e.name) || e) + ").", true);
+    vocSay("Couldn't open that input (" + ((e && e.name) || e) + ").", true);
     return false;
   }
 }
+/* ⚠️ ONE BOX IN AND OUT closes a loop that sounds like the vocoder ringing, not like routing.
+   A mixer that is also the rack's output hands its mix back up the same cable — Chrome on a Mac
+   records only an interface's first two channels, which on the EP-136 are MAIN — and a bank
+   analysing a mix it is part of feeds back. "The same box" is the browser's own answer: an
+   input and an output that share a groupId are one piece of hardware. */
+async function playsHere(track){
+  try{
+    const group = track && track.getSettings ? track.getSettings().groupId : "";
+    if (!group) return false;
+    const out = Patchwork.audio.sink || "default";
+    const all = await navigator.mediaDevices.enumerateDevices();
+    return all.some(d => d.kind === "audiooutput" && d.deviceId === out && d.groupId === group);
+  }catch(e){ return false; }
+}
 function closeInput(){
-  if (modSrc){ try{ modSrc.disconnect(); }catch(e){} modSrc = null; }
+  /* ⚠️ RELEASE THE TAP, don't just disconnect it. The studio output is a tap every strip is wired
+     INTO, and dropping only its output left it hanging off the whole desk for the life of the
+     page — see untap() in shell/bus.js, and LP·1's closeInput(), which learnt this first. With
+     devices in the list, changing the modulator is an ordinary gesture. Harmless on a microphone. */
+  if (modSrc){
+    try{ Patchwork.audio.untap(modSrc); }catch(e){}
+    try{ modSrc.disconnect(); }catch(e){}
+    modSrc = null;
+  }
   if (modStream && modStream !== "__bus"){
     modStream.getTracks().forEach(t => { try{ t.stop(); }catch(e){} });
   }
@@ -24298,7 +24350,11 @@ const playBtn = $("#play"), tempoOut = $("#tempoOut"), nowNote = $("#nowNote"),
 const NOTES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
 const noteName = n => NOTES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
 
-function say(msg, bad){ vocNote.innerHTML = msg; vocNote.classList.toggle("err", !!bad); }
+/* ⚠️ NOT `say`. midi.js declares a `say` of its own in this same scope, for the MIDI status
+   line, and a later function declaration silently replaces an earlier one — so every modulator
+   message, "Couldn't open that input" included, was written under the MIDI heading and lit the
+   MIDI LED, while this line went on saying "Press Listen". The same split CS·1 makes with ioSay. */
+function vocSay(msg, bad){ vocNote.innerHTML = msg; vocNote.classList.toggle("err", !!bad); }
 
 /* ---- the sequencer ---- */
 const seq = Patchwork.makeSeq({
@@ -24379,13 +24435,66 @@ $("#hold").addEventListener("click", () => {
   $("#hold").classList.toggle("on", latch);
   if (!latch) allNotesOff();
 });
+/* ---- which input is the modulator ----
+   ⚠️ A DEVICE, NOT "THE MICROPHONE". The list held the default microphone and the studio bus,
+   and both handlers here reduced anything else to "" — so an interface the looper could already
+   record from was one this panel could not be pointed at, and whatever the list said, it opened
+   the system default. Laid out like LP·1's list, which got this right first. */
+const inSel = $("#inSel");
+const canListen = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+let inputs = [];
+/* ⚠️ Restored from here, never from the select: a rebuild when something is plugged in would
+   otherwise drop the choice back to the first row. The same trap LP·1's buildInputs() names. */
+let inChoice = canListen ? "__mic" : "__bus";
+const inOption = (value, text) => Object.assign(document.createElement("option"), {value, textContent: text});
+function buildInputs(){
+  inSel.textContent = "";
+  const here = document.createElement("optgroup");
+  here.label = "From this page";
+  here.appendChild(inOption("__bus", "Studio output"));
+  inSel.appendChild(here);
+  if (canListen){
+    const devs = document.createElement("optgroup");
+    devs.label = "Audio input";
+    devs.appendChild(inOption("__mic", "Default input"));
+    inputs.forEach((d, i) => devs.appendChild(inOption(d.deviceId, d.label || ("Input " + (i + 1)))));
+    inSel.appendChild(devs);
+  }
+  /* a device that has gone away shows as the default, which is what Listen would open */
+  inSel.value = [].some.call(inSel.options, o => o.value === inChoice) ? inChoice
+              : (canListen ? "__mic" : "__bus");
+}
+async function listInputs(){
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices){
+    try{
+      /* ⚠️ Not the "default" row, and not a row with no id. Chrome lists the default input a
+         second time as "Default - …", which "Default input" already is; and until the page has
+         been allowed an input every entry comes back with an empty id, which is not a device
+         anybody can pick. */
+      inputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput"
+        && d.deviceId && d.deviceId !== "default" && d.deviceId !== "communications");
+    }catch(e){}
+  }
+  buildInputs();
+}
+buildInputs();
+listInputs();
+if (navigator.mediaDevices) navigator.mediaDevices.addEventListener("devicechange", listInputs);
+
 $("#listen").addEventListener("click", async () => {
   ensureAudio();
-  if (modStream){ closeInput(); $("#listen").classList.remove("on"); say("Modulator closed."); return; }
-  const ok = await openInput($("#inSel").value === "__bus" ? "__bus" : "");
+  if (modStream){ closeInput(); $("#listen").classList.remove("on"); vocSay("Modulator closed."); return; }
+  const ok = await openInput(inSel.value);
+  $("#listen").classList.toggle("on", !!ok);
+  /* Names arrive with permission, and permission arrives with the first input opened. */
+  if (ok) listInputs();
+});
+inSel.addEventListener("change", async () => {
+  inChoice = inSel.value;
+  if (!modStream) return;
+  const ok = await openInput(inChoice);
   $("#listen").classList.toggle("on", !!ok);
 });
-$("#inSel").addEventListener("change", () => { if (modStream) openInput($("#inSel").value === "__bus" ? "__bus" : ""); });
 
 /* ---- carrier keyboard ----
    ⚠️ The OCTAVE MOVES THE KEYS, rather than being added to whatever they send. It used to be
@@ -28744,9 +28853,24 @@ if (!box || !A) return;
 const sel = box.querySelector("#stAudioOut"), note = box.querySelector("#stAudioNote"),
       scan = box.querySelector("#stAudioScan");
 
+/* ⚠️ SAY WHY THERE IS ONE PAIR. A row of greyed-out selects reads as a fault on this page, and
+   the count is not this page's to give: the browser decides how many channels a device has, and
+   Chrome on a Mac counts only the ones its speaker setup names. See openOut() in shell/bus.js. */
+const pairsNote = document.createElement("span");
+function paintPairs(){
+  const n = A.outPairs().length;
+  pairsNote.innerHTML = n > 1
+    ? " " + A.outWidth + " channels \u2014 " + n + " pairs."
+    : " This output is stereo to the browser, so every instrument plays on 1-2."
+      + (/Mac/.test(navigator.platform || "")
+        ? " A Mac gives an interface only the channels named in <b>Audio MIDI Setup \u2192 "
+          + "Configure Speakers</b>; name them there, then reload."
+        : "");
+}
 function say(msg, bad){
   note.innerHTML = msg || "";
   note.classList.toggle("bad", !!bad);
+  if (!bad){ note.appendChild(pairsNote); paintPairs(); }
 }
 async function fill(){
   const list = await A.outputs();
@@ -28862,6 +28986,11 @@ function buildRows(){
       });
       inCell.appendChild(inSelProxy);
       row.appendChild(inCell);
+      /* ⚠️ AND FOLLOW IT. A panel's list fills late — device names arrive after an async
+         enumerate, and again whenever something is plugged in — so a copy taken when this row
+         was built showed neither, and a device the panel offered was missing here until
+         somebody pressed Rescan. Watching the select is what keeps a copy a copy. */
+      new MutationObserver(paintRows).observe(src, {childList: true, subtree: true});
     } else row.appendChild(document.createElement("span")).className = "st-midi-cell st-midi-none";
 
     rows.appendChild(row);
@@ -28889,8 +29018,8 @@ function paintRows(){
       if (made.inSelProxy.dataset.built !== want2){
         made.inSelProxy.dataset.built = want2;
         made.inSelProxy.textContent = "";
-        [].forEach.call(made.src.options, o => made.inSelProxy.appendChild(Object.assign(
-          document.createElement("option"), {value: o.value, textContent: o.textContent})));
+        /* the groups as well as the rows: "From this page" and a list of devices are two lists */
+        [].forEach.call(made.src.children, n => made.inSelProxy.appendChild(n.cloneNode(true)));
       }
       made.inSelProxy.value = made.src.value;
     }
@@ -28901,8 +29030,7 @@ sel.addEventListener("change", async () => {
   const r = await A.setSink(sel.value);
   const what = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : "default";
   paintRows();          // a different device can offer a different number of pairs
-  if (r === "ok") say("Output \u2192 <b>" + what + "</b>."
-    + (A.outWidth > 2 ? " " + (A.outWidth / 2 | 0) + " pairs." : ""));
+  if (r === "ok") say("Output \u2192 <b>" + what + "</b>.");
   else if (r === "unsupported")
     say("This browser cannot route audio per device \u2014 "
       + "<code>AudioContext.setSinkId</code> needs Chrome 110+.", true);
@@ -28914,6 +29042,8 @@ fill();
    this proxies have to exist before their selects can be copied. */
 setTimeout(paintRows, 0);
 if (Patchwork.midi && Patchwork.midi.onChange) Patchwork.midi.onChange(paintRows);
+/* A remembered output lands after the page is up, and can bring more pairs with it. */
+if (A.onOut) A.onOut(() => { paintRows(); paintPairs(); });
 })();
 
 (() => {

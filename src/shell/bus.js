@@ -37,7 +37,16 @@ function context(){
        forgotten: it is a preference, and a preference that cannot be honoured should not stop
        the audio graph from being built. */
     if (sinkId && typeof ctx.setSinkId === "function"){
-      try{ const p = ctx.setSinkId(sinkId); if (p && p.catch) p.catch(() => {}); }catch(e){}
+      try{
+        const p = ctx.setSinkId(sinkId);
+        /* ⚠️ AND COUNT THE PAIRS AGAIN WHEN IT LANDS. openOut() below runs in this same tick,
+           and until the switch completes the destination still describes the system default:
+           measured in Chrome 152, a context moving from stereo speakers to a four-output
+           interface reads 2 in the tick it asks and 4 once the promise resolves. So a
+           remembered interface came up with the default device's pairs and kept them until it
+           was picked again — setSink(), the path that waits, was the only one that was right. */
+        if (p && p.then) p.then(() => { openOut(); tellOut(); }, () => {});
+      }catch(e){}
     }
     master = ctx.createGain();
     /* ⚠️ THE MASTER STARTS DOWN, and this was measured rather than guessed. Seven channels
@@ -76,12 +85,22 @@ function context(){
    ⚠️ DISCRETE, NOT SPEAKERS. The default channelInterpretation would UPMIX a stereo master
    into whatever surround layout it thinks eight channels means — centre, LFE, the lot — and
    quietly put the drums somewhere nobody asked for. Discrete means channel n is output n and
-   nothing is invented. */
+   nothing is invented.
+
+   ⚠️ AND THE BROWSER SAYS HOW MANY, NOT THE DEVICE. maxChannelCount is Chrome's count, and on a
+   Mac Chrome counts only the output channels the device's speaker setup names — Audio MIDI
+   Setup → Configure Speakers — falling back to stereo when none are. The EP-136 in Multi mode
+   has four outputs and read as 2, every row greyed out, until the four were named; then 4. */
 let outMerge = null, endSplit = null, outWidth = 2;
 /* id -> {pair, gain, split} for every strip NOT on the main mix. ⚠️ Declared above openOut()
    rather than beside the functions that fill it: openOut() walks it to re-hang routes after
    a device change, and a `const` read before its declaration is evaluated throws. */
 const routes = new Map();
+/* Told whenever the output stage is rebuilt, because the pair count can change after the page
+   is up — the remembered device lands late, see context(). */
+const outWatch = [];
+function onOut(fn){ outWatch.push(fn); }
+function tellOut(){ outWatch.forEach(fn => { try{ fn(outWidth); }catch(e){} }); }
 function openOut(){
   const dst = ctx.destination;
   outWidth = Math.max(2, dst.maxChannelCount || 2);
@@ -614,13 +633,13 @@ async function setSink(id){
   /* ⚠️ THE CHANNEL COUNT IS THE DEVICE'S. Moving from a headphone jack to an eight-out
      interface changes how many pairs exist, so the output stage is rebuilt and every routed
      strip re-hung — otherwise the pairs stay stereo until a reload. */
-  try{ await ctx.setSinkId(sinkId); openOut(); return "ok"; }
+  try{ await ctx.setSinkId(sinkId); openOut(); tellOut(); return "ok"; }
   catch(e){ return (e && e.name) || "failed"; }
 }
 
 return {context, strip, resume, tap, tapOnly, untap, insert, monitor,
         outputs, setSink, get sink(){ return sinkId; },
-        outPairs, setOut, outOf, get outWidth(){ return outWidth; },
+        outPairs, setOut, outOf, onOut, get outWidth(){ return outWidth; },
         channel, eq, compression, pan, send, masterFx,
         masterLevel, setMasterLevel,
         get masterDefault(){ return MASTER_DEFAULT; },
