@@ -27,9 +27,16 @@ midiInChSel.addEventListener("change", () => {
 /* ---- out ---- */
 /* The two clocks: ctx.currentTime counts audio the graph has *accepted*, performance.now()
    is wall time. getOutputTimestamp pairs them at the frame actually leaving the device, so
-   the base it gives already carries output latency — which is what both callers want. MIDI
-   out wants notes to land when the internal voice is audible, and the phase measurement
-   wants to compare what's heard against when clock pulses arrive. */
+   the base it gives already carries output latency — which is what the phase measurement
+   wants, since it compares what's heard against when clock pulses arrive.
+
+   ⚠️ NOTES OUT DO NOT USE IT ANY MORE. They go through Patchwork.midi.portTime(), the one
+   mapping every instrument's notes leave by, and so are stamped for when their audio is
+   rendered rather than heard. This pairing put CS·1's notes 12–15 ms after every other
+   instrument's on the same cable (measured on a Mac's default output; more on anything
+   slower), and one cable should carry one idea of now. The cost lands here: following an
+   external clock, CS·1 lines its sound up with the pulses and sends its notes an output
+   latency ahead of that sound. */
 function ctxPerfBase(){
   if (ctx.getOutputTimestamp){
     const ts = ctx.getOutputTimestamp();
@@ -38,12 +45,8 @@ function ctxPerfBase(){
   }
   return performance.now() - ctx.currentTime * 1000;
 }
-/* AudioContext time -> performance.now() time, the domain MIDIOutput.send expects */
-function perfTime(ctxTime){
-  if (!ctx) return performance.now();
-  return ctxPerfBase() + ctxTime * 1000;
-}
-/* and back the other way, for timestamping incoming clock onto the audio grid */
+/* performance.now() time -> AudioContext time, for timestamping incoming clock onto the audio
+   grid. The other direction, for the port, is portTime() in shell/midi.js. */
 function ctxTime(perfMs){
   if (!ctx) return 0;
   return (perfMs - ctxPerfBase()) / 1000;
@@ -63,7 +66,7 @@ function flushOffs(){
   for (let i = pendingOffs.length - 1; i >= 0; i--){
     const o = pendingOffs[i];
     if (o.at <= horizon){
-      if (MIDI.out){ try{ MIDI.out.send([0x80 | o.ch, o.p, 0], perfTime(o.at)); }catch(e){} }
+      if (MIDI.out){ try{ MIDI.out.send([0x80 | o.ch, o.p, 0], Patchwork.midi.portTime(o.at)); }catch(e){} }
       pendingOffs.splice(i, 1);
     }
   }
@@ -75,9 +78,9 @@ function sendNote(n, t, dur, vel){
   const p = Math.max(0, Math.min(127, Math.round(n)));
   const v = Math.max(1, Math.min(127, Math.round(vel == null ? 96 : vel)));
   try{
-    out.send([0x90 | MIDI.ch, p, v], perfTime(t));
+    out.send([0x90 | MIDI.ch, p, v], Patchwork.midi.portTime(t));
     if (dur <= MAX_OFF_AHEAD){
-      out.send([0x80 | MIDI.ch, p, 0], perfTime(t + dur));
+      out.send([0x80 | MIDI.ch, p, 0], Patchwork.midi.portTime(t + dur));
     } else {
       pendingOffs.push({p, ch:MIDI.ch, at:t + dur});
       if (offTimer == null) offTimer = setInterval(flushOffs, 40);

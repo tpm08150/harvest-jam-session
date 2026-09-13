@@ -2089,10 +2089,13 @@ function selectOut(portId){
    per instrument: BS·1, TS·1 and SQ·1's synth tracks each carried a copy of this line. It is the
    plain mapping those copies used — now, plus how far ahead the audio time is.
 
-   ⚠️ CS·1 AND PM·1 DO NOT USE IT. They send through ports of their own with their own
-   perfTime(), which asks getOutputTimestamp() and so lands a note when its audio frame leaves the
-   device rather than when it is rendered — later than this by the output latency. The two have
-   not been made one; see HANDOFF.md, "SQ·1 asks for a row from every track". */
+   ⚠️ CS·1 AND PM·1 USE IT TOO, although they send through ports of their own. Their perfTime()
+   asked getOutputTimestamp(), which stamps a note for when its audio frame leaves the device
+   rather than when it is rendered, and so put their notes 12–15 ms after everyone else's on
+   the same cable. Every scheduled note is now stamped the same way, whichever instrument sends
+   it; DR·1's sendHit() does the same sum inline. See HANDOFF.md, "SQ·1 asks for a row from
+   every track", and ctxPerfBase() in cs1/midi.js for the one place the latency pairing is
+   still right. */
 function portTime(t){
   const c = Patchwork.audio && Patchwork.audio.ctx;
   if (!c || t == null) return performance.now();

@@ -1340,13 +1340,28 @@ between 0 and the 200 ms lookahead:
 | SQ·1 synth track, BS·1, TS·1 | +30 to +198 ms; TS·1's landing 4030 ms ahead | the same, through `portTime()` |
 | DR·1 | +30 to +197 ms | unchanged: it converts in `sendHit()` |
 
-⚠️ **CS·1 and PM·1 still map the two clocks their own way.** Their `perfTime()` asks
-`getOutputTimestamp()`, which lands a note when its audio frame leaves the device rather than when
-it is rendered: 12–15 ms later than `portTime()` in the same run, where Chrome reported 8.0 ms of
-output latency and 5.3 ms of base latency. Whether the rest should follow them is a choice about
-what outboard gear lines up with, and it has not been made. Their scheduled sends were read, not
-measured: the test output did not bind to their own port selects. **No real MIDI port was
-connected** for any of this.
+⚠️ **CS·1 and PM·1 use `portTime()` too, so their notes now leave about 15 ms earlier.** Their
+`perfTime()` asked `getOutputTimestamp()`, which stamps a note for when its audio frame leaves the
+device rather than when it is rendered — 12–16 ms after every other instrument's notes on the same
+cable, where Chrome reported 8.0 ms of output latency and 5.3 ms of base latency. One cable now
+carries one idea of now. PM·1's pairing is gone. CS·1 keeps `ctxPerfBase()` and `ctxTime()` for the
+one job they are still right for: placing incoming MIDI clock on the audio grid, so the phase lock
+compares what is heard against when each pulse arrived.
+
+⚠️ **The cost is one output latency, in one setup.** Following an external clock, CS·1 lines its
+sound up with the pulses, and its notes, stamped for when that sound is rendered, now reach the
+same box an output latency ahead of it: the ~15 ms above on a Mac's default output, and more on
+anything slower, such as Bluetooth.
+
+Measured the same way, with the test output assigned to each instrument's `MIDI.out` directly and
+`portTime()` wrapped to record every value it returned:
+
+| | before | after |
+| --- | --- | --- |
+| **CS·1** | +39 to +201 ms; 0 of 22 note messages stamped by `portTime()` | +25 to +190 ms; 16 of 16 |
+| **PM·1** | +41 to +213 ms; 0 of 28 | +27 to +198 ms; 28 of 28 |
+
+**No real MIDI port was connected** for any of this, and the incoming-clock path was not exercised.
 
 ### Details worth not undoing
 
