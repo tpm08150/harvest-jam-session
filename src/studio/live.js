@@ -348,7 +348,7 @@ function paint(){
   document.querySelector("#liveHint").textContent = arming
     ? "Armed. Play, then hit ● on a row to put it there — unarmed tracks just play that row."
     : "Arm an instrument on its own panel to record into a scene row.";
-  const anyPlaying = Patchwork.scenes.instruments.some(i => Patchwork.scenes.playing(i.id));
+  const anyPlaying = Patchwork.transport.anyPlaying;
   const pb = document.querySelector("#livePlay");
   pb.textContent = anyPlaying ? "■ Stop all" : "▶ Play all";
   pb.classList.toggle("st-on", anyPlaying);
@@ -385,11 +385,45 @@ grid.addEventListener("click", e => {
    all" means clicking each panel's own Play button — so the arm checks, autostart and
    painting each panel does happen, instead of being reimplemented twice and drifting. */
 Patchwork.transport = {
-  get anyPlaying(){ return Patchwork.scenes.instruments.some(i => Patchwork.scenes.playing(i.id)); },
+  get anyPlaying(){ return rackPlaying(); },
   toggleAll,
 };
+/* ⚠️ WHILE A TAKE IS ROLLING, THE LOOPER COUNTS. Play all has never started LP·1 and still does
+   not — but a take can now begin from a scene, and a scene can hold a looper take. So for as long
+   as tape is recording, a looper that is going is part of the band the take is of: a row holding
+   only a take leaves the rack reading "stopped" while tape rolls, and the next press would start
+   every instrument instead of ending the take.
+
+   Only while recording. A looper you started by hand with the tape idle is not something Play all
+   should stop — pressing it to bring the band in over a loop is the ordinary thing to do. */
+function rackPlaying(){
+  if (Patchwork.scenes.instruments.some(i => Patchwork.scenes.playing(i.id))) return true;
+  const T = Patchwork.tape;
+  return !!(T && T.state === "rec" && Patchwork.launch.anyPlaying());
+}
 function toggleAll(){
-  const anyPlaying = Patchwork.scenes.instruments.some(i => Patchwork.scenes.playing(i.id));
+  const anyPlaying = rackPlaying();
+  const T = Patchwork.tape;
+  /* ⚠️ AN ARMED DECK STARTS THE SONG, NOT THE RACK. With anything on the launcher, the press that
+     rolls a take fires the first row that holds something, rather than every panel's Play — so
+     what the tape prints is the arrangement, played from its first scene and fired onwards by
+     hand, instead of every instrument's current pattern at once, which is a mix of whatever each
+     panel was last left holding and is nobody's song.
+
+     Through fireRowShared() for the same reason a row's own ▶ goes there: it is the same gesture,
+     and it moves the looper and a jam exactly as that button would. The cursor follows, so ">" on
+     the controller walks on from where the song started rather than from wherever it last was.
+
+     An empty launcher has no song, and Play is the rack as it always was. */
+  if (!anyPlaying && T && T.armed){
+    const row = Patchwork.launch.firstRow();
+    if (row >= 0){
+      Patchwork.launch.setCursor(row);
+      Patchwork.launch.fireRowShared(row);
+      T.record();
+      return;
+    }
+  }
   Patchwork.roots.forEach(r => {
     const id = r.dataset.instrument;
     const btn = r.querySelector("#play");
@@ -406,10 +440,18 @@ function toggleAll(){
 
      Stopping is the mirror: the rack stopping ends the take. Leaving tape running over a
      silent rack records the room going quiet, which nobody has ever wanted. */
-  const T = Patchwork.tape;
   if (!T) return;
   if (!anyPlaying && T.armed) T.record();
-  else if (anyPlaying && T.state === "rec") T.stop();
+  else if (anyPlaying && T.state === "rec"){
+    /* ...and the looper stops with it, because a take that began from a scene may be what
+       started it — see rackPlaying(). A slot track keeps its transport privately, so it is
+       asked to stop rather than having a Play pressed. */
+    Patchwork.record.tracks.forEach(t => {
+      const k = Patchwork.launch.slotted(t.id);
+      if (k && k.stop) k.stop();
+    });
+    T.stop();
+  }
 }
 document.querySelector("#livePlay").addEventListener("click", () => {
   toggleAll();

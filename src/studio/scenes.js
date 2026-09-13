@@ -234,6 +234,28 @@ function anyPlaying(){
   });
 }
 
+/* ---- where the song starts ----
+   The first row with anything in it — a pattern or a take — or -1 when the launcher is empty.
+   Asked by the rack's Play when the tape is armed (see toggleAll() in studio/live.js), because
+   a take of the launcher has to begin where the launcher's song does.
+
+   ⚠️ THE FIRST ROW WITH SOMETHING IN IT, NOT ROW 1. Rows get filled wherever the hand happened
+   to put them, and a take that began on an empty row 1 would roll tape over a silent rack until
+   somebody fired the real first scene. Asked of the cells the way the pads ask — a slot track's
+   own hasSlot(), everything else the scene model — so an LP·1 take counts as something. */
+function firstRow(){
+  const cols = columns();
+  const rows = Patchwork.scenes.rows;
+  for (let ri = 0; ri < rows.length; ri++){
+    const filled = cols.some(c => {
+      const t = slotted(c.id);
+      return t ? !!(t.hasSlot && t.hasSlot(ri)) : Patchwork.scenes.has(ri, c.id);
+    });
+    if (filled) return ri;
+  }
+  return -1;
+}
+
 /* ---- which row the hand is pointed at ----
    ⚠️ NOT WHICH ROW IS PLAYING, and the launcher has always answered that second question:
    a cell rings when it is live and pulses when it is queued. The cursor is a third state and
@@ -254,7 +276,7 @@ function setCursor(i){
 }
 
 return {columns, slotted, mark, paintCell, click, fireRow, fireRowShared, colour,
-        mountMeasure, stopAll, anyPlaying,
+        mountMeasure, stopAll, anyPlaying, firstRow,
         get cursor(){ return cursor; }, setCursor,
         onCursor: fn => cursorSubs.push(fn)};
 })();

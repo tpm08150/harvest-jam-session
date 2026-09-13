@@ -228,6 +228,8 @@ function buildMaster(){
    panel's own Play so its arm checks and painting happen — a second copy here would drift
    the first time either changed. */
 function anyPlaying(){
+  /* the transport's own answer, which counts a looper while a take rolls — see rackPlaying() */
+  if (Patchwork.transport) return Patchwork.transport.anyPlaying;
   return Patchwork.scenes.instruments.some(i => Patchwork.scenes.playing(i.id));
 }
 $("mxPlay").addEventListener("click", () => {

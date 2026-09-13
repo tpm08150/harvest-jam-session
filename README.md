@@ -682,6 +682,15 @@ play; arming lets the take and the music start on the same gesture. An armed dec
 the **rack** transport rather than the tape's own Play, because "play" for a rack of
 instruments is that button. The rack stopping ends the take.
 
+⚠️ **With anything on the launcher, that Play starts the song rather than the rack.** An armed
+deck fires the **first row that holds something** — a pattern or an LP·1 take, whichever row
+that is — instead of pressing every panel's Play, and the take rolls with it. From there you
+fire rows by hand and the tape prints the arrangement as you play it. Every Play at once was a
+take of whatever each instrument was last left holding, which is nobody's song. An empty
+launcher has no song, so Play is the rack as it always was, and so is Play with the deck not
+armed. While a take rolls, a playing looper counts as part of the rack, so stopping the take
+stops the looper too: the scene that started the take may be what put it there.
+
 Armed is a steady ring on the deck's record button and a steady light on the tab; rolling
 keeps the filled blink it has always had. Two states of one button, and the one that decides
 whether the next take exists cannot be ambiguous.
@@ -698,7 +707,7 @@ transports and one button:
 | where | Play | Func + Play |
 | --- | --- | --- |
 | **Studio, Live, Library** | the rack | — |
-| **Tape**, armed *or rolling a take* | the rack, and the deck rolls with it | hear the tape back |
+| **Tape**, armed *or rolling a take* | the rack — from the first scene when the launcher has one — and the deck rolls with it | hear the tape back |
 | **Tape**, not armed | play the tape back | the rack |
 
 Armed you are making a take, so Play has to start the *band*; not armed you are listening

@@ -1447,6 +1447,38 @@ scheduling loop has to notice: every tick checks `playing` immediately after `ta
 returns, or it carries on filling the lookahead for a transport that is no longer running
 and leaves a bar of notes sounding after the stop.
 
+### An armed take starts from the first scene
+
+With the tape armed and anything on the launcher, the rack's Play fires **the first row that
+holds something** instead of pressing every panel's Play, and the deck rolls with it. The rule
+lives in `toggleAll()` (`studio/live.js`), the one place that decides what "play all" means,
+so every Play that reaches it has it: the Live page's, the Tape page's console, and the
+Launchkey's through `rig.transport()`. Every instrument's current pattern at once is a take of
+whatever each panel was last left holding; a take of the launcher is the song.
+
+- **The first row with something in it, not row 1.** `Patchwork.launch.firstRow()` asks each
+  cell the way the pads do: a slot track's own `hasSlot()`, the scene model for the rest. A
+  song built from row 3 down would otherwise roll tape over a silent rack.
+- **Through `fireRowShared()`**, because it is the row's own gesture: the looper's take and a
+  jam move exactly as that row's ▶ would move them. The cursor follows, so `>` walks on from
+  where the song started.
+- ⚠️ **The looper counts while tape is recording, and only then.** `rackPlaying()` includes a
+  slot track for as long as `T.state === "rec"`, because a row holding only a take would
+  otherwise read as a stopped rack while tape rolled, and the next press would start every
+  instrument instead of ending the take. Stopping a take stops the looper for the same reason.
+  With the tape idle it does not count, so Play all over a loop you started by hand still
+  brings the band in rather than stopping the loop.
+- **Nothing else changes.** An empty launcher, or a deck that is not armed, is the rack as it
+  always was.
+
+Measured in the studio through the real buttons (launcher cells, the deck's Record, the Tape
+page's Play all, every strip muted). With DR·1 and BS·1 stored into row 3 and rows 1-2 empty,
+Play started exactly those two, on row 3, with the cursor there and tape recording; CS·1 and
+VC·1, which Play all starts otherwise, stayed stopped. The second press stopped both and the
+tape. Unarmed with the same rows, and armed with the launcher emptied, Play started DR·1,
+BS·1, CS·1 and VC·1 as before (PM·1 declines at Motion Off). A row holding only a looper take
+was not exercised — it needs a recorded LP·1 take.
+
 ### Adding to a row that is already playing joins it
 
 Storing a clip into a row something is **already sounding from** starts that instrument
