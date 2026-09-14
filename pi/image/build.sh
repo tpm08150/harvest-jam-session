@@ -12,7 +12,10 @@
 #   GROW_MB         room added for Chromium and friends (default 1800)
 #   SMOKE=0         skip the headless check that the rack comes up inside the image
 #   IMAGE_REV       the revision in the file name (default: git's short hash)
-set -euo pipefail
+set -Eeuo pipefail
+# A failure says where. The build runs where its log needs a sign-in to read, and "exit code 1" on
+# its own sent the first run's diagnosis to guesswork.
+trap 'echo "!! build.sh stopped at line $LINENO: $BASH_COMMAND" >&2' ERR
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
@@ -23,7 +26,7 @@ SMOKE="${SMOKE:-1}"
 
 [[ $EUID -eq 0 ]] || { echo "run me as root" >&2; exit 1; }
 [[ "$(uname -m)" == aarch64 ]] || { echo "needs an arm64 Linux machine; this one is $(uname -m)" >&2; exit 1; }
-for tool in curl xz parted partx losetup e2fsck resize2fs zerofree sha256sum findmnt chroot; do
+for tool in curl xz parted sfdisk python3 losetup e2fsck resize2fs zerofree sha256sum findmnt chroot; do
   command -v "$tool" >/dev/null || { echo "missing tool: $tool" >&2; exit 1; }
 done
 mkdir -p "$OUT_ARG"
@@ -31,7 +34,8 @@ OUT="$(cd "$OUT_ARG" && pwd)"
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/jam-image.XXXXXX")"
 ROOT="$WORK/root"
-LOOP=""
+ROOT_LOOP=""
+BOOT_LOOP=""
 
 unmount_all() {
   findmnt -rn -o TARGET | grep -E "^$ROOT(/|$)" | sort -r | while read -r m; do
@@ -41,7 +45,8 @@ unmount_all() {
 cleanup() {
   set +e
   unmount_all
-  [[ -n $LOOP ]] && losetup -d "$LOOP"
+  [[ -n $BOOT_LOOP ]] && losetup -d "$BOOT_LOOP"
+  [[ -n $ROOT_LOOP ]] && losetup -d "$ROOT_LOOP"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -60,18 +65,34 @@ rm -f "$WORK/base.img.xz"
 
 echo "==> room for the rack: +$GROW_MB MB"
 truncate -s "+${GROW_MB}M" "$WORK/jam.img"
-LOOP="$(losetup --find --show --partscan "$WORK/jam.img")"
-parted -s "$LOOP" resizepart 2 100%
-partx -u "$LOOP"
-for _ in $(seq 1 40); do [[ -b ${LOOP}p2 ]] && break; sleep 0.25; done
-e2fsck -pf "${LOOP}p2" || [[ $? -le 1 ]]            # 1 means it corrected something, which is fine
-resize2fs "${LOOP}p2"
+# ⚠️ THE PARTITION IS GROWN IN THE FILE, NOT ON A LOOP DEVICE. Resizing on a partition-scanned loop
+# device leaves the kernel to be told about the new table, which a build machine's udev may or may
+# not manage — and the first CI run died 75 s in, with its log out of reach, right about here. So
+# each filesystem gets a loop device of its own at its byte offset, and the kernel never sees a
+# partition table at all.
+parted -s "$WORK/jam.img" resizepart 2 100%
+part() {   # partition number -> "offset size", in bytes
+  sfdisk -J "$WORK/jam.img" | python3 -c '
+import json, sys
+t = json.load(sys.stdin)["partitiontable"]
+sector = t.get("sectorsize", 512)
+p = [p for p in t["partitions"] if p["node"].endswith(sys.argv[1])][0]
+print(p["start"] * sector, p["size"] * sector)' "$1"
+}
+read -r boot_offset boot_size <<< "$(part 1)"
+read -r root_offset root_size <<< "$(part 2)"
+[[ -n ${boot_size:-} && -n ${root_size:-} ]] || { echo "could not read the image's partition table" >&2; exit 1; }
+echo "    boot: $boot_size bytes at $boot_offset; root: $root_size bytes at $root_offset"
+ROOT_LOOP="$(losetup --find --show --offset "$root_offset" --sizelimit "$root_size" "$WORK/jam.img")"
+BOOT_LOOP="$(losetup --find --show --offset "$boot_offset" --sizelimit "$boot_size" "$WORK/jam.img")"
+e2fsck -pf "$ROOT_LOOP" || [[ $? -le 1 ]]           # 1 means it corrected something, which is fine
+resize2fs "$ROOT_LOOP"
 
 echo "==> mount"
 mkdir -p "$ROOT"
-mount "${LOOP}p2" "$ROOT"
+mount "$ROOT_LOOP" "$ROOT"
 mkdir -p "$ROOT/boot/firmware"
-mount "${LOOP}p1" "$ROOT/boot/firmware"
+mount "$BOOT_LOOP" "$ROOT/boot/firmware"
 mount --bind /dev "$ROOT/dev"
 mount --bind /dev/pts "$ROOT/dev/pts"
 mount -t proc proc "$ROOT/proc"
@@ -129,10 +150,12 @@ if [[ -e $WORK/machine-id ]]; then cp -a "$WORK/machine-id" "$ROOT/etc/machine-i
 rm -rf "$SRC"
 df -h "$ROOT" | awk 'NR == 2 {print "    root filesystem: " $3 " used, " $4 " free"}'
 unmount_all
-e2fsck -pf "${LOOP}p2" || [[ $? -le 1 ]]
-zerofree "${LOOP}p2"                                # zeroed free space is what makes it compress
-losetup -d "$LOOP"
-LOOP=""
+e2fsck -pf "$ROOT_LOOP" || [[ $? -le 1 ]]
+zerofree "$ROOT_LOOP"                               # zeroed free space is what makes it compress
+losetup -d "$BOOT_LOOP"
+BOOT_LOOP=""
+losetup -d "$ROOT_LOOP"
+ROOT_LOOP=""
 
 rev="${IMAGE_REV:-$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo local)}"
 name="jam-session-pi-$(date -u +%Y%m%d)-$rev.img"

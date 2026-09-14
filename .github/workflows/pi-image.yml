@@ -32,10 +32,41 @@ jobs:
       - name: Build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends parted e2fsprogs util-linux xz-utils zerofree curl
+          sudo apt-get install -y --no-install-recommends parted fdisk e2fsprogs util-linux xz-utils zerofree curl
 
       - name: Build the image
-        run: sudo env IMAGE_REV="${GITHUB_SHA::7}" pi/image/build.sh out
+        run: |
+          set -o pipefail
+          sudo env IMAGE_REV="${GITHUB_SHA::7}" pi/image/build.sh out 2>&1 | tee build.log
+
+      # ⚠️ THE LOG NEEDS A SIGN-IN; ANNOTATIONS DO NOT. Anyone reading this public run signed out, or
+      # through the API without a token, got "Process completed with exit code 1" and nothing more —
+      # the first build failed exactly like that. So the parts worth reading are posted as annotations,
+      # which the check-runs API serves to anyone: the base image's facts and the smoke test on every
+      # run, and the end of the log when it fails.
+      - name: Report
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          log = pathlib.Path("build.log")
+          lines = log.read_text(errors="replace").splitlines() if log.exists() else ["(no build.log)"]
+          def post(kind, title, chosen):
+              text = "\n".join(chosen)[-60000:] or "(nothing)"
+              print("::%s title=%s::%s" % (kind, title, text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")))
+          def section(start, stop):
+              out, on = [], False
+              for line in lines:
+                  if line.startswith("==> "):
+                      on = line.startswith(start) or (on and not line.startswith(stop))
+                  if on:
+                      out.append(line)
+              return out
+          post("notice", "the base image", section("==> the base image", "==> provision"))
+          post("notice", "smoke test", section("==> smoke", "==> finish"))
+          if "${{ job.status }}" != "success":
+              post("error", "build.sh, last 150 lines", lines[-150:])
+          PY
 
       - name: Upload the image
         uses: actions/upload-artifact@v4

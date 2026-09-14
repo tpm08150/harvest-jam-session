@@ -11,7 +11,8 @@
 # systemd units. Adds video=HDMI-A-1:... to cmdline.txt so HDMI is always on. With --image it
 # also names the machine jam-session and masks the first-boot user wizard. pi/README.md says why
 # for each.
-set -euo pipefail
+set -Eeuo pipefail
+trap 'echo "!! provision.sh stopped at line $LINENO: $BASH_COMMAND" >&2' ERR
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(dirname "$HERE")"
