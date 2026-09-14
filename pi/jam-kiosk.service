@@ -34,6 +34,10 @@ ExecStartPre=-+/usr/bin/chvt 7
 ExecStart=/usr/bin/cage -d -s -m last -- /opt/jam-session/jam-browser
 Restart=always
 RestartSec=3
+# ⚠️ ROOM FOR A REALTIME AUDIO THREAD. Chromium asks for realtime scheduling for the thread that renders
+# Web Audio, and an ordinary user is refused it without an RLIMIT_RTPRIO — on a Pi 4 the difference
+# between sound that keeps up and sound that breaks up whenever the page redraws.
+LimitRTPRIO=95
 
 [Install]
 WantedBy=multi-user.target

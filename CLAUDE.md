@@ -110,10 +110,14 @@ be added there. With cloud sync configured (`shell/cloud.js`, Supabase; SQL in `
 **Elsewhere.** `relay/` is the hosted relay (a Durable Object). `ios/` holds the Web MIDI shim for
 the WKWebView app; `ios/Sources/*.swift` is canonical and is copied into `Patchwork/Patchwork/`.
 `pi/` is the Raspberry Pi groovebox: `pi/image/build.sh` makes a burnable Raspberry Pi OS image and
-needs an arm64 Linux host, so `.github/workflows/pi-image.yml` runs it on GitHub's arm64 runners;
+needs an arm64 Linux host, so `.github/workflows/pi-image.yml` runs it on GitHub's arm64 runners (a
+public run's log needs a sign-in, so the workflow posts what matters as annotations);
 `pi/provision.sh` installs the offline kiosk, on the image or a live Pi; `pi/jam-browser` grants MIDI
-over DevTools and has a `--smoke` check. ⚠️ The image rewrites `const OFFLINE = false;` in
-`shell/cloud.js` and fails unless it finds that exact line. Not yet run on a Pi.
+over DevTools and has a `--smoke` check; `pi/jam-diagnose` reports what a running Pi is doing, and the
+image writes that to `jam-diagnose.txt` on the card's boot partition, because a custom image flashed
+with Raspberry Pi Imager has no login. ⚠️ The image rewrites `const OFFLINE = false;` in
+`shell/cloud.js` and fails unless it finds that exact line. First run on a Pi 4 (2026-09-13): it booted
+and made sound, but did not see the Launchkey and was too slow to play.
 
 ## Working here
 

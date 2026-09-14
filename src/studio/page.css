@@ -1743,6 +1743,15 @@ body.gated{overflow:hidden}
   .st-head #stView{position:static;transform:none}
   .st-head .st-hint{max-width:none}
 }
+/* ⚠️ AND LONG BEFORE A PHONE. Centred, the switch needs the middle of the row clear of the project and
+   jam controls on its right, which takes about 1460 px with nothing saved and no jam running. At
+   1280x720 — the Raspberry Pi's HDMI mode — the project menu sat on top of Library and Settings and
+   took their clicks (2026-09-13). Below 1500 px it joins the row after the wordmark, and the hint
+   gives up its room; solo mode keeps the hint, which is where its Escape note lives. */
+@media (max-width:1500px){
+  .st-head #stView{position:static;transform:none}
+  body:not(.soloing) .st-head .st-hint{display:none}
+}
 
 /* ---- once it is loaded, it is media, not packaging ----
    ⚠️ MUST COME AFTER the .lib-art rules above: `.lib-rec.lib-onplatter::before` and

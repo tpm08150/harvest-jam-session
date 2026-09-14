@@ -206,12 +206,20 @@ function paintNow(){
 }
 
 /* the playhead, from the audio clock */
-(function paintLoop(){
-  grid.paint();
-  /* the note readout is now clock-derived too, so it has to repaint with the playhead */
-  if (seq.SEQ.playing) paintNow();
+/* ⚠️ EVERY FRAME ONLY WHILE IT PLAYS. Stopped, there is no playhead to move, and the paints that matter —
+   an edit, a key or scale change — call grid.paint() themselves; four a second catches anything that
+   changes without saying so. It painted the whole grid sixty times a second with nothing playing,
+   which the Raspberry Pi 4 could not spare (2026-09-13). */
+let gridIdleAt = 0;
+(function paintLoop(now){
+  if (seq.SEQ.playing || !(now - gridIdleAt < 250)){
+    gridIdleAt = now;
+    grid.paint();
+    /* the note readout is now clock-derived too, so it has to repaint with the playhead */
+    if (seq.SEQ.playing) paintNow();
+  }
   requestAnimationFrame(paintLoop);
-})();
+})(0);
 
 /* ---- tempo ---- */
 function setBpm(v, fromShell){

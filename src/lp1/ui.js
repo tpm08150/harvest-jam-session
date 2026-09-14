@@ -112,25 +112,30 @@ function paintState(){
    instead, filling towards the frame the take starts on, with the beats left written where
    the state word goes. The wait is the loop line, not the bar line — up to eight beats at
    four bars — and a still bar reading "Armed" was the single most confusing thing here. */
+/* ⚠️ A WIDTH IS WRITTEN ONLY WHEN IT CHANGES. This loop set three of them every frame whether or not
+   anything moved — "0%" sixty times a second with the looper idle — and each write is style and layout
+   for the page, which the Raspberry Pi 4 could not spare (2026-09-13). Compared against the element's
+   own inline style rather than a copy, so anything else that sets them stays in charge. */
+function setStyle(el, prop, value){ if (el.style[prop] !== value) el.style[prop] = value; }
 function paintLoop(){
   if (LP.mode === "armed" && LP.armedAt != null && ctx){
     const beat = 60 / (Patchwork.clock.bpm || 120);
     const left = Math.max(0, LP.armedAt - ctx.currentTime);
     const span = Math.max(beat, LP.bars * 4 * beat);
     const p = clampf(1 - left / span, 0, 1) * 100;
-    fillEl.style.width = p + "%";
-    headEl.style.left = p + "%";
+    setStyle(fillEl, "width", p + "%");
+    setStyle(headEl, "left", p + "%");
     /* the state word is paintState's everywhere else; while counting in it is this loop's,
        because it changes every frame and paintState only runs on a mode change */
     stateEl.textContent = "In " + Math.max(1, Math.ceil(left / beat));
   } else if (LP.len > 0 && LP.mode !== "idle"){
     const p = (LP.pos / LP.len) * 100;
-    fillEl.style.width = p + "%";
-    headEl.style.left = p + "%";
+    setStyle(fillEl, "width", p + "%");
+    setStyle(headEl, "left", p + "%");
   } else if (LP.mode === "idle"){
-    fillEl.style.width = "0%"; headEl.style.left = "0%";
+    setStyle(fillEl, "width", "0%"); setStyle(headEl, "left", "0%");
   }
-  meterEl.style.width = Math.min(100, LP.peak * 140) + "%";
+  setStyle(meterEl, "width", Math.min(100, LP.peak * 140) + "%");
   requestAnimationFrame(paintLoop);
 }
 requestAnimationFrame(paintLoop);

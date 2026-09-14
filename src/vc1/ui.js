@@ -233,16 +233,22 @@ function paintNow(){
 }
 
 /* meter and playhead */
+/* ⚠️ THE GRID EVERY FRAME ONLY WHILE IT PLAYS, AND THE METER ONLY WHEN IT MOVES — the same reasoning as
+   the loop in bs1/ui.js. Both were written sixty times a second with nothing playing and nothing
+   coming in, which the Raspberry Pi 4 could not spare (2026-09-13). The meter is read to a whole
+   percent, which is all a bar that size can show. */
 const mbuf = new Float32Array(1024);
-(function paintLoop(){
-  grid.paint();
+let gridIdleAt = 0;
+(function paintLoop(now){
+  if (seq.SEQ.playing || !(now - gridIdleAt < 250)){ gridIdleAt = now; grid.paint(); }
   if (modMeter){
     modMeter.getFloatTimeDomainData(mbuf);
     let s = 0; for (let i = 0; i < mbuf.length; i++) s += mbuf[i]*mbuf[i];
-    meterEl.style.width = Math.min(100, Math.sqrt(s/mbuf.length) * 320) + "%";
+    const w = Math.round(Math.min(100, Math.sqrt(s/mbuf.length) * 320)) + "%";
+    if (meterEl.style.width !== w) meterEl.style.width = w;
   }
   requestAnimationFrame(paintLoop);
-})();
+})(0);
 
 /* ---- tempo ---- */
 function setBpm(v, fromShell){

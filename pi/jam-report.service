@@ -1,0 +1,16 @@
+[Unit]
+Description=Jam Session: a diagnostics report on the SD card's boot partition
+Documentation=https://github.com/tpm08150/harvest-jam-session/blob/main/pi/README.md
+After=jam-kiosk.service
+
+[Service]
+# ⚠️ ON THE BOOT PARTITION, because that is the one place a Pi with no network, no SSH and no keyboard
+# can leave something to be read: it is the drive a Mac or PC opens when the card goes in. Raspberry Pi
+# Imager offers no user, Wi-Fi or SSH settings for a custom image (found on the first Pi, 2026-09-13),
+# so this image has no other way to say what it is doing.
+#
+# Written to a new name and moved into place, then synced: the boot partition is FAT, which has no
+# journal, and a report half-written when the power goes should cost the report and nothing else.
+Type=oneshot
+Nice=10
+ExecStart=/bin/sh -c '/usr/bin/python3 /opt/jam-session/jam-diagnose > /boot/firmware/jam-diagnose.new 2>&1; mv -f /boot/firmware/jam-diagnose.new /boot/firmware/jam-diagnose.txt; sync'

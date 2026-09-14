@@ -1827,10 +1827,16 @@ function open(){
    per origin, which is what makes re-selecting the same input and re-claiming the same
    surface port possible at all — so both are re-applied by id here rather than left for
    the caller to notice going quiet. */
+/* ⚠️ ONE UPGRADE AT A TIME. Each call used to ask for a new MIDIAccess, so a controller's connect and
+   the kiosk's own up-front request could overlap on a slow start — each rebinding every port and
+   telling every subscriber, and each telling able to set off another connect. A second caller now
+   shares the request already in flight. */
+let upgrading = null;
 function upgrade(){
   if (sysex) return Promise.resolve(true);
   if (!navigator.requestMIDIAccess) return Promise.resolve(false);
-  return navigator.requestMIDIAccess({sysex:true}).then(a => {
+  if (upgrading) return upgrading;
+  return upgrading = navigator.requestMIDIAccess({sysex:true}).then(a => {
     const keepPort = port ? port.id : "";
     const keepClaims = Array.from(claims.entries());
     if (port){ try{ port.onmidimessage = null; }catch(e){} }
@@ -1846,7 +1852,7 @@ function upgrade(){
     keepClaims.forEach(([id, fn]) => claim(id, fn));
     notify();
     return true;
-  }).catch(() => false);
+  }).catch(() => false).finally(() => { upgrading = null; });
 }
 
 function ports(kind){ return access ? Array.from(access[kind].values()) : []; }
@@ -4791,16 +4797,36 @@ function wake(){
    machine that has just been flashed — so this picks the one detected profile, and refuses
    to guess between two. A rack with two known controllers on it is a decision, and a
    decision belongs to a person even when the person is not in the room. */
+/* ⚠️ ONE CONNECT AT A TIME, AND ITS RESULT WRITTEN DOWN. connect() is asynchronous — it may ask for
+   SysEx first — and this used to fire it and note "surface" at once, so the two-second loop and every
+   port change could start another while the first was still on its way. A headless run against the
+   surface harness logged "surface launchkey-mk4" five times in fourteen seconds: a controller being
+   started again and again, not once. Now the loop waits for the one in flight, and the log says
+   whether it held.
+
+   ⚠️ AND WHAT IT SAW WHEN IT FOUND NOTHING. On the first Pi the Launchkey was not recognised, and the
+   log could not tell a controller the page never saw from one it saw and did not know by name. The
+   input names are noted whenever they change. */
+let connecting = false, seen = null;
 function claim(){
   const S = Patchwork.surface;
-  if (!S || S.connected) return false;
+  if (!S || S.connected || connecting) return false;
   const found = S.available;
   if (found.length !== 1){
     if (found.length) note("waiting: " + found.length + " surfaces detected");
+    else {
+      const names = Patchwork.midi ? Patchwork.midi.ports("inputs").map(p => p.name).join(", ") : "";
+      if (names !== seen){ seen = names; note("no controller among inputs: " + (names || "none")); }
+    }
     return false;
   }
-  S.connect(found[0].id);
-  note("surface " + found[0].id);
+  const id = found[0].id;
+  connecting = true;
+  note("connecting " + id);
+  Promise.resolve(S.connect(id))
+    .then(ok => note(ok ? "surface " + id : "surface " + id + " did not connect"),
+          e => note("surface " + id + " failed: " + ((e && e.message) || e)))
+    .then(() => { connecting = false; });
   return true;
 }
 
@@ -5721,6 +5747,12 @@ function mount(){
    same reason. Only a strip on screen is asked — and "on screen" is the strip's own layout, not
    document.hidden: a hidden tab throttles the timer by itself, and a guard on it meant a change
    made while the tab was hidden was drawn nowhere until something else happened to repaint. */
+/* ⚠️ AN ATTRIBUTE IS WRITTEN ONLY WHEN IT CHANGES. paint() runs every 400 ms for every instrument's
+   strip, and it set aria-pressed and a title on all sixteen numbers each time whether or not anything
+   had moved — about seventy DOM changes a second per instrument, over four hundred across the rack,
+   with nothing happening, each one style work for the page. Nothing on a laptop; on the Raspberry Pi 4
+   the rack could not play (2026-09-13). */
+function writeAttr(el, attr, value){ if (el.getAttribute(attr) !== value) el.setAttribute(attr, value); }
 function paint(){
   book.forEach(b => {
     const box = b.box;
@@ -5731,21 +5763,21 @@ function paint(){
     const empty = b.blank ? "Click for an empty one" : "Click to start one from the " + word.toLowerCase() + " you are on";
     box.classList.toggle("loose", b.at < 0);
     const lab = box.querySelector(".seqs-lab");
-    if (lab) lab.title = b.at < 0
+    if (lab) writeAttr(lab, "title", b.at < 0
       ? "What is on the grid came from a scene, a jam or a patch, and none of these sixteen holds it. "
         + "Shift-click a number to keep it there."
-      : "";
+      : "");
     box.querySelectorAll(".seqs-n").forEach(n => {
       const i = +n.dataset.i, on = i === b.at;
       const has = on ? here : !!b.slots[i];
       n.classList.toggle("cur", on);
       n.classList.toggle("has", has);
-      n.setAttribute("aria-pressed", on ? "true" : "false");
-      n.title = word + " " + (i + 1) + (on
+      writeAttr(n, "aria-pressed", on ? "true" : "false");
+      writeAttr(n, "title", word + " " + (i + 1) + (on
         ? (has ? " — on the grid now. Shift-click another number to copy it there."
                : " — empty, on the grid now. Anything you write is kept here.")
         : (has ? ". Click to bring it up; shift-click to copy the grid over it."
-               : " — empty. " + empty + "; shift-click to copy the grid into it."));
+               : " — empty. " + empty + "; shift-click to copy the grid into it.")));
     });
   });
 }
@@ -8325,7 +8357,13 @@ function paint(){
     b.classList.toggle("sel", seq.SEQ.mode !== "play" && +b.dataset.i === seq.SEQ.sel);
     /* a p-lock is something you can see rather than remember */
     b.classList.toggle("lock", !!(st.locks && Object.keys(st.locks).length));
-    b.textContent = (!st.on || st.tie) ? "" : noteName(seq.stepNote(st));
+    /* ⚠️ ONLY WHEN IT CHANGED. Assigning textContent replaces the text node even when the words are the
+       same, and BS·1 and VC·1 called this every animation frame: a sixteen-step grid rewrote sixteen
+       labels sixty times a second with nothing playing, each rewrite style and layout for the page.
+       Nothing on a laptop; on a Raspberry Pi 4, where the rack ran so slowly that notes barely played
+       (2026-09-13), work worth not doing. The class toggles above cost nothing when nothing changes. */
+    const label = (!st.on || st.tie) ? "" : noteName(seq.stepNote(st));
+    if (b.textContent !== label) b.textContent = label;
   });
   /* ⚠️ ANYTHING WHOSE LABEL IS A FACT ABOUT THE PATTERN has to be repainted from HERE, and
      not from onSelect: this runs every time the grid changes and that runs only when the

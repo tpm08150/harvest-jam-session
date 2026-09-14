@@ -13,5 +13,9 @@
 #EXTRA_CHROMIUM_FLAGS=--force-device-scale-factor=0.8
 
 # The HDMI picture is set in cmdline.txt, beside this file, by
-#   video=HDMI-A-1:1280x720@60D
-# Change 1280x720 to 1920x1080 for a sharper picture on a big screen.
+#   video=HDMI-A-1:1920x1080@60D
+# On a small screen that shows nothing, change 1920x1080 to 1280x720.
+
+# jam-diagnose.txt, beside this file, is a report of what the Pi is doing — the controller it can see,
+# how busy its CPU is, its sound. It is written three minutes after power on and every five minutes
+# after that.

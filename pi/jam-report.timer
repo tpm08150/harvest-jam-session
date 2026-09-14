@@ -1,0 +1,10 @@
+[Unit]
+Description=Jam Session: the diagnostics report, three minutes after boot and every five minutes after
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

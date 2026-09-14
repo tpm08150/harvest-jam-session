@@ -474,12 +474,17 @@ function paint(){
      record, otherwise they are fire. Arming is done on the live page, but a track stays
      armed across views, so the studio has to show the same truth. */
   const arming = Patchwork.record && Patchwork.record.armedCount > 0;
+  /* ⚠️ WRITTEN ONLY WHEN THEY CHANGE. Every repaint set all thirty-two buttons' symbol and title, record
+     or fire, whether or not anything was armed — about 150 DOM changes a second with nothing happening,
+     which the Raspberry Pi 4 could not spare (2026-09-13). */
+  const face = arming ? "●" : "▶";
+  const tip = arming
+    ? "Record the armed tracks into this scene, and play the rest of the row"
+    : "Fire this scene (shift-click to capture every instrument into it)";
   grid.querySelectorAll(".st-fire").forEach(b => {
     b.classList.toggle("st-rec-row", !!arming);
-    b.textContent = arming ? "●" : "▶";
-    b.title = arming
-      ? "Record the armed tracks into this scene, and play the rest of the row"
-      : "Fire this scene (shift-click to capture every instrument into it)";
+    if (b.textContent !== face) b.textContent = face;
+    if (b.title !== tip) b.title = tip;
   });
 }
 

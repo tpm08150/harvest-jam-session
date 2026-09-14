@@ -4,10 +4,12 @@ Burn the image to an SD card, put it in a Raspberry Pi, plug in a Launchkey and 
 Launchkey becomes a groovebox. No screen, keyboard or mouse needed — plug in an HDMI screen whenever
 you want to see the whole rack.
 
-> ⚠️ **Built, not yet run on a Pi.** GitHub Actions builds the image and checks it: inside the
-> finished image it starts the rack headless and confirms MIDI and SysEx are granted, kiosk mode is
-> on and the sign-in gate is out of the way. That first passed on 2026-09-13. Nobody has yet burned a
-> card, booted a Pi 4 with it or played a Launchkey through it.
+> ⚠️ **First run on a Pi 4, 2026-09-13.** The image booted, HDMI showed the rack and sound came out of
+> a USB audio interface. Three things did not work: the Launchkey was not recognised, the project menu
+> covered the Settings tab at the Pi's 1280x720, and the rack was too slow to play — clicks lagged and
+> notes barely sounded. The next image goes after all three (HANDOFF.md, "The Raspberry Pi image") and
+> writes a diagnostics report onto the card. Every image is still checked headless, inside the image,
+> by GitHub Actions before it is uploaded.
 
 ## Get the image
 
@@ -16,9 +18,8 @@ you want to see the whole rack.
    to get the `.img.xz` and its `.sha256`. A `pi-v…` release, when there is one, has the same files
    without the zip or the sign-in.
 2. Open **Raspberry Pi Imager** → *Choose OS* → *Use custom* → the `.img.xz`. No need to unpack it.
-3. *Optional:* if Imager offers OS customisation, set a username and password and turn on SSH
-   (and Wi-Fi). That is how you get in later to read logs. The groovebox needs none of it.
-4. Write the card.
+3. Write the card. ⚠️ Imager offers no customisation — user, Wi-Fi, SSH — for a custom image (found on
+   the first Pi), and the groovebox needs none of it. *Getting in* says how to see what it is doing.
 
 ## Play
 
@@ -41,30 +42,29 @@ it is writing. There is no read-only mode yet — see *Not done yet*.
 - `APP_PAGE` — boot into one instrument instead of the whole rack.
 - `EXTRA_CHROMIUM_FLAGS` — for example `--force-device-scale-factor=0.8` to fit more on screen.
 
-The HDMI picture is `video=HDMI-A-1:1280x720@60D` in `cmdline.txt`, beside it: change `1280x720`
-to `1920x1080` for a big screen.
+The HDMI picture is `video=HDMI-A-1:1920x1080@60D` in `cmdline.txt`, beside it. On a small screen
+that shows nothing, change `1920x1080` to `1280x720`.
 
 ## Getting in
 
-With SSH turned on in Imager:
+**No network needed:** the Pi writes `jam-diagnose.txt` to the card's boot partition three minutes
+after power on, and every five minutes after that — the MIDI ports it can see and what the kiosk made
+of them, CPU per process, temperature and throttling, the GPU, PipeWire's buffer and dropouts, and how
+busy the page's main thread is. Power off, put the card in a Mac or PC, and open it from the `bootfs`
+drive. A report is written in a second or two; pulling the plug in the middle of one costs only that
+report.
+
+**A keyboard on the Pi:** Ctrl+Shift+I may open Chromium's DevTools over the rack.
+`Patchwork.kiosk.log` is what connected and when; `Patchwork.midi.ports("inputs")` is what the page
+can see.
+
+**SSH**, on a Pi provisioned with `pi/setup.sh` — the image itself has no login:
 
 ```bash
-ssh you@jam-session.local
-journalctl -fu jam-kiosk          # the browser: permissions granted, page loaded, restarts
-journalctl -fu jam-server         # the page server
-wpctl status                      # the audio outputs, and which one is the default
-sudo systemctl restart jam-kiosk
+ssh you@your-pi.local python3 - < pi/jam-diagnose        # the same report, from your computer
+ssh -L 9222:127.0.0.1:9222 you@your-pi.local              # then chrome://inspect, add localhost:9222
+journalctl -fu jam-kiosk                                   # on the Pi: permissions, page loads, restarts
 ```
-
-**The Pi's browser in your own Chrome's DevTools:**
-
-```bash
-ssh -L 9222:127.0.0.1:9222 you@jam-session.local
-```
-
-then open `chrome://inspect` on the laptop, *Configure…* → add `localhost:9222`, and inspect the
-rack. `Patchwork.kiosk.log` is what connected and when; `Patchwork.surface.traffic` is what the
-Launchkey sent.
 
 ## How it works
 
@@ -97,8 +97,11 @@ safe on its AudioWorklet regardless, but the Launchkey's LEDs and screen repaint
 
 **Sound picks its way out.** PipeWire, with WirePlumber told to prefer a USB interface, then the
 headphone jack, then HDMI; without that, the always-on HDMI port could take the sound. The buffer
-is 256 frames at 48 kHz, in `/etc/pipewire/pipewire.conf.d/10-jam-latency.conf`: raise it to 512
-the moment you hear crackle.
+is 1024 frames at 48 kHz, in `/etc/pipewire/pipewire.conf.d/10-jam-latency.conf` — the first image's
+256 went with a rack that could barely play, though how much of that was the buffer is not yet known.
+Chromium may give its audio thread realtime priority (`LimitRTPRIO` on `jam-kiosk`), the CPU stays at
+full speed (`jam-performance`), and the ALSA sequencer Web MIDI runs on is loaded at boot rather than
+whenever a MIDI device happens to arrive.
 
 **The first-boot wizard is masked** in the image. It asks for a username on a console nobody is
 looking at.
@@ -125,8 +128,8 @@ connection), then reboot.
 
 ## Not done yet
 
-- **Running it on a Pi.** Everything past the smoke test is untested on hardware: cage on the Pi's
-  GPU, forced HDMI, the Launchkey's port names under Linux, PipeWire's choices, latency.
+- **Playing it on a Pi.** The first Pi 4 booted it and made sound; the Launchkey, and the speed to
+  play the whole rack, are what the next image and its report are for.
 - **Read-only root.** An overlay filesystem, with a writable partition for the Chromium profile
   (where songs and patches live), so pulling the plug cannot damage the system.
 - **Updates** without burning a new card.

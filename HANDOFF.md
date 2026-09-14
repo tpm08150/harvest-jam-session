@@ -2598,5 +2598,56 @@ the permission state is real there.
   `rpi-resize.service`, with `resize` on the kernel command line, to grow the root filesystem at first
   boot.
 
-**Not yet run:** everything on a Pi — cage on its GPU, forced HDMI, the Launchkey's port names under
-Linux (`detect()` in `shell/launchkey.js` looks for "MK4" and "DAW" in them), PipeWire's choices, latency.
+### The first Pi
+
+Tyler burned the third build onto a card for a Raspberry Pi 4 (4 or 8 GB, cooled) with a USB audio
+interface, a Launchkey Mini MK4 25 and an HDMI screen, on 2026-09-13. **It booted into the rack**, HDMI
+showed it, and **sound came out of the interface**: cage, PipeWire and WirePlumber all did their part.
+Four things did not work:
+
+- **The Launchkey was not recognised**, and nothing on the card could say why.
+- ⚠️ **There was no way in.** Raspberry Pi Imager offers no customisation — user, Wi-Fi, SSH — for a
+  custom image, so the card had no login and no network.
+- **At the Pi's 1280x720 the project menu covered the Settings tab** and took its clicks, so the
+  controller could not be connected by hand either.
+- **The rack was too slow to play**: clicks lagged and notes barely sounded — "a RPI might just not be
+  able to run this". The picture also looked soft, 720p upscaled.
+
+What the next image does about each, and what was measured:
+
+- **A report on the card.** `jam-report.timer` runs `pi/jam-diagnose` as root three minutes after boot
+  and every five minutes after, writing `jam-diagnose.txt` to the boot partition — to a new name, moved
+  into place, then `sync`, because FAT has no journal. It records the board, heat and throttling, CPU per
+  process, realtime threads, `jam-kiosk`'s journal, the ALSA cards and MIDI ports, PipeWire's settings
+  and xruns, the HDMI connector, and, over DevTools, the GPU's feature status, the page's MIDI inputs and
+  outputs, what the surface detected, the kiosk log, audio latency, WebGL's renderer and the main
+  thread's busy time over five seconds. Read it with the card in any computer; `ssh … python3 - <
+  pi/jam-diagnose` gives the same on a Pi with a login.
+- **The kiosk's connect.** `claim()` fired `connect()` — which may ask for SysEx first — without waiting
+  for it, so the two-second loop and every port change could start another while one was in flight; a
+  headless run against the surface harness logged five starts in fourteen seconds. It now runs one at a
+  time and logs whether it held, and logs the input names whenever it finds no controller.
+  `midi.upgrade()` shares a request already in flight instead of rebinding every port again, and
+  `snd-seq` and `snd-seq-midi` load at boot, so Chromium never looks for the ALSA sequencer before it
+  exists. **Why the Pi did not see the Launchkey is still unknown**; the report will say.
+- **The header.** `#stView` is absolutely centred, and the project group, pushed right by an auto margin,
+  runs into it below about 1460 px. Below 1500 px it now joins the row after the wordmark, with the hint
+  hidden (kept in solo mode, for its Escape note). At 1280x720 the tabs sit at 310–623 px and the project
+  group at 717–1030 px, and a click at the Settings tab's centre lands on it.
+- **Idle work.** Measured in the preview at 1280x720 with nothing playing, the rack made **907 DOM changes
+  a second.** BS·1 and VC·1 painted their grids every animation frame, and the shared grid rewrote every
+  step's label each time — `textContent` replaces the node even when the words are the same; VC·1's meter
+  and LP·1's bars wrote widths every frame; every instrument's sequence strip rewrote `aria-pressed` and
+  `title` on sixteen buttons every 400 ms; and the launcher rewrote thirty-two fire buttons' symbol and
+  title on every repaint. Each now writes only on change, and the two grids paint every frame only while
+  playing, four times a second otherwise: **32 a second** afterwards, mostly the Clear buttons' labels at
+  4 Hz. The playheads still move while playing and clear on stop, every strip still marks one current
+  sequence, and the launcher still reads ▶.
+- **Sound and scheduling.** PipeWire's quantum goes from 256 to 1024 — how much of the Pi's trouble was
+  that small buffer is not known — `LimitRTPRIO=95` on `jam-kiosk` lets Chromium give its audio thread
+  realtime priority, and `jam-performance` sets the CPU governor to `performance`.
+- **HDMI at 1920x1080** instead of 1280x720.
+
+**Not yet known:** whether this is enough for a Pi 4 to play the whole rack, whether GPU compositing is on
+under cage, and the Launchkey's port names under Linux (`detect()` in `shell/launchkey.js` looks for
+"MK4" and "DAW" in them, with the second port as the fallback).

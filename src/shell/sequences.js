@@ -372,6 +372,12 @@ function mount(){
    same reason. Only a strip on screen is asked — and "on screen" is the strip's own layout, not
    document.hidden: a hidden tab throttles the timer by itself, and a guard on it meant a change
    made while the tab was hidden was drawn nowhere until something else happened to repaint. */
+/* ⚠️ AN ATTRIBUTE IS WRITTEN ONLY WHEN IT CHANGES. paint() runs every 400 ms for every instrument's
+   strip, and it set aria-pressed and a title on all sixteen numbers each time whether or not anything
+   had moved — about seventy DOM changes a second per instrument, over four hundred across the rack,
+   with nothing happening, each one style work for the page. Nothing on a laptop; on the Raspberry Pi 4
+   the rack could not play (2026-09-13). */
+function writeAttr(el, attr, value){ if (el.getAttribute(attr) !== value) el.setAttribute(attr, value); }
 function paint(){
   book.forEach(b => {
     const box = b.box;
@@ -382,21 +388,21 @@ function paint(){
     const empty = b.blank ? "Click for an empty one" : "Click to start one from the " + word.toLowerCase() + " you are on";
     box.classList.toggle("loose", b.at < 0);
     const lab = box.querySelector(".seqs-lab");
-    if (lab) lab.title = b.at < 0
+    if (lab) writeAttr(lab, "title", b.at < 0
       ? "What is on the grid came from a scene, a jam or a patch, and none of these sixteen holds it. "
         + "Shift-click a number to keep it there."
-      : "";
+      : "");
     box.querySelectorAll(".seqs-n").forEach(n => {
       const i = +n.dataset.i, on = i === b.at;
       const has = on ? here : !!b.slots[i];
       n.classList.toggle("cur", on);
       n.classList.toggle("has", has);
-      n.setAttribute("aria-pressed", on ? "true" : "false");
-      n.title = word + " " + (i + 1) + (on
+      writeAttr(n, "aria-pressed", on ? "true" : "false");
+      writeAttr(n, "title", word + " " + (i + 1) + (on
         ? (has ? " — on the grid now. Shift-click another number to copy it there."
                : " — empty, on the grid now. Anything you write is kept here.")
         : (has ? ". Click to bring it up; shift-click to copy the grid over it."
-               : " — empty. " + empty + "; shift-click to copy the grid into it."));
+               : " — empty. " + empty + "; shift-click to copy the grid into it.")));
     });
   });
 }

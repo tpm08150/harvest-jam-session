@@ -65,7 +65,7 @@ for f in "$REPO"/*.html; do
 done
 (( ${#pages[@]} )) || { echo "no built pages in $REPO — run python3 tools/build.py" >&2; exit 1; }
 install -m 644 "${pages[@]}" "$REPO/serve.py" "$APP_DIR/"
-install -m 755 "$HERE/jam-browser" "$APP_DIR/jam-browser"
+install -m 755 "$HERE/jam-browser" "$HERE/jam-diagnose" "$APP_DIR/"
 
 # ⚠️ OFFLINE: the one line src/shell/cloud.js keeps for this. The site has cloud sync behind a
 # Google sign-in; a box with no keyboard cannot sign in, so this copy has neither. It must turn
@@ -123,17 +123,25 @@ install -m 644 "$HERE/wireplumber/51-jam-outputs.conf" /etc/wireplumber/wireplum
 
 echo "==> services"
 install -m 644 "$HERE/jam-kiosk.pam" /etc/pam.d/jam-kiosk
-install -m 644 "$HERE/jam-server.service" "$HERE/jam-kiosk.service" /etc/systemd/system/
-systemctl enable jam-server.service jam-kiosk.service
+install -m 644 "$HERE/jam-server.service" "$HERE/jam-kiosk.service" "$HERE/jam-performance.service" \
+  "$HERE/jam-report.service" "$HERE/jam-report.timer" /etc/systemd/system/
+systemctl enable jam-server.service jam-kiosk.service jam-performance.service jam-report.timer
 systemctl set-default multi-user.target
+# ⚠️ THE SEQUENCER BEFORE THE BROWSER. Chromium's Web MIDI on Linux is the ALSA sequencer, and a browser
+# that looks before /dev/snd/seq exists is told MIDI is unavailable — "Platform dependent
+# initialization failed", as a build machine answers — and may not look again. Loaded at boot rather
+# than whenever a USB MIDI device happens to pull it in.
+printf 'snd-seq\nsnd-seq-midi\n' > /etc/modules-load.d/jam-session.conf
 
 echo "==> screen"
-# ⚠️ HDMI ALWAYS ON. Whether cage and Chromium cope with no display at all has not been tried, so
-# the Pi's first HDMI port is switched on whether or not a screen is attached: cage always has a
-# display to put the rack on, and a screen plugged in later simply shows it. 1280x720 is a mode
-# every HDMI screen takes.
+# ⚠️ HDMI ALWAYS ON. Whether cage and Chromium cope with no display at all has not been tried, so the
+# Pi's first HDMI port is switched on whether or not a screen is attached: cage always has a display to
+# put the rack on, and a screen plugged in later simply shows it.
+# 1920x1080: the first image forced 1280x720, which every screen takes and which looked soft upscaled on
+# the first one it met (2026-09-13). Nearly every HDMI monitor and TV takes 1080p; a small screen that
+# will not can have 1280x720 back in cmdline.txt.
 if [[ -f $BOOT/cmdline.txt ]] && ! grep -q "video=HDMI-A-1:" "$BOOT/cmdline.txt"; then
-  sed -i '1 s/[[:space:]]*$/ video=HDMI-A-1:1280x720@60D/' "$BOOT/cmdline.txt"
+  sed -i '1 s/[[:space:]]*$/ video=HDMI-A-1:1920x1080@60D/' "$BOOT/cmdline.txt"
 fi
 
 if [[ $MODE == image ]]; then

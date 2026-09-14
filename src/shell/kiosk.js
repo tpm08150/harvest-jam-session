@@ -59,16 +59,36 @@ function wake(){
    machine that has just been flashed — so this picks the one detected profile, and refuses
    to guess between two. A rack with two known controllers on it is a decision, and a
    decision belongs to a person even when the person is not in the room. */
+/* ⚠️ ONE CONNECT AT A TIME, AND ITS RESULT WRITTEN DOWN. connect() is asynchronous — it may ask for
+   SysEx first — and this used to fire it and note "surface" at once, so the two-second loop and every
+   port change could start another while the first was still on its way. A headless run against the
+   surface harness logged "surface launchkey-mk4" five times in fourteen seconds: a controller being
+   started again and again, not once. Now the loop waits for the one in flight, and the log says
+   whether it held.
+
+   ⚠️ AND WHAT IT SAW WHEN IT FOUND NOTHING. On the first Pi the Launchkey was not recognised, and the
+   log could not tell a controller the page never saw from one it saw and did not know by name. The
+   input names are noted whenever they change. */
+let connecting = false, seen = null;
 function claim(){
   const S = Patchwork.surface;
-  if (!S || S.connected) return false;
+  if (!S || S.connected || connecting) return false;
   const found = S.available;
   if (found.length !== 1){
     if (found.length) note("waiting: " + found.length + " surfaces detected");
+    else {
+      const names = Patchwork.midi ? Patchwork.midi.ports("inputs").map(p => p.name).join(", ") : "";
+      if (names !== seen){ seen = names; note("no controller among inputs: " + (names || "none")); }
+    }
     return false;
   }
-  S.connect(found[0].id);
-  note("surface " + found[0].id);
+  const id = found[0].id;
+  connecting = true;
+  note("connecting " + id);
+  Promise.resolve(S.connect(id))
+    .then(ok => note(ok ? "surface " + id : "surface " + id + " did not connect"),
+          e => note("surface " + id + " failed: " + ((e && e.message) || e)))
+    .then(() => { connecting = false; });
   return true;
 }
 

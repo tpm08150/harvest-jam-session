@@ -512,7 +512,13 @@ function paint(){
     b.classList.toggle("sel", seq.SEQ.mode !== "play" && +b.dataset.i === seq.SEQ.sel);
     /* a p-lock is something you can see rather than remember */
     b.classList.toggle("lock", !!(st.locks && Object.keys(st.locks).length));
-    b.textContent = (!st.on || st.tie) ? "" : noteName(seq.stepNote(st));
+    /* ⚠️ ONLY WHEN IT CHANGED. Assigning textContent replaces the text node even when the words are the
+       same, and BS·1 and VC·1 called this every animation frame: a sixteen-step grid rewrote sixteen
+       labels sixty times a second with nothing playing, each rewrite style and layout for the page.
+       Nothing on a laptop; on a Raspberry Pi 4, where the rack ran so slowly that notes barely played
+       (2026-09-13), work worth not doing. The class toggles above cost nothing when nothing changes. */
+    const label = (!st.on || st.tie) ? "" : noteName(seq.stepNote(st));
+    if (b.textContent !== label) b.textContent = label;
   });
   /* ⚠️ ANYTHING WHOSE LABEL IS A FACT ABOUT THE PATTERN has to be repainted from HERE, and
      not from onSelect: this runs every time the grid changes and that runs only when the

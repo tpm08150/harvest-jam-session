@@ -87,10 +87,16 @@ function open(){
    per origin, which is what makes re-selecting the same input and re-claiming the same
    surface port possible at all — so both are re-applied by id here rather than left for
    the caller to notice going quiet. */
+/* ⚠️ ONE UPGRADE AT A TIME. Each call used to ask for a new MIDIAccess, so a controller's connect and
+   the kiosk's own up-front request could overlap on a slow start — each rebinding every port and
+   telling every subscriber, and each telling able to set off another connect. A second caller now
+   shares the request already in flight. */
+let upgrading = null;
 function upgrade(){
   if (sysex) return Promise.resolve(true);
   if (!navigator.requestMIDIAccess) return Promise.resolve(false);
-  return navigator.requestMIDIAccess({sysex:true}).then(a => {
+  if (upgrading) return upgrading;
+  return upgrading = navigator.requestMIDIAccess({sysex:true}).then(a => {
     const keepPort = port ? port.id : "";
     const keepClaims = Array.from(claims.entries());
     if (port){ try{ port.onmidimessage = null; }catch(e){} }
@@ -106,7 +112,7 @@ function upgrade(){
     keepClaims.forEach(([id, fn]) => claim(id, fn));
     notify();
     return true;
-  }).catch(() => false);
+  }).catch(() => false).finally(() => { upgrading = null; });
 }
 
 function ports(kind){ return access ? Array.from(access[kind].values()) : []; }
