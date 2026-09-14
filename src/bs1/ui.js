@@ -198,7 +198,8 @@ function paintNow(){
     const st = i >= 0 ? seq.steps[i] : null;
     n = (st && st.on && !st.tie) ? seq.stepNote(st) : null;
   }
-  nowNote.textContent = n == null ? "—" : noteName(n);
+  const name = n == null ? "—" : noteName(n);
+  if (nowNote.textContent !== name) nowNote.textContent = name;   // every frame while playing
   keysEl.querySelectorAll(".k").forEach(k => {
     const kn = +k.dataset.n;
     k.classList.toggle("on", held.has(kn) || kn === n);
@@ -209,17 +210,14 @@ function paintNow(){
 /* ⚠️ EVERY FRAME ONLY WHILE IT PLAYS. Stopped, there is no playhead to move, and the paints that matter —
    an edit, a key or scale change — call grid.paint() themselves; four a second catches anything that
    changes without saying so. It painted the whole grid sixty times a second with nothing playing,
-   which the Raspberry Pi 4 could not spare (2026-09-13). */
-let gridIdleAt = 0;
-(function paintLoop(now){
-  if (seq.SEQ.playing || !(now - gridIdleAt < 250)){
-    gridIdleAt = now;
-    grid.paint();
-    /* the note readout is now clock-derived too, so it has to repaint with the playhead */
-    if (seq.SEQ.playing) paintNow();
-  }
-  requestAnimationFrame(paintLoop);
-})(0);
+   which the Raspberry Pi 4 could not spare (2026-09-13) — and, once it only painted four times a
+   second, still asked for sixty frames to decide not to. The four a second are a timer now; see
+   Patchwork.animate in shell/host.js. */
+Patchwork.animate(() => {
+  grid.paint();
+  /* the note readout is now clock-derived too, so it has to repaint with the playhead */
+  if (seq.SEQ.playing) paintNow();
+}, () => seq.SEQ.playing, 250);
 
 /* ---- tempo ---- */
 function setBpm(v, fromShell){

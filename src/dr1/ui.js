@@ -247,13 +247,24 @@ function flashLane(id){
    Painted from the marks the scheduler left, looked up against the audio clock — the
    same approach CS·1 and MS·1 use. Reading stepIndex directly would show the lookahead's
    position, which is up to 200 ms ahead of what you can hear. */
+/* ⚠️ ONLY THE COLUMN THAT MOVED. This toggled all 512 pads — eight lanes of sixty-four, most of them
+   hidden — every frame, to move one column of eight along once a sixteenth: the heaviest thing the rack
+   did per frame while playing (2026-09-13). The lit column is remembered, and a frame that finds the
+   same one touches nothing. */
+let drHeadCol = -1;
+function drLightColumn(i){
+  if (i === drHeadCol) return;
+  if (drHeadCol >= 0) $$('.pad[data-i="' + drHeadCol + '"]').forEach(b => b.classList.remove("now"));
+  if (i >= 0) $$('.pad[data-i="' + i + '"]').forEach(b => b.classList.add("now"));
+  drHeadCol = i;
+}
 function paint(){
   if (!SEQ.playing){ clearMarks(); return; }
   const now = ctx.currentTime;
   let cur = -1;
   for (let k = marks.length - 1; k >= 0; k--)
     if (marks[k].t <= now && now < marks[k].end){ cur = marks[k].i; break; }
-  $$(".pad").forEach(b => b.classList.toggle("now", +b.dataset.i === cur));
+  drLightColumn(cur);
   if (cur >= 0 && cur !== lastPainted){
     ORDER.forEach(id => { if (steps[id][cur]) flashLane(id); });
     lastPainted = cur;
@@ -261,7 +272,7 @@ function paint(){
   requestAnimationFrame(paint);
 }
 let lastPainted = -1;
-function clearMarks(){ $$(".pad").forEach(b => b.classList.remove("now")); lastPainted = -1; }
+function clearMarks(){ $$(".pad.now").forEach(b => b.classList.remove("now")); drHeadCol = -1; lastPainted = -1; }
 
 /* ---- horizontal faders ----
    Registered the way CS·1's are, so MIDI learn and patch save would get them for free. */

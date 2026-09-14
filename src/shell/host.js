@@ -101,7 +101,43 @@ function onKey(root, type, fn){
    just stops the routing table growing without bound. */
 window.addEventListener("blur", () => pressed.clear());
 
-return {instrument, onKey, focus,
+/* ---- a loop that asks for frames only while something moves ----
+   ⚠️ A FRAME ASKED FOR IS A FRAME MADE, whatever the callback then does with it. A loop that requests the
+   next animation frame from every frame keeps the compositor running at the display's rate, and the rack
+   had seven that never stopped — BS·1, VC·1, LP·1, TS·1, SQ·1 and the launcher's two bar counters, 422
+   requests a second with nothing playing. Measured in Chrome 152 on a laptop (2026-09-13): the idle
+   browser spent 0.36 s of CPU a second, and 0.14 with those requests stubbed out. The Raspberry Pi 4 the
+   rack was burned onto got two frames a second.
+
+   So `draw(now, moving)` runs every frame while `busy()` says something is in motion, and every `idle`
+   milliseconds on a plain timer otherwise — a timer asks nothing of the compositor — or not at all with
+   idle 0. Each timer tick asks busy() again, so motion nobody announced is picked up within a tick;
+   `wake()` is for a caller that knows it has just started something and wants the first frame now. The
+   frame after motion stops still draws, with moving true, which is what clears a playhead. */
+function animate(draw, busy, idle){
+  const every = idle == null ? 250 : idle;
+  let frame = 0, timer = 0;
+  const moving = () => { try{ return !!busy(); }catch(e){ return false; } };
+  function run(now, inMotion){
+    try{ draw(now, inMotion); }catch(e){ console.error("animation failed", e); }
+  }
+  function schedule(){
+    if (frame || timer) return;
+    if (moving()){
+      frame = requestAnimationFrame(now => { frame = 0; run(now, true); schedule(); });
+    } else if (every > 0){
+      timer = setTimeout(() => {
+        timer = 0;
+        if (!moving()) run(performance.now(), false);
+        schedule();
+      }, every);
+    }
+  }
+  schedule();
+  return {wake(){ if (timer && moving()){ clearTimeout(timer); timer = 0; } schedule(); }};
+}
+
+return {instrument, onKey, focus, animate,
         get roots(){ return roots.slice(); },
         get focused(){ return focused; }};
 })();

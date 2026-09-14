@@ -5637,7 +5637,43 @@ function onKey(root, type, fn){
    just stops the routing table growing without bound. */
 window.addEventListener("blur", () => pressed.clear());
 
-return {instrument, onKey, focus,
+/* ---- a loop that asks for frames only while something moves ----
+   ⚠️ A FRAME ASKED FOR IS A FRAME MADE, whatever the callback then does with it. A loop that requests the
+   next animation frame from every frame keeps the compositor running at the display's rate, and the rack
+   had seven that never stopped — BS·1, VC·1, LP·1, TS·1, SQ·1 and the launcher's two bar counters, 422
+   requests a second with nothing playing. Measured in Chrome 152 on a laptop (2026-09-13): the idle
+   browser spent 0.36 s of CPU a second, and 0.14 with those requests stubbed out. The Raspberry Pi 4 the
+   rack was burned onto got two frames a second.
+
+   So `draw(now, moving)` runs every frame while `busy()` says something is in motion, and every `idle`
+   milliseconds on a plain timer otherwise — a timer asks nothing of the compositor — or not at all with
+   idle 0. Each timer tick asks busy() again, so motion nobody announced is picked up within a tick;
+   `wake()` is for a caller that knows it has just started something and wants the first frame now. The
+   frame after motion stops still draws, with moving true, which is what clears a playhead. */
+function animate(draw, busy, idle){
+  const every = idle == null ? 250 : idle;
+  let frame = 0, timer = 0;
+  const moving = () => { try{ return !!busy(); }catch(e){ return false; } };
+  function run(now, inMotion){
+    try{ draw(now, inMotion); }catch(e){ console.error("animation failed", e); }
+  }
+  function schedule(){
+    if (frame || timer) return;
+    if (moving()){
+      frame = requestAnimationFrame(now => { frame = 0; run(now, true); schedule(); });
+    } else if (every > 0){
+      timer = setTimeout(() => {
+        timer = 0;
+        if (!moving()) run(performance.now(), false);
+        schedule();
+      }, every);
+    }
+  }
+  schedule();
+  return {wake(){ if (timer && moving()){ clearTimeout(timer); timer = 0; } schedule(); }};
+}
+
+return {instrument, onKey, focus, animate,
         get roots(){ return roots.slice(); },
         get focused(){ return focused; }};
 })();
@@ -15778,21 +15814,26 @@ Patchwork.mountClearSeq = function(btn, o){
 if (!btn || !o) return {paint(){}};
 let undo = null;
 
+/* ⚠️ EACH PROPERTY SET ONLY WHEN IT CHANGED. The grid's paint calls this, and BS·1's and VC·1's grids
+   paint four times a second with nothing playing, so the label, disabled and title were rewritten to
+   what they already were twelve times a second between the two — the last of the idle page's DOM
+   changes that had nothing behind them (2026-09-13). */
+function set(prop, value){ if (btn[prop] !== value) btn[prop] = value; }
 function paint(){
   const n = o.count();
   if (n > 0){
     undo = undo && null;          // something is in there; the old pattern is not coming back
-    btn.textContent = "Clear";
-    btn.disabled = false;
+    set("textContent", "Clear");
+    set("disabled", false);
     btn.classList.remove("on");
-    btn.title = "Empty the sequence — " + n + (n === 1 ? " step" : " steps") + ".";
+    set("title", "Empty the sequence — " + n + (n === 1 ? " step" : " steps") + ".");
     return;
   }
-  btn.textContent = undo ? "Undo" : "Clear";
-  btn.disabled = !undo;
+  set("textContent", undo ? "Undo" : "Clear");
+  set("disabled", !undo);
   btn.classList.toggle("on", !!undo);
-  btn.title = undo ? "Put the cleared pattern back."
-                   : "Nothing in the sequence to clear.";
+  set("title", undo ? "Put the cleared pattern back."
+                    : "Nothing in the sequence to clear.");
 }
 
 btn.addEventListener("click", () => {
@@ -16681,13 +16722,24 @@ function flashLane(id){
    Painted from the marks the scheduler left, looked up against the audio clock — the
    same approach CS·1 and MS·1 use. Reading stepIndex directly would show the lookahead's
    position, which is up to 200 ms ahead of what you can hear. */
+/* ⚠️ ONLY THE COLUMN THAT MOVED. This toggled all 512 pads — eight lanes of sixty-four, most of them
+   hidden — every frame, to move one column of eight along once a sixteenth: the heaviest thing the rack
+   did per frame while playing (2026-09-13). The lit column is remembered, and a frame that finds the
+   same one touches nothing. */
+let drHeadCol = -1;
+function drLightColumn(i){
+  if (i === drHeadCol) return;
+  if (drHeadCol >= 0) $$('.pad[data-i="' + drHeadCol + '"]').forEach(b => b.classList.remove("now"));
+  if (i >= 0) $$('.pad[data-i="' + i + '"]').forEach(b => b.classList.add("now"));
+  drHeadCol = i;
+}
 function paint(){
   if (!SEQ.playing){ clearMarks(); return; }
   const now = ctx.currentTime;
   let cur = -1;
   for (let k = marks.length - 1; k >= 0; k--)
     if (marks[k].t <= now && now < marks[k].end){ cur = marks[k].i; break; }
-  $$(".pad").forEach(b => b.classList.toggle("now", +b.dataset.i === cur));
+  drLightColumn(cur);
   if (cur >= 0 && cur !== lastPainted){
     ORDER.forEach(id => { if (steps[id][cur]) flashLane(id); });
     lastPainted = cur;
@@ -16695,7 +16747,7 @@ function paint(){
   requestAnimationFrame(paint);
 }
 let lastPainted = -1;
-function clearMarks(){ $$(".pad").forEach(b => b.classList.remove("now")); lastPainted = -1; }
+function clearMarks(){ $$(".pad.now").forEach(b => b.classList.remove("now")); drHeadCol = -1; lastPainted = -1; }
 
 /* ---- horizontal faders ----
    Registered the way CS·1's are, so MIDI learn and patch save would get them for free. */
@@ -17893,7 +17945,8 @@ function paintNow(){
     const st = i >= 0 ? seq.steps[i] : null;
     n = (st && st.on && !st.tie) ? seq.stepNote(st) : null;
   }
-  nowNote.textContent = n == null ? "—" : noteName(n);
+  const name = n == null ? "—" : noteName(n);
+  if (nowNote.textContent !== name) nowNote.textContent = name;   // every frame while playing
   keysEl.querySelectorAll(".k").forEach(k => {
     const kn = +k.dataset.n;
     k.classList.toggle("on", held.has(kn) || kn === n);
@@ -17904,17 +17957,14 @@ function paintNow(){
 /* ⚠️ EVERY FRAME ONLY WHILE IT PLAYS. Stopped, there is no playhead to move, and the paints that matter —
    an edit, a key or scale change — call grid.paint() themselves; four a second catches anything that
    changes without saying so. It painted the whole grid sixty times a second with nothing playing,
-   which the Raspberry Pi 4 could not spare (2026-09-13). */
-let gridIdleAt = 0;
-(function paintLoop(now){
-  if (seq.SEQ.playing || !(now - gridIdleAt < 250)){
-    gridIdleAt = now;
-    grid.paint();
-    /* the note readout is now clock-derived too, so it has to repaint with the playhead */
-    if (seq.SEQ.playing) paintNow();
-  }
-  requestAnimationFrame(paintLoop);
-})(0);
+   which the Raspberry Pi 4 could not spare (2026-09-13) — and, once it only painted four times a
+   second, still asked for sixty frames to decide not to. The four a second are a timer now; see
+   Patchwork.animate in shell/host.js. */
+Patchwork.animate(() => {
+  grid.paint();
+  /* the note readout is now clock-derived too, so it has to repaint with the playhead */
+  if (seq.SEQ.playing) paintNow();
+}, () => seq.SEQ.playing, 250);
 
 /* ---- tempo ---- */
 function setBpm(v, fromShell){
@@ -19258,6 +19308,15 @@ function stopPlay(){
   });
   clearSteps();
 }
+/* ⚠️ A WIPE IS WRITTEN ONLY WHEN IT MOVED, AND FOUND ONCE. Every card's wipe was looked up and set every
+   frame while playing — "0%" on all but one of them. The number is in the form the browser reads back
+   ("12%", not "12.0%"), or the compare would never match. A card rebuilt on resize is a new key. */
+const csWipes = new WeakMap();
+function csWipeOf(card){
+  let w = csWipes.get(card);
+  if (!w){ w = card.querySelector(".wipe"); if (w) csWipes.set(card, w); }
+  return w;
+}
 function paint(){
   if (!state.playing) return;
   const now = ctx.currentTime;
@@ -19267,7 +19326,9 @@ function paint(){
   cards.forEach((c, idx) => {
     const on = cur && cur.i === idx;
     c.classList.toggle("on", !!on || litPads.has(idx));
-    c.querySelector(".wipe").style.width = on ? (((now - cur.t)/(cur.end - cur.t))*100).toFixed(1) + "%" : "0%";
+    const w = on ? Math.round(((now - cur.t)/(cur.end - cur.t)) * 1000) / 10 + "%" : "0%";
+    const wipe = csWipeOf(c);
+    if (wipe && wipe.style.width !== w) wipe.style.width = w;
   });
   paintSteps(cur, now);
   requestAnimationFrame(paint);
@@ -24204,15 +24265,21 @@ function paint(){
 /* peak meter — the only way to know a patch is hot without guessing */
 let peakHold = 0, peakAt = 0;
 const meterEl = $("#ioStats");
+/* ⚠️ ONE BUFFER, AND THE READOUT FOUR TIMES A SECOND. This made a new array the analyser's size and
+   rebuilt the stats line's markup every frame the sequencer played. The peak it shows is held for a
+   second and a half, so a quarter-second refresh shows the same thing, and ioStats writes only when
+   the line reads differently. */
+let pmMeterBuf = null, pmStatsAt = 0;
 function meterTick(){
   if (!analyser) return;
-  const buf = new Float32Array(analyser.fftSize);
+  if (!pmMeterBuf || pmMeterBuf.length !== analyser.fftSize) pmMeterBuf = new Float32Array(analyser.fftSize);
+  const buf = pmMeterBuf;
   analyser.getFloatTimeDomainData(buf);
   let pk = 0;
   for (let i = 0; i < buf.length; i++){ const a = Math.abs(buf[i]); if (a > pk) pk = a; }
   const now = performance.now();
   if (pk >= peakHold || now - peakAt > 1500){ peakHold = pk; peakAt = now; }
-  ioStats(peakHold);
+  if (now - pmStatsAt >= 250){ pmStatsAt = now; ioStats(peakHold); }
 }
 
 /* ---- transport controls ---- */
@@ -25111,7 +25178,7 @@ const audioOutSel = $("#audioOut"), audioNoteEl = $("#audioNote"), audioLed = $(
    plus a peak reading so a hot patch is visible rather than guessed at */
 function ioStats(peak){
   const el = $("#ioStats");
-  if (!ctx){ el.innerHTML = ""; return; }
+  if (!ctx){ el.innerHTML = ""; el.__stats = ""; return; }
   const bits = ["audio <b" + (ctx.state === "running" ? ">" : " style=\"color:#e8b23a\">") + ctx.state + "</b>",
                 "rate <b>" + (ctx.sampleRate/1000).toFixed(1) + " kHz</b>"];
   if (ctx.baseLatency != null)   bits.push("buffer <b>" + (ctx.baseLatency*1000).toFixed(1) + " ms</b>");
@@ -25120,7 +25187,10 @@ function ioStats(peak){
     const dbv = 20*Math.log10(peak);
     bits.push("peak <b class=\"" + (dbv > -0.5 ? "hot" : "") + "\">" + dbv.toFixed(1) + " dBFS</b>");
   }
-  el.innerHTML = bits.map(b => "<span>"+b+"</span>").join("");
+  /* compared with the string this last wrote, not read back: innerHTML re-parses identical markup as
+     readily as new, and the browser's serialisation of it is not the string that made it */
+  const html = bits.map(b => "<span>"+b+"</span>").join("");
+  if (el.__stats !== html){ el.__stats = html; el.innerHTML = html; }
 }
 function ioSay(msg, bad){
   audioNoteEl.innerHTML = msg;
@@ -26034,19 +26104,24 @@ function paintNow(){
 /* ⚠️ THE GRID EVERY FRAME ONLY WHILE IT PLAYS, AND THE METER ONLY WHEN IT MOVES — the same reasoning as
    the loop in bs1/ui.js. Both were written sixty times a second with nothing playing and nothing
    coming in, which the Raspberry Pi 4 could not spare (2026-09-13). The meter is read to a whole
-   percent, which is all a bar that size can show. */
+   percent, which is all a bar that size can show.
+   ⚠️ AND NEITHER ASKS FOR FRAMES IT DOES NOT DRAW. The grid's four a second between plays are a timer,
+   and the meter reads its analyser every frame only while the bar is off the floor — ten times a second
+   while it rests, which is how an input that starts is noticed, and not at all with no input open.
+   See Patchwork.animate in shell/host.js. */
+Patchwork.animate(() => grid.paint(), () => seq.SEQ.playing, 250);
 const mbuf = new Float32Array(1024);
-let gridIdleAt = 0;
-(function paintLoop(now){
-  if (seq.SEQ.playing || !(now - gridIdleAt < 250)){ gridIdleAt = now; grid.paint(); }
-  if (modMeter){
+let metering = false;
+Patchwork.animate(() => {
+  let w = "0%";
+  if (modMeter && modSrc){
     modMeter.getFloatTimeDomainData(mbuf);
     let s = 0; for (let i = 0; i < mbuf.length; i++) s += mbuf[i]*mbuf[i];
-    const w = Math.round(Math.min(100, Math.sqrt(s/mbuf.length) * 320)) + "%";
-    if (meterEl.style.width !== w) meterEl.style.width = w;
+    w = Math.round(Math.min(100, Math.sqrt(s/mbuf.length) * 320)) + "%";
   }
-  requestAnimationFrame(paintLoop);
-})(0);
+  metering = w !== "0%";
+  if (meterEl.style.width !== w) meterEl.style.width = w;
+}, () => metering, 100);
 
 /* ---- tempo ---- */
 function setBpm(v, fromShell){
@@ -27326,7 +27401,8 @@ function paintLoop(){
     setStyle(headEl, "left", p + "%");
     /* the state word is paintState's everywhere else; while counting in it is this loop's,
        because it changes every frame and paintState only runs on a mode change */
-    stateEl.textContent = "In " + Math.max(1, Math.ceil(left / beat));
+    const count = "In " + Math.max(1, Math.ceil(left / beat));
+    if (stateEl.textContent !== count) stateEl.textContent = count;
   } else if (LP.len > 0 && LP.mode !== "idle"){
     const p = (LP.pos / LP.len) * 100;
     setStyle(fillEl, "width", p + "%");
@@ -27335,9 +27411,11 @@ function paintLoop(){
     setStyle(fillEl, "width", "0%"); setStyle(headEl, "left", "0%");
   }
   setStyle(meterEl, "width", Math.min(100, LP.peak * 140) + "%");
-  requestAnimationFrame(paintLoop);
 }
-requestAnimationFrame(paintLoop);
+/* ⚠️ FRAMES ONLY WHILE THE LOOPER IS DOING SOMETHING — armed, recording, playing, dubbing, or a meter
+   still falling. Idle, the loop above writes nothing, and it asked for sixty frames a second to find
+   that out. A quarter-second timer covers the rest; see Patchwork.animate in shell/host.js. */
+Patchwork.animate(paintLoop, () => LP.mode !== "idle" || LP.peak > 0, 250);
 
 /* ⚠️ INTO THE TAKE THE PLAYING SCENE NAMES, when it names one. Arming with no slot uses
    LP.slot, which starts at 0 and only moves when somebody picks a take — so a loop recorded
@@ -28424,27 +28502,33 @@ function label(){
        + (f ? " · " + f.name : "")
        + (TS.carry ? " · carry " + TS.carry : "");
 }
+/* ⚠️ WRITTEN ONLY WHEN IT CHANGED: while armed this runs every frame, and four texts and a width set to
+   what they already were are still four changes to the page and a layout. */
+function setText(el, s){ if (el.textContent !== s) el.textContent = s; }
+function setWidth(el, w){ if (el && el.style.width !== w) el.style.width = w; }
 function paintRead(){
-  shapeEl.textContent = label();
-  lenEl.textContent = TS.bars + (TS.bars === 1 ? " bar" : " bars");
+  setText(shapeEl, label());
+  setText(lenEl, TS.bars + (TS.bars === 1 ? " bar" : " bars"));
   armBtn.classList.toggle("on", TS.armed);
-  armBtn.textContent = TS.armed ? "Cancel" : "Arm";
+  setText(armBtn, TS.armed ? "Cancel" : "Arm");
   const left = untilLanding();
   if (!TS.armed){
-    whenEl.textContent = "Idle — arm it and it lands on the next boundary";
-    if (fillMeter) fillMeter.style.width = "0%";
+    setText(whenEl, "Idle — arm it and it lands on the next boundary");
+    setWidth(fillMeter, "0%");
     root.classList.remove("ts-armed");
     return;
   }
   root.classList.add("ts-armed");
   const beats = left / Patchwork.clock.beatSeconds();
-  whenEl.textContent = left > .05
+  setText(whenEl, left > .05
     ? "Lands in " + (beats >= 4 ? (beats / 4).toFixed(1) + " bars" : beats.toFixed(1) + " beats")
-    : "Landing";
+    : "Landing");
   if (fillMeter){
     const dur = Math.max(.001, TS.landAt - TS.startAt);
     const done = Math.max(0, Math.min(1, 1 - left / dur));
-    fillMeter.style.width = (done * 100) + "%";
+    /* in the form the browser reads back — "0.0%" returns as "0%", and a compare that never matched
+       would write every frame */
+    setWidth(fillMeter, Math.round(done * 1000) / 10 + "%");
   }
 }
 
@@ -28452,13 +28536,13 @@ armBtn.addEventListener("click", () => { if (TS.armed) cancel(); else schedule()
 $("#fire").addEventListener("click", () => { if (TS.armed) cancel(); fireNow(); paintRead(); });
 $("#panic").addEventListener("click", () => { cancel(); paintRead(); });
 
-/* rAF rather than an interval: the countdown is a moving number and this is the only thing
-   on the panel that animates. It stops paying for itself the moment nothing is armed. */
-(function paintLoop(){
-  if (TS.armed) paintRead();
-  requestAnimationFrame(paintLoop);
-})();
+/* Frames rather than an interval while armed: the countdown is a moving number and this is the only
+   thing on the panel that animates. ⚠️ AND NO FRAMES AT ALL OTHERWISE. This asked for one sixty times a
+   second forever to check a flag; a change wakes it now, and a quarter-second timer catches an arm
+   nothing announced. See Patchwork.animate in shell/host.js. */
+const countdown = Patchwork.animate(() => { if (TS.armed) paintRead(); }, () => TS.armed, 250);
 onChange(paintRead);
+onChange(() => countdown.wake());
 paintRead();
 
 /* ---- TS·1 on a control surface ----
@@ -29133,12 +29217,17 @@ function paintHead(){
   muteSeg.querySelectorAll("button").forEach(b =>
     b.classList.toggle("on", (b.dataset.m === "off") === t.mute));
   const T = t.style === "drum" ? t.drum.T : t.synth.seq.SEQ;
-  lenSel.value = String(T.len);
-  rateSel.value = T.rate;
-  playBtn.classList.toggle("on", anyPlaying());
-  playBtn.innerHTML = anyPlaying() ? "&#9632; Stop" : "&#9654; Play";
-  nowEl.textContent = "ch " + (sel + 1) + " · " + t.style
-                    + (t.mute ? " · muted" : "") + " · " + T.len + " × " + T.rate;
+  /* ⚠️ EACH WRITTEN ONLY WHEN IT CHANGED. This runs with the playhead, and innerHTML re-parses the
+     same markup as readily as new markup — style and layout for the page every time. */
+  if (lenSel.value !== String(T.len)) lenSel.value = String(T.len);
+  if (rateSel.value !== String(T.rate)) rateSel.value = T.rate;
+  const on = anyPlaying();
+  playBtn.classList.toggle("on", on);
+  const label = on ? "■ Stop" : "▶ Play";
+  if (playBtn.textContent !== label) playBtn.textContent = label;
+  const says = "ch " + (sel + 1) + " · " + t.style
+             + (t.mute ? " · muted" : "") + " · " + T.len + " × " + T.rate;
+  if (nowEl.textContent !== says) nowEl.textContent = says;
 }
 
 function showTrack(){
@@ -29184,13 +29273,17 @@ $("#sqPanic").addEventListener("click", () => { panic(); paintHead(); });
    agree with nothing but the audio clock, so there is nothing to derive them from — they are
    read, every frame, from the marks each track kept. Cheap: one array scan per track, and
    only the visible one is drawn. */
-(function paintLoop(){
-  if (anyPlaying()){
-    if (cur().style === "drum") paintDrum(); else if (grid) grid.paint();
-    paintHead();
-  }
-  requestAnimationFrame(paintLoop);
-})();
+/* ⚠️ FRAMES ONLY WHILE SOMETHING PLAYS, AND THE HEAD FOUR TIMES A SECOND. This asked for a frame
+   sixty times a second whether or not anything played, and while playing rebuilt the head every frame:
+   sixteen track counts (a drum track's is every cell) and the Play button's markup. The head says which
+   tracks hold notes and which run, which no hand reads faster than that; the playhead still moves every
+   frame, and the frame after the last track stops repaints both. See Patchwork.animate in shell/host.js. */
+let headAt = 0;
+Patchwork.animate((now, moving) => {
+  if (!moving) return;
+  if (cur().style === "drum") paintDrum(); else if (grid) grid.paint();
+  if (!anyPlaying() || now - headAt >= 250){ headAt = now; paintHead(); }
+}, anyPlaying, 250);
 
 showTrack();
 
@@ -29648,7 +29741,8 @@ function paintCell(b, ri, id, queued, onRow){
      the number is on them. */
   if (t && t.takeAt){
     const n = t.takeAt(ri);
-    b.textContent = n == null ? "" : String(n + 1);
+    const txt = n == null ? "" : String(n + 1);
+    if (b.textContent !== txt) b.textContent = txt;
   }
   /* ⚠️ AND A PATTERN CELL SAYS WHICH SEQUENCE IT IS, now that an instrument keeps sixteen. A column
      down the launcher then reads as the song's form — 1, 1, 2, 1, 3 — which is the thing being
@@ -29748,6 +29842,20 @@ function mountMeasure(el){
     const k = Math.floor((ctx.currentTime - origin) / bar);
     return ((k % bars) + bars) % bars;
   }
+  /* ⚠️ A TIMER TO THE NEXT BAR LINE, NOT A FRAME LOOP. The lit pip moves once a bar — every two
+     seconds at 120 — and this asked for sixty frames a second to find that out, in two places (the
+     Studio head and the Live page), playing or not. See Patchwork.animate in shell/host.js for what an
+     idle frame loop cost. Waking just past the line and reading the clock then keeps the pip on it, and
+     no wait is longer than a quarter of a second, so a start, a stop or a tempo change shows at once. */
+  function wait(){
+    const ctx = Patchwork.audio && Patchwork.audio.ctx;
+    const origin = Patchwork.clock.origin;
+    if (!ctx || origin == null || !Patchwork.clock.running) return 250;
+    const bar = 4 * Patchwork.clock.beatSeconds();
+    if (!(bar > 0)) return 250;
+    const into = ((ctx.currentTime - origin) % bar + bar) % bar;
+    return Math.max(15, Math.min(250, (bar - into) * 1000 + 8));
+  }
   function tick(){
     const i = at();
     if (i !== lit){
@@ -29755,16 +29863,15 @@ function mountMeasure(el){
       [...el.children].forEach((c, k) => c.classList.toggle("st-now", k === i));
       el.classList.toggle("st-idle", i < 0);
     }
-    requestAnimationFrame(tick);
+    setTimeout(tick, wait());
   }
   build();
-  /* The pips are rebuilt on the SETTING's notification, not in the animation loop: the
-     loop is rAF, which stops dead in a hidden tab, and a control that only answers while
-     you can see it is not a control. Only the lit pip needs a frame. */
+  /* The pips are rebuilt on the SETTING's notification, not in the timer: a count that only changed
+     when the pip next moved would be a control that answers late. */
   Patchwork.scenes.onChange(() => {
     if (bars !== Math.max(1, Patchwork.scenes.patternBars)) build();
   });
-  requestAnimationFrame(tick);
+  tick();
 }
 
 /* Stop everything the launcher can reach. Scene members are stopped by PRESSING their own
@@ -30081,8 +30188,11 @@ if (window.Patchwork.record) Patchwork.record.onChange(paint);
 build();
 /* ⚠️ An instrument's OWN Play button changes what is playing without telling the scene
    model, so a cell could stay ringed after its instrument had stopped. The live page has
-   carried the same repaint for the same reason; the launcher needed one too. */
-setInterval(paint, 400);
+   carried the same repaint for the same reason; the launcher needed one too.
+   ⚠️ ONLY WHILE IT IS ON SCREEN, the way the live page's is: every other view hides the launcher, and
+   asking every cell about itself every 400 ms behind the Tape deck is work nobody sees. Coming back to
+   the Studio view repaints it within a tick. */
+setInterval(() => { if (!grid.closest("[hidden]")) paint(); }, 400);
 })();
 
 /* ---- the master transport ----
@@ -30298,18 +30408,23 @@ if (window.Patchwork && Patchwork.surface){
 
 
 function paint(){
-  out.textContent = Patchwork.clock.shown;
+  /* ⚠️ EACH WRITTEN ONLY WHEN IT CHANGED. This runs every 400 ms, and a text or an attribute set to
+     what it already was still changes the page: the tempo, Stop's disabled and the pattern button's
+     title came to 2.5 changes a second each with nothing happening (2026-09-13). */
+  const bpm = Patchwork.clock.shown == null ? "" : String(Patchwork.clock.shown);
+  if (out.textContent !== bpm) out.textContent = bpm;
   const live = Patchwork.launch.anyPlaying();
   stop.classList.toggle("st-live", live);
-  stop.disabled = !live;
+  if (stop.disabled !== !live) stop.disabled = !live;
   quant.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", b.dataset.q === Patchwork.scenes.quantum));
   barCount.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", +b.dataset.b === Patchwork.scenes.patternBars));
   click.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", (b.dataset.c === "on") === Patchwork.click.on));
-  quant.querySelector('[data-q="pattern"]').title =
-    "Every " + Patchwork.scenes.patternBars + " bars — the pattern length in the Scenes head";
+  const pat = quant.querySelector('[data-q="pattern"]');
+  const patTitle = "Every " + Patchwork.scenes.patternBars + " bars — the pattern length in the Scenes head";
+  if (pat.title !== patTitle) pat.title = patTitle;
 }
 /* no initial: the instruments decide the page's starting tempo between them, and this
    only ever reports it */
@@ -30425,7 +30540,9 @@ paintTalk();
 
 function paint(){
   const on = Patchwork.session.active;
-  btn.textContent = on ? "Leave jam" : "Start a jam";
+  /* every second, so only when it changed — see the head's paint() above */
+  const label = on ? "Leave jam" : "Start a jam";
+  if (btn.textContent !== label) btn.textContent = label;
   btn.classList.toggle("st-on", on);
   joinBtn.hidden = on;
   if (!on){

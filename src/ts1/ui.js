@@ -100,27 +100,33 @@ function label(){
        + (f ? " · " + f.name : "")
        + (TS.carry ? " · carry " + TS.carry : "");
 }
+/* ⚠️ WRITTEN ONLY WHEN IT CHANGED: while armed this runs every frame, and four texts and a width set to
+   what they already were are still four changes to the page and a layout. */
+function setText(el, s){ if (el.textContent !== s) el.textContent = s; }
+function setWidth(el, w){ if (el && el.style.width !== w) el.style.width = w; }
 function paintRead(){
-  shapeEl.textContent = label();
-  lenEl.textContent = TS.bars + (TS.bars === 1 ? " bar" : " bars");
+  setText(shapeEl, label());
+  setText(lenEl, TS.bars + (TS.bars === 1 ? " bar" : " bars"));
   armBtn.classList.toggle("on", TS.armed);
-  armBtn.textContent = TS.armed ? "Cancel" : "Arm";
+  setText(armBtn, TS.armed ? "Cancel" : "Arm");
   const left = untilLanding();
   if (!TS.armed){
-    whenEl.textContent = "Idle — arm it and it lands on the next boundary";
-    if (fillMeter) fillMeter.style.width = "0%";
+    setText(whenEl, "Idle — arm it and it lands on the next boundary");
+    setWidth(fillMeter, "0%");
     root.classList.remove("ts-armed");
     return;
   }
   root.classList.add("ts-armed");
   const beats = left / Patchwork.clock.beatSeconds();
-  whenEl.textContent = left > .05
+  setText(whenEl, left > .05
     ? "Lands in " + (beats >= 4 ? (beats / 4).toFixed(1) + " bars" : beats.toFixed(1) + " beats")
-    : "Landing";
+    : "Landing");
   if (fillMeter){
     const dur = Math.max(.001, TS.landAt - TS.startAt);
     const done = Math.max(0, Math.min(1, 1 - left / dur));
-    fillMeter.style.width = (done * 100) + "%";
+    /* in the form the browser reads back — "0.0%" returns as "0%", and a compare that never matched
+       would write every frame */
+    setWidth(fillMeter, Math.round(done * 1000) / 10 + "%");
   }
 }
 
@@ -128,13 +134,13 @@ armBtn.addEventListener("click", () => { if (TS.armed) cancel(); else schedule()
 $("#fire").addEventListener("click", () => { if (TS.armed) cancel(); fireNow(); paintRead(); });
 $("#panic").addEventListener("click", () => { cancel(); paintRead(); });
 
-/* rAF rather than an interval: the countdown is a moving number and this is the only thing
-   on the panel that animates. It stops paying for itself the moment nothing is armed. */
-(function paintLoop(){
-  if (TS.armed) paintRead();
-  requestAnimationFrame(paintLoop);
-})();
+/* Frames rather than an interval while armed: the countdown is a moving number and this is the only
+   thing on the panel that animates. ⚠️ AND NO FRAMES AT ALL OTHERWISE. This asked for one sixty times a
+   second forever to check a flag; a change wakes it now, and a quarter-second timer catches an arm
+   nothing announced. See Patchwork.animate in shell/host.js. */
+const countdown = Patchwork.animate(() => { if (TS.armed) paintRead(); }, () => TS.armed, 250);
 onChange(paintRead);
+onChange(() => countdown.wake());
 paintRead();
 
 /* ---- TS·1 on a control surface ----

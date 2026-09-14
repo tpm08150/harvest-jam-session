@@ -558,6 +558,15 @@ function stopPlay(){
   });
   clearSteps();
 }
+/* ⚠️ A WIPE IS WRITTEN ONLY WHEN IT MOVED, AND FOUND ONCE. Every card's wipe was looked up and set every
+   frame while playing — "0%" on all but one of them. The number is in the form the browser reads back
+   ("12%", not "12.0%"), or the compare would never match. A card rebuilt on resize is a new key. */
+const csWipes = new WeakMap();
+function csWipeOf(card){
+  let w = csWipes.get(card);
+  if (!w){ w = card.querySelector(".wipe"); if (w) csWipes.set(card, w); }
+  return w;
+}
 function paint(){
   if (!state.playing) return;
   const now = ctx.currentTime;
@@ -567,7 +576,9 @@ function paint(){
   cards.forEach((c, idx) => {
     const on = cur && cur.i === idx;
     c.classList.toggle("on", !!on || litPads.has(idx));
-    c.querySelector(".wipe").style.width = on ? (((now - cur.t)/(cur.end - cur.t))*100).toFixed(1) + "%" : "0%";
+    const w = on ? Math.round(((now - cur.t)/(cur.end - cur.t)) * 1000) / 10 + "%" : "0%";
+    const wipe = csWipeOf(c);
+    if (wipe && wipe.style.width !== w) wipe.style.width = w;
   });
   paintSteps(cur, now);
   requestAnimationFrame(paint);

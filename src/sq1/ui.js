@@ -231,12 +231,17 @@ function paintHead(){
   muteSeg.querySelectorAll("button").forEach(b =>
     b.classList.toggle("on", (b.dataset.m === "off") === t.mute));
   const T = t.style === "drum" ? t.drum.T : t.synth.seq.SEQ;
-  lenSel.value = String(T.len);
-  rateSel.value = T.rate;
-  playBtn.classList.toggle("on", anyPlaying());
-  playBtn.innerHTML = anyPlaying() ? "&#9632; Stop" : "&#9654; Play";
-  nowEl.textContent = "ch " + (sel + 1) + " · " + t.style
-                    + (t.mute ? " · muted" : "") + " · " + T.len + " × " + T.rate;
+  /* ⚠️ EACH WRITTEN ONLY WHEN IT CHANGED. This runs with the playhead, and innerHTML re-parses the
+     same markup as readily as new markup — style and layout for the page every time. */
+  if (lenSel.value !== String(T.len)) lenSel.value = String(T.len);
+  if (rateSel.value !== String(T.rate)) rateSel.value = T.rate;
+  const on = anyPlaying();
+  playBtn.classList.toggle("on", on);
+  const label = on ? "■ Stop" : "▶ Play";
+  if (playBtn.textContent !== label) playBtn.textContent = label;
+  const says = "ch " + (sel + 1) + " · " + t.style
+             + (t.mute ? " · muted" : "") + " · " + T.len + " × " + T.rate;
+  if (nowEl.textContent !== says) nowEl.textContent = says;
 }
 
 function showTrack(){
@@ -282,12 +287,16 @@ $("#sqPanic").addEventListener("click", () => { panic(); paintHead(); });
    agree with nothing but the audio clock, so there is nothing to derive them from — they are
    read, every frame, from the marks each track kept. Cheap: one array scan per track, and
    only the visible one is drawn. */
-(function paintLoop(){
-  if (anyPlaying()){
-    if (cur().style === "drum") paintDrum(); else if (grid) grid.paint();
-    paintHead();
-  }
-  requestAnimationFrame(paintLoop);
-})();
+/* ⚠️ FRAMES ONLY WHILE SOMETHING PLAYS, AND THE HEAD FOUR TIMES A SECOND. This asked for a frame
+   sixty times a second whether or not anything played, and while playing rebuilt the head every frame:
+   sixteen track counts (a drum track's is every cell) and the Play button's markup. The head says which
+   tracks hold notes and which run, which no hand reads faster than that; the playhead still moves every
+   frame, and the frame after the last track stops repaints both. See Patchwork.animate in shell/host.js. */
+let headAt = 0;
+Patchwork.animate((now, moving) => {
+  if (!moving) return;
+  if (cur().style === "drum") paintDrum(); else if (grid) grid.paint();
+  if (!anyPlaying() || now - headAt >= 250){ headAt = now; paintHead(); }
+}, anyPlaying, 250);
 
 showTrack();

@@ -1111,7 +1111,43 @@ function onKey(root, type, fn){
    just stops the routing table growing without bound. */
 window.addEventListener("blur", () => pressed.clear());
 
-return {instrument, onKey, focus,
+/* ---- a loop that asks for frames only while something moves ----
+   ⚠️ A FRAME ASKED FOR IS A FRAME MADE, whatever the callback then does with it. A loop that requests the
+   next animation frame from every frame keeps the compositor running at the display's rate, and the rack
+   had seven that never stopped — BS·1, VC·1, LP·1, TS·1, SQ·1 and the launcher's two bar counters, 422
+   requests a second with nothing playing. Measured in Chrome 152 on a laptop (2026-09-13): the idle
+   browser spent 0.36 s of CPU a second, and 0.14 with those requests stubbed out. The Raspberry Pi 4 the
+   rack was burned onto got two frames a second.
+
+   So `draw(now, moving)` runs every frame while `busy()` says something is in motion, and every `idle`
+   milliseconds on a plain timer otherwise — a timer asks nothing of the compositor — or not at all with
+   idle 0. Each timer tick asks busy() again, so motion nobody announced is picked up within a tick;
+   `wake()` is for a caller that knows it has just started something and wants the first frame now. The
+   frame after motion stops still draws, with moving true, which is what clears a playhead. */
+function animate(draw, busy, idle){
+  const every = idle == null ? 250 : idle;
+  let frame = 0, timer = 0;
+  const moving = () => { try{ return !!busy(); }catch(e){ return false; } };
+  function run(now, inMotion){
+    try{ draw(now, inMotion); }catch(e){ console.error("animation failed", e); }
+  }
+  function schedule(){
+    if (frame || timer) return;
+    if (moving()){
+      frame = requestAnimationFrame(now => { frame = 0; run(now, true); schedule(); });
+    } else if (every > 0){
+      timer = setTimeout(() => {
+        timer = 0;
+        if (!moving()) run(performance.now(), false);
+        schedule();
+      }, every);
+    }
+  }
+  schedule();
+  return {wake(){ if (timer && moving()){ clearTimeout(timer); timer = 0; } schedule(); }};
+}
+
+return {instrument, onKey, focus, animate,
         get roots(){ return roots.slice(); },
         get focused(){ return focused; }};
 })();
@@ -9241,21 +9277,26 @@ Patchwork.mountClearSeq = function(btn, o){
 if (!btn || !o) return {paint(){}};
 let undo = null;
 
+/* ⚠️ EACH PROPERTY SET ONLY WHEN IT CHANGED. The grid's paint calls this, and BS·1's and VC·1's grids
+   paint four times a second with nothing playing, so the label, disabled and title were rewritten to
+   what they already were twelve times a second between the two — the last of the idle page's DOM
+   changes that had nothing behind them (2026-09-13). */
+function set(prop, value){ if (btn[prop] !== value) btn[prop] = value; }
 function paint(){
   const n = o.count();
   if (n > 0){
     undo = undo && null;          // something is in there; the old pattern is not coming back
-    btn.textContent = "Clear";
-    btn.disabled = false;
+    set("textContent", "Clear");
+    set("disabled", false);
     btn.classList.remove("on");
-    btn.title = "Empty the sequence — " + n + (n === 1 ? " step" : " steps") + ".";
+    set("title", "Empty the sequence — " + n + (n === 1 ? " step" : " steps") + ".");
     return;
   }
-  btn.textContent = undo ? "Undo" : "Clear";
-  btn.disabled = !undo;
+  set("textContent", undo ? "Undo" : "Clear");
+  set("disabled", !undo);
   btn.classList.toggle("on", !!undo);
-  btn.title = undo ? "Put the cleared pattern back."
-                   : "Nothing in the sequence to clear.";
+  set("title", undo ? "Put the cleared pattern back."
+                    : "Nothing in the sequence to clear.");
 }
 
 btn.addEventListener("click", () => {
@@ -12109,15 +12150,21 @@ function paint(){
 /* peak meter — the only way to know a patch is hot without guessing */
 let peakHold = 0, peakAt = 0;
 const meterEl = $("#ioStats");
+/* ⚠️ ONE BUFFER, AND THE READOUT FOUR TIMES A SECOND. This made a new array the analyser's size and
+   rebuilt the stats line's markup every frame the sequencer played. The peak it shows is held for a
+   second and a half, so a quarter-second refresh shows the same thing, and ioStats writes only when
+   the line reads differently. */
+let pmMeterBuf = null, pmStatsAt = 0;
 function meterTick(){
   if (!analyser) return;
-  const buf = new Float32Array(analyser.fftSize);
+  if (!pmMeterBuf || pmMeterBuf.length !== analyser.fftSize) pmMeterBuf = new Float32Array(analyser.fftSize);
+  const buf = pmMeterBuf;
   analyser.getFloatTimeDomainData(buf);
   let pk = 0;
   for (let i = 0; i < buf.length; i++){ const a = Math.abs(buf[i]); if (a > pk) pk = a; }
   const now = performance.now();
   if (pk >= peakHold || now - peakAt > 1500){ peakHold = pk; peakAt = now; }
-  ioStats(peakHold);
+  if (now - pmStatsAt >= 250){ pmStatsAt = now; ioStats(peakHold); }
 }
 
 /* ---- transport controls ---- */
@@ -13016,7 +13063,7 @@ const audioOutSel = $("#audioOut"), audioNoteEl = $("#audioNote"), audioLed = $(
    plus a peak reading so a hot patch is visible rather than guessed at */
 function ioStats(peak){
   const el = $("#ioStats");
-  if (!ctx){ el.innerHTML = ""; return; }
+  if (!ctx){ el.innerHTML = ""; el.__stats = ""; return; }
   const bits = ["audio <b" + (ctx.state === "running" ? ">" : " style=\"color:#e8b23a\">") + ctx.state + "</b>",
                 "rate <b>" + (ctx.sampleRate/1000).toFixed(1) + " kHz</b>"];
   if (ctx.baseLatency != null)   bits.push("buffer <b>" + (ctx.baseLatency*1000).toFixed(1) + " ms</b>");
@@ -13025,7 +13072,10 @@ function ioStats(peak){
     const dbv = 20*Math.log10(peak);
     bits.push("peak <b class=\"" + (dbv > -0.5 ? "hot" : "") + "\">" + dbv.toFixed(1) + " dBFS</b>");
   }
-  el.innerHTML = bits.map(b => "<span>"+b+"</span>").join("");
+  /* compared with the string this last wrote, not read back: innerHTML re-parses identical markup as
+     readily as new, and the browser's serialisation of it is not the string that made it */
+  const html = bits.map(b => "<span>"+b+"</span>").join("");
+  if (el.__stats !== html){ el.__stats = html; el.innerHTML = html; }
 }
 function ioSay(msg, bad){
   audioNoteEl.innerHTML = msg;

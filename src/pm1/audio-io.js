@@ -5,7 +5,7 @@ const audioOutSel = $("#audioOut"), audioNoteEl = $("#audioNote"), audioLed = $(
    plus a peak reading so a hot patch is visible rather than guessed at */
 function ioStats(peak){
   const el = $("#ioStats");
-  if (!ctx){ el.innerHTML = ""; return; }
+  if (!ctx){ el.innerHTML = ""; el.__stats = ""; return; }
   const bits = ["audio <b" + (ctx.state === "running" ? ">" : " style=\"color:#e8b23a\">") + ctx.state + "</b>",
                 "rate <b>" + (ctx.sampleRate/1000).toFixed(1) + " kHz</b>"];
   if (ctx.baseLatency != null)   bits.push("buffer <b>" + (ctx.baseLatency*1000).toFixed(1) + " ms</b>");
@@ -14,7 +14,10 @@ function ioStats(peak){
     const dbv = 20*Math.log10(peak);
     bits.push("peak <b class=\"" + (dbv > -0.5 ? "hot" : "") + "\">" + dbv.toFixed(1) + " dBFS</b>");
   }
-  el.innerHTML = bits.map(b => "<span>"+b+"</span>").join("");
+  /* compared with the string this last wrote, not read back: innerHTML re-parses identical markup as
+     readily as new, and the browser's serialisation of it is not the string that made it */
+  const html = bits.map(b => "<span>"+b+"</span>").join("");
+  if (el.__stats !== html){ el.__stats = html; el.innerHTML = html; }
 }
 function ioSay(msg, bad){
   audioNoteEl.innerHTML = msg;

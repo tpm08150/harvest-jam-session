@@ -579,15 +579,21 @@ function paint(){
 /* peak meter — the only way to know a patch is hot without guessing */
 let peakHold = 0, peakAt = 0;
 const meterEl = $("#ioStats");
+/* ⚠️ ONE BUFFER, AND THE READOUT FOUR TIMES A SECOND. This made a new array the analyser's size and
+   rebuilt the stats line's markup every frame the sequencer played. The peak it shows is held for a
+   second and a half, so a quarter-second refresh shows the same thing, and ioStats writes only when
+   the line reads differently. */
+let pmMeterBuf = null, pmStatsAt = 0;
 function meterTick(){
   if (!analyser) return;
-  const buf = new Float32Array(analyser.fftSize);
+  if (!pmMeterBuf || pmMeterBuf.length !== analyser.fftSize) pmMeterBuf = new Float32Array(analyser.fftSize);
+  const buf = pmMeterBuf;
   analyser.getFloatTimeDomainData(buf);
   let pk = 0;
   for (let i = 0; i < buf.length; i++){ const a = Math.abs(buf[i]); if (a > pk) pk = a; }
   const now = performance.now();
   if (pk >= peakHold || now - peakAt > 1500){ peakHold = pk; peakAt = now; }
-  ioStats(peakHold);
+  if (now - pmStatsAt >= 250){ pmStatsAt = now; ioStats(peakHold); }
 }
 
 /* ---- transport controls ---- */

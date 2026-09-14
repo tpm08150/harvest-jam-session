@@ -127,7 +127,8 @@ function paintLoop(){
     setStyle(headEl, "left", p + "%");
     /* the state word is paintState's everywhere else; while counting in it is this loop's,
        because it changes every frame and paintState only runs on a mode change */
-    stateEl.textContent = "In " + Math.max(1, Math.ceil(left / beat));
+    const count = "In " + Math.max(1, Math.ceil(left / beat));
+    if (stateEl.textContent !== count) stateEl.textContent = count;
   } else if (LP.len > 0 && LP.mode !== "idle"){
     const p = (LP.pos / LP.len) * 100;
     setStyle(fillEl, "width", p + "%");
@@ -136,9 +137,11 @@ function paintLoop(){
     setStyle(fillEl, "width", "0%"); setStyle(headEl, "left", "0%");
   }
   setStyle(meterEl, "width", Math.min(100, LP.peak * 140) + "%");
-  requestAnimationFrame(paintLoop);
 }
-requestAnimationFrame(paintLoop);
+/* ⚠️ FRAMES ONLY WHILE THE LOOPER IS DOING SOMETHING — armed, recording, playing, dubbing, or a meter
+   still falling. Idle, the loop above writes nothing, and it asked for sixty frames a second to find
+   that out. A quarter-second timer covers the rest; see Patchwork.animate in shell/host.js. */
+Patchwork.animate(paintLoop, () => LP.mode !== "idle" || LP.peak > 0, 250);
 
 /* ⚠️ INTO THE TAKE THE PLAYING SCENE NAMES, when it names one. Arming with no slot uses
    LP.slot, which starts at 0 and only moves when somebody picks a take — so a loop recorded

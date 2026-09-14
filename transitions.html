@@ -628,7 +628,43 @@ function onKey(root, type, fn){
    just stops the routing table growing without bound. */
 window.addEventListener("blur", () => pressed.clear());
 
-return {instrument, onKey, focus,
+/* ---- a loop that asks for frames only while something moves ----
+   ⚠️ A FRAME ASKED FOR IS A FRAME MADE, whatever the callback then does with it. A loop that requests the
+   next animation frame from every frame keeps the compositor running at the display's rate, and the rack
+   had seven that never stopped — BS·1, VC·1, LP·1, TS·1, SQ·1 and the launcher's two bar counters, 422
+   requests a second with nothing playing. Measured in Chrome 152 on a laptop (2026-09-13): the idle
+   browser spent 0.36 s of CPU a second, and 0.14 with those requests stubbed out. The Raspberry Pi 4 the
+   rack was burned onto got two frames a second.
+
+   So `draw(now, moving)` runs every frame while `busy()` says something is in motion, and every `idle`
+   milliseconds on a plain timer otherwise — a timer asks nothing of the compositor — or not at all with
+   idle 0. Each timer tick asks busy() again, so motion nobody announced is picked up within a tick;
+   `wake()` is for a caller that knows it has just started something and wants the first frame now. The
+   frame after motion stops still draws, with moving true, which is what clears a playhead. */
+function animate(draw, busy, idle){
+  const every = idle == null ? 250 : idle;
+  let frame = 0, timer = 0;
+  const moving = () => { try{ return !!busy(); }catch(e){ return false; } };
+  function run(now, inMotion){
+    try{ draw(now, inMotion); }catch(e){ console.error("animation failed", e); }
+  }
+  function schedule(){
+    if (frame || timer) return;
+    if (moving()){
+      frame = requestAnimationFrame(now => { frame = 0; run(now, true); schedule(); });
+    } else if (every > 0){
+      timer = setTimeout(() => {
+        timer = 0;
+        if (!moving()) run(performance.now(), false);
+        schedule();
+      }, every);
+    }
+  }
+  schedule();
+  return {wake(){ if (timer && moving()){ clearTimeout(timer); timer = 0; } schedule(); }};
+}
+
+return {instrument, onKey, focus, animate,
         get roots(){ return roots.slice(); },
         get focused(){ return focused; }};
 })();
@@ -8758,21 +8794,26 @@ Patchwork.mountClearSeq = function(btn, o){
 if (!btn || !o) return {paint(){}};
 let undo = null;
 
+/* ⚠️ EACH PROPERTY SET ONLY WHEN IT CHANGED. The grid's paint calls this, and BS·1's and VC·1's grids
+   paint four times a second with nothing playing, so the label, disabled and title were rewritten to
+   what they already were twelve times a second between the two — the last of the idle page's DOM
+   changes that had nothing behind them (2026-09-13). */
+function set(prop, value){ if (btn[prop] !== value) btn[prop] = value; }
 function paint(){
   const n = o.count();
   if (n > 0){
     undo = undo && null;          // something is in there; the old pattern is not coming back
-    btn.textContent = "Clear";
-    btn.disabled = false;
+    set("textContent", "Clear");
+    set("disabled", false);
     btn.classList.remove("on");
-    btn.title = "Empty the sequence — " + n + (n === 1 ? " step" : " steps") + ".";
+    set("title", "Empty the sequence — " + n + (n === 1 ? " step" : " steps") + ".");
     return;
   }
-  btn.textContent = undo ? "Undo" : "Clear";
-  btn.disabled = !undo;
+  set("textContent", undo ? "Undo" : "Clear");
+  set("disabled", !undo);
   btn.classList.toggle("on", !!undo);
-  btn.title = undo ? "Put the cleared pattern back."
-                   : "Nothing in the sequence to clear.";
+  set("title", undo ? "Put the cleared pattern back."
+                    : "Nothing in the sequence to clear.");
 }
 
 btn.addEventListener("click", () => {
@@ -9401,27 +9442,33 @@ function label(){
        + (f ? " · " + f.name : "")
        + (TS.carry ? " · carry " + TS.carry : "");
 }
+/* ⚠️ WRITTEN ONLY WHEN IT CHANGED: while armed this runs every frame, and four texts and a width set to
+   what they already were are still four changes to the page and a layout. */
+function setText(el, s){ if (el.textContent !== s) el.textContent = s; }
+function setWidth(el, w){ if (el && el.style.width !== w) el.style.width = w; }
 function paintRead(){
-  shapeEl.textContent = label();
-  lenEl.textContent = TS.bars + (TS.bars === 1 ? " bar" : " bars");
+  setText(shapeEl, label());
+  setText(lenEl, TS.bars + (TS.bars === 1 ? " bar" : " bars"));
   armBtn.classList.toggle("on", TS.armed);
-  armBtn.textContent = TS.armed ? "Cancel" : "Arm";
+  setText(armBtn, TS.armed ? "Cancel" : "Arm");
   const left = untilLanding();
   if (!TS.armed){
-    whenEl.textContent = "Idle — arm it and it lands on the next boundary";
-    if (fillMeter) fillMeter.style.width = "0%";
+    setText(whenEl, "Idle — arm it and it lands on the next boundary");
+    setWidth(fillMeter, "0%");
     root.classList.remove("ts-armed");
     return;
   }
   root.classList.add("ts-armed");
   const beats = left / Patchwork.clock.beatSeconds();
-  whenEl.textContent = left > .05
+  setText(whenEl, left > .05
     ? "Lands in " + (beats >= 4 ? (beats / 4).toFixed(1) + " bars" : beats.toFixed(1) + " beats")
-    : "Landing";
+    : "Landing");
   if (fillMeter){
     const dur = Math.max(.001, TS.landAt - TS.startAt);
     const done = Math.max(0, Math.min(1, 1 - left / dur));
-    fillMeter.style.width = (done * 100) + "%";
+    /* in the form the browser reads back — "0.0%" returns as "0%", and a compare that never matched
+       would write every frame */
+    setWidth(fillMeter, Math.round(done * 1000) / 10 + "%");
   }
 }
 
@@ -9429,13 +9476,13 @@ armBtn.addEventListener("click", () => { if (TS.armed) cancel(); else schedule()
 $("#fire").addEventListener("click", () => { if (TS.armed) cancel(); fireNow(); paintRead(); });
 $("#panic").addEventListener("click", () => { cancel(); paintRead(); });
 
-/* rAF rather than an interval: the countdown is a moving number and this is the only thing
-   on the panel that animates. It stops paying for itself the moment nothing is armed. */
-(function paintLoop(){
-  if (TS.armed) paintRead();
-  requestAnimationFrame(paintLoop);
-})();
+/* Frames rather than an interval while armed: the countdown is a moving number and this is the only
+   thing on the panel that animates. ⚠️ AND NO FRAMES AT ALL OTHERWISE. This asked for one sixty times a
+   second forever to check a flag; a change wakes it now, and a quarter-second timer catches an arm
+   nothing announced. See Patchwork.animate in shell/host.js. */
+const countdown = Patchwork.animate(() => { if (TS.armed) paintRead(); }, () => TS.armed, 250);
 onChange(paintRead);
+onChange(() => countdown.wake());
 paintRead();
 
 /* ---- TS·1 on a control surface ----

@@ -1011,7 +1011,43 @@ function onKey(root, type, fn){
    just stops the routing table growing without bound. */
 window.addEventListener("blur", () => pressed.clear());
 
-return {instrument, onKey, focus,
+/* ---- a loop that asks for frames only while something moves ----
+   ⚠️ A FRAME ASKED FOR IS A FRAME MADE, whatever the callback then does with it. A loop that requests the
+   next animation frame from every frame keeps the compositor running at the display's rate, and the rack
+   had seven that never stopped — BS·1, VC·1, LP·1, TS·1, SQ·1 and the launcher's two bar counters, 422
+   requests a second with nothing playing. Measured in Chrome 152 on a laptop (2026-09-13): the idle
+   browser spent 0.36 s of CPU a second, and 0.14 with those requests stubbed out. The Raspberry Pi 4 the
+   rack was burned onto got two frames a second.
+
+   So `draw(now, moving)` runs every frame while `busy()` says something is in motion, and every `idle`
+   milliseconds on a plain timer otherwise — a timer asks nothing of the compositor — or not at all with
+   idle 0. Each timer tick asks busy() again, so motion nobody announced is picked up within a tick;
+   `wake()` is for a caller that knows it has just started something and wants the first frame now. The
+   frame after motion stops still draws, with moving true, which is what clears a playhead. */
+function animate(draw, busy, idle){
+  const every = idle == null ? 250 : idle;
+  let frame = 0, timer = 0;
+  const moving = () => { try{ return !!busy(); }catch(e){ return false; } };
+  function run(now, inMotion){
+    try{ draw(now, inMotion); }catch(e){ console.error("animation failed", e); }
+  }
+  function schedule(){
+    if (frame || timer) return;
+    if (moving()){
+      frame = requestAnimationFrame(now => { frame = 0; run(now, true); schedule(); });
+    } else if (every > 0){
+      timer = setTimeout(() => {
+        timer = 0;
+        if (!moving()) run(performance.now(), false);
+        schedule();
+      }, every);
+    }
+  }
+  schedule();
+  return {wake(){ if (timer && moving()){ clearTimeout(timer); timer = 0; } schedule(); }};
+}
+
+return {instrument, onKey, focus, animate,
         get roots(){ return roots.slice(); },
         get focused(){ return focused; }};
 })();
@@ -9141,21 +9177,26 @@ Patchwork.mountClearSeq = function(btn, o){
 if (!btn || !o) return {paint(){}};
 let undo = null;
 
+/* ⚠️ EACH PROPERTY SET ONLY WHEN IT CHANGED. The grid's paint calls this, and BS·1's and VC·1's grids
+   paint four times a second with nothing playing, so the label, disabled and title were rewritten to
+   what they already were twelve times a second between the two — the last of the idle page's DOM
+   changes that had nothing behind them (2026-09-13). */
+function set(prop, value){ if (btn[prop] !== value) btn[prop] = value; }
 function paint(){
   const n = o.count();
   if (n > 0){
     undo = undo && null;          // something is in there; the old pattern is not coming back
-    btn.textContent = "Clear";
-    btn.disabled = false;
+    set("textContent", "Clear");
+    set("disabled", false);
     btn.classList.remove("on");
-    btn.title = "Empty the sequence — " + n + (n === 1 ? " step" : " steps") + ".";
+    set("title", "Empty the sequence — " + n + (n === 1 ? " step" : " steps") + ".");
     return;
   }
-  btn.textContent = undo ? "Undo" : "Clear";
-  btn.disabled = !undo;
+  set("textContent", undo ? "Undo" : "Clear");
+  set("disabled", !undo);
   btn.classList.toggle("on", !!undo);
-  btn.title = undo ? "Put the cleared pattern back."
-                   : "Nothing in the sequence to clear.";
+  set("title", undo ? "Put the cleared pattern back."
+                    : "Nothing in the sequence to clear.");
 }
 
 btn.addEventListener("click", () => {
@@ -10054,6 +10095,15 @@ function stopPlay(){
   });
   clearSteps();
 }
+/* ⚠️ A WIPE IS WRITTEN ONLY WHEN IT MOVED, AND FOUND ONCE. Every card's wipe was looked up and set every
+   frame while playing — "0%" on all but one of them. The number is in the form the browser reads back
+   ("12%", not "12.0%"), or the compare would never match. A card rebuilt on resize is a new key. */
+const csWipes = new WeakMap();
+function csWipeOf(card){
+  let w = csWipes.get(card);
+  if (!w){ w = card.querySelector(".wipe"); if (w) csWipes.set(card, w); }
+  return w;
+}
 function paint(){
   if (!state.playing) return;
   const now = ctx.currentTime;
@@ -10063,7 +10113,9 @@ function paint(){
   cards.forEach((c, idx) => {
     const on = cur && cur.i === idx;
     c.classList.toggle("on", !!on || litPads.has(idx));
-    c.querySelector(".wipe").style.width = on ? (((now - cur.t)/(cur.end - cur.t))*100).toFixed(1) + "%" : "0%";
+    const w = on ? Math.round(((now - cur.t)/(cur.end - cur.t)) * 1000) / 10 + "%" : "0%";
+    const wipe = csWipeOf(c);
+    if (wipe && wipe.style.width !== w) wipe.style.width = w;
   });
   paintSteps(cur, now);
   requestAnimationFrame(paint);

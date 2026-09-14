@@ -236,19 +236,24 @@ function paintNow(){
 /* ⚠️ THE GRID EVERY FRAME ONLY WHILE IT PLAYS, AND THE METER ONLY WHEN IT MOVES — the same reasoning as
    the loop in bs1/ui.js. Both were written sixty times a second with nothing playing and nothing
    coming in, which the Raspberry Pi 4 could not spare (2026-09-13). The meter is read to a whole
-   percent, which is all a bar that size can show. */
+   percent, which is all a bar that size can show.
+   ⚠️ AND NEITHER ASKS FOR FRAMES IT DOES NOT DRAW. The grid's four a second between plays are a timer,
+   and the meter reads its analyser every frame only while the bar is off the floor — ten times a second
+   while it rests, which is how an input that starts is noticed, and not at all with no input open.
+   See Patchwork.animate in shell/host.js. */
+Patchwork.animate(() => grid.paint(), () => seq.SEQ.playing, 250);
 const mbuf = new Float32Array(1024);
-let gridIdleAt = 0;
-(function paintLoop(now){
-  if (seq.SEQ.playing || !(now - gridIdleAt < 250)){ gridIdleAt = now; grid.paint(); }
-  if (modMeter){
+let metering = false;
+Patchwork.animate(() => {
+  let w = "0%";
+  if (modMeter && modSrc){
     modMeter.getFloatTimeDomainData(mbuf);
     let s = 0; for (let i = 0; i < mbuf.length; i++) s += mbuf[i]*mbuf[i];
-    const w = Math.round(Math.min(100, Math.sqrt(s/mbuf.length) * 320)) + "%";
-    if (meterEl.style.width !== w) meterEl.style.width = w;
+    w = Math.round(Math.min(100, Math.sqrt(s/mbuf.length) * 320)) + "%";
   }
-  requestAnimationFrame(paintLoop);
-})(0);
+  metering = w !== "0%";
+  if (meterEl.style.width !== w) meterEl.style.width = w;
+}, () => metering, 100);
 
 /* ---- tempo ---- */
 function setBpm(v, fromShell){

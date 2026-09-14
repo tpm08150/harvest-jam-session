@@ -749,7 +749,43 @@ function onKey(root, type, fn){
    just stops the routing table growing without bound. */
 window.addEventListener("blur", () => pressed.clear());
 
-return {instrument, onKey, focus,
+/* ---- a loop that asks for frames only while something moves ----
+   ⚠️ A FRAME ASKED FOR IS A FRAME MADE, whatever the callback then does with it. A loop that requests the
+   next animation frame from every frame keeps the compositor running at the display's rate, and the rack
+   had seven that never stopped — BS·1, VC·1, LP·1, TS·1, SQ·1 and the launcher's two bar counters, 422
+   requests a second with nothing playing. Measured in Chrome 152 on a laptop (2026-09-13): the idle
+   browser spent 0.36 s of CPU a second, and 0.14 with those requests stubbed out. The Raspberry Pi 4 the
+   rack was burned onto got two frames a second.
+
+   So `draw(now, moving)` runs every frame while `busy()` says something is in motion, and every `idle`
+   milliseconds on a plain timer otherwise — a timer asks nothing of the compositor — or not at all with
+   idle 0. Each timer tick asks busy() again, so motion nobody announced is picked up within a tick;
+   `wake()` is for a caller that knows it has just started something and wants the first frame now. The
+   frame after motion stops still draws, with moving true, which is what clears a playhead. */
+function animate(draw, busy, idle){
+  const every = idle == null ? 250 : idle;
+  let frame = 0, timer = 0;
+  const moving = () => { try{ return !!busy(); }catch(e){ return false; } };
+  function run(now, inMotion){
+    try{ draw(now, inMotion); }catch(e){ console.error("animation failed", e); }
+  }
+  function schedule(){
+    if (frame || timer) return;
+    if (moving()){
+      frame = requestAnimationFrame(now => { frame = 0; run(now, true); schedule(); });
+    } else if (every > 0){
+      timer = setTimeout(() => {
+        timer = 0;
+        if (!moving()) run(performance.now(), false);
+        schedule();
+      }, every);
+    }
+  }
+  schedule();
+  return {wake(){ if (timer && moving()){ clearTimeout(timer); timer = 0; } schedule(); }};
+}
+
+return {instrument, onKey, focus, animate,
         get roots(){ return roots.slice(); },
         get focused(){ return focused; }};
 })();
@@ -8879,21 +8915,26 @@ Patchwork.mountClearSeq = function(btn, o){
 if (!btn || !o) return {paint(){}};
 let undo = null;
 
+/* ⚠️ EACH PROPERTY SET ONLY WHEN IT CHANGED. The grid's paint calls this, and BS·1's and VC·1's grids
+   paint four times a second with nothing playing, so the label, disabled and title were rewritten to
+   what they already were twelve times a second between the two — the last of the idle page's DOM
+   changes that had nothing behind them (2026-09-13). */
+function set(prop, value){ if (btn[prop] !== value) btn[prop] = value; }
 function paint(){
   const n = o.count();
   if (n > 0){
     undo = undo && null;          // something is in there; the old pattern is not coming back
-    btn.textContent = "Clear";
-    btn.disabled = false;
+    set("textContent", "Clear");
+    set("disabled", false);
     btn.classList.remove("on");
-    btn.title = "Empty the sequence — " + n + (n === 1 ? " step" : " steps") + ".";
+    set("title", "Empty the sequence — " + n + (n === 1 ? " step" : " steps") + ".");
     return;
   }
-  btn.textContent = undo ? "Undo" : "Clear";
-  btn.disabled = !undo;
+  set("textContent", undo ? "Undo" : "Clear");
+  set("disabled", !undo);
   btn.classList.toggle("on", !!undo);
-  btn.title = undo ? "Put the cleared pattern back."
-                   : "Nothing in the sequence to clear.";
+  set("title", undo ? "Put the cleared pattern back."
+                    : "Nothing in the sequence to clear.");
 }
 
 btn.addEventListener("click", () => {
@@ -9782,13 +9823,24 @@ function flashLane(id){
    Painted from the marks the scheduler left, looked up against the audio clock — the
    same approach CS·1 and MS·1 use. Reading stepIndex directly would show the lookahead's
    position, which is up to 200 ms ahead of what you can hear. */
+/* ⚠️ ONLY THE COLUMN THAT MOVED. This toggled all 512 pads — eight lanes of sixty-four, most of them
+   hidden — every frame, to move one column of eight along once a sixteenth: the heaviest thing the rack
+   did per frame while playing (2026-09-13). The lit column is remembered, and a frame that finds the
+   same one touches nothing. */
+let drHeadCol = -1;
+function drLightColumn(i){
+  if (i === drHeadCol) return;
+  if (drHeadCol >= 0) $$('.pad[data-i="' + drHeadCol + '"]').forEach(b => b.classList.remove("now"));
+  if (i >= 0) $$('.pad[data-i="' + i + '"]').forEach(b => b.classList.add("now"));
+  drHeadCol = i;
+}
 function paint(){
   if (!SEQ.playing){ clearMarks(); return; }
   const now = ctx.currentTime;
   let cur = -1;
   for (let k = marks.length - 1; k >= 0; k--)
     if (marks[k].t <= now && now < marks[k].end){ cur = marks[k].i; break; }
-  $$(".pad").forEach(b => b.classList.toggle("now", +b.dataset.i === cur));
+  drLightColumn(cur);
   if (cur >= 0 && cur !== lastPainted){
     ORDER.forEach(id => { if (steps[id][cur]) flashLane(id); });
     lastPainted = cur;
@@ -9796,7 +9848,7 @@ function paint(){
   requestAnimationFrame(paint);
 }
 let lastPainted = -1;
-function clearMarks(){ $$(".pad").forEach(b => b.classList.remove("now")); lastPainted = -1; }
+function clearMarks(){ $$(".pad.now").forEach(b => b.classList.remove("now")); drHeadCol = -1; lastPainted = -1; }
 
 /* ---- horizontal faders ----
    Registered the way CS·1's are, so MIDI learn and patch save would get them for free. */

@@ -88,7 +88,8 @@ function paintCell(b, ri, id, queued, onRow){
      the number is on them. */
   if (t && t.takeAt){
     const n = t.takeAt(ri);
-    b.textContent = n == null ? "" : String(n + 1);
+    const txt = n == null ? "" : String(n + 1);
+    if (b.textContent !== txt) b.textContent = txt;
   }
   /* ⚠️ AND A PATTERN CELL SAYS WHICH SEQUENCE IT IS, now that an instrument keeps sixteen. A column
      down the launcher then reads as the song's form — 1, 1, 2, 1, 3 — which is the thing being
@@ -188,6 +189,20 @@ function mountMeasure(el){
     const k = Math.floor((ctx.currentTime - origin) / bar);
     return ((k % bars) + bars) % bars;
   }
+  /* ⚠️ A TIMER TO THE NEXT BAR LINE, NOT A FRAME LOOP. The lit pip moves once a bar — every two
+     seconds at 120 — and this asked for sixty frames a second to find that out, in two places (the
+     Studio head and the Live page), playing or not. See Patchwork.animate in shell/host.js for what an
+     idle frame loop cost. Waking just past the line and reading the clock then keeps the pip on it, and
+     no wait is longer than a quarter of a second, so a start, a stop or a tempo change shows at once. */
+  function wait(){
+    const ctx = Patchwork.audio && Patchwork.audio.ctx;
+    const origin = Patchwork.clock.origin;
+    if (!ctx || origin == null || !Patchwork.clock.running) return 250;
+    const bar = 4 * Patchwork.clock.beatSeconds();
+    if (!(bar > 0)) return 250;
+    const into = ((ctx.currentTime - origin) % bar + bar) % bar;
+    return Math.max(15, Math.min(250, (bar - into) * 1000 + 8));
+  }
   function tick(){
     const i = at();
     if (i !== lit){
@@ -195,16 +210,15 @@ function mountMeasure(el){
       [...el.children].forEach((c, k) => c.classList.toggle("st-now", k === i));
       el.classList.toggle("st-idle", i < 0);
     }
-    requestAnimationFrame(tick);
+    setTimeout(tick, wait());
   }
   build();
-  /* The pips are rebuilt on the SETTING's notification, not in the animation loop: the
-     loop is rAF, which stops dead in a hidden tab, and a control that only answers while
-     you can see it is not a control. Only the lit pip needs a frame. */
+  /* The pips are rebuilt on the SETTING's notification, not in the timer: a count that only changed
+     when the pip next moved would be a control that answers late. */
   Patchwork.scenes.onChange(() => {
     if (bars !== Math.max(1, Patchwork.scenes.patternBars)) build();
   });
-  requestAnimationFrame(tick);
+  tick();
 }
 
 /* Stop everything the launcher can reach. Scene members are stopped by PRESSING their own
@@ -521,8 +535,11 @@ if (window.Patchwork.record) Patchwork.record.onChange(paint);
 build();
 /* ⚠️ An instrument's OWN Play button changes what is playing without telling the scene
    model, so a cell could stay ringed after its instrument had stopped. The live page has
-   carried the same repaint for the same reason; the launcher needed one too. */
-setInterval(paint, 400);
+   carried the same repaint for the same reason; the launcher needed one too.
+   ⚠️ ONLY WHILE IT IS ON SCREEN, the way the live page's is: every other view hides the launcher, and
+   asking every cell about itself every 400 ms behind the Tape deck is work nobody sees. Coming back to
+   the Studio view repaints it within a tick. */
+setInterval(() => { if (!grid.closest("[hidden]")) paint(); }, 400);
 })();
 
 /* ---- the master transport ----
@@ -738,18 +755,23 @@ if (window.Patchwork && Patchwork.surface){
 
 
 function paint(){
-  out.textContent = Patchwork.clock.shown;
+  /* ⚠️ EACH WRITTEN ONLY WHEN IT CHANGED. This runs every 400 ms, and a text or an attribute set to
+     what it already was still changes the page: the tempo, Stop's disabled and the pattern button's
+     title came to 2.5 changes a second each with nothing happening (2026-09-13). */
+  const bpm = Patchwork.clock.shown == null ? "" : String(Patchwork.clock.shown);
+  if (out.textContent !== bpm) out.textContent = bpm;
   const live = Patchwork.launch.anyPlaying();
   stop.classList.toggle("st-live", live);
-  stop.disabled = !live;
+  if (stop.disabled !== !live) stop.disabled = !live;
   quant.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", b.dataset.q === Patchwork.scenes.quantum));
   barCount.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", +b.dataset.b === Patchwork.scenes.patternBars));
   click.querySelectorAll("button").forEach(b =>
     b.classList.toggle("st-sel", (b.dataset.c === "on") === Patchwork.click.on));
-  quant.querySelector('[data-q="pattern"]').title =
-    "Every " + Patchwork.scenes.patternBars + " bars — the pattern length in the Scenes head";
+  const pat = quant.querySelector('[data-q="pattern"]');
+  const patTitle = "Every " + Patchwork.scenes.patternBars + " bars — the pattern length in the Scenes head";
+  if (pat.title !== patTitle) pat.title = patTitle;
 }
 /* no initial: the instruments decide the page's starting tempo between them, and this
    only ever reports it */
@@ -865,7 +887,9 @@ paintTalk();
 
 function paint(){
   const on = Patchwork.session.active;
-  btn.textContent = on ? "Leave jam" : "Start a jam";
+  /* every second, so only when it changed — see the head's paint() above */
+  const label = on ? "Leave jam" : "Start a jam";
+  if (btn.textContent !== label) btn.textContent = label;
   btn.classList.toggle("st-on", on);
   joinBtn.hidden = on;
   if (!on){
