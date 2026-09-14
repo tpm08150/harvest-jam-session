@@ -4,16 +4,17 @@ Burn the image to an SD card, put it in a Raspberry Pi, plug in a Launchkey and 
 Launchkey becomes a groovebox. No screen, keyboard or mouse needed — plug in an HDMI screen whenever
 you want to see the whole rack.
 
-> ⚠️ **Not yet built or run.** A GitHub Actions workflow builds the image and checks it — inside the
+> ⚠️ **Built, not yet run on a Pi.** GitHub Actions builds the image and checks it: inside the
 > finished image it starts the rack headless and confirms MIDI and SysEx are granted, kiosk mode is
-> on and the sign-in gate is out of the way — but it has not run yet, and nobody has burned a card,
-> booted a Pi 4 with it or played a Launchkey through it.
+> on and the sign-in gate is out of the way. That first passed on 2026-09-13. Nobody has yet burned a
+> card, booted a Pi 4 with it or played a Launchkey through it.
 
 ## Get the image
 
 1. On GitHub, open **Actions → Pi image**, pick the latest green run, and download the
-   `jam-session-pi-…` artifact: a `.img.xz` and its `.sha256`. A `pi-v…` release, when there is
-   one, has the same files without needing a GitHub login.
+   `jam-session-pi-…` artifact (GitHub asks you to be signed in). It arrives as a `.zip`: open it
+   to get the `.img.xz` and its `.sha256`. A `pi-v…` release, when there is one, has the same files
+   without the zip or the sign-in.
 2. Open **Raspberry Pi Imager** → *Choose OS* → *Use custom* → the `.img.xz`. No need to unpack it.
 3. *Optional:* if Imager offers OS customisation, set a username and password and turn on SSH
    (and Wi-Fi). That is how you get in later to read logs. The groovebox needs none of it.

@@ -2575,6 +2575,28 @@ audio interface and an HDMI screen to test with.
 
 Verified on the Mac: shell and Python syntax, the workflow's YAML, the offline switch in the preview,
 and `jam-browser --smoke` in Chrome 152 headless against `_surfacetest.html`, whose MIDI is fake — only
-the permission state is real there. **Not yet run:** the image build itself, the smoke test inside the
-image, and everything on a Pi — cage on its GPU, forced HDMI, the Launchkey's port names under Linux
-(`detect()` in `shell/launchkey.js` looks for "MK4" and "DAW" in them), PipeWire's choices, latency.
+the permission state is real there.
+
+**The first three builds**, on the `pi-image` branch on 2026-09-13:
+- ⚠️ **A public run's log needs a sign-in.** Signed out, or through the API without a token, the first
+  failure said "Process completed with exit code 1" and nothing else. The workflow's Report step now
+  posts what matters as annotations, which anyone can read: the base image's facts and the smoke test
+  on every run, and the end of the log on a failure. Two limits turned up on the way — GitHub keeps
+  about 4 KB of an annotation, and a comma ends its title — so reports go out in pieces, titles escaped.
+- The first failure was blamed on growing the root partition on a partition-scanned loop device, and
+  `build.sh` now gives each filesystem an offset loop device instead. **The real fault came later:** a
+  bind of `/dev` does not carry `/dev/shm`, so the chroot's was a bare root-owned directory, and
+  Chromium, running as `jam`, aborted on it. The second run showed that; its 77 s against the first's
+  75 s says the first most likely died the same way. The chroot now mounts a tmpfs there, on a bind
+  made private so it cannot land on the build machine's own.
+- **The third passed**, in 311 s. Inside the image: MIDI and SysEx granted, and seen as granted by the
+  page; kiosk on; cloud off; the gate out of the way; the audio context running. `requestMIDIAccess`
+  failed with `InvalidStateError: Platform dependent initialization failed` — a build machine has no
+  `/dev/snd/seq` — which is the answer expected there.
+- **What the base image holds:** Debian 13 with cloud-init enabled; a placeholder `pi` at uid 1000
+  with `nologin`, so `jam` is uid 1001; `userconfig.service` enabled, which the image masks; and
+  `rpi-resize.service`, with `resize` on the kernel command line, to grow the root filesystem at first
+  boot.
+
+**Not yet run:** everything on a Pi — cage on its GPU, forced HDMI, the Launchkey's port names under
+Linux (`detect()` in `shell/launchkey.js` looks for "MK4" and "DAW" in them), PipeWire's choices, latency.
