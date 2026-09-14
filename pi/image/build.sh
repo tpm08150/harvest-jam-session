@@ -37,6 +37,26 @@ ROOT="$WORK/root"
 ROOT_LOOP=""
 BOOT_LOOP=""
 
+# Anything still running with its root in the image — a browser's crash handler outliving the smoke
+# test, say — keeps its filesystems busy, and a busy root cannot be checked or zeroed cleanly.
+chroot_pids() {
+  local p
+  for p in /proc/[0-9]*; do
+    if [[ "$(readlink "$p/root" 2>/dev/null)" == "$ROOT" ]]; then echo "${p#/proc/}"; fi
+  done
+  return 0
+}
+stop_chroot() {
+  local pids
+  pids="$(chroot_pids)"
+  [[ -z $pids ]] && return 0
+  echo "    stopping what is still running in the image: $(echo $pids)"
+  kill $pids 2>/dev/null || true
+  sleep 2
+  pids="$(chroot_pids)"
+  if [[ -n $pids ]]; then kill -9 $pids 2>/dev/null || true; sleep 1; fi
+  return 0
+}
 unmount_all() {
   findmnt -rn -o TARGET | grep -E "^$ROOT(/|$)" | sort -r | while read -r m; do
     umount "$m" || umount -l "$m"
@@ -44,6 +64,7 @@ unmount_all() {
 }
 cleanup() {
   set +e
+  stop_chroot
   unmount_all
   [[ -n $BOOT_LOOP ]] && losetup -d "$BOOT_LOOP"
   [[ -n $ROOT_LOOP ]] && losetup -d "$ROOT_LOOP"
@@ -65,11 +86,12 @@ rm -f "$WORK/base.img.xz"
 
 echo "==> room for the rack: +$GROW_MB MB"
 truncate -s "+${GROW_MB}M" "$WORK/jam.img"
-# ⚠️ THE PARTITION IS GROWN IN THE FILE, NOT ON A LOOP DEVICE. Resizing on a partition-scanned loop
-# device leaves the kernel to be told about the new table, which a build machine's udev may or may
-# not manage — and the first CI run died 75 s in, with its log out of reach, right about here. So
-# each filesystem gets a loop device of its own at its byte offset, and the kernel never sees a
-# partition table at all.
+# THE PARTITION IS GROWN IN THE FILE, NOT ON A LOOP DEVICE. Resizing on a partition-scanned loop
+# device leaves the kernel to be told about the new table, which a build machine's udev may or may not
+# manage, so each filesystem gets a loop device of its own at its byte offset and the kernel never sees
+# a partition table at all. This was the first suspect when the first CI run died 75 s in with its log
+# out of reach — but the second run, at 77 s, got past it and died on /dev/shm in the smoke test (see
+# the mounts below), so the first most likely did too. Kept anyway: it needs nothing from udev.
 parted -s "$WORK/jam.img" resizepart 2 100%
 part() {   # partition number -> "offset size", in bytes
   sfdisk -J "$WORK/jam.img" | python3 -c '
@@ -94,7 +116,14 @@ mount "$ROOT_LOOP" "$ROOT"
 mkdir -p "$ROOT/boot/firmware"
 mount "$BOOT_LOOP" "$ROOT/boot/firmware"
 mount --bind /dev "$ROOT/dev"
+# ⚠️ PRIVATE, WITH A /dev/shm OF ITS OWN. A bind of /dev does not bring the mounts inside it, so the
+# image's /dev/shm was the bare directory under the build machine's — root's, mode 755 — and Chromium,
+# run as jam for the smoke test, died on it: "Unable to access(W_OK|X_OK) /dev/shm: Permission denied".
+# The bind is made private first, so the tmpfs mounted over it stays in the image instead of landing
+# on top of the build machine's own /dev/shm.
+mount --make-rprivate "$ROOT/dev"
 mount --bind /dev/pts "$ROOT/dev/pts"
+mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs "$ROOT/dev/shm"
 mount -t proc proc "$ROOT/proc"
 mount -t sysfs sysfs "$ROOT/sys"
 mount -t tmpfs -o mode=755 tmpfs "$ROOT/run"
@@ -149,6 +178,7 @@ if [[ -e $WORK/resolv.conf || -L $WORK/resolv.conf ]]; then mv "$WORK/resolv.con
 if [[ -e $WORK/machine-id ]]; then cp -a "$WORK/machine-id" "$ROOT/etc/machine-id"; fi
 rm -rf "$SRC"
 df -h "$ROOT" | awk 'NR == 2 {print "    root filesystem: " $3 " used, " $4 " free"}'
+stop_chroot
 unmount_all
 e2fsck -pf "$ROOT_LOOP" || [[ $? -le 1 ]]
 zerofree "$ROOT_LOOP"                               # zeroed free space is what makes it compress

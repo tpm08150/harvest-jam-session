@@ -51,9 +51,27 @@ jobs:
           import pathlib
           log = pathlib.Path("build.log")
           lines = log.read_text(errors="replace").splitlines() if log.exists() else ["(no build.log)"]
-          def post(kind, title, chosen):
-              text = "\n".join(chosen)[-60000:] or "(nothing)"
-              print("::%s title=%s::%s" % (kind, title, text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")))
+          def data(s):
+              return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          def prop(s):
+              return data(s).replace(":", "%3A").replace(",", "%2C")
+          # ⚠️ AN ANNOTATION KEEPS ABOUT 4 KB, AND A COMMA ENDS ITS TITLE. The second run posted the last 150
+          # lines as one error: GitHub kept the first 4,096 characters — apt's output, none of the failure
+          # that ended the log — under the title "build.sh", everything after the comma gone. So long text
+          # goes out in pieces, newest last, and titles are escaped.
+          def post(kind, title, chosen, pieces=4, size=3800):
+              chunks, cur = [], ""
+              for line in chosen:
+                  line = line[:size]
+                  if cur and len(cur) + len(line) + 1 > size:
+                      chunks.append(cur)
+                      cur = ""
+                  cur += line + "\n"
+              chunks.append(cur or "(nothing)")
+              chunks = chunks[-pieces:]
+              for i, text in enumerate(chunks, 1):
+                  name = title if len(chunks) == 1 else "%s (%d of %d)" % (title, i, len(chunks))
+                  print("::%s title=%s::%s" % (kind, prop(name), data(text.rstrip("\n"))))
           def section(start, stop):
               out, on = [], False
               for line in lines:
