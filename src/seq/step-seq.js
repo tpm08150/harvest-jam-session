@@ -459,6 +459,16 @@ const noteName = n => {
    rows of eight is a wall, and in four rows of sixteen it is two bars you can read. The
    default is the number every existing caller was built around, so nothing moves unasked. */
 const PER = Math.max(4, (o.perRow | 0) || 8);
+
+/* ⚠️ A MOUNT CAN BE TAKEN DOWN, AND ONE PANEL HAS TO. BS·1 and VC·1 mount one grid for the life of the
+   page, and everything below was written for that: listeners on `el`, a key handler and a surface
+   listener, none of them ever removed. SQ·1 mounts a grid on the same element for whichever of its
+   sixteen tracks is showing — again on every track switch and every Steps change — and every old mount
+   went on answering, each for the track it had been built on. Measured on 2026-09-13: after four Steps
+   changes one click pressed the step five times; a click on track 2 pressed the same step on track 1 as
+   well; an arrow in step programming moved two steps. destroy() removes the listeners on `el`. The key
+   and surface registries have no way to let go of a handler, so those two ask `live` first. */
+let live = true;
 function render(){
   el.textContent = "";
   const rows = Math.ceil(seq.SEQ.len / PER);
@@ -530,7 +540,7 @@ function paint(){
 
 /* A surface connecting or going away changes whether the band is drawn at all, and neither
    is something a panel would otherwise hear about. */
-if (window.Patchwork && Patchwork.surface) Patchwork.surface.onChange(paint);
+if (window.Patchwork && Patchwork.surface) Patchwork.surface.onChange(() => { if (live) paint(); });
 
 /* ---- walking the steps ----
    ⚠️ MOUNTED BEFORE shell/keys.js, and that is what makes it work. Left and right move an
@@ -544,6 +554,7 @@ if (window.Patchwork && Patchwork.surface) Patchwork.surface.onChange(paint);
    what you want while typing a line in from the computer keyboard. */
 const root = el.closest("[data-instrument]");
 if (root && Patchwork.onKey) Patchwork.onKey(root, "keydown", e => {
+  if (!live) return;
   if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "select" || tag === "textarea") return;
@@ -565,7 +576,7 @@ if (root && Patchwork.onKey) Patchwork.onKey(root, "keydown", e => {
   }
 });
 
-el.addEventListener("click", e => {
+const onClick = e => {
   const b = e.target.closest(".step"); if (!b) return;
   const i = +b.dataset.i, st = seq.steps[i];
 
@@ -605,11 +616,12 @@ el.addEventListener("click", e => {
   seq.press(i, null, lane === "on" ? {tie: e.shiftKey, slide: e.altKey} : null);
   paint();
   if (o.onEdit) o.onEdit();
-});
+};
+el.addEventListener("click", onClick);
 
 /* Drag a step vertically to set its pitch — the fastest way to write a line, and it means
    the grid needs no separate pitch lane. */
-el.addEventListener("pointerdown", e => {
+const onPointerDown = e => {
   const b = e.target.closest(".step"); if (!b || e.shiftKey || e.altKey) return;
   /* the same rule the click follows: the lit step is draggable, an unlit one is selected
      first — measured, and a drag fires no click event at all, so the two cannot both act */
@@ -632,10 +644,17 @@ el.addEventListener("pointerdown", e => {
   };
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
-});
+};
+el.addEventListener("pointerdown", onPointerDown);
 
 render();
-return {render, paint};
+return {render, paint,
+        /* see `live` above: SQ·1 calls this before it mounts the next track's grid on the same element */
+        destroy(){
+          live = false;
+          el.removeEventListener("click", onClick);
+          el.removeEventListener("pointerdown", onPointerDown);
+        }};
 };
 
 /* ---- the Clear locks button ----
@@ -910,8 +929,12 @@ return {
    pick, and no window in which Undo would throw away what you have just done. */
 Patchwork.mountClearSeq = function(btn, o){
 "use strict";
-if (!btn || !o) return {paint(){}};
+if (!btn || !o) return {paint(){}, destroy(){}};
 let undo = null;
+/* ⚠️ TAKEN DOWN WITH THE GRID. SQ·1 mounts this on the same button for every track it shows, and each old
+   mount kept its click handler and its own `undo` — so Undo put the pattern back and the next handler
+   along, finding notes, cleared it again (measured 2026-09-13). destroy() removes the handler. */
+let live = true;
 
 /* ⚠️ EACH PROPERTY SET ONLY WHEN IT CHANGED. The grid's paint calls this, and BS·1's and VC·1's grids
    paint four times a second with nothing playing, so the label, disabled and title were rewritten to
@@ -919,6 +942,7 @@ let undo = null;
    changes that had nothing behind them (2026-09-13). */
 function set(prop, value){ if (btn[prop] !== value) btn[prop] = value; }
 function paint(){
+  if (!live) return;
   const n = o.count();
   if (n > 0){
     undo = undo && null;          // something is in there; the old pattern is not coming back
@@ -935,16 +959,17 @@ function paint(){
                     : "Nothing in the sequence to clear.");
 }
 
-btn.addEventListener("click", () => {
+const onClick = () => {
   if (o.count() > 0){ undo = o.grab(); o.clear(); }
   else if (undo){ o.put(undo); undo = null; }
   else return;
   if (o.repaint) o.repaint();
   paint();
-});
+};
+btn.addEventListener("click", onClick);
 
 paint();
-return {paint};
+return {paint, destroy(){ live = false; btn.removeEventListener("click", onClick); }};
 };
 
 Patchwork.mountClearLocks = function(btn, o){

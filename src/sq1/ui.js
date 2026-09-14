@@ -78,6 +78,9 @@ for (let n = 24; n <= 60; n++) keySel.appendChild(Object.assign(document.createE
 
 function buildSynthFace(){
   const seq = cur().synth.seq;
+  /* ⚠️ THE OLD GRID COMES DOWN FIRST. It is mounted on this same element, and without destroy() it went on
+     answering clicks and keys for the track it was built on — see `live` in mountSeqGrid. */
+  if (grid) grid.destroy();
   $("#sqWrap").textContent = "";
   if (!scaleSel.options.length)
     Object.keys(seq.SCALES).forEach(k => scaleSel.appendChild(Object.assign(
@@ -261,7 +264,10 @@ function showTrack(){
   writeSeg.hidden = !drum;
   if (drum) writeSeg.querySelectorAll("button").forEach(b =>
     b.classList.toggle("on", b.dataset.w === (t.drum.T.write || "step")));
-  if (drum) buildDrumFace(); else buildSynthFace();
+  /* A drum face takes the synth grid down as well: hidden, it still heard the keyboard, so arrows in step
+     programming walked whichever synth track had been showing before. */
+  if (drum){ if (grid){ grid.destroy(); grid = null; } buildDrumFace(); }
+  else buildSynthFace();
   mountClear();
   paintHead();
 }
@@ -270,6 +276,8 @@ function showTrack(){
    sixteen of them. The shared control takes four functions and this hands it the selected
    track's — see mountClearSeq in seq/step-seq.js. */
 function mountClear(){
+  /* ⚠️ AND THE LAST CLEAR MOUNT WITH IT: each one added a handler to the same button — see mountClearSeq */
+  if (clearSeqBtn) clearSeqBtn.destroy();
   clearSeqBtn = Patchwork.mountClearSeq(clearBtn, {
     count: () => (cur().style === "drum" ? cur().drum.count() : cur().synth.count()),
     grab: () => cur().live.capture(),

@@ -2768,3 +2768,23 @@ it too). The Pi runs its governor at `performance`, where the number of visits i
 strip EQs and compressors left in the path at neutral, the strips of silent instruments still visited,
 PM·1's main LFO (the mod wheel raises its depth without the patch changing), the Launchkey's 60 ms paint
 (about 5 ms of main thread a second on the laptop), and `contain` on the panels.
+
+### SQ·1's grid answered once per mount
+
+Found by the rendering audit on 2026-09-13 and reproduced in headless Chrome on `sequencer.html` and in the
+studio, by counting calls into each track's sequencer per gesture. SQ·1 mounts the shared step grid
+(`Patchwork.mountSeqGrid`) on the same `#sqWrap` for whichever of its sixteen tracks is showing — again on every
+track switch and every Steps change — and mounts the Clear button (`Patchwork.mountClearSeq`) again with it.
+Nothing took an old mount down, and each kept answering for the track it had been built on:
+
+- one click after four Steps changes pressed the step five times;
+- a click on track 2 pressed the same step on track 1 as well;
+- ArrowRight in step programming moved two steps, and still walked the hidden synth track with a drum track
+  showing;
+- Undo put a cleared pattern back and a second Clear handler emptied it again: 4 notes → 0 → 0.
+
+Both mounts now return `destroy()`, which removes their listeners on the element. `Patchwork.onKey` and
+`Patchwork.surface.onChange` have no way to drop a handler, so the grid's handlers there check that the mount is
+still live. SQ·1 destroys the old grid and Clear mount before making the next, and the synth grid when a drum
+track is shown. Afterwards every gesture acted once and only on the track shown, and Undo restored the pattern
+(4 → 0 → 4), on both pages. BS·1, VC·1, DR·1 and PM·1 mount once and never call it.
