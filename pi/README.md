@@ -4,12 +4,12 @@ Burn the image to an SD card, put it in a Raspberry Pi, plug in a Launchkey and 
 Launchkey becomes a groovebox. No screen, keyboard or mouse needed — plug in an HDMI screen whenever
 you want to see the whole rack.
 
-> ⚠️ **First run on a Pi 4, 2026-09-13.** The image booted, HDMI showed the rack and sound came out of
-> a USB audio interface. Three things did not work: the Launchkey was not recognised, the project menu
-> covered the Settings tab at the Pi's 1280x720, and the rack was too slow to play — clicks lagged and
-> notes barely sounded. The next image goes after all three (HANDOFF.md, "The Raspberry Pi image") and
-> writes a diagnostics report onto the card. Every image is still checked headless, inside the image,
-> by GitHub Actions before it is uploaded.
+> ⚠️ **On a Pi 4, 2026-09-13.** The first image booted, HDMI showed the rack and sound came out of a
+> USB audio interface, but the rack was too slow to play and the Launchkey was not recognised. The
+> second image's report found a 1 GB board, a 4K television being driven at 3840x2160, and no Launchkey
+> on the USB bus at all — a bad cable. Images from here set the screen's mode (`SCREEN`) and report the
+> audio thread's load (HANDOFF.md, "The second Pi"). Every image is still checked headless, inside the
+> image, by GitHub Actions before it is uploaded.
 
 ## Get the image
 
@@ -40,18 +40,24 @@ it is writing. There is no read-only mode yet — see *Not done yet*.
 `jam-session.txt`, on the card's boot partition (the drive called `bootfs` on a Mac or PC):
 
 - `APP_PAGE` — boot into one instrument instead of the whole rack.
+- `SCREEN` — the mode a screen on HDMI runs at: `1920x1080` unless changed, `1280x720` for less drawing,
+  `native` for whatever the screen asks for. A screen without the mode gets the largest one inside it.
+  ⚠️ A 4K screen's own mode is four times the drawing of 1080p, which a Pi 4 cannot keep up with.
 - `EXTRA_CHROMIUM_FLAGS` — for example `--force-device-scale-factor=0.8` to fit more on screen.
 
-The HDMI picture is `video=HDMI-A-1:1920x1080@60D` in `cmdline.txt`, beside it. On a small screen
-that shows nothing, change `1920x1080` to `1280x720`.
+`video=HDMI-A-1:1920x1080@60D` in `cmdline.txt`, beside it, keeps HDMI switched on with nothing plugged
+in, so a screen can be added later. It does not choose a connected screen's mode: cage runs a screen at
+its own preferred one unless `SCREEN` says otherwise.
 
 ## Getting in
 
 **No network needed:** the Pi writes `jam-diagnose.txt` to the card's boot partition three minutes
 after power on, and every five minutes after that — the MIDI ports it can see and what the kiosk made
-of them, CPU per process, temperature and throttling, the GPU, PipeWire's buffer and dropouts, and how
-busy the page's main thread is. Power off, put the card in a Mac or PC, and open it from the `bootfs`
-drive. A report is written in a second or two; pulling the plug in the middle of one costs only that
+of them, the kernel's USB messages, CPU and memory per process, temperature and throttling, the GPU and
+the mode the screen really runs at, PipeWire's buffer and dropouts, what was playing, how busy the
+page's main thread is, and how much of the audio thread's time the rack needs (`renderCapacity`: at 1.0
+the sound breaks up). Power off, put the card in a Mac or PC, and open it from the `bootfs` drive.
+⚠️ Leave the Pi on for three minutes first, or the card still holds the report from the boot before. A report is written in a second or two; pulling the plug in the middle of one costs only that
 report.
 
 **A keyboard on the Pi:** Ctrl+Shift+I may open Chromium's DevTools over the rack.
@@ -128,8 +134,8 @@ connection), then reboot.
 
 ## Not done yet
 
-- **Playing it on a Pi.** The first Pi 4 booted it and made sound; the Launchkey, and the speed to
-  play the whole rack, are what the next image and its report are for.
+- **Playing it on a Pi.** The Pi 4 boots it and makes sound, and the Launchkey trouble was a cable. The
+  speed to play the whole rack on the 1 GB board it was tried on is the open question.
 - **Read-only root.** An overlay filesystem, with a writable partition for the Chromium profile
   (where songs and patches live), so pulling the plug cannot damage the system.
 - **Updates** without burning a new card.

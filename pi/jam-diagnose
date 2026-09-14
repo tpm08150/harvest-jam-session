@@ -11,6 +11,7 @@ on 127.0.0.1 — the one pi/jam-browser opened — so they describe the page tha
 """
 import json
 import os
+import re
 import subprocess
 import time
 import urllib.request
@@ -44,11 +45,38 @@ def as_jam(cmd):
             % (uid, uid, cmd))
 
 
+def processes():
+    """Every process holding over 20 MB or averaging over 2% CPU since it started, largest first, with
+    Chromium's helpers named by what they are — on a 1 GB Pi the question is who has the memory."""
+    out = subprocess.run(["ps", "-eo", "pid=,rss=,pcpu=,args="], capture_output=True, text=True).stdout
+    rows = []
+    for line in out.splitlines():
+        parts = line.split(None, 3)
+        if len(parts) < 4:
+            continue
+        pid, rss, cpu, args = parts
+        mb, cpu = int(rss) // 1024, float(cpu)
+        if mb < 20 and cpu < 2:
+            continue
+        name = os.path.basename(args.split()[0])
+        kind = re.search(r"--type=([\w-]+)", args)
+        sub = re.search(r"--utility-sub-type=([\w.]+)", args)
+        if kind:
+            name += " (%s)" % (sub.group(1) if sub else kind.group(1))
+        elif "chrom" in name:
+            name += " (browser)"
+        rows.append((mb, cpu, pid, name))
+    print("    MB  %CPU      PID  process", flush=True)
+    for mb, cpu, pid, name in sorted(rows, reverse=True)[:16]:
+        print("%6d %5.1f %8s  %s" % (mb, cpu, pid, name), flush=True)
+
+
 class DevTools:
     def __init__(self, url):
         import websocket                           # python3-websocket, installed with the image
         self.ws = websocket.create_connection(url, timeout=20, suppress_origin=True)
         self.n = 0
+        self.events = []
 
     def call(self, method, params=None, timeout=40):
         self.n += 1
@@ -62,6 +90,9 @@ class DevTools:
                 if "error" in msg:
                     raise RuntimeError("%s: %s" % (method, msg["error"].get("message")))
                 return msg.get("result", {})
+            if "method" in msg:
+                self.events.append(msg)
+                del self.events[:-200]
 
 
 # Read-only questions for the live page. The one thing it touches is requestAnimationFrame, wrapped
@@ -87,6 +118,12 @@ PAGE_JS = r"""
     try { r.surfaceTraffic = (P.surface.traffic || []).slice(-8); } catch (e) {}
   }
   if (P.kiosk) r.kioskLog = P.kiosk.log.map(l => new Date(l.t).toISOString().slice(11, 19) + " " + l.what);
+  /* what the rack was doing while this was measured: every number below means something different
+     with six transports running than with none */
+  try { r.playing = P.scenes ? P.scenes.instruments.filter(i => P.scenes.playing(i.id)).map(i => i.id) : null; }
+  catch (e) { r.playing = String(e); }
+  const view = document.querySelector("#stView .st-sel");
+  r.view = view ? view.dataset.v : null;
   const c = P.audio && P.audio.ctx;
   if (c) r.audio = {state: c.state, sampleRate: c.sampleRate, baseLatency: c.baseLatency, outputLatency: c.outputLatency};
   try {
@@ -127,6 +164,37 @@ def gpu(browser):
             "driverBugWorkarounds": len(g.get("driverBugWorkarounds") or [])}
 
 
+def web_audio(page, seconds=5):
+    """⚠️ THE NUMBER THAT SAYS WHETHER THE SOUND CAN KEEP UP. renderCapacity is the share of each audio
+    callback's time the page spent rendering — DevTools' WebAudio panel shows the same — so at 1.0 notes
+    break up whatever else is true. The same measurement the laptop made of the rack on 2026-09-13 (about
+    0.09 with six instruments playing on an M3 Max), so the two can be set side by side. WebAudio.enable
+    reports the contexts that already exist."""
+    page.events = []
+    page.call("WebAudio.enable")
+    page.call("Runtime.evaluate", {"expression": "1"})
+    ids = [e["params"]["context"]["contextId"] for e in page.events
+           if e.get("method") == "WebAudio.contextCreated"
+           and e["params"]["context"].get("contextType") == "realtime"]
+    if not ids:
+        page.call("WebAudio.disable")
+        return {"realtimeContexts": 0}
+    caps, intervals = [], []
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        d = page.call("WebAudio.getRealtimeData", {"contextId": ids[-1]}).get("realtimeData", {})
+        caps.append(d.get("renderCapacity", 0))
+        intervals.append(d.get("callbackIntervalMean", 0))
+        time.sleep(0.25)
+    page.call("WebAudio.disable")
+    caps.sort()
+    return {"realtimeContexts": len(ids),
+            "renderCapacity": {"mean": round(sum(caps) / len(caps), 3),
+                               "p95": round(caps[min(len(caps) - 1, int(len(caps) * .95))], 3),
+                               "max": round(caps[-1], 3)},
+            "callbackIntervalMs": round(1000 * sum(intervals) / len(intervals), 2)}
+
+
 def main_thread(page, seconds=5):
     page.call("Performance.enable")
     a = {m["name"]: m["value"] for m in page.call("Performance.getMetrics")["metrics"]}
@@ -145,6 +213,10 @@ def main():
     print("jam-diagnose, " + time.strftime("%Y-%m-%d %H:%M:%S"), flush=True)
     section("the board")
     sh("tr -d '\\0' < /proc/device-tree/model; echo; uname -r; echo \"cores: $(nproc)\"; free -m; uptime")
+    section("memory: who holds it")
+    sh("swapon --show 2>/dev/null; echo '-- memory pressure (time stalled waiting for memory)'; "
+       "cat /proc/pressure/memory 2>/dev/null || echo '(not reported)'")
+    processes()
     section("heat, power and CPU speed")
     sh("if command -v vcgencmd >/dev/null; then vcgencmd measure_temp; vcgencmd get_throttled; "
        "else echo \"$(( $(cat /sys/class/thermal/thermal_zone0/temp) / 1000 )) C (no vcgencmd)\"; fi; "
@@ -161,6 +233,11 @@ def main():
     sh("cat /proc/asound/cards; ls -l /dev/snd; lsmod | grep -E '^snd_(seq|usb|rawmidi)'; "
        "echo '-- aconnect -l'; aconnect -l; echo '-- amidi -l'; amidi -l; "
        "echo '-- USB products'; for d in /sys/bus/usb/devices/*/product; do printf '%s: %s\\n' \"$d\" \"$(cat $d)\"; done")
+    # ⚠️ A DEVICE THAT NEVER ENUMERATED IS IN NO LIST ABOVE. The second Pi's Launchkey was on a bad cable and
+    # simply absent (2026-09-13); the kernel's own words are what tell a dead cable from a device drawing more
+    # than the port gives, or one that answered and then failed.
+    sh("echo '-- the kernel on USB and sound, newest last'; "
+       "dmesg 2>/dev/null | grep -iE 'usb [0-9]|usbcore|snd|midi|over-current|voltage' | tail -40")
     section("PipeWire, as jam")
     sh(as_jam("wpctl status"))
     sh(as_jam("pw-metadata -n settings 0"))
@@ -169,6 +246,11 @@ def main():
     sh("for c in /sys/class/drm/card*-HDMI-A-*; do echo \"$c: $(cat $c/status), edid $(wc -c < $c/edid) bytes, "
        "modes: $(head -3 $c/modes | tr '\\n' ' ')\"; done; echo '-- cmdline.txt'; cat /boot/firmware/cmdline.txt; "
        "echo '-- jam-session.txt, lines in use'; grep -v -E '^#|^$' /boot/firmware/jam-session.txt 2>/dev/null || echo '(none)'")
+    # The mode the compositor really runs, which is not what cmdline.txt asks for (see set_screen() in
+    # jam-browser), and what jam-browser said about setting it.
+    sh("echo '-- the screen, as cage runs it'; " + as_jam(
+        "sh -c 'for s in $XDG_RUNTIME_DIR/wayland-[0-9]; do [ -S \"$s\" ] && WAYLAND_DISPLAY=${s##*/} wlr-randr; done'"))
+    sh("echo '-- jam-browser, this boot'; journalctl -u jam-kiosk -b --no-pager 2>/dev/null | grep -F 'jam-browser:' | tail -20")
     section("Chromium and the rack, through DevTools")
     try:
         version = json.load(urllib.request.urlopen("http://127.0.0.1:%d/json/version" % DEVTOOLS, timeout=5))
@@ -185,6 +267,8 @@ def main():
         print(json.dumps(r.get("result", {}).get("value", r), indent=1), flush=True)
         print("-- its main thread over 5 s", flush=True)
         print(json.dumps(main_thread(page), indent=1), flush=True)
+        print("-- its audio thread over 5 s", flush=True)
+        print(json.dumps(web_audio(page), indent=1), flush=True)
     except Exception as e:
         print("DevTools did not answer: %r" % (e,), flush=True)
 

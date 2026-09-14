@@ -2600,8 +2600,9 @@ the permission state is real there.
 
 ### The first Pi
 
-Tyler burned the third build onto a card for a Raspberry Pi 4 (4 or 8 GB, cooled) with a USB audio
-interface, a Launchkey Mini MK4 25 and an HDMI screen, on 2026-09-13. **It booted into the rack**, HDMI
+Tyler burned the third build onto a card for a Raspberry Pi 4 (described as 4 or 8 GB and cooled; the
+second image's report says 1 GB — see *The second Pi*) with a USB audio interface, a Launchkey Mini MK4
+25 and an HDMI screen, on 2026-09-13. **It booted into the rack**, HDMI
 showed it, and **sound came out of the interface**: cage, PipeWire and WirePlumber all did their part.
 Four things did not work:
 
@@ -2651,3 +2652,60 @@ What the next image does about each, and what was measured:
 **Not yet known:** whether this is enough for a Pi 4 to play the whole rack, whether GPU compositing is on
 under cage, and the Launchkey's port names under Linux (`detect()` in `shell/launchkey.js` looks for
 "MK4" and "DAW" in them, with the second port as the fallback).
+
+### The second Pi
+
+Image `910d9b3`, its report read off the card on 2026-09-13. Tyler: sound came out of the EP-136, the
+rack was still very slow, Settings could be reached with a mouse, and the Launchkey did not appear at all.
+
+What the report said, against what the brief assumed:
+
+- ⚠️ **A 1 GB board.** Raspberry Pi 4 Model B Rev 1.1, 905 MB total, 313 MB of swap in use with the rack
+  idle and kswapd busy — not the 4 or 8 GB the brief had.
+- ⚠️ **The screen ran at 3840x2160.** The HDMI television is 4K and cage takes a screen's preferred mode;
+  `video=HDMI-A-1:1920x1080@60D` does not choose it. The page reported a 3840x2160 viewport at a device
+  pixel ratio of 1, and counted 12 animation-frame requests a second from seven loops that each ask every
+  frame — about two frames a second. Two Chromium processes used 77% and 34% of a core with nothing
+  playing, the main thread was busy 0.53 s of every second (layout 31 ms a time), and one 10 ms timer came
+  back 1145 ms late.
+- **Drawing was on the GPU** — GPU compositing and rasterization enabled, ANGLE on V3D 4.2, Mesa 26.2.1 —
+  so the fix is fewer pixels, not flags.
+- **The Launchkey was not on the USB bus at all**: the EP-136, a USB mouse and the hub, and no MIDI port
+  for it anywhere. Tyler then found **a bad USB cable**. Web MIDI itself worked — the page listed
+  "EP-136 MIDI 1" and "Midi Through" with SysEx granted — so detection is untouched; on Linux a MK4's
+  two ports are expected to share one truncated name, which `detect()` meets with its second-port fallback.
+- PipeWire showed no Chromium stream and no dropouts: nothing was playing when the report ran.
+
+What the next image changes:
+
+- **`SCREEN`**, 1920x1080 unless `jam-session.txt` says otherwise. `jam-browser` asks cage for the mode
+  through `wlr-randr` (now installed) before Chromium opens its window: the exact size at the refresh
+  nearest 60 Hz, else the largest mode inside it; `native` leaves the screen's own. Tested only against
+  mocked `wlr-randr` listings; whether cage 0.2.0 honours it is for the next report, which now prints
+  `wlr-randr`'s own listing and `jam-browser`'s log lines (cage issue #407 reports it being ignored, with
+  no detail).
+- `--disable-background-networking`: the journal was full of Chromium failing to register with Google's
+  push service.
+- **The report** adds the kernel's USB and sound messages (a device that never enumerated appears in no
+  other list), memory per process with Chromium's helpers named, memory pressure, the screen as cage runs
+  it, which instruments were playing and which view was up, and **the audio thread's load**:
+  `renderCapacity` from DevTools' WebAudio domain, the number measured on the laptop below. Checked
+  against the rack playing in Chrome 152 headless, where `WebAudio.enable` reported the context that
+  already existed. ⚠️ The first report is written three minutes after boot: the card Tyler read again
+  after a short boot still held the old one.
+
+**Measured on the laptop the same day**, for the rack itself: M3 Max, Chrome 152 headless at 1920x1080, the
+offline copy, MIDI removed from the page, output muted with `--mute-audio` (the render thread still runs),
+driven over DevTools.
+
+- **Six instruments playing** used **9–13% of the audio render budget** (`WebAudio.getRealtimeData`); a Pi 4
+  core is roughly ten times slower. PM·1 and TS·1 do not start from Play all. Alone: CS·1 4.6%, VC·1 4.0%,
+  DR·1 3.7% with up to 475 live oscillators, BS·1 0.9%, SQ·1 0.4%.
+- **After Stop the audio kept costing 5–7%, indefinitely** — most of it VC·1, whose sibilance noise
+  (`vc1/engine.js`, `buildSibilance`) loops forever and keeps the chain after it processing zeros. Chromium
+  only skips a node whose input is flagged silent, which a gain driven by another node never is.
+- **Idle, the page asked for 422 animation frames a second** — seven loops that never stop: BS·1, VC·1,
+  LP·1, TS·1, SQ·1 and the launcher's two bar counters — and the GPU process spent 0.29 s of CPU a second
+  drawing nothing new. With `requestAnimationFrame` stubbed out after load the browser's total fell from
+  0.36 s a second to 0.14; with every timer cleared as well, to 0.03. Switching off CSS transitions and
+  animations changed nothing idle.

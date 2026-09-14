@@ -12,9 +12,13 @@
 # Extra Chromium flags. For example, to fit more on an HDMI screen:
 #EXTRA_CHROMIUM_FLAGS=--force-device-scale-factor=0.8
 
-# The HDMI picture is set in cmdline.txt, beside this file, by
-#   video=HDMI-A-1:1920x1080@60D
-# On a small screen that shows nothing, change 1920x1080 to 1280x720.
+# The mode a screen on HDMI runs at. 1920x1080 unless changed here; 1280x720 is less drawing for the
+# Pi; native is whatever the screen asks for, which on a 4K screen is four times the drawing of 1080p
+# and more than a Pi 4 can keep up with. A screen without the mode gets the largest one inside it.
+#SCREEN=1920x1080
+
+# cmdline.txt, beside this file, holds video=HDMI-A-1:1920x1080@60D. That keeps HDMI switched on with
+# nothing plugged in, so a screen can be added later; the mode a plugged-in screen runs at is SCREEN.
 
 # jam-diagnose.txt, beside this file, is a report of what the Pi is doing — the controller it can see,
 # how busy its CPU is, its sound. It is written three minutes after power on and every five minutes

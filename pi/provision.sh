@@ -29,11 +29,12 @@ source "$HERE/jam-session.conf"
 echo "==> packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-# cage: a one-window Wayland compositor — fullscreen, no desktop, nothing to click away. Mesa for
-# the Pi's GPU. PipeWire so a USB interface plugged in later is a device the page can pick.
+# cage: a one-window Wayland compositor — fullscreen, no desktop, nothing to click away. wlr-randr sets
+# the mode cage runs a screen at (SCREEN in jam-session.conf). Mesa for the Pi's GPU. PipeWire so a USB
+# interface plugged in later is a device the page can pick.
 apt-get install -y --no-install-recommends \
   chromium \
-  cage libgl1-mesa-dri libegl-mesa0 libpam-systemd dbus-user-session kbd \
+  cage wlr-randr libgl1-mesa-dri libegl-mesa0 libpam-systemd dbus-user-session kbd \
   pipewire pipewire-pulse pipewire-alsa wireplumber rtkit alsa-utils \
   python3 python3-websocket \
   fonts-dejavu-core
@@ -138,8 +139,11 @@ echo "==> screen"
 # Pi's first HDMI port is switched on whether or not a screen is attached: cage always has a display to
 # put the rack on, and a screen plugged in later simply shows it.
 # 1920x1080: the first image forced 1280x720, which every screen takes and which looked soft upscaled on
-# the first one it met (2026-09-13). Nearly every HDMI monitor and TV takes 1080p; a small screen that
-# will not can have 1280x720 back in cmdline.txt.
+# the first one it met (2026-09-13). Nearly every HDMI monitor and TV takes 1080p.
+# ⚠️ THIS IS NOT THE MODE A CONNECTED SCREEN RUNS AT. cage takes the screen's preferred mode whatever
+# video= says — the second Pi ran a 4K television at 3840x2160 with this line in place — so jam-browser
+# sets SCREEN through wlr-randr before Chromium starts. This line keeps the connector on with nothing
+# plugged in, which is all it is for now.
 if [[ -f $BOOT/cmdline.txt ]] && ! grep -q "video=HDMI-A-1:" "$BOOT/cmdline.txt"; then
   sed -i '1 s/[[:space:]]*$/ video=HDMI-A-1:1920x1080@60D/' "$BOOT/cmdline.txt"
 fi

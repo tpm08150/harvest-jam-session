@@ -20,12 +20,14 @@ permission granted over the protocol before the page asks is the permission the 
 given.
 
 Settings come from the environment, which the systemd units fill from /etc/jam-session.conf and
-jam-session.txt on the boot partition: PORT, APP_PAGE, DEVTOOLS_PORT, EXTRA_CHROMIUM_FLAGS — and
-CHROMIUM and JAM_PROFILE to point it somewhere else.
+jam-session.txt on the boot partition: PORT, APP_PAGE, DEVTOOLS_PORT, SCREEN, EXTRA_CHROMIUM_FLAGS —
+and CHROMIUM and JAM_PROFILE to point it somewhere else.
 """
 import json
 import os
+import re
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -39,6 +41,8 @@ URL = "%s/%s?kiosk" % (ORIGIN, PAGE)
 DEVTOOLS = int(os.environ.get("DEVTOOLS_PORT") or 9222)
 CHROMIUM = os.environ.get("CHROMIUM") or "/usr/bin/chromium"
 PROFILE = os.environ.get("JAM_PROFILE") or os.path.expanduser("~/.local/share/jam-session/chromium")
+# The mode the screen runs at: WIDTHxHEIGHT, or "native" for whatever the screen prefers. See set_screen().
+SCREEN = (os.environ.get("SCREEN") or "1920x1080").strip().lower()
 
 # Permission descriptors, named as the page's own navigator.permissions names them. SysEx is what
 # lights the Launchkey's screen; the microphone is VC·1's and LP·1's input and what lets the output
@@ -63,6 +67,9 @@ FLAGS = [
     "--disable-renderer-backgrounding",
     "--disable-backgrounding-occluded-windows",
     "--disable-features=Translate,MediaRouter,IntensiveWakeUpThrottling",
+    # Nothing to fetch on a box with no account and usually no network. The second Pi's journal was
+    # full of Chromium failing to register with Google's push service, over and over (2026-09-13).
+    "--disable-background-networking",
     "--noerrdialogs",
     "--disable-session-crashed-bubble",
     "--disable-infobars",
@@ -195,6 +202,114 @@ def describe(descriptor):
     return descriptor["name"] + ("+sysex" if descriptor.get("sysex") else "")
 
 
+def wlr_heads():
+    """The outputs the compositor has, as wlr-randr lists them — [{name, enabled, modes: [{width, height,
+    refresh, current}]}] — or None when it will not say. JSON where this wlr-randr has it, its text
+    otherwise."""
+    try:
+        r = subprocess.run(["wlr-randr", "--json"], capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            try:
+                return [{"name": h["name"], "enabled": bool(h.get("enabled")),
+                         "modes": [{"width": int(m["width"]), "height": int(m["height"]),
+                                    "refresh": float(m.get("refresh") or 0), "current": bool(m.get("current"))}
+                                   for m in h.get("modes") or []]} for h in json.loads(r.stdout)]
+            except (ValueError, KeyError, TypeError):
+                pass
+        r = subprocess.run(["wlr-randr"], capture_output=True, text=True, timeout=10)
+        if r.returncode != 0:
+            return None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    heads, head = [], None
+    for line in r.stdout.splitlines():
+        if line and not line[0].isspace():
+            head = {"name": line.split()[0], "enabled": True, "modes": []}
+            heads.append(head)
+        elif head is not None:
+            m = re.match(r"\s+Enabled:\s*(yes|no)", line)
+            if m:
+                head["enabled"] = m.group(1) == "yes"
+            m = re.match(r"\s+(\d+)x(\d+) px, ([\d.]+) Hz(?: \((.*)\))?", line)
+            if m:
+                head["modes"].append({"width": int(m.group(1)), "height": int(m.group(2)),
+                                      "refresh": float(m.group(3)), "current": "current" in (m.group(4) or "")})
+    return heads
+
+
+def pick_mode(modes, width, height):
+    """The size asked for, at the refresh nearest 60 Hz; failing that, the largest mode that fits inside it."""
+    pool = [m for m in modes if (m["width"], m["height"]) == (width, height)]
+    pool = pool or [m for m in modes if m["width"] <= width and m["height"] <= height]
+    if not pool:
+        return None
+    biggest = max(m["width"] * m["height"] for m in pool)
+    return min((m for m in pool if m["width"] * m["height"] == biggest),
+               key=lambda m: (abs(m["refresh"] - 60), -m["refresh"]))
+
+
+def mode_arg(m):
+    """⚠️ A WHOLE-HERTZ REFRESH OR NONE. wlr-randr matches a mode by millihertz, and 59.94 read back from its
+    own listing does not survive float arithmetic to 59940; a size alone takes the first mode of that size,
+    which is the kernel's highest refresh."""
+    if not m:
+        return "?"
+    if abs(m["refresh"] - round(m["refresh"])) < 0.001:
+        return "%dx%d@%dHz" % (m["width"], m["height"], round(m["refresh"]))
+    return "%dx%d" % (m["width"], m["height"])
+
+
+def set_screen():
+    """⚠️ CAGE RUNS A SCREEN AT ITS PREFERRED MODE, WHATEVER cmdline.txt SAYS. The second Pi (2026-09-13)
+    had video=HDMI-A-1:1920x1080@60D on its kernel command line and a 4K television on HDMI, and cage
+    ran the television at 3840x2160: the page reported a 3840x2160 viewport, Chromium drew four times
+    the pixels of 1080p, the page got about two frames a second, and the board — a 1 GB Pi 4 — was
+    313 MB into swap with the rack sitting idle. video= still does its own job, keeping the connector on
+    with nothing plugged in; the mode a compositor runs is a separate choice, made here through
+    wlr-output-management before Chromium opens its window at whatever size the output then is."""
+    if SCREEN in ("", "native", "auto"):
+        log("screen: the display's own mode (SCREEN=%s)" % (SCREEN or "unset"))
+        return
+    size = re.match(r"^(\d+)\s*x\s*(\d+)$", SCREEN)
+    if not size:
+        log("screen: SCREEN=%r is not WIDTHxHEIGHT or native; the mode is left alone" % SCREEN)
+        return
+    if not shutil.which("wlr-randr") or not os.environ.get("WAYLAND_DISPLAY"):
+        log("screen: no wlr-randr, or no Wayland compositor around this; the mode is left alone")
+        return
+    width, height = int(size.group(1)), int(size.group(2))
+    heads = None
+    for _ in range(20):                            # cage may still be bringing its outputs up
+        heads = wlr_heads()
+        if heads and any(h["enabled"] and h["modes"] for h in heads):
+            break
+        time.sleep(0.5)
+    if not heads:
+        log("screen: wlr-randr listed no outputs; the mode is left alone")
+        return
+    changed = False
+    for h in heads:
+        if not h["enabled"]:
+            continue
+        cur = next((m for m in h["modes"] if m["current"]), None)
+        want = pick_mode(h["modes"], width, height)
+        if not want:
+            log("screen: %s has no mode that fits %dx%d; left at %s" % (h["name"], width, height, mode_arg(cur)))
+        elif cur and (cur["width"], cur["height"]) == (want["width"], want["height"]):
+            log("screen: %s is already %s" % (h["name"], mode_arg(cur)))
+        else:
+            r = subprocess.run(["wlr-randr", "--output", h["name"], "--mode", mode_arg(want)],
+                               capture_output=True, text=True, timeout=15)
+            log("screen: %s %s -> %s%s" % (h["name"], mode_arg(cur), mode_arg(want),
+                                           "" if r.returncode == 0 else " FAILED: " + (r.stderr or r.stdout).strip()))
+            changed = changed or r.returncode == 0
+    if changed:
+        time.sleep(1)
+        for h in wlr_heads() or []:
+            if h["enabled"]:
+                log("screen: %s now runs %s" % (h["name"], mode_arg(next((m for m in h["modes"] if m["current"]), None))))
+
+
 def grant(browser):
     """⚠️ setPermission ONE DESCRIPTOR AT A TIME — never grantPermissions one at a time. Measured in
     Chrome 152 headless on 2026-09-13, against a page that only queried permission state:
@@ -221,6 +336,11 @@ def grant(browser):
 
 
 def bring_up(headless):
+    if not headless:
+        try:
+            set_screen()
+        except Exception as e:                     # a mode is a nicety; the rack is the point
+            log("screen: could not set the mode -", e)
     proc = launch(headless)
     try:
         version = devtools_version(proc)
