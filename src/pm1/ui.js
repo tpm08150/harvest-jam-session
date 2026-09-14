@@ -419,6 +419,33 @@ function applyChorus(){
   const wet = c ? c.wet : 0, norm = 1/(1 + wet);
   chorusWet.gain.setTargetAtTime(wet * norm, t, .02);
   chorusDry.gain.setTargetAtTime(norm, t, .02);
+  restChorus(chorusStage, chorusWet, !c);
+}
+
+/* ⚠️ A CHORUS THAT IS OFF COMES OFF THE GRAPH. Its three lines each run an oscillator into a delay's
+   time from the moment PM·1 first makes a sound, and Off only turns their depth and the wet gain down —
+   so three oscillators, three delays and three panners were computed every render quantum for the life
+   of the page, on the default patch, which has the chorus off. The Raspberry Pi 4 could not spare it
+   (2026-09-13). Once the wet gain has faded the lines are disconnected from it, which leaves nothing
+   pulling them, and choosing any mode connects them again at once.
+   ⚠️ ALL THREE OR NONE. Modes i and ii modulate one line, but the other two still pass the voice into the
+   wet bus at their resting delay, and that is part of the sound; only Off may take any line away.
+   The nodes are named here rather than read from the globals when the timer fires, because the offline
+   render in boot.js swaps those globals for a graph of its own and back again. */
+function restChorus(stage, wetNode, off){
+  clearTimeout(stage.restTimer);
+  if (!off){
+    if (stage.resting){
+      stage.lines.forEach(ln => ln.pan.connect(wetNode));
+      stage.resting = false;
+    }
+    return;
+  }
+  if (stage.resting) return;
+  stage.restTimer = setTimeout(() => {
+    stage.lines.forEach(ln => { try{ ln.pan.disconnect(wetNode); }catch(e){} });
+    stage.resting = true;
+  }, 250);
 }
 const DIVS = {"1/2":2, "1/4":1, "1/4d":1.5, "1/8":.5, "1/8d":.75, "1/8t":1/3, "1/16":.25};
 function applyDelay(){

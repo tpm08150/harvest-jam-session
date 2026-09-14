@@ -44,10 +44,10 @@ async function renderVoc(opts){
   const o = opts || {};
   const dur = o.dur || 2.0, rate = o.rate || 48000;
   const saved = {ctx, out, carrierBus, vocOut, modGain, modComp, modMakeup, modPost,
-                 absCurve, noiseBuf, sibGain, sibNoise, modMeter, bank};
+                 absCurve, noiseBuf, sibGain, sibNoise, sibIn, noiseForever, bankAwake, modMeter, bank};
   const savedCarriers = Array.from(carriers.entries());
   carriers.clear();
-  ctx = null; bank = [];
+  ctx = null; bank = []; bankAwake = true;     // an offline graph never sleeps, and starts connected
   const off = new OfflineAudioContext(2, Math.ceil(rate * dur), rate);
   try{
     initAudio(off);
@@ -63,6 +63,7 @@ async function renderVoc(opts){
     modGain = saved.modGain; modComp = saved.modComp; modMakeup = saved.modMakeup;
     modPost = saved.modPost; absCurve = saved.absCurve; noiseBuf = saved.noiseBuf;
     sibGain = saved.sibGain; sibNoise = saved.sibNoise; modMeter = saved.modMeter;
+    sibIn = saved.sibIn; noiseForever = saved.noiseForever; bankAwake = saved.bankAwake;
     bank = saved.bank;
     savedCarriers.forEach(([k, v]) => carriers.set(k, v));
   }

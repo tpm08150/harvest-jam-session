@@ -31,6 +31,7 @@ class LoopProcessor extends AudioWorkletProcessor {
     this.next = null;     // {mode, frame} — a change waiting for its sample
     this.tick = 0;
     this.peak = 0;
+    this.said = "";       // the position last told to the page, so an idle looper tells it once
     this.port.onmessage = e => this.msg(e.data);
   }
 
@@ -161,6 +162,16 @@ class LoopProcessor extends AudioWorkletProcessor {
       for (let c = 0; c < out.length; c++) out[c].fill(0);
       return true;
     }
+    /* ⚠️ IDLE WITH NOTHING WAITING IS A BLOCK OF ZEROS. Nothing moves in idle: nothing records, nothing
+       plays and the position stands still, so the loop below wrote zeros one sample at a time from the
+       first take onwards and told the page where the loop was every eight quanta while it stayed put.
+       A Raspberry Pi 4 has no audio time for that (2026-09-13). The block is filled whole now, and the
+       page is told only what differs from the last thing it was told — once, on arriving in idle. */
+    if (this.mode === "idle" && !this.next){
+      for (let c = 0; c < out.length; c++) out[c].fill(0);
+      this.say(false);
+      return true;
+    }
     const inL = inp && inp[0] ? inp[0] : null;
     const inR = inp && inp[1] ? inp[1] : inL;
 
@@ -230,12 +241,19 @@ class LoopProcessor extends AudioWorkletProcessor {
     }
 
     /* position and peak, a few times a second — enough for a playhead and a meter */
-    if ((this.tick = (this.tick + 1) % 8) === 0){
-      this.port.postMessage({ev:"pos", pos:this.pos, len:this.len, mode:this.mode,
-                             peak:this.peak, slot:this.slot, filled:this.filled()});
-      this.peak = 0;
-    }
+    if ((this.tick = (this.tick + 1) % 8) === 0) this.say(true);
     return true;
+  }
+
+  /* Where the loop is and how loud the input was, for the page. Every eighth quantum while anything
+     moves; when idle, only if it differs from what was last said. */
+  say(always){
+    const sig = this.mode + " " + this.pos + " " + this.slot + " " + this.len;
+    if (!always && sig === this.said) return;
+    this.said = sig;
+    this.port.postMessage({ev:"pos", pos:this.pos, len:this.len, mode:this.mode,
+                           peak:this.peak, slot:this.slot, filled:this.filled()});
+    this.peak = 0;
   }
 }
 registerProcessor("pw-looper", LoopProcessor);

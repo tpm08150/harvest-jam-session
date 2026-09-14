@@ -1448,10 +1448,12 @@ function pump(){
      returns. */
 const TICK_SRC = "\n" + [
   "class TickProcessor extends AudioWorkletProcessor {",
-  "  constructor(){ super(); this.n = 0; }",
+  "  constructor(){ super(); this.n = 0; this.live = true;",
+  "    this.port.onmessage = () => { this.live = false; }; }",
   "  process(){",
   "    /* 128 frames a quantum, so eight of them is about 21 ms at 48 kHz - near enough the",
   "       25 ms the interval asked for, and indifferent to whether the tab is visible. */",
+  "    if (!this.live) return false;",
   "    if (++this.n >= 8){ this.n = 0; this.port.postMessage(0); }",
   "    return true;",
   "  }",
@@ -1459,7 +1461,7 @@ const TICK_SRC = "\n" + [
   "registerProcessor('pw-tick', TickProcessor);"
 ].join("\n");
 
-let tickNode = null, tickLoading = false;
+let tickNode = null, tickMute = null, tickModule = null;
 const FAST = 25, BACKSTOP = 500;
 let interval = FAST;
 
@@ -1470,23 +1472,42 @@ function setInterval_(ms){
 }
 
 function ensureTicker(){
-  if (tickNode || tickLoading) return;
+  if (tickNode) return;
   const ctx = Patchwork.audio && Patchwork.audio.ctx;
   if (!ctx || !ctx.audioWorklet) return;          // the interval is covering us
-  tickLoading = true;
-  /* a Blob URL, the same trick LP·1's worklet uses to keep the one-file rule */
-  const url = URL.createObjectURL(new Blob([TICK_SRC], {type: "text/javascript"}));
-  ctx.audioWorklet.addModule(url).then(() => {
-    URL.revokeObjectURL(url);
+  if (!tickModule){
+    /* a Blob URL, the same trick LP·1's worklet uses to keep the one-file rule */
+    const url = URL.createObjectURL(new Blob([TICK_SRC], {type: "text/javascript"}));
+    tickModule = ctx.audioWorklet.addModule(url).then(
+      () => { URL.revokeObjectURL(url); return true; },
+      () => { tickModule = null; return false; });  // stay on the interval
+  }
+  tickModule.then(ok => {
+    /* nothing left to tick for by the time the module is in, or a second start got there first */
+    if (!ok || tickNode || running.size === 0) return;
     const n = new AudioWorkletNode(ctx, "pw-tick",
       {numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1]});
     const mute = ctx.createGain();
     mute.gain.value = 0;
     n.connect(mute); mute.connect(ctx.destination);
     n.port.onmessage = () => { if (running.size) pump(); };
-    tickNode = n;
+    tickNode = n; tickMute = mute;
     if (timer != null) setInterval_(BACKSTOP);
-  }).catch(() => { tickLoading = false; });      // stay on the interval
+  });
+}
+
+/* ⚠️ RETIRED WHEN NOTHING RUNS, AND MADE AGAIN ON THE NEXT START. It ticked from the first Play for
+   the life of the page: a JavaScript call on the audio thread every quantum, and a message to this
+   thread 47 times a second that the handler above threw away with nothing running — on a Raspberry
+   Pi 4 that could not spare either (2026-09-13). A processor that returns false from process() is
+   finished for good and a node cannot be restarted, so it is told to finish, dropped, and the next
+   start builds a fresh node from the module that is already loaded. */
+function retireTicker(){
+  if (!tickNode) return;
+  const n = tickNode, mute = tickMute;
+  tickNode = tickMute = null;
+  try{ n.port.onmessage = null; n.port.postMessage("stop"); }catch(e){}
+  try{ n.disconnect(); mute.disconnect(); }catch(e){}
 }
 
 function run(fn){
@@ -1500,6 +1521,7 @@ function stop(fn){
   if (running.size === 0){
     clearInterval(timer); timer = null;
     origin = null;              // the next instrument to start defines a fresh grid
+    retireTicker();
   }
 }
 

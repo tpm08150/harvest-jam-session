@@ -136,6 +136,12 @@ and made sound, but did not see the Launchkey and was too slow to play.
   for a second tab before debugging "one press does two things".
 - **Automated runs make real sound** through the machine's output. Stop the transports and suspend
   or close the `AudioContext` when a test is done.
+- **A 1 GB Raspberry Pi 4 is the budget**, roughly ten times slower than the laptop. Animate through
+  `Patchwork.animate` (`shell/host.js`), never a `requestAnimationFrame` loop that re-asks every frame; a
+  repeating paint writes only what changed; and anything that runs forever — an oscillator, a looping
+  buffer, an AudioWorklet — keeps the nodes after it processing, because Chromium visits everything
+  connected to the output and skips only inputs flagged silent. Take idle parts off the graph.
+  HANDOFF.md, "Making the rack cheaper to run", has the measurements.
 - **Chrome on macOS decides a device's channels**: an output gets only the channels named in Audio
   MIDI Setup → Configure Speakers, and an input with more than two channels opens as stereo.
 - **Pushing `main` deploys to Netlify.** Commit subjects are plain sentences about the behaviour;

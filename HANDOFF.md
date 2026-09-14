@@ -2709,3 +2709,62 @@ driven over DevTools.
   drawing nothing new. With `requestAnimationFrame` stubbed out after load the browser's total fell from
   0.36 s a second to 0.14; with every timer cleared as well, to 0.03. Switching off CSS transitions and
   animations changed nothing idle.
+
+### Making the rack cheaper to run
+
+Started 2026-09-13 from those measurements, for the Pi and for any slow machine. Nothing here is meant to
+change what the rack sounds like or what the Launchkey is sent. Measured the same way: M3 Max, Chrome 152
+headless at 1920x1080, the offline copy, driven over DevTools; CPU per Chrome process from `ps`, the audio
+thread from `WebAudio.getRealtimeData`, node work from Chromium's `disabled-by-default-webaudio.audionode`
+trace (calls a second ÷ 375 render quanta).
+
+**Frames and the page.**
+- `Patchwork.animate(draw, busy, idle)` in `shell/host.js` draws every frame while `busy()` and on a plain
+  timer otherwise. BS·1's and VC·1's grids, VC·1's meter, LP·1's bar, TS·1's countdown and SQ·1's playheads
+  use it. The launcher's bar counters wait for the next bar line instead.
+- Repeating paints write only what changed: the tempo, Stop's disabled flag, the pattern button's title,
+  the jam button, the Clear buttons, LP·1's launcher cells, TS·1's texts, SQ·1's head (now four times a
+  second while playing), BS·1's note readout, PM·1's stats line. ⚠️ **Compare a width in the form the
+  browser reads back:** `"0.0%"` returns as `"0%"`, and a compare that never matches writes every frame.
+- While playing, DR·1 lights one column instead of toggling all 512 pads, CS·1 finds each chord card's
+  wipe once, and PM·1's meter reuses its buffer. The launcher skips its 400 ms repaint behind other views.
+- **Idle, the browser now spends about 0.04 s of CPU a second instead of 0.36**, the GPU process nothing
+  instead of 0.29, with no frame requests (422 before) and no DOM changes (32). Playing, DOM changes fell
+  from 394 a second to about 210, the renderer's CPU from about 0.19 s a second to 0.16, and the audio
+  thread's load from 0.08–0.09 to 0.07.
+
+**Audio that ran when nothing sounded.**
+- ⚠️ **A silent node still costs a visit.** Every quantum the output pulls everything connected to it, and
+  each node reached checks its inputs and zeroes its output; only disconnecting stops that. Before these
+  changes the stopped rack counted 272 node visits a quantum — 127 gains, 86 biquads, 18 waveshapers — and
+  24 nodes doing DSP.
+- **VC·1:** the sibilance noise starts with a note and stops at the last carrier's cleanup, and the bank —
+  its output and the modulator's way in — is disconnected between notes and reconnected by the next note
+  before its carrier starts: 123 visits a quantum with that alone — 70 gains, 14 biquads, no waveshapers.
+  ⚠️ With a microphone open, the followers start from rest on the first note after a pause.
+- **PM·1:** chorus Off disconnects its three lines from the wet bus once the wet gain has faded; any mode
+  reconnects all three, because modes i and ii still pass the voice through the two unmodulated lines.
+  Oscillators working after Stop went from four to one (its main LFO), delays visited from seven to four.
+- **With everything above, the stopped rack visits 108 nodes a quantum and 8 do DSP**, against 272 and 24,
+  and the audio thread's load after Stop is 0.05 against 0.07.
+- **The clock's tick worklet** finishes when the last transport stops (`process()` returns false) and a new
+  node is made from the loaded module on the next start. **LP·1's worklet** fills an idle block whole and
+  posts its position only when it changed.
+- A VC·1 carrier's cleanup deletes its map entry only while it is still that carrier. A note replayed inside
+  its release used to lose its entry, leaving its note-off nothing to release.
+
+**Checked:** a functional run on the new build — playheads move and clear, the bar pips advance, the clock
+worklet is retired and remade, TS·1 counts down, VC·1 retriggers and renders offline, PM·1's chorus lines
+come off and back, an offline chorus render is still wide — and the surface harness's pad, button, encoder
+and screen state identical to the pre-change build over 46 scripted steps (harness only, not the device).
+
+**Not explained:** the stopped rack's render capacity went *up* on the laptop once the frame loops stopped
+(0.07 to about 0.10), with the same node visits and less DSP — each visit took about twice as long. A busy
+core and a busy page did not bring it back, and the clock worklet and the noise were each ruled out by A/B
+builds. It went away with VC·1's bank off the graph (0.065, falling to 0.044; 0.052 with PM·1's chorus off
+it too). The Pi runs its governor at `performance`, where the number of visits is what counts.
+
+**Not done:** DR·1's voices (up to 475 oscillators live while playing; each hat is six square oscillators),
+strip EQs and compressors left in the path at neutral, the strips of silent instruments still visited,
+PM·1's main LFO (the mod wheel raises its depth without the patch changing), the Launchkey's 60 ms paint
+(about 5 ms of main thread a second on the laptop), and `contain` on the panels.

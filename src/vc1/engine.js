@@ -33,6 +33,7 @@ const CARRIER_UNITY = 0.0702;
 let ctx = null, out = null, carrierBus = null, vocOut = null,
     modGain = null, modComp = null, modMakeup = null, modPost = null,
     absCurve = null, noiseBuf = null, sibGain = null, sibNoise = null,
+    sibIn = null, noiseForever = false, bankAwake = true,
     modSrc = null, modStream = null, modMeter = null;
 let bank = [];
 
@@ -61,6 +62,7 @@ function bandFreq(i, n){ return VOC_LO * Math.pow(VOC_HI / VOC_LO, n < 2 ? 0 : i
 function initAudio(useCtx){
   if (ctx) return;
   ctx = useCtx || Patchwork.audio.context();
+  noiseForever = !!useCtx;           // an offline render has an end; see noiseOn()
   out = useCtx ? ctx.destination : Patchwork.audio.strip("vc1");
   absCurve = mkAbsCurve(1025);
   noiseBuf = V.noiseBuffer(ctx, 2);
@@ -84,6 +86,7 @@ function initAudio(useCtx){
   buildBank();
   buildSibilance();
   applyVocoder();
+  if (!noiseForever) sleepBank();      // nothing to sing yet; the first note wakes it
 }
 function ensureAudio(){ initAudio(); Patchwork.audio.resume(); return ctx.state; }
 
@@ -125,8 +128,6 @@ function buildSibilance(){
   const drive = ctx.createGain(); drive.gain.value = VOC_DRIVE * 0.4;
   modPost.connect(hp); hp.connect(rect); rect.connect(lp); lp.connect(drive);
 
-  sibNoise = ctx.createBufferSource();
-  sibNoise.buffer = noiseBuf; sibNoise.loop = true;
   const nhp = ctx.createBiquadFilter(); nhp.type = "highpass"; nhp.frequency.value = SIB_HZ; nhp.Q.value = .7;
   const gate = ctx.createGain(); gate.gain.value = 0;
   drive.connect(gate.gain);
@@ -146,9 +147,58 @@ function buildSibilance(){
   cd.connect(carrGate.gain);
 
   sibGain = ctx.createGain(); sibGain.gain.value = 0;
-  sibNoise.connect(nhp); nhp.connect(gate); gate.connect(carrGate);
+  nhp.connect(gate); gate.connect(carrGate);
   carrGate.connect(sibGain); sibGain.connect(vocOut);
-  sibNoise.start();
+  sibIn = nhp;
+  sibNoise = null;
+  if (noiseForever) noiseOn(0);
+}
+
+/* ⚠️ THE NOISE RUNS ONLY WHILE A CARRIER DOES. It looped from VC·1's first note for the life of the page,
+   and a source that runs keeps everything after it computing: Chromium skips a node only when its input
+   is flagged silent, and the output of a gain whose gain another node drives never is, however many
+   zeros it holds. So both gates, the output, the strip and the master ran on silence forever — measured
+   at 4–5% of a laptop's audio time with the rack stopped (2026-09-13), which a Raspberry Pi 4 does not
+   have to give. The carrier gate already holds this path shut with no carrier sounding, so starting the
+   noise with a note and stopping it once the last carrier has gone changes nothing anyone can hear. A
+   stopped source cannot start again, so each run is a new one on the same buffer. */
+function noiseOn(t){
+  if (sibNoise || !sibIn) return;
+  const n = ctx.createBufferSource();
+  n.buffer = noiseBuf; n.loop = true;
+  n.connect(sibIn);
+  n.start(Math.max(0, t || 0));
+  sibNoise = n;
+}
+function noiseOff(){
+  if (!sibNoise || noiseForever || carriers.size) return;
+  const n = sibNoise;
+  sibNoise = null;
+  try{ n.stop(); }catch(e){}
+  try{ n.disconnect(); }catch(e){}
+}
+
+/* ⚠️ THE BANK SLEEPS BETWEEN NOTES — taken off the graph, not merely fed silence. A silent node is still
+   visited: every render quantum the destination pulls everything connected to it, and each node it
+   reaches checks its inputs and zeroes its output. VC·1's bank is sixteen bands of seven nodes plus the
+   sibilance path, and once VC·1 had played a note all of it was pulled 375 times a second for the life
+   of the page — about 130 of the 250-odd nodes the stopped rack still visited, measured 2026-09-13 with
+   Chromium's trace. With no carrier there is nothing for the bank to shape, so its output and the
+   modulator's way in are disconnected until the next note, which connects them before its carrier
+   starts. The meter still hears the input: it is fed straight from the source, not through the bank.
+   ⚠️ One thing moves: with a microphone open, the followers start from rest on the first note after a
+   pause instead of already tracking it, and take about as long as the carrier's own attack to arrive. */
+function wakeBank(){
+  if (bankAwake || !vocOut || !out) return;
+  bankAwake = true;
+  vocOut.connect(out);
+  if (modSrc){ try{ modSrc.connect(modGain); }catch(e){} }
+}
+function sleepBank(){
+  if (!bankAwake || noiseForever || carriers.size || !vocOut || !out) return;
+  bankAwake = false;
+  try{ vocOut.disconnect(out); }catch(e){}
+  if (modSrc){ try{ modSrc.disconnect(modGain); }catch(e){} }
 }
 
 /* Q and response move under the sound; the band COUNT needs a rebuild. */
@@ -203,8 +253,15 @@ function buildCarrier(midi, vel, t){
     schedRelease(g.gain, env, t2);
     const end = t2 + 2 * env.R + .05;
     try{ o.stop(end); }catch(e){}
-    setTimeout(() => { try{ o.disconnect(); g.disconnect(); trim.disconnect(); }catch(e){} carriers.delete(midi); },
-               Math.max(60, (end - ctx.currentTime) * 1000 + 120));
+    setTimeout(() => {
+      try{ o.disconnect(); g.disconnect(); trim.disconnect(); }catch(e){}
+      /* ⚠️ ONLY IF THE ENTRY IS STILL THIS CARRIER. The same pitch played again inside the release is a
+         new carrier under the same key, and deleting by key alone dropped it from the map — so its
+         note-off found nothing to release, and the noise above would stop under a sounding note. */
+      if (carriers.get(midi) === c) carriers.delete(midi);
+      noiseOff();
+      sleepBank();
+    }, Math.max(60, (end - ctx.currentTime) * 1000 + 120));
   };
   return c;
 }
@@ -229,6 +286,8 @@ function noteOn(midi, vel, when){
     const c = carriers.get(first);
     if (c) c.release(t);
   }
+  wakeBank();
+  noiseOn(0);
   carriers.set(midi, buildCarrier(midi, vel, t));
   if (typeof paintNow === "function") paintNow();
 }
@@ -267,7 +326,8 @@ async function openInput(deviceId){
        classic, and it needs no microphone. Excludes this instrument's own strip, so the
        bank cannot analyse its own output. */
     modSrc = Patchwork.audio.tap("vc1");
-    modSrc.connect(modGain); modSrc.connect(modMeter);
+    if (bankAwake) modSrc.connect(modGain);          // a sleeping bank is joined by the next note
+    modSrc.connect(modMeter);
     modStream = "__bus";
     vocSay("Modulating with the <b>studio output</b> — hold notes to hear the other "
       + "instruments through the bank.");
@@ -288,7 +348,8 @@ async function openInput(deviceId){
       echoCancellation:false, noiseSuppression:false, autoGainControl:false
     }});
     modSrc = ctx.createMediaStreamSource(modStream);
-    modSrc.connect(modGain); modSrc.connect(modMeter);
+    if (bankAwake) modSrc.connect(modGain);          // a sleeping bank is joined by the next note
+    modSrc.connect(modMeter);
     /* Named from the track rather than from the list: what opened, not what was asked for. */
     const track = modStream.getAudioTracks()[0], opened = modStream;
     const name = ((track && track.label) || "the default input")
