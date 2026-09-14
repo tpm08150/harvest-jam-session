@@ -5129,10 +5129,11 @@ Patchwork.surface.register({
      localStorage patchwork-kiosk = "1"
 
    ⚠️ AND IT GRANTS NOTHING BY ITSELF. SysEx and MIDI are still the browser's to give; all
-   this does is ASK without waiting to be told to. On the Pi the answer comes from a Chromium
-   policy file rather than from a dialogue nobody can click — see pi/README.md. On a laptop
-   with kiosk on you get the ordinary prompts, which is the honest behaviour and makes this
-   testable without a Pi. */
+   this does is ASK without waiting to be told to. On the Pi the answer is given before the page
+   loads, by pi/jam-browser over Chromium's DevTools protocol. There is no policy for it: the two
+   this comment used to point at do not exist, and a Pi relying on them would have waited forever
+   on a dialogue nobody can click. On a laptop with kiosk on you get the ordinary prompts, which
+   is the honest behaviour and makes this testable without a Pi. */
 Patchwork.kiosk = (() => {
 "use strict";
 

@@ -7922,7 +7922,13 @@ const NAME_KEY = "patchwork-cloud-name";
 const subs = [];
 function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
 
-const configured = () => !!(URL_BASE && KEY);
+/* ⚠️ OFFLINE IS FOR THE PI IMAGE, which sets it in the copy it installs and nowhere else. A box
+   that boots into the rack with nobody at a keyboard cannot get past studio/gate.js, and the gate
+   stands down when cloud is not configured — so pi/provision.sh rewrites this exact line to `true`
+   and refuses to build if index.html does not have it exactly once. The site is never built that
+   way; an offline copy is purely local, like a checkout without keys. */
+const OFFLINE = false;
+const configured = () => !OFFLINE && !!(URL_BASE && KEY);
 let session = null;                  // {access_token, refresh_token, expires_at, email, sub}
 
 function loadSession(){
@@ -11751,10 +11757,11 @@ Patchwork.surface.register({
      localStorage patchwork-kiosk = "1"
 
    ⚠️ AND IT GRANTS NOTHING BY ITSELF. SysEx and MIDI are still the browser's to give; all
-   this does is ASK without waiting to be told to. On the Pi the answer comes from a Chromium
-   policy file rather than from a dialogue nobody can click — see pi/README.md. On a laptop
-   with kiosk on you get the ordinary prompts, which is the honest behaviour and makes this
-   testable without a Pi. */
+   this does is ASK without waiting to be told to. On the Pi the answer is given before the page
+   loads, by pi/jam-browser over Chromium's DevTools protocol. There is no policy for it: the two
+   this comment used to point at do not exist, and a Pi relying on them would have waited forever
+   on a dialogue nobody can click. On a laptop with kiosk on you get the ordinary prompts, which
+   is the honest behaviour and makes this testable without a Pi. */
 Patchwork.kiosk = (() => {
 "use strict";
 

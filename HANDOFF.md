@@ -2519,3 +2519,62 @@ at −0.7dB, and the first bass "decay" was indistinguishable from sustain.
 
 Test harnesses that paid for themselves: `ios/build-test-harness.py` (mocked native MIDI),
 and patching `AudioContext.prototype.createOscillator` to capture scheduled note times.
+
+## The Raspberry Pi image
+
+Asked for on 2026-09-13: an SD card image to burn, so that a Pi powered on with a Launchkey plugged in
+is a groovebox, headless, with HDMI showing the rack whenever a screen is plugged in. `pi/` had been a
+provisioning script written from documentation and never run; it now builds that image as well.
+Tyler chose the build place (GitHub Actions), an offline copy with no sign-in, and has a Pi 4, a USB
+audio interface and an HDMI screen to test with.
+
+- **Built on GitHub's arm64 runners** (`.github/workflows/pi-image.yml` runs `pi/image/build.sh`).
+  Building loop-mounts Raspberry Pi OS Lite and chroots into it, which needs an arm64 Linux host; the
+  Mac has neither Docker nor a Linux VM, and the repo is public, so `ubuntu-24.04-arm` costs nothing.
+  The base is Raspberry Pi OS Lite 64-bit **Trixie** (2026-06-18), pinned by URL and checked against
+  its published SHA-256. Bookworm, which the old script targeted, is now the legacy release, and its
+  `chromium-browser` package exists only there; on Trixie it is `chromium` (152).
+- **One provisioning script**, `pi/provision.sh`: the build runs it inside the image with `--image`,
+  `pi/setup.sh` runs it on a live Pi, so the two cannot drift.
+- ⚠️ **No Chromium policy grants MIDI.** The first `pi/setup.sh` wrote `DefaultMidiSysexSetting` and
+  `MidiSysexAllowedForUrls` into a managed policy. Neither exists — checked against all 1,424 policy
+  definitions in Chromium's source on 2026-09-13, not one with MIDI in its name — and Chromium ignores
+  a policy it does not know without a word, so that Pi would have sat on a permission prompt forever.
+  Every policy the image does write was checked the same way. `pi/jam-browser` grants the permissions
+  over the DevTools protocol instead, before it loads the rack.
+- ⚠️ **`Browser.grantPermissions` replaces; `Browser.setPermission` adds.** The first `jam-browser`
+  granted one permission per `grantPermissions` call, so that a name a later Chromium drops would cost
+  only itself. Its smoke test, run in Chrome 152 headless against `_surfacetest.html`, failed with
+  every grant accepted and SysEx still `denied`. Measured with a page that only queries permission
+  state: a `grantPermissions` call per permission left MIDI, SysEx and the microphone all denied —
+  each call rejects whatever it does not name — while one call naming all three granted all three,
+  and `setPermission` per descriptor granted what it named and left the rest at `prompt`.
+  `grantPermissions` is also marked deprecated in the protocol. `jam-browser` now uses
+  `setPermission`, falling back to one all-in `grantPermissions`.
+- **The offline copy.** `shell/cloud.js` has `const OFFLINE = false;`, and `provision.sh` turns that
+  exact line to `true` in the pages it installs, failing unless `index.html` has it once; the gate
+  stands down when cloud is not configured. In the preview, the switched copy reported `configured`
+  false with the gate hidden and no console errors, and `index.html` still gated. No URL parameter
+  does this, so nothing lets a visitor skip the public site's gate.
+- **HDMI is forced on**, `video=HDMI-A-1:1280x720@60D` in `cmdline.txt`: nobody has tried cage or
+  Chromium with no display at all, and a forced connector means there always is one — a screen
+  plugged in later just shows the rack. Chromium also runs with background throttling switched off,
+  because the Launchkey's LEDs and screen repaint on a timer (the clock is on an AudioWorklet
+  already).
+- **Sound** is PipeWire in `jam`'s lingering user session, with WirePlumber priorities putting a USB
+  interface first, the Pi 4's headphone jack second and HDMI last, so the forced HDMI port cannot take
+  the sound. The quantum is 256 frames at 48 kHz.
+- **The kiosk** is `jam-kiosk.service`: a PAM login session for the locked user `jam` on tty7
+  (`pi/jam-kiosk.pam`), `chvt 7`, then `cage -d -s -m last -- jam-browser`. `jam-browser` waits for
+  `jam-server` — bound to 127.0.0.1, for which `serve.py` now reads `HOST` — loads
+  `index.html?kiosk`, loads it again if the page has no `Patchwork.kiosk`, and ends Chromium if the
+  page stops answering, for systemd to start it all again.
+- **The first-boot user wizard is masked** in the image, since it asks for a username on a console.
+  `build.sh` prints what the base image has (units matching userconf, cloud-init, firstboot, resize)
+  so the first CI log shows whether that was the right unit.
+
+Verified on the Mac: shell and Python syntax, the workflow's YAML, the offline switch in the preview,
+and `jam-browser --smoke` in Chrome 152 headless against `_surfacetest.html`, whose MIDI is fake — only
+the permission state is real there. **Not yet run:** the image build itself, the smoke test inside the
+image, and everything on a Pi — cage on its GPU, forced HDMI, the Launchkey's port names under Linux
+(`detect()` in `shell/launchkey.js` looks for "MK4" and "DAW" in them), PipeWire's choices, latency.

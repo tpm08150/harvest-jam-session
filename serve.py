@@ -9,6 +9,9 @@ import os
 import socketserver
 
 PORT = int(os.environ.get("PORT", 8123))
+# Every interface unless told otherwise, as it always was. The Pi sets HOST=127.0.0.1: its rack is
+# for the browser on the box itself, and there is no reason to offer it to the rest of the network.
+HOST = os.environ.get("HOST", "")
 
 
 class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
@@ -32,6 +35,6 @@ class Server(socketserver.ThreadingTCPServer):
 
 
 if __name__ == "__main__":
-    with Server(("", PORT), NoCacheHandler) as httpd:
-        print(f"serving {PORT} with caching disabled")
+    with Server((HOST, PORT), NoCacheHandler) as httpd:
+        print(f"serving {HOST or '*'}:{PORT} with caching disabled")
         httpd.serve_forever()

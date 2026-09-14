@@ -1,17 +1,18 @@
 [Unit]
-Description=Jam Session — page server
-Documentation=https://github.com/tpm08150/harvest-jam-session
-After=network.target
+Description=Jam Session: page server
+Documentation=https://github.com/tpm08150/harvest-jam-session/blob/main/pi/README.md
 
 [Service]
-# ⚠️ SERVED OVER HTTP RATHER THAN OPENED AS A FILE, and that is not fussiness: Web MIDI
-# needs a secure context, file:// is not one, and http://localhost is. The whole app is
-# static — this exists only to make localhost true.
+# ⚠️ SERVED, NOT OPENED AS A FILE. Web MIDI needs a secure context; file:// is not one and
+# http://localhost is. Bound to 127.0.0.1: the rack is for the browser on this box.
 Type=simple
-User=@RUN_USER@
-WorkingDirectory=@APP_DIR@
-EnvironmentFile=/etc/jam-session.conf
-ExecStart=/usr/bin/python3 @APP_DIR@/serve.py
+User=jam
+WorkingDirectory=/opt/jam-session
+Environment=PORT=8123
+EnvironmentFile=-/etc/jam-session.conf
+EnvironmentFile=-/boot/firmware/jam-session.txt
+Environment=HOST=127.0.0.1
+ExecStart=/usr/bin/python3 /opt/jam-session/serve.py
 Restart=always
 RestartSec=2
 

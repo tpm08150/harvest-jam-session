@@ -1,0 +1,55 @@
+# Builds the Jam Session SD card image for a Raspberry Pi. See pi/README.md.
+#
+# Runs on "Run workflow" in the Actions tab, a push to the pi-image branch, or a pi-v* tag — which
+# also attaches the image to a GitHub release. The website on Netlify is not involved.
+name: Pi image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [pi-image]
+    tags: ["pi-v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pi-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    # ⚠️ ARM64, so the chroot inside the image runs its programs natively rather than under
+    # emulation. GitHub's arm64 runners are free for public repositories.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The committed pages match src/
+        run: python3 tools/build.py --check
+
+      - name: Build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends parted e2fsprogs util-linux xz-utils zerofree curl
+
+      - name: Build the image
+        run: sudo env IMAGE_REV="${GITHUB_SHA::7}" pi/image/build.sh out
+
+      - name: Upload the image
+        uses: actions/upload-artifact@v4
+        with:
+          name: jam-session-pi-${{ github.sha }}
+          path: out/
+          compression-level: 0
+          retention-days: 14
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/pi-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" out/*
+          --title "Jam Session for Raspberry Pi ($GITHUB_REF_NAME)"
+          --notes "Burn the .img.xz with Raspberry Pi Imager: Choose OS, Use custom. See pi/README.md."

@@ -1,0 +1,374 @@
+#!/usr/bin/env python3
+"""Bring the Jam Session rack up in Chromium with nobody in front of it.
+
+    jam-browser                     the kiosk: what cage runs (see jam-kiosk.service)
+    jam-browser --wait-for-server   exit 0 once the page server answers, 1 after a minute
+    jam-browser --smoke             headless: load the rack, check it came up, exit 0 or 1
+    jam-browser --smoke --expect-offline
+                                    ...and check this copy's sign-in gate stood down
+
+The kiosk, in order: start Chromium on about:blank with a DevTools port on 127.0.0.1; grant
+MIDI, SysEx and audio capture to the rack's origin over the DevTools protocol; wait for the page
+server; load the rack; then keep an eye on it. When Chromium exits so does this, and cage with it,
+and systemd starts the lot again.
+
+⚠️ WHY THE DEVTOOLS PROTOCOL. MIDI and SysEx are permissions, and no Chromium policy grants them:
+checked against all 1,424 policy definitions in Chromium's source on 2026-09-13. The two names the
+first pi/setup.sh wrote into a managed policy do not exist, and Chromium ignores a policy it does
+not know without a word, so that Pi would have sat on a permission prompt nobody could click. A
+permission granted over the protocol before the page asks is the permission the click would have
+given.
+
+Settings come from the environment, which the systemd units fill from /etc/jam-session.conf and
+jam-session.txt on the boot partition: PORT, APP_PAGE, DEVTOOLS_PORT, EXTRA_CHROMIUM_FLAGS — and
+CHROMIUM and JAM_PROFILE to point it somewhere else.
+"""
+import json
+import os
+import shlex
+import signal
+import subprocess
+import sys
+import time
+import urllib.request
+
+PORT = int(os.environ.get("PORT") or 8123)
+PAGE = os.environ.get("APP_PAGE") or "index.html"
+ORIGIN = "http://localhost:%d" % PORT
+URL = "%s/%s?kiosk" % (ORIGIN, PAGE)
+DEVTOOLS = int(os.environ.get("DEVTOOLS_PORT") or 9222)
+CHROMIUM = os.environ.get("CHROMIUM") or "/usr/bin/chromium"
+PROFILE = os.environ.get("JAM_PROFILE") or os.path.expanduser("~/.local/share/jam-session/chromium")
+
+# Permission descriptors, named as the page's own navigator.permissions names them. SysEx is what
+# lights the Launchkey's screen; the microphone is VC·1's and LP·1's input and what lets the output
+# picker read device names; speaker-selection is the output picker itself; persistent-storage keeps
+# the songs saved in the profile from being evicted.
+PERMISSIONS = [{"name": "midi"}, {"name": "midi", "sysex": True}, {"name": "microphone"},
+               {"name": "speaker-selection"}, {"name": "persistent-storage"}]
+# The same as Browser.grantPermissions types, for a Chromium without setPermission.
+LEGACY_TYPES = ["midi", "midiSysex", "audioCapture", "speakerSelection", "durableStorage"]
+
+FLAGS = [
+    "--user-data-dir=" + PROFILE,
+    "--remote-debugging-port=%d" % DEVTOOLS,       # Chromium binds it to 127.0.0.1
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--password-store=basic",                      # no keyring to unlock on a box with no desktop
+    "--autoplay-policy=no-user-gesture-required",
+    # ⚠️ A PAGE NOBODY IS LOOKING AT IS STILL PLAYING. Chromium throttles the timers of a page it
+    # thinks is hidden. The clock is safe on its AudioWorklet either way, but the Launchkey's LEDs
+    # and screen repaint on a timer, and would crawl.
+    "--disable-background-timer-throttling",
+    "--disable-renderer-backgrounding",
+    "--disable-backgrounding-occluded-windows",
+    "--disable-features=Translate,MediaRouter,IntensiveWakeUpThrottling",
+    "--noerrdialogs",
+    "--disable-session-crashed-bubble",
+    "--disable-infobars",
+    "--overscroll-history-navigation=0",
+    "--disable-pinch",
+    "--check-for-update-interval=31536000",
+]
+
+
+def log(*parts):
+    print("jam-browser:", *parts, flush=True)
+
+
+def http_json(url, timeout=2.0):
+    with urllib.request.urlopen(url, timeout=timeout) as r:
+        return json.load(r)
+
+
+def server_up():
+    try:
+        req = urllib.request.Request("%s/%s" % (ORIGIN, PAGE), method="HEAD")
+        with urllib.request.urlopen(req, timeout=2.0) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+def wait_for_server(seconds=60):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if server_up():
+            return True
+        time.sleep(0.5)
+    return False
+
+
+class DevTools:
+    """One WebSocket to one DevTools target. Events that arrive while waiting for an answer are
+    kept, the newest 200 of them, for anyone who wants to read what the page threw."""
+
+    def __init__(self, ws_url):
+        import websocket                           # python3-websocket; not needed for --wait-for-server
+        self._ws_lib = websocket
+        # ⚠️ NO ORIGIN HEADER. Chromium refuses a DevTools connection carrying an Origin it was not
+        # told to allow, and the client library sends one unless asked not to.
+        self.ws = websocket.create_connection(ws_url, timeout=10, suppress_origin=True)
+        self.seq = 0
+        self.events = []
+
+    def call(self, method, params=None, timeout=15.0):
+        self.seq += 1
+        mine = self.seq
+        self.ws.send(json.dumps({"id": mine, "method": method, "params": params or {}}))
+        deadline = time.monotonic() + timeout
+        while True:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise TimeoutError(method)
+            self.ws.settimeout(left)
+            try:
+                msg = json.loads(self.ws.recv())
+            except self._ws_lib.WebSocketTimeoutException:
+                raise TimeoutError(method)
+            if msg.get("id") == mine:
+                if "error" in msg:
+                    raise RuntimeError("%s: %s" % (method, msg["error"].get("message")))
+                return msg.get("result", {})
+            if "method" in msg:
+                self.events.append(msg)
+                del self.events[:-200]
+
+    def evaluate(self, expression, timeout=15.0):
+        r = self.call("Runtime.evaluate", {"expression": expression, "awaitPromise": True,
+                                           "returnByValue": True}, timeout)
+        if "exceptionDetails" in r:
+            raise RuntimeError("page threw: %s" % r["exceptionDetails"].get("text"))
+        return r.get("result", {}).get("value")
+
+    def close(self):
+        try:
+            self.ws.close()
+        except Exception:
+            pass
+
+
+def launch(headless):
+    os.makedirs(PROFILE, exist_ok=True)
+    args = [CHROMIUM] + FLAGS
+    args += ["--headless=new"] if headless else ["--kiosk", "--ozone-platform-hint=auto"]
+    if os.environ.get("JAM_NO_SANDBOX") == "1":
+        # Only for the build's check inside the image: the build machine forbids the namespaces
+        # Chromium's sandbox is made of. The Pi itself runs sandboxed.
+        args.append("--no-sandbox")
+    args += shlex.split(os.environ.get("EXTRA_CHROMIUM_FLAGS") or "")
+    args.append("about:blank")
+    log("starting", " ".join(shlex.quote(a) for a in args))
+    return subprocess.Popen(args)
+
+
+def stop(proc, grace=5.0):
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(grace)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+
+
+def devtools_version(proc, seconds=60):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError("chromium exited (%s) before DevTools came up" % proc.returncode)
+        try:
+            return http_json("http://127.0.0.1:%d/json/version" % DEVTOOLS)
+        except Exception:
+            time.sleep(0.25)
+    raise TimeoutError("DevTools did not come up in %d s" % seconds)
+
+
+def page_target():
+    for t in http_json("http://127.0.0.1:%d/json/list" % DEVTOOLS):
+        if t.get("type") == "page" and t.get("webSocketDebuggerUrl"):
+            return t["webSocketDebuggerUrl"]
+    raise RuntimeError("Chromium has no page to load the rack into")
+
+
+def describe(descriptor):
+    return descriptor["name"] + ("+sysex" if descriptor.get("sysex") else "")
+
+
+def grant(browser):
+    """⚠️ setPermission ONE DESCRIPTOR AT A TIME — never grantPermissions one at a time. Measured in
+    Chrome 152 headless on 2026-09-13, against a page that only queried permission state:
+    grantPermissions REPLACES an origin's grants and rejects everything it does not list, so one call
+    per permission left MIDI, SysEx and the microphone all denied. The smoke test caught exactly that —
+    SysEx denied behind grants Chromium had accepted. setPermission adds one and leaves the rest, so a
+    name a later Chromium drops costs only itself."""
+    granted = []
+    for d in PERMISSIONS:
+        try:
+            browser.call("Browser.setPermission", {"permission": d, "setting": "granted", "origin": ORIGIN})
+            granted.append(describe(d))
+        except Exception as e:
+            log("could not grant", describe(d), "-", e)
+    if "midi+sysex" not in granted:
+        # A Chromium without setPermission: one call naming everything, because it replaces.
+        try:
+            browser.call("Browser.grantPermissions", {"permissions": LEGACY_TYPES, "origin": ORIGIN})
+            granted = ["midi", "midi+sysex", "(all, by grantPermissions)"]
+        except Exception as e:
+            log("grantPermissions failed as well -", e)
+    log("granted", ", ".join(granted) or "nothing", "to", ORIGIN)
+    return granted
+
+
+def bring_up(headless):
+    proc = launch(headless)
+    try:
+        version = devtools_version(proc)
+        log("chromium", version.get("Browser", "?"))
+        browser = DevTools(version["webSocketDebuggerUrl"])
+        # ⚠️ BEFORE THE PAGE, not after it: a page that asks first gets a prompt, and a grant that
+        # arrives while the prompt is up is not known to answer it.
+        granted = grant(browser)
+        if not wait_for_server():
+            raise RuntimeError("the page server at %s never answered" % ORIGIN)
+        page = DevTools(page_target())
+        page.call("Runtime.enable")
+        page.call("Page.enable")
+        page.call("Page.navigate", {"url": URL})
+        log("loading", URL)
+        return proc, browser, page, granted
+    except BaseException:
+        stop(proc)
+        raise
+
+
+HEALTHY = "!!(window.Patchwork && Patchwork.kiosk && Patchwork.kiosk.on)"
+
+
+def kiosk():
+    proc, browser, page, _ = bring_up(headless=False)
+
+    def on_term(*_):
+        stop(proc)
+        sys.exit(0)
+    signal.signal(signal.SIGTERM, on_term)
+
+    missing = stalls = 0
+    time.sleep(15)                                 # the rack is a big page on a small computer
+    while proc.poll() is None:
+        try:
+            ok = page.evaluate(HEALTHY, timeout=10)
+            stalls = 0
+            missing = 0 if ok else missing + 1
+        except TimeoutError:
+            stalls += 1
+            log("the page did not answer (%d)" % stalls)
+        except Exception as e:
+            missing += 1
+            log("health check failed:", e)
+        # ⚠️ A RELOAD FIRST, THEN A RESTART. A page that loaded without the rack — an error page, a
+        # half-served file — is loaded again. A renderer that has stopped answering at all is not
+        # coming back, and ending Chromium lets systemd start everything clean.
+        if missing >= 3:
+            log("no rack on the page; loading it again")
+            try:
+                page.call("Page.navigate", {"url": URL})
+            except Exception as e:
+                log("reload failed:", e)
+            missing = 0
+            time.sleep(15)
+        if stalls >= 3:
+            log("the page stopped answering; restarting Chromium")
+            stop(proc)
+            break
+        time.sleep(5)
+    log("chromium exited", proc.wait())
+    return 1
+
+
+SMOKE = r"""
+(async () => {
+  const P = window.Patchwork, r = {};
+  r.patchwork = typeof P === "object";
+  r.kiosk = !!(P && P.kiosk && P.kiosk.on);
+  r.cloudConfigured = P && P.cloud ? !!P.cloud.configured : null;
+  const gate = document.querySelector("#jamGate");
+  r.gateShown = !!(gate && !gate.hidden);
+  try { r.midiPermission = (await navigator.permissions.query({name: "midi", sysex: true})).state; }
+  catch (e) { r.midiPermission = "error: " + e.message; }
+  try {
+    r.midiAccess = await Promise.race([
+      navigator.requestMIDIAccess({sysex: true}).then(() => "granted"),
+      new Promise(done => setTimeout(() => done("still waiting after 8 s"), 8000))]);
+  } catch (e) { r.midiAccess = e.name + ": " + e.message; }
+  r.audio = P && P.audio && P.audio.ctx ? P.audio.ctx.state : null;
+  r.kioskLog = P && P.kiosk ? P.kiosk.log.map(l => l.what) : [];
+  return r;
+})()
+"""
+
+
+def smoke(expect_offline):
+    proc, browser, page, granted = bring_up(headless=True)
+    try:
+        deadline = time.monotonic() + 120
+        loaded = "location.href.startsWith(%s) && document.readyState === 'complete'" % json.dumps(ORIGIN)
+        while not page.evaluate(loaded):
+            if time.monotonic() > deadline:
+                raise TimeoutError("the rack did not finish loading in 120 s")
+            time.sleep(0.5)
+        time.sleep(8)                              # kiosk.js starts on load and retries every 2 s
+        r = page.evaluate(SMOKE, timeout=45) or {}
+        problems = []
+
+        def check(ok, what):
+            print("  %s  %s" % ("ok  " if ok else "FAIL", what), flush=True)
+            if not ok:
+                problems.append(what)
+
+        check("midi" in granted and "midi+sysex" in granted, "MIDI and SysEx granted over DevTools")
+        check(r.get("patchwork"), "the rack loaded (window.Patchwork)")
+        check(r.get("kiosk"), "kiosk mode is on")
+        check(r.get("midiPermission") == "granted",
+              "the page sees MIDI with SysEx as granted (%s)" % r.get("midiPermission"))
+        access = str(r.get("midiAccess"))
+        # No MIDI hardware in a build machine's chroot, so failing to START is fine. Being
+        # refused, or left waiting on a prompt, is the bug this exists to catch.
+        check(not access.startswith(("NotAllowedError", "SecurityError", "still waiting")),
+              "requestMIDIAccess was neither refused nor left waiting (%s)" % access)
+        if expect_offline:
+            check(r.get("cloudConfigured") is False, "cloud sync is off in this copy")
+            check(not r.get("gateShown"), "the sign-in gate is not in the way")
+        print("  info  audio context: %s" % r.get("audio"), flush=True)
+        print("  info  kiosk log: %s" % ("; ".join(r.get("kioskLog") or []) or "(empty)"), flush=True)
+        thrown = [e["params"].get("exceptionDetails", {}) for e in page.events
+                  if e.get("method") == "Runtime.exceptionThrown"]
+        for t in thrown[:10]:
+            print("  info  the page threw: %s" % ((t.get("exception") or {}).get("description") or t.get("text")),
+                  flush=True)
+        print("smoke: %s" % ("FAILED: " + "; ".join(problems) if problems else "passed"), flush=True)
+        return 1 if problems else 0
+    finally:
+        page.close()
+        browser.close()
+        stop(proc)
+
+
+def main(argv):
+    if "--wait-for-server" in argv:
+        return 0 if wait_for_server() else 1
+    if "--smoke" in argv:
+        return smoke("--expect-offline" in argv)
+    return kiosk()
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except SystemExit:
+        raise
+    except Exception as e:
+        log("failed:", e)
+        sys.exit(1)

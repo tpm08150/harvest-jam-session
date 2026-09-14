@@ -1,0 +1,17 @@
+# Jam Session settings
+#
+# This file is on the SD card's boot partition — the drive called "bootfs" when the card is in a
+# Mac or PC — so the Pi can be changed without logging in to it. Take the # off a line to use it,
+# save, put the card back in the Pi and power it on.
+
+# The page the Pi boots into. index.html is the whole rack. Single instruments:
+# drums.html, bass.html, poly-synth.html, chord-synth.html, vocoder.html, looper.html,
+# transitions.html, sequencer.html
+#APP_PAGE=index.html
+
+# Extra Chromium flags. For example, to fit more on an HDMI screen:
+#EXTRA_CHROMIUM_FLAGS=--force-device-scale-factor=0.8
+
+# The HDMI picture is set in cmdline.txt, beside this file, by
+#   video=HDMI-A-1:1280x720@60D
+# Change 1280x720 to 1920x1080 for a sharper picture on a big screen.

@@ -1,34 +1,37 @@
 [Unit]
-Description=Jam Session — kiosk browser
-After=jam-server.service sound.target
-Requires=jam-server.service
+Description=Jam Session: the rack, fullscreen, in cage
+Documentation=https://github.com/tpm08150/harvest-jam-session/blob/main/pi/README.md
+Wants=jam-server.service dbus.socket systemd-logind.service
+After=jam-server.service dbus.socket systemd-logind.service systemd-user-sessions.service
+Conflicts=getty@tty7.service
+After=getty@tty7.service
+# However many times it falls over, start it again: a box with nobody at it has no other way back.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-User=@RUN_USER@
-EnvironmentFile=/etc/jam-session.conf
-Environment=XDG_RUNTIME_DIR=/run/user/1000
-# ⚠️ WAIT FOR THE PORT, not for the unit. systemd calls jam-server started the moment the
-# process exists, which is before python has bound anything — and Chromium reaching a
-# closed port shows an error page and stays on it, with nobody there to reload.
-ExecStartPre=/bin/sh -c 'for i in $(seq 1 40); do \
-  python3 -c "import socket,sys; s=socket.socket(); sys.exit(s.connect_ex((\"127.0.0.1\", int(\"$PORT\"))))" \
-  && exit 0; sleep 0.5; done; exit 1'
-
-# cage is a one-window Wayland compositor: fullscreen, no desktop, nothing to click away.
-ExecStart=/usr/bin/cage -- /usr/bin/chromium-browser \
-  --kiosk \
-  --app=http://localhost:${PORT}/${APP_PAGE}?kiosk \
-  --user-data-dir=@APP_DIR@/profile \
-  --autoplay-policy=no-user-gesture-required \
-  --disable-features=Translate,MediaRouter \
-  --disable-pinch \
-  --overscroll-history-navigation=0 \
-  --noerrdialogs \
-  --disable-session-crashed-bubble \
-  --disable-infobars \
-  --check-for-update-interval=31536000
-
+User=jam
+# ⚠️ A REAL LOGIN SESSION ON TTY7 (see jam-kiosk.pam). That is what lets cage, as an ordinary user,
+# open the display and the GPU — and what starts jam's PipeWire, where the sound comes from.
+PAMName=jam-kiosk
+TTYPath=/dev/tty7
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty7
+UtmpMode=user
+Environment=PORT=8123 APP_PAGE=index.html DEVTOOLS_PORT=9222
+EnvironmentFile=-/etc/jam-session.conf
+EnvironmentFile=-/boot/firmware/jam-session.txt
+Environment=XDG_SESSION_TYPE=wayland
+# Bring tty7 to the front first, as root: a session on a console nobody is showing is not active,
+# and an inactive session is not given the display.
+ExecStartPre=-+/usr/bin/chvt 7
+# -d no window decorations, -s VT switching allowed, -m last: the rack goes on the newest display.
+ExecStart=/usr/bin/cage -d -s -m last -- /opt/jam-session/jam-browser
 Restart=always
 RestartSec=3
 

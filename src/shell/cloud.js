@@ -43,7 +43,13 @@ const NAME_KEY = "patchwork-cloud-name";
 const subs = [];
 function notify(){ subs.forEach(fn => { try{ fn(); }catch(e){} }); }
 
-const configured = () => !!(URL_BASE && KEY);
+/* ⚠️ OFFLINE IS FOR THE PI IMAGE, which sets it in the copy it installs and nowhere else. A box
+   that boots into the rack with nobody at a keyboard cannot get past studio/gate.js, and the gate
+   stands down when cloud is not configured — so pi/provision.sh rewrites this exact line to `true`
+   and refuses to build if index.html does not have it exactly once. The site is never built that
+   way; an offline copy is purely local, like a checkout without keys. */
+const OFFLINE = false;
+const configured = () => !OFFLINE && !!(URL_BASE && KEY);
 let session = null;                  // {access_token, refresh_token, expires_at, email, sub}
 
 function loadSession(){

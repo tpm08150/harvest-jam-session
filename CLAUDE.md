@@ -109,8 +109,11 @@ be added there. With cloud sync configured (`shell/cloud.js`, Supabase; SQL in `
 
 **Elsewhere.** `relay/` is the hosted relay (a Durable Object). `ios/` holds the Web MIDI shim for
 the WKWebView app; `ios/Sources/*.swift` is canonical and is copied into `Patchwork/Patchwork/`.
-`pi/` is a headless Raspberry Pi kiosk (`index.html?kiosk`) written from documentation and never
-run on a Pi.
+`pi/` is the Raspberry Pi groovebox: `pi/image/build.sh` makes a burnable Raspberry Pi OS image and
+needs an arm64 Linux host, so `.github/workflows/pi-image.yml` runs it on GitHub's arm64 runners;
+`pi/provision.sh` installs the offline kiosk, on the image or a live Pi; `pi/jam-browser` grants MIDI
+over DevTools and has a `--smoke` check. ⚠️ The image rewrites `const OFFLINE = false;` in
+`shell/cloud.js` and fails unless it finds that exact line. Not yet run on a Pi.
 
 ## Working here
 

@@ -267,9 +267,12 @@ hand afterwards.
 
 ## On a Raspberry Pi
 
-Plug a Launchkey into a Pi, power it on, play. `pi/setup.sh` provisions Raspberry Pi OS
-Lite: a local server (Web MIDI needs a secure context, and `http://localhost` is one), then
-Chromium fullscreen inside `cage` at `index.html?kiosk`.
+Burn the Jam Session image to an SD card, put it in a Raspberry Pi, plug in a Launchkey and
+power it on: the Launchkey is a groovebox, with no screen needed — plug in HDMI whenever you want
+to see the rack. GitHub Actions builds the image (`pi/image/build.sh`); `pi/README.md` says where
+to get it and how to burn it. The Pi serves the pages to itself (Web MIDI needs a secure context,
+and `http://localhost` is one) and runs Chromium fullscreen inside `cage` at `index.html?kiosk`.
+⚠️ **The Pi's copy is offline**: no sign-in gate and no cloud sync, and songs are saved on the card.
 
 ⚠️ **Every default in this app assumes a person is in front of it** — the surface waits to
 be picked from a list, SysEx waits for a deliberate click, the audio context waits for a
@@ -302,8 +305,8 @@ Mac opens any input with more than two channels as its first two, so VC·1 and L
 EP-136's `MAIN L/R` and never `CH1`, `CH2` or `AUX`. Nobody has yet listened to what arrives at
 the mixer on 3-4.
 
-See `pi/README.md`, and read `pi/setup.sh` before you run it: none of the Pi half has been
-run on real hardware.
+See `pi/README.md` for what has been tested and what has not: none of the Pi half has run on
+real hardware yet.
 
 ## The launcher on the pads
 
