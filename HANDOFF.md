@@ -2672,8 +2672,8 @@ What the report said, against what the brief assumed:
   so the fix is fewer pixels, not flags.
 - **The Launchkey was not on the USB bus at all**: the EP-136, a USB mouse and the hub, and no MIDI port
   for it anywhere. Tyler then found **a bad USB cable**. Web MIDI itself worked — the page listed
-  "EP-136 MIDI 1" and "Midi Through" with SysEx granted — so detection is untouched; on Linux a MK4's
-  two ports are expected to share one truncated name, which `detect()` meets with its second-port fallback.
+  "EP-136 MIDI 1" and "Midi Through" with SysEx granted — so detection is untouched. (An Ardour thread
+  suggested a MK4's two ports share one truncated name on Linux; the next boot showed otherwise, below.)
 - PipeWire showed no Chromium stream and no dropouts: nothing was playing when the report ran.
 
 What the next image changes:
@@ -2788,3 +2788,43 @@ Both mounts now return `destroy()`, which removes their listeners on the element
 still live. SQ·1 destroys the old grid and Clear mount before making the next, and the synth grid when a drum
 track is shown. Afterwards every gesture acted once and only on the track shown, and Undo restored the pattern
 (4 → 0 → 4), on both pages. BS·1, VC·1, DR·1 and PM·1 mount once and never call it.
+
+### The third Pi
+
+Image `8e62b71`, its report read off the card on 2026-09-14. Tyler: **"very sluggish and not playable"**.
+The rack was stopped when the report ran, Play having been pressed earlier in the same boot. The SQ·1
+remount fix in the section above (`bed422d`) is not in this image.
+
+- **The Launchkey works on the Pi.** With a good cable the Mini MK4 25 enumerated through the USB 2.0
+  hub, ALSA and Web MIDI both named its ports `Launchkey Mini MK4 25 MIDI In` and `… DAW In` — the names
+  do carry MIDI and DAW on Linux, so `detect()` matches them outright and its second-port fallback is not
+  what finds the device — and the kiosk claimed the DAW port unaided. Play from the device reached the page.
+- **Idle is fixed.** No animation-frame requests at all, the main thread busy 0.084 s of every second
+  (0.53 at 4K on the second image), the worst late timer 23 ms (1145 ms), the CPU 92% idle over a
+  three-second sample.
+- ⚠️ **Playing is not.** Since the page loaded — about 7.5 minutes, with Play pressed during it — the
+  renderer had averaged 81% of a core and the GPU process 67% (`ps` lifetime averages, so unlike the
+  three-second sample they cover the playing stretch). On the laptop the GPU process burns 0.68 s of CPU
+  a second while the rack plays, which the frame work above did not change. Note scheduling runs on the
+  main thread — the clock worklet posts, `pump()` calls each instrument's `tick()` 200 ms ahead — so a
+  renderer starved by drawing is heard as late notes. **Drawing while playing is the lead suspect.**
+- **The audio thread has room.** `renderCapacity` 0.147 mean and 0.194 p95 with the rack stopped, in
+  512-frame (10.67 ms) callbacks; the laptop reads about 0.05 in the same state. Whatever is sluggish,
+  the render thread is not out of budget.
+- **Memory:** 386 MB available of 905, 291 MB of zram swap in use. Renderer 153 MB, browser 58, GPU 53,
+  an on-device model service 51, a second renderer 48, network 20, audio 15.
+- **`SCREEN` is still untested.** No screen was attached when the report ran (EDID 0 bytes), so cage sat
+  at the forced 1920x1080@59.99 and `wlr-randr` had nothing to choose. No EP-136 on USB either — the sink
+  was the headphone jack — and PipeWire again showed no Chromium stream, the rack being silent.
+- ⚠️ **The report has never run while the rack played.** The timer fires three minutes after boot and
+  every five after, and the card gets pulled once Tyler has stopped. To catch one: boot with the TV
+  connected, press Play inside two minutes, keep playing for ten, and pull the plug while it still plays.
+- The report's "jam-browser, this boot" section came back empty. Unconfirmed, but its journal lines are
+  probably outside the unit's scope, the kiosk running under a PAM session.
+
+**Next on the Pi:** measure it while playing and then bisect with `APP_PAGE=drums.html`; log dropouts from
+`AudioContext.playbackStats` (Chrome 152 gives underrun events and duration) rather than inferring them;
+cut drawing while playing — playheads on a step change only, CS·1's wipe as a transform, `contain` on the
+panels, a kiosk stylesheet without blur, gradients or grain, and `SCREEN=1280x720`; and claw back the
+on-device model service and the second renderer, 99 MB together, checking the flag names against
+Chromium's source rather than a blog.
