@@ -14,7 +14,7 @@ instruments — `tools/build.py` is the authoritative list.
 ## Commands
 
 ```bash
-python3 tools/build.py            # after ANY edit under src/ — rewrites the nine .html files
+python3 tools/build.py            # after ANY edit under src/ — rewrites the ten .html files
 python3 tools/build.py --check    # the commit contract: fails if a built file differs from src/
 python3 serve.py                  # no-cache dev server on http://localhost:8123 (PORT=… to change)
 ```
@@ -25,7 +25,7 @@ drive it from the console:
 
 | Command | Page | What it supplies |
 | --- | --- | --- |
-| `python3 tools/build-surface-harness.py` | `_surfacetest.html` | a fake Launchkey MK4 on both USB ports: `__lk.connect()`, `.pad(cell, vel)`, `.padOff(cell)`, `.btn(cc)`, `.enc(i, v)`, `.customEnc(i, v)` (a knob in Custom 1, on the MIDI port), `.raw(bytes)`, `.leds()`, `.text()`, `.bitmaps()`, `.out` |
+| `python3 tools/build-surface-harness.py` (`--box` wraps `groovebox.html` into `_boxtest.html`) | `_surfacetest.html` | a fake Launchkey MK4 on both USB ports: `__lk.connect()`, `.pad(cell, vel)`, `.padOff(cell)`, `.btn(cc)`, `.enc(i, v)`, `.customEnc(i, v)` (a knob in Custom 1, on the MIDI port), `.raw(bytes)`, `.leds()`, `.text()`, `.bitmaps()`, `.out` |
 | `python3 tools/build-midi-harness.py` | `_miditest.html` | a fake MIDI input for the router: `__midi.note(ch, n, vel)`, `.raw(bytes)`, `.seen`, `.handlers()` |
 | `python3 tools/build-phase-harness.py` | `_phasetest.html` | a synthetic 24 ppqn clock and recorded oscillator times: `__phase.start(120)`, `.slope()`, `.step(ms)`, `.stop()` — plays audio until stopped |
 | `python3 tools/build-capture-harness.py` | `_capture.html` | CS·1 with a 10 s master recorder and an injected test click, for "is this artefact in the audio?" |
@@ -52,7 +52,9 @@ python3 tools/relay-check.py ws://localhost:8124  # holds either relay to the sa
   concatenated in order — no templating, so `git diff` of the output is the whole review. Outputs:
   `index.html` (studio), `chord-synth.html` CS·1, `poly-synth.html` PM·1, `vocoder.html` VC·1,
   `bass.html` BS·1, `drums.html` DR·1, `looper.html` LP·1, `transitions.html` TS·1,
-  `sequencer.html` SQ·1.
+  `sequencer.html` SQ·1, and `groovebox.html` (`src/box/`): the studio's manifest without the tape,
+  library, jam, talkback, cloud and gate — `box/stub.js` answers for the session — plus
+  `shell/song.js` and `box/song-ui.js`. It is what the Pi boots (`APP_PAGE` in `pi/jam-session.conf`).
 - The build also fails when a fragment under `src/` is in no manifest (a new file must be added to
   every `parts.txt` that should carry it), when a manifest lists a missing file, or when the
   studio stylesheet uses a class name an instrument owns.
@@ -80,7 +82,10 @@ or hardware directly; they register adapters:
   AudioWorklet so timing survives background tabs.
 - `sequences.register(id, {blank, used})` — sixteen patterns per instrument (the strip under the
   patch row); the grid is whichever one is up. Anything that writes a pattern from outside a panel
-  goes through `sequences.around(id, fn)`, or the sequence you were on absorbs it.
+  goes through `sequences.around(id, fn, slot)`, or the sequence you were on absorbs it.
+- `song.go(n)` (`shell/song.js`) — sequence n on every instrument at once, landed through
+  `scenes.land()` on the launcher's seam; `song.chain` is a list of `{seq, bars}` it plays in order.
+  The groovebox's Song page and view (`box/song-ui.js`) drive it; the studio carries the module unused.
 - `record.register`, `patches.mount`, the `chords` and `kit` registries, and
   `session.registerPatch` / `registerVoice` for jams: patterns and patches are polled and diffed,
   fires, notes and takes are pushed, and only looper takes, the metronome and talkback travel as
@@ -99,8 +104,11 @@ mode, else the focused panel's spec, and a profile talks only to `rig`. `shell/l
 LEDs and screen every 60 ms sending only changes, maps the device's encoder modes to studio views
 (`ENC_VIEW`), and draws on the screen with SysEx text and 128×64 bitmaps
 (`shell/launchkey-art.js`, frames paced by the device's reply). The studio mounts pages: `scenes`
-(`studio/scenes.js`), `mixer` (`studio/console.js`), `settings` (`studio/settings.js`), `punch`
-(`studio/live.js`).
+(`studio/scenes.js`), `mixer` (`studio/console.js`), `settings` (`studio/settings.js`), `songs`
+(`studio/songs.js` — projects, patches, jams, and spelling their names from the encoders), `punch`
+(`studio/live.js`), and on the groovebox `song` (`box/song-ui.js`) in the launcher's place — an
+`ENC_VIEW` entry may list pages and the first one mounted wins. A grid with `announce: true` has its
+label flashed to the controller's screen when it changes (CS·1 names chords with it).
 
 **Studio (`src/studio/`).** Views — Studio, Tape, Live, Library, Settings — are switched by
 `show()` in `studio/live.js`, where Studio is derived as "none of the others", so a new view must
@@ -115,7 +123,9 @@ public run's log needs a sign-in, so the workflow posts what matters as annotati
 `pi/provision.sh` installs the offline kiosk, on the image or a live Pi; `pi/jam-browser` grants MIDI
 over DevTools and has a `--smoke` check; `pi/jam-diagnose` reports what a running Pi is doing, and the
 image writes that to `jam-diagnose.txt` on the card's boot partition, because a custom image flashed
-with Raspberry Pi Imager has no login. ⚠️ The image rewrites `const OFFLINE = false;` in
+with Raspberry Pi Imager has no login. Since 2026-09-19 the Pi is **screenless by default** (`SCREEN=off`):
+Chromium headless, the page loaded with `?screenless` (`shell/host.js` — `display:none` and four frames a
+second), everything done from the Launchkey; HANDOFF.md, "Screenless", lists what has no gesture yet. ⚠️ The image rewrites `const OFFLINE = false;` in
 `shell/cloud.js` and fails unless it finds that exact line. First run on a Pi 4 (2026-09-13): it booted
 and made sound, but did not see the Launchkey and was too slow to play.
 

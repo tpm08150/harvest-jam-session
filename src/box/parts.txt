@@ -1,9 +1,11 @@
-# The studio build: both instruments on one page, sharing the shell.
+# The groovebox: the studio for a Raspberry Pi with no screen (2026-09-20).
 #
-# The instrument fragments are the SAME files the standalone builds use — there is no
-# studio-specific copy of either synth. Only the page around them differs, which is
-# what stops the two configurations drifting apart.
-studio/head.html
+# The studio's manifest with the tape, the library, the jam, talkback, cloud sync and the sign-in
+# gate left out — never parsed, never in memory — and shell/song.js, which is sequence numbers for
+# the whole rack and a chain of them, in the launcher's place on the controller. The launcher's own
+# code stays: it is the seam every change lands on, and the tempo head and the Settings tab are in
+# it. Every other fragment is the studio's own file, so the two cannot drift.
+box/head.html
 shell/tokens.css
 shell/reset.css
 shell/chrome.css
@@ -32,9 +34,9 @@ lp1/_panel-open.css
 lp1/panel.css
 lp1/_panel-close.css
 studio/page.css
+box/song.css
 shell/page-open.html
-studio/gate.html
-studio/head-bar.html
+box/head-bar.html
 studio/rack-open.html
 studio/scenes.html
 dr1/panel.html
@@ -47,19 +49,12 @@ ts1/panel.html
 sq1/panel.html
 studio/rack-close.html
 studio/live.html
-studio/tape.html
-studio/console.html
-studio/library.html
+box/song.html
 studio/settings.html
 shell/script-open.html
 shell/host.js
 shell/bus.js
 shell/fx.js
-shell/tape.js
-shell/library.js
-shell/opus.js
-shell/cloud.js
-studio/gate.js
 shell/clock.js
 shell/project.js
 shell/click.js
@@ -69,6 +64,7 @@ shell/launchkey-art.js
 shell/launchkey.js
 shell/kiosk.js
 shell/scenes.js
+shell/song.js
 shell/sequences.js
 shell/chords.js
 shell/kit.js
@@ -76,9 +72,7 @@ shell/patches.js
 shell/faces.js
 shell/keys.js
 shell/record.js
-shell/codec.js
-shell/talk.js
-shell/session.js
+box/stub.js
 voice/core.js
 seq/step-seq.js
 dr1/_open.js
@@ -140,10 +134,8 @@ sq1/_close.js
 studio/scenes.js
 studio/settings.js
 studio/songs.js
+box/song-ui.js
 studio/live.js
-studio/console.js
-studio/tape.js
-studio/library.js
 studio/boot.js
 shell/boot.js
 shell/tail.html

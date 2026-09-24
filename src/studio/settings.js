@@ -51,15 +51,32 @@ function globalControls(){
     opt("#stAudioOut", "Output device", "Dev"),
     opt("#stMidiIn", "MIDI in", "MIn"),
     opt("#stMidiOut", "MIDI out", "MOu"),
-    /* ⚠️ NOT THE CONTROLLER. It was the fourth knob, and one detent from the Launchkey is "none": the
-       knob disconnected the controller turning it, taking DAW mode, the pads and the screen with it.
-       Which controller is connected is not a question that controller can answer with a knob — it
-       stays on the Settings tab. */
     /* A checkbox is not a list, so it is the one control here that has to be built by hand.
        Two positions, and nudge() is what makes a two-position control usable on an encoder
        at all — see stepper() in shell/surface.js. */
-    follow()
+    follow(),
+    controller()
   ].filter(Boolean);
+}
+/* ---- which controller, when there is more than one ----
+   ⚠️ THIS WAS THE FOURTH KNOB ONCE AND WAS TAKEN OUT: it was the Controller menu, whose first entry is
+   "none", and one detent from a Launchkey disconnected the Launchkey turning it — DAW mode, pads and
+   screen gone with it. So this is a list of the controllers the page can SEE and nothing else: no
+   "none", and with one controller plugged in a list of one, which a detent cannot leave. With two, a
+   detent hands the surface from one to the other, which is the case a box with no screen needed
+   (2026-09-20); the kiosk connects the one it finds and refuses to guess between two. */
+function controller(){
+  const S = Patchwork.surface;
+  const list = () => S.available;
+  const at = () => Math.max(0, list().findIndex(p => p.id === S.connected));
+  const go = i => { const p = list()[i]; if (p && p.id !== S.connected) S.connect(p.id); };
+  return {
+    id: "controller", label: "Controller", short: "Ctl", stepped: true,
+    text: () => { const p = list()[at()]; return p ? p.label || p.name : "none seen"; },
+    get: () => { const n = list().length; return n > 1 ? at() / (n - 1) : 0; },
+    set: v => { const n = list().length; if (n > 1) go(Math.round(v * (n - 1))); },
+    nudge: d => { const n = list().length; if (n > 1) go(Math.max(0, Math.min(n - 1, at() + (d > 0 ? 1 : -1)))); }
+  };
 }
 function follow(){
   const el = q("#stMidiFollow");

@@ -591,6 +591,26 @@ if (window.Patchwork && Patchwork.surface){
        this is the only end that knows — see linked() in shell/surface.js, which reads it from
        both. Null for the studio bus and for a microphone: there is nowhere to hop to. */
     link: () => instOf(LP.input),
+    /* ⚠️ THE PAIR BESIDE THE ENCODERS IS THE ROW OF BUTTONS UNDER THE LOOP. LP·1 has one bank, so
+       the pair did nothing here, and Undo, Clear take, Clear all and Push to jam were on the screen
+       only — which a rack with no screen does not have (2026-09-19). Func + a pad already empties
+       a slot; these are the rest. The two that throw audio away need Func, the second hand, for
+       the reason that one does. Every one is the panel's own button, so what it says and refuses
+       is what the panel says and refuses.
+
+         ∧ Undo        Func + ∧ Clear all
+         ∨ Push to jam Func + ∨ Clear take */
+    bumpName: "Loop",
+    bump: (dir, alt) => {
+      const press = (sel, done) => {
+        const b = $(sel);
+        if (!b || b.disabled || b.hidden) return null;
+        b.click();
+        return done;
+      };
+      if (alt) return dir < 0 ? press("#clearAll", "All cleared") : press("#clear", "Take cleared");
+      return dir < 0 ? press("#undo", "Undo") : (press("#push", "Pushing") || "Not in a jam");
+    },
     /* The deck's own Play/Stop, so whatever it does when clicked happens here too. */
     actionName: "Loop",
     action: () => {

@@ -31,7 +31,8 @@ APPS = {"cs1": "chord-synth.html",
         "pm1": "poly-synth.html",
         "ts1": "transitions.html",
         "sq1": "sequencer.html",
-        "studio": "index.html"}
+        "studio": "index.html",
+        "box": "groovebox.html"}
 
 
 def manifest(app):
@@ -89,7 +90,7 @@ def collisions():
                 for c in m.split()}
 
     owned = set()
-    for rel in (r for r in manifest("studio") if r.startswith("studio/")):
+    for rel in (r for app in ("studio", "box") for r in manifest(app) if r.startswith(("studio/", "box/"))):
         owned |= in_css(rel) if rel.endswith(".css") else in_html(rel) if rel.endswith(".html") else set()
     # derived, not listed — adding an instrument should not mean remembering to add it
     # here as well, and forgetting would silently weaken the check

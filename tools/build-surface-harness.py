@@ -27,8 +27,10 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-APP = ROOT / "index.html"
-OUT = ROOT / "_surfacetest.html"
+# The studio by default; `--box` takes the groovebox build instead, into _boxtest.html.
+BOX = "--box" in sys.argv[1:]
+APP = ROOT / ("groovebox.html" if BOX else "index.html")
+OUT = ROOT / ("_boxtest.html" if BOX else "_surfacetest.html")
 
 HARNESS = r"""
 <script>

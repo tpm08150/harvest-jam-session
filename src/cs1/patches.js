@@ -3,6 +3,20 @@ const PATCH_KEY = "patchwork-cs1-patches";
 const PATCH_VERSION = 3;
 /* Tone range as it stood in each earlier patch version, used to migrate saved values */
 const TONE_RANGES = {1:[260, 8500], 2:[25, 8500]};
+/* A slot as it is kept: root, quality, bars — and the notes, when it was played in (theory.js,
+   analyseNotes). One copier for the patch, the scene, the sequence and the project, so none of them
+   can forget the fourth field. */
+function slotNotes(c){
+  if (!c || !Array.isArray(c.notes)) return null;
+  const notes = c.notes.map(n => n | 0).filter(n => n >= 0 && n <= 127).sort((a, b) => a - b).slice(0, 10);
+  return notes.length ? notes : null;
+}
+function slotCopy(c){
+  const out = {r: c.r, q: c.q, bars: c.bars || 1};
+  const notes = slotNotes(c);
+  if (notes) out.notes = notes;
+  return out;
+}
 const patchSel = $("#patchSel"), patchName = $("#patchName"), patchNote = $("#patchNote"),
       patchFile = $("#patchFile"), patchProg = $("#patchProg"),
       patchTrig = $("#patchTrig"), recallWhen = $("#recallWhen");
@@ -43,7 +57,7 @@ function snapshot(){
     clockLock:SYNC.lock,
     prog:state.prog ? {
       mood:state.prog.mood, minor:!!state.prog.minor,
-      chords:state.prog.chords.map(c => ({r:c.r, q:c.q, bars:c.bars || 1}))
+      chords:state.prog.chords.map(c => slotCopy(c))
     } : null
   };
 }
@@ -132,12 +146,17 @@ function restore(s){
 
   /* Rebuild the progression from its chords; anything unusable falls back to a fresh one. */
   const pc = s.prog && Array.isArray(s.prog.chords) ? s.prog.chords : null;
-  const chords = pc ? pc.filter(c => c && QUAL[c.q]).slice(0, 12).map(c => ({
-    r:((clamp(c.r, -60, 60, 0) | 0) % 12 + 12) % 12,
-    q:c.q,
-    bars:oneOf(+(clamp(c.bars, .25, 8, 1)).toFixed(2),
-               BAR_STEPS.map(v => +v.toFixed(2)), 1)
-  })) : [];
+  const chords = pc ? pc.filter(c => c && QUAL[c.q]).slice(0, 12).map(c => {
+    const out = {
+      r:((clamp(c.r, -60, 60, 0) | 0) % 12 + 12) % 12,
+      q:c.q,
+      bars:oneOf(+(clamp(c.bars, .25, 8, 1)).toFixed(2),
+                 BAR_STEPS.map(v => +v.toFixed(2)), 1)
+    };
+    const notes = slotNotes(c);
+    if (notes) out.notes = notes;
+    return out;
+  }) : [];
 
   if (chords.length){
     state.prog = {mood:oneOf(s.prog.mood, MOODS, MOODS[0]), minor:!!s.prog.minor, chords};
@@ -354,13 +373,13 @@ Patchwork.scenes.register("cs1", {
   stop: () => { if (state.playing) stopPlay(); },
   capture: () => ({
     prog: state.prog ? {mood: state.prog.mood, minor: !!state.prog.minor,
-                        chords: state.prog.chords.map(c => ({r: c.r, q: c.q, bars: c.bars || 1}))} : null,
+                        chords: state.prog.chords.map(c => slotCopy(c))} : null,
     keyPc: state.keyPc, key: keySel.value
   }),
   apply: pat => {
     if (!pat.prog) return;
     state.prog = {mood: pat.prog.mood, minor: !!pat.prog.minor,
-                  chords: pat.prog.chords.map(c => ({r: c.r, q: c.q, bars: c.bars || 1}))};
+                  chords: pat.prog.chords.map(c => slotCopy(c))};
     if (typeof pat.keyPc === "number") state.keyPc = pat.keyPc;
     if (pat.key != null) keySel.value = pat.key;
     /* buildVoicings before rendering — restore() does the same, and without it the

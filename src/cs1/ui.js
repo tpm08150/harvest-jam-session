@@ -153,6 +153,12 @@ makeHFader("#bassLvlFader", "bassLvl", v => {
 function buildVoicings(prog){
   let prev = null;
   prog.voicings = prog.chords.map(ch => {
+    /* a chord played in keeps its notes across a key change and re-reads its degree from them, so
+       its numeral and its bass note follow the key while the voicing stays what was played */
+    if (ch.notes && ch.notes.length){
+      const a = analyseNotes(ch.notes);
+      if (a){ ch.r = ((a.root - state.keyPc) % 12 + 12) % 12; ch.q = a.q; }
+    }
     const v = voiceChord(ch, state.keyPc, prev);
     prev = v.center;
     return v.notes;
@@ -234,6 +240,9 @@ function editChord(i, patch){
   if (!p || !p.chords[i]) return;
   const cur = p.chords[i];
   const next = {r:cur.r, q:cur.q, bars:cur.bars || 1};
+  /* a length change keeps notes that were played in; a root or a type chosen by hand is a
+     worked-out voicing again */
+  if (cur.notes && patch.r == null && patch.q == null) next.notes = cur.notes.slice();
   if (patch.r != null) next.r = patch.r;
   if (patch.q != null && QUAL[patch.q]) next.q = patch.q;
   if (patch.bars != null) next.bars = patch.bars;

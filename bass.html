@@ -717,6 +717,46 @@ function onKey(root, type, fn){
    just stops the routing table growing without bound. */
 window.addEventListener("blur", () => pressed.clear());
 
+/* ---- screenless: the page with nothing looking at it ----
+   ?screenless on the URL (remembered, like ?kiosk, which it implies — see shell/kiosk.js): a Raspberry Pi
+   with no monitor, played entirely from the controller. Two things happen and nothing else changes.
+
+   The document is display:none, so nothing is styled, laid out, painted or composited. ⚠️ THE DOM STAYS,
+   AND HAS TO: the controller's pages read and write it — surface.option() reads a <select>, the mixer
+   page sets a fader's value and dispatches input — and none of that needs a pixel.
+
+   And a "frame" comes four times a second from a plain timer. ⚠️ SLOWED, NOT STOPPED: the tape's rewind
+   advances inside its frame callback (studio/tape.js), and a frame that never came would leave it winding
+   forever. Slowing requestAnimationFrame itself also covers the loops that never moved to animate() —
+   CS·1's wipes, PM·1's steps and meter, DR·1's playhead, the console's meters — in one place.
+
+   Measured 2026-09-19, M3 Max, Chrome 153 headless at 1920x1080, the offline copy, six instruments
+   playing from Play all, CPU a second from ps: drawn, 1.11 s — GPU process 0.87, renderer 0.20, main
+   thread 0.044; like this, 0.24 s — GPU process 0.001, renderer 0.21 (the audio thread), main thread
+   0.015 (0.012 with frames stopped outright). ⚠️ HIDE IT BEFORE SWITCHING THE GPU OFF: the same page
+   still drawn under --disable-gpu cost the renderer 2.56 s a second, rastering in software. */
+const SCREENLESS_KEY = "patchwork-screenless";
+const screenless = (() => {
+  /* ⚠️ A REMEMBERED BLANK PAGE NEEDS A DOOR. ?screenless=off forgets it, from the address bar, because a
+     laptop that tried this once would otherwise open to nothing with no button to press. */
+  if (/[?&]screenless=(off|0)\b/.test(location.search)){
+    try{ localStorage.removeItem(SCREENLESS_KEY); }catch(e){}
+    return false;
+  }
+  const asked = /[?&]screenless\b/.test(location.search);
+  try{
+    if (asked) localStorage.setItem(SCREENLESS_KEY, "1");
+    return asked || localStorage.getItem(SCREENLESS_KEY) === "1";
+  }catch(e){ return asked; }
+})();
+if (screenless){
+  const st = document.createElement("style");
+  st.textContent = "html{display:none !important}";
+  document.documentElement.appendChild(st);
+  window.requestAnimationFrame = fn => setTimeout(() => fn(performance.now()), 250);
+  window.cancelAnimationFrame = id => clearTimeout(id);
+}
+
 /* ---- a loop that asks for frames only while something moves ----
    ⚠️ A FRAME ASKED FOR IS A FRAME MADE, whatever the callback then does with it. A loop that requests the
    next animation frame from every frame keeps the compositor running at the display's rate, and the rack
@@ -753,7 +793,9 @@ function animate(draw, busy, idle){
   return {wake(){ if (timer && moving()){ clearTimeout(timer); timer = 0; } schedule(); }};
 }
 
-return {instrument, onKey, focus, animate,
+return {instrument, onKey, focus, animate, screenless,
+        /* From a console over DevTools, the only way in once nothing is drawn: forget it, then reload. */
+        screenlessOff(){ try{ localStorage.removeItem(SCREENLESS_KEY); }catch(e){} },
         get roots(){ return roots.slice(); },
         get focused(){ return focused; }};
 })();
@@ -1783,7 +1825,20 @@ function remove(name){
 /* Step out of a project without touching what is on the desk — see the note in the browser. */
 function forget(){ setCurrent(""); }
 
-return {part, capture, apply, save, open, remove, forget, names, all,
+/* The same project under another name; what is open stays open. */
+function rename(from, to){
+  const t = String(to || "").trim();
+  const o = all();
+  if (!o[from] || !t || (t !== from && o[t])) return false;
+  if (t === from) return true;
+  o[t] = o[from];
+  delete o[from];
+  if (!write(o)) return false;
+  if (current === from) setCurrent(t); else notify();
+  return true;
+}
+
+return {part, capture, apply, save, open, remove, rename, forget, names, all,
         get current(){ return current; },
         onChange: fn => watchers.push(fn)};
 })();
@@ -2425,7 +2480,8 @@ const rig = {
   /* Anything not mounted means "back to the focused panel", so a profile can pass whatever
      its hardware just reported without first checking whether we have a page for it. */
   setMode(id){
-    const want = (id && pages.has(id)) ? id : "";
+    const list = Array.isArray(id) ? id : [id];
+    const want = list.find(x => x && pages.has(x)) || "";
     if (want === mode) return;
     mode = want;
     if (want){
@@ -2488,6 +2544,16 @@ const rig = {
     const f = rig.focus;
     if (f && typeof f.spec.transport === "function"){
       try{ f.spec.transport(!!alt); return true; }catch(e){ return false; }
+    }
+    /* ⚠️ ON A PANEL THE OTHER ONE IS THE PANEL. Play is the rack, all or nothing, and the only way
+       to start one instrument alone was its own Play button on the screen — which a box with no
+       screen does not have (2026-09-19). So the modifier presses exactly that button, found by the
+       marker toggle() below uses, and whatever the panel does when it is clicked happens here. A
+       panel with no transport of its own (TS·1) falls through to the rack rather than doing nothing. */
+    if (alt && !mode){
+      const r = Patchwork.focused;
+      const b = r && r.querySelector("[data-transport]");
+      if (b && !b.disabled){ b.click(); return true; }
     }
     rig.toggle();
     return true;
@@ -2595,17 +2661,18 @@ const rig = {
     if (!list.length && typeof f.spec.controls === "function"){
       try{ list = (f.spec.controls() || []).slice(0, 8); }catch(e){ list = []; }
     }
-    /* ⚠️ THE EIGHTH OF THE SECOND EIGHT IS THE SEQUENCE, on every panel that keeps sixteen — see
-       sequence() below. Composed here rather than asked of each panel, because it means the same
-       thing on all of them and an instrument that registers later should not have to be told. */
-    return layer === "alt" ? withSequence(list, f.id) : list;
+    /* ⚠️ THE EIGHTH OF THE SECOND EIGHT IS THE SEQUENCE, on every panel that keeps sixteen, AND THE
+       SEVENTH IS THE PATCH, on every panel with a patch row — see sequence() and patch() below.
+       Composed here rather than asked of each panel, because they mean the same thing on all of
+       them and an instrument that registers later should not have to be told. */
+    return layer === "alt" ? withExtras(list, f.id) : list;
   },
   /* Whether holding that key would actually change anything here, for a display that should
      only announce a layer when there is one. */
   hasLayer(layer){
     const f = rig.focus;
     /* a panel with no second eight of its own still has one knob that changes under the key */
-    if (f && layer === "alt" && sequence(f.id)) return true;
+    if (f && layer === "alt" && (sequence(f.id) || patch(f.id))) return true;
     const key = layer === "act" ? "actControls" : layer === "alt" ? "shiftControls" : null;
     if (!f || !key || typeof f.spec[key] !== "function") return false;
     try{ return (f.spec[key]() || []).length > 0; }catch(e){ return false; }
@@ -2795,6 +2862,18 @@ const rig = {
   fireRow(i){
     if (Patchwork.launch && Patchwork.launch.fireRowShared) Patchwork.launch.fireRowShared(i);
     else if (Patchwork.scenes) Patchwork.scenes.fire(i);
+  },
+  /* The Track pair: a page that wants it says so — the Songs page walks a name's cursor with it — and
+     everywhere else it moves the focus one panel along. */
+  track(dir){
+    const f = rig.focus;
+    if (f && typeof f.spec.track === "function"){
+      let r = null;
+      try{ r = f.spec.track(dir); }catch(e){ r = null; }
+      if (r !== false) return r;
+    }
+    rig.step(dir);
+    return null;
   },
   /* Move the focus one instrument along, which is what a Track button means here. */
   step(dir){
@@ -3210,14 +3289,35 @@ function sequence(id){
     nudge: d => go(at() < 0 ? 0 : Math.max(0, Math.min(Q.COUNT - 1, at() + (d > 0 ? 1 : -1))))
   };
 }
-/* The eighth knob, whatever the panel put there: seven of the list the key opened, then the
-   sequence. A panel that keeps no sequences gets its list back untouched. */
-function withSequence(list, id){
-  const c = sequence(id);
-  if (!c) return list;
-  const out = list.slice(0, 7);
-  while (out.length < 7) out.push(null);
-  out.push(c);
+/* ---- which saved sound is loaded, as a control ----
+   ⚠️ FUNC AND THE SEVENTH ENCODER, ON EVERY PANEL WITH A PATCH ROW. The patch list was a <select> on
+   the screen and in nobody's bank, so a rack with no screen could not change a sound except knob by
+   knob (2026-09-19). It is the panel's own #patchSel through option(), so choosing one is exactly
+   the click: the panel's change handler loads it — sound, and the sequences saved with it.
+
+   ⚠️ IT LOADS ON EVERY DETENT, as the list does on every click, and a patch that carries sequences
+   replaces the sixteen you had. The first entry is the list's own "— select —", which loads
+   nothing; it reads "none" here because the screen has no dash to spell it with. Saving one is on
+   the Songs page (studio/songs.js), where there is a button to spare for it. */
+function patch(id){
+  const root = id ? rootOf(id) : null;
+  const el = root && root.querySelector("#patchSel");
+  const c = el ? option(el, "Patch", "Pat") : null;
+  if (!c) return null;
+  const text = c.text;
+  c.id = "patch-" + id;
+  c.text = () => (el.selectedIndex <= 0 ? "none" : text());
+  return c;
+}
+/* The seventh and eighth knobs, whatever the panel put there: six of the list the key opened, then
+   the patch, then the sequence. A panel that keeps neither gets its list back untouched. */
+function withExtras(list, id){
+  const seq = sequence(id), pat = patch(id);
+  if (!seq && !pat) return list;
+  const out = list.slice(0, 8);
+  while (out.length < 8) out.push(null);
+  if (pat) out[6] = pat;
+  if (seq) out[7] = seq;
   return out;
 }
 
@@ -3254,7 +3354,7 @@ function segment(el, label, short){
   };
 }
 
-return {register, mount, panel, onView, option, segment, sceneGrid,
+return {register, mount, panel, onView, option, segment, patch, sceneGrid,
         connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,
@@ -3650,10 +3750,14 @@ const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends sen
    a counter of the device's own. keys() takes them back — without it Settings had pads that worked
    and knobs that did nothing. */
 const ENC_CUSTOM1 = 6;
+/* ⚠️ A PAGE MAY BE A LIST: the first one mounted on this build wins. The groovebox mounts "song" where
+   the studio mounts "scenes", and neither needs to know the other exists. */
 const ENC_VIEW = {1: {view: "tape",   page: "mixer"},
                   2: {view: "studio", page: ""},
-                  4: {view: "live",   page: "scenes"},
-                  5: {view: "lib",    page: ""}};
+                  4: {view: "live",   page: ["song", "scenes"]},
+                  /* Shift + Transport: the Library, and the Songs page (studio/songs.js) — songs,
+                     patches and jams, the things a rack with no screen could not reach (2026-09-19). */
+                  5: {view: "lib",    page: "songs"}};
 ENC_VIEW[ENC_CUSTOM1] = {view: "set", page: "settings"};
 /* What Settings lends the knobs while Shift is up, and how long an answer to that counts as ours —
    see lendKnobs(). ⚠️ GENEROUS ON PURPOSE. The answer is a USB round trip, but it is read on the main
@@ -4376,7 +4480,9 @@ function message(io, d, rig){
       /* A Custom mode we have not claimed is somebody else's; leave the app where it is
          rather than guessing — but SAY which one, so a mode that surprises anyone can be
          given a job by number. Custom 2-4 report 7-9; 10 is the one past them. */
-      if (to){ rig.setMode(to.page); rig.goto(to.view); }
+      /* the view first, then the page: a page's own show() brings up the view it belongs on, and on a
+         build where the two differ — the Song page on the Song view — the page has the last word */
+      if (to){ rig.goto(to.view); rig.setMode(to.page); }
       else console.info("launchkey: encoder mode " + d[2] + " is not mapped — "
                       + "see ENC_VIEW in shell/launchkey.js");
       lendKnobs(io, rig);                 // Settings reached with Shift already up lends at once
@@ -4604,8 +4710,8 @@ function message(io, d, rig){
     /* The device's Track pair — what the same two arrows send under Shift. "Which track"
        is which panel here, so this is the Launchkey's own word for it honoured rather than
        reinvented, and it reaches the same place Func and the arrows do. */
-    case B_TRACK_PREV: rig.step(-1); break;
-    case B_TRACK_NEXT: rig.step(1); break;
+    case B_TRACK_PREV: said(io, rig.track(-1)); break;
+    case B_TRACK_NEXT: said(io, rig.track(1)); break;
     /* ⚠️ AND THE ARROWS BESIDE THE ENCODERS BELONG TO THE ENCODERS — the same rule as the
        pair beside the pads, applied to the other half of the surface. They move which eight
        the encoders point at, which on DR·1 means which drum and on PM·1 means which group
@@ -4853,6 +4959,13 @@ function paintScreen(io, rig){
   const changed = s.page !== page;
   s.page = page;
   if (changed && !moved && s.inst && rig.gridPages() > 1) flash(io, "Steps", sub);
+  /* ⚠️ A GRID THAT ASKS TO BE HEARD. The label was written for a page change and nothing else, so a
+     page whose pads answer in words — "Saved Song 2", "Open? Song 1", a chord's name — was talking
+     to nobody. A grid with `announce` set has its label flashed whenever it changes, under the
+     page's name; not on the pass that arrived here, for the reason the page flash is not. */
+  const announce = !!(g && g.announce);
+  if (announce && sub && sub !== s.sub && !moved && s.inst) flash(io, inst, sub);
+  s.sub = announce ? sub : "";
 
   /* ⚠️ NO FLASH FOR THE ENCODER BANK, and there used to be. Changing bank rewrites the
      legend — its title and all eight names — so the answer is already on the screen in more
@@ -4909,6 +5022,8 @@ Patchwork.kiosk = (() => {
 
 const KEY = "patchwork-kiosk";
 function wanted(){
+  /* A page nobody can see has nobody to click it either: screenless (shell/host.js) is kiosk too. */
+  if (Patchwork.screenless) return true;
   try{
     if (/[?&]kiosk\b/.test(location.search)) return true;
     return localStorage.getItem(KEY) === "1";
@@ -5267,9 +5382,11 @@ function clear(row, id){
    one you were on would take the row's copy the next time it was put away — see
    shell/sequences.js. Fire, the seam and a jam's live pattern are the three ways in, and all
    three come here. */
-function applyTo(it, pat){
+/* `slot` is which of the instrument's sixteen sequences this pattern is meant to be, when the
+   caller knows — a global sequence change (shell/song.js) does, a scene row does not. */
+function applyTo(it, pat, slot){
   const run = () => it.apply(JSON.parse(JSON.stringify(pat)));
-  return Patchwork.sequences ? Patchwork.sequences.around(it.id, run) : run();
+  return Patchwork.sequences ? Patchwork.sequences.around(it.id, run, slot) : run();
 }
 
 /* Arm a pattern. With the whole rack stopped there is no seam coming, so the row takes
@@ -5289,19 +5406,37 @@ function applyTo(it, pat){
 function fire(row, id){
   if (!rows[row]) return;
   const targets = id ? insts.filter(x => x.id === id) : insts;
+  const cells = {};
+  targets.forEach(it => { cells[it.id] = {pat: rows[row].cells[it.id] || null}; });
+  land(cells, joinSeam(), row);
+}
+
+/* ⚠️ THE SAME LANDING FOR SOMETHING THAT IS NOT A ROW. shell/song.js changes every instrument's
+   sequence at once, on a seam, and it has to arrive exactly as a row does — inside each instrument's
+   own tick, at the first step past the line — or the two would drift apart by a lookahead. So the
+   whole of what fire() did per instrument lives here, and fire() is one caller of it.
+
+     cells   {id: {pat, slot}} — a null pat is a stop; `slot` is for the sequence strip, see applyTo()
+     seam    the audio time to land on, or null for now
+     row     the launcher row this is, or null for none
+     opts    {start: false} leaves a stopped instrument stopped rather than starting it on the seam;
+             a scene row starts what it lands on, a sequence change plays what is playing */
+function land(cells, seam, row, opts){
+  const startStopped = !(opts && opts.start === false);
   /* One boundary for the whole row, pinned across the start() calls below — see joinSeam().
      Cleared in a finally: a pin left standing would be picked up by the next Play button
      pressed by hand, which is a bar line's worth of surprise nobody asked for. */
-  const seam = joinSeam();
   if (seam != null) Patchwork.clock.pin(seam);
   try{
-    targets.forEach(it => {
-      const pat = rows[row].cells[it.id];
+    insts.forEach(it => {
+      const cell = cells[it.id];
+      if (!cell) return;
+      const pat = cell.pat;
       if (!pat){
         if (it.isPlaying() && seam != null){
           /* a null pattern is the pending STOP — take() reads it at the seam */
           pending.set(it.id, {pat: null, seam});
-          queued.set(it.id, row);
+          if (row != null) queued.set(it.id, row); else queued.delete(it.id);
         } else if (it.isPlaying()){
           it.stop();
           pending.delete(it.id);
@@ -5315,8 +5450,13 @@ function fire(row, id){
         return;
       }
       if (it.isPlaying() && seam != null){
-        pending.set(it.id, {pat, seam});
-        queued.set(it.id, row);
+        pending.set(it.id, {pat, seam, slot: cell.slot});
+        if (row != null) queued.set(it.id, row); else queued.delete(it.id);
+      } else if (!it.isPlaying() && !startStopped){
+        /* stopped and staying stopped: the pattern goes on the grid now, for when it plays */
+        pending.delete(it.id);
+        applyTo(it, pat, cell.slot);
+        queued.delete(it.id);
       } else {
         /* stopped: take it now and start, so the row is audible from the press. The pin makes
            "now" the row's seam when the rack is running — its first step lands on the same
@@ -5325,9 +5465,9 @@ function fire(row, id){
            Anything still queued for it is void: this pattern is the answer to that question,
            and a stale queue is how a track came back for one step and stopped again. */
         pending.delete(it.id);
-        applyTo(it, pat);
+        applyTo(it, pat, cell.slot);
         queued.delete(it.id);
-        onRow.set(it.id, row);
+        if (row != null) onRow.set(it.id, row); else onRow.delete(it.id);
         it.start();
         /* ⚠️ STARTED IS NOT YET SOUNDING, and the launcher was drawing it as though it were.
            A stopped instrument is started HERE rather than at the seam — that is deliberate,
@@ -5407,7 +5547,7 @@ function take(id, when){
   if (!it){ notify(); return true; }
   /* a queued null means the row had nothing for this instrument: stop, at the seam */
   if (pat === null){ it.stop(); onRow.delete(id); }
-  else { applyTo(it, pat); if (row != null) onRow.set(id, row); }
+  else { applyTo(it, pat, q.slot); if (row != null) onRow.set(id, row); }
   notify();
   return true;
 }
@@ -5456,8 +5596,8 @@ function playing(id){
   return !!(it && it.isPlaying());
 }
 
-return {register, store, storeAll, clear, fire, take, onChange, playing, start, currentRow,
-        setQuantum, setPatternBars,
+return {register, store, storeAll, clear, fire, land, take, onChange, playing, start, currentRow,
+        setQuantum, setPatternBars, joinSeam,
         get quantum(){ return quantum; },
         get patternBars(){ return patternBars; },
         get rows(){ return rows; },
@@ -5697,7 +5837,10 @@ function copyTo(id, i){
 
    A change that leaves the pattern as it was — a patch that only moved the sound — changes
    nothing about which sequence is up. */
-function around(id, fn){
+/* `slot`, when the caller says which of the sixteen it is putting on the grid, settles what content
+   alone cannot: an empty sequence walked into by a global change (shell/song.js) is that sequence,
+   fresh, and not "none"; and a pattern two slots hold is the one the caller named. */
+function around(id, fn, slot){
   const b = book.get(id);
   if (!b || busy) return fn();
   const before = live(b);
@@ -5705,11 +5848,21 @@ function around(id, fn){
   try{ return fn(); }
   finally {
     const after = live(b);
+    const named = (typeof slot === "number" && slot >= 0 && slot < COUNT) ? slot : -1;
     if (after && (!before || after.key !== before.key)){
-      const hit = b.slots.findIndex(s => s && s.key === after.key);
-      if (hit >= 0) b.at = hit;
-      else if (b.at < 0 || b.slots[b.at]) b.at = -1;
+      const hit = named >= 0 && b.slots[named] && b.slots[named].key === after.key
+        ? named : b.slots.findIndex(s => s && s.key === after.key);
       b.fresh = null;
+      if (hit >= 0) b.at = hit;
+      else if (named >= 0){ b.at = named; if (!b.slots[named]) b.fresh = {i: named, key: after.key}; }
+      else if (b.at < 0 || b.slots[b.at]) b.at = -1;
+      notify();
+    } else if (after && named >= 0 && named !== b.at){
+      /* the same pattern, asked for by a different number: an empty slot entered from a grid that
+         already showed nothing, or a copy in two places */
+      b.fresh = null;
+      b.at = named;
+      if (!b.slots[named]) b.fresh = {i: named, key: after.key};
       notify();
     }
   }
@@ -5935,7 +6088,31 @@ function notify(){
   subs.forEach(fn => { try{ fn(); }catch(e){} });
 }
 
-return {register, select, copyTo, around, capture, load, count, slotOf, COUNT,
+/* ---- what slot i would put on the grid ----
+   For a caller that has to hand the pattern to something else first — a seam, which lands it later
+   (shell/song.js). What is kept there; else a blank of the grid, or the grid itself where the
+   instrument has no blank; null when there is nothing to go on. */
+function peek(id, i){
+  const b = book.get(id);
+  if (!b || i < 0 || i >= COUNT) return null;
+  if (i === b.at){ const cur = live(b); return cur ? JSON.parse(JSON.stringify(cur.pat)) : null; }
+  const kept = b.slots[i];
+  if (kept) return JSON.parse(JSON.stringify(kept.pat));
+  const cur = live(b);
+  if (!cur) return null;
+  const copy = JSON.parse(JSON.stringify(cur.pat));
+  if (!b.blank) return copy;
+  try{ return b.blank(copy) || copy; }catch(e){ return copy; }
+}
+/* Is there anything in slot i — counting the grid, when i is the one that is up. */
+function filled(id, i){
+  const b = book.get(id);
+  if (!b || i < 0 || i >= COUNT) return false;
+  if (i === b.at) return counts(b, i, live(b));
+  return !!b.slots[i];
+}
+
+return {register, select, copyTo, around, capture, load, count, slotOf, peek, filled, COUNT,
         mount(){ mount(); if (!timer) timer = setInterval(paint, 400); },
         has: id => book.has(id),
         at: id => (book.has(id) ? book.get(id).at : -1),

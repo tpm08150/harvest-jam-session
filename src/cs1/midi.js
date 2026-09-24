@@ -525,11 +525,14 @@ function onMidi(e){
   const type = s & 0xF0;
   if (type === 0x90 && d[2] > 0){
     if (LEARN.on && LEARN.target){ bindLearn("note", d[1]); return; }
+    /* a pad held on the controller takes the keys as a chord — see spellOn() */
+    if (spellOn(d[1], d[2])) return;
     /* a note assigned to a patch is consumed by it — it does not also sound a chord */
     if (patchNotes.has(d[1])) return queueRecall(patchNotes.get(d[1]), midiNoteLabel(d[1]));
     padOn(d[1], d[2]);
   }
   else if (type === 0x80 || (type === 0x90 && d[2] === 0)){
+    if (spellOff(d[1])) return;
     if (patchNotes.has(d[1])) return;
     padOff(d[1]);
   }
@@ -827,12 +830,78 @@ function soundingSlot(){
   return cur;
 }
 
+/* ---- a chord played into a held pad ----
+   ⚠️ THE KEYS SPELL THE CHORD WHILE A PAD IS HELD (2026-09-20). Choosing a root and a type from two
+   menus is the screen's way; a box with no screen has a keyboard. Hold a chord pad on the controller
+   and every key pressed until the pad comes up goes into that slot — its voicing exactly as played,
+   its root and type read off the notes (theory.js, analyseNotes) — and the screen names the chord
+   as the keys go down. A pad past the end of the progression takes a new chord. The pad's own chord
+   stops sounding at the first key, so what you hear is what you are spelling.
+
+   Only pads from the controller: a key mapped to a slot is a performance, not a hold. */
+const padsDown = [];                 // controller chord pads down, in order
+let spelling = null;                 // {slot, notes: Set, sounding: Map(note -> recs)}
+function spellOn(n, vel){
+  if (!spelling){
+    if (!padsDown.length || !state.prog) return false;
+    const slot = padsDown[padsDown.length - 1];
+    padOff("s" + slot);
+    litPads.add(slot);               // stays lit: the hold is still on
+    spelling = {slot, notes: new Set(), sounding: new Map()};
+  }
+  const sp = spelling;
+  sp.notes.add(n);
+  if (sp.sounding.has(n)) return true;
+  ensureAudio();
+  const amp = .35 + .65 * (vel / 127);
+  sp.sounding.set(n, [trigger(n, ctx.currentTime, HOLD_MAX, {gain: VOICES[state.voice].lvl * amp})]);
+  if (MIDI.out){ try{ MIDI.out.send([0x90 | MIDI.ch, n, vel]); }catch(e){} }
+  return true;
+}
+function spellOff(n){
+  const sp = spelling;
+  if (!sp || !sp.sounding.has(n)) return false;
+  sp.sounding.get(n).forEach(r => releaseRec(r));
+  sp.sounding.delete(n);
+  if (MIDI.out){ try{ MIDI.out.send([0x80 | MIDI.ch, n, 0]); }catch(e){} }
+  return true;
+}
+/* The pad came up: the notes played are the slot. Nothing played leaves the slot alone. */
+function spellDone(){
+  const sp = spelling;
+  if (!sp) return;
+  spelling = null;
+  sp.sounding.forEach((recs, n) => {
+    recs.forEach(r => releaseRec(r));
+    if (MIDI.out){ try{ MIDI.out.send([0x80 | MIDI.ch, n, 0]); }catch(e){} }
+  });
+  litPads.delete(sp.slot);
+  const notes = Array.from(sp.notes).sort((a, b) => a - b).slice(0, 10);
+  const p = state.prog;
+  if (!notes.length || !p) return;
+  const a = analyseNotes(notes);
+  const r = ((a.root - state.keyPc) % 12 + 12) % 12;
+  const i = Math.min(sp.slot, p.chords.length);
+  const was = p.chords[i];
+  p.chords[i] = {r, q: a.q, bars: was ? (was.bars || 1) : 1, notes};
+  buildVoicings(p);
+  openPad = null;
+  renderProgression();
+}
+const spellingName = () => (spelling && spelling.notes.size
+  ? notesName(Array.from(spelling.notes).sort((a, b) => a - b), state.keyPc, state.prog && state.prog.minor) : "");
+
 const surfaceGrid = {
   /* The screen line, spelled by the same function the on-screen pad uses — a ♭VII that
-     reads B♭ in the panel and A♯ on the controller would be two answers to one question. */
+     reads B♭ in the panel and A♯ on the controller would be two answers to one question.
+     Announced: the name goes to the screen as it changes — the chord being spelt, and the
+     chord sounding as the progression plays. */
+  announce: true,
   label: () => {
+    const spelt = spellingName();
+    if (spelt) return spelt;
     const i = soundingSlot();
-    if (i < 0 || !state.prog) return "Chords";
+    if (i < 0 || !state.prog) return "";      // nothing to say is not a word to flash
     return chordName(state.prog.chords[i], state.keyPc, state.prog.minor);
   },
   cells: () => {
@@ -844,17 +913,27 @@ const surfaceGrid = {
       const heldHere = litPads.has(i);
       out[i] = {colour: "amber", on: heldHere || i === playing, hot: heldHere};
     }
+    /* the next empty pad, dim, so there is somewhere to play a new chord into */
+    if (n < 16) out[n] = {colour: "cyan", on: litPads.has(n), hot: litPads.has(n)};
     return out;
   },
   /* Velocity comes through as it arrived: the pads are velocity-sensitive and padDown
      already scales the voicing by it, so a soft pad is a soft chord for the same reason a
      soft key is. */
   down: (i, vel) => {
-    if (!state.prog || i >= state.prog.chords.length) return;
+    if (!state.prog) return;
+    if (padsDown.indexOf(i) < 0) padsDown.push(i);
+    if (i >= state.prog.chords.length){ litPads.add(i); return; }   // empty: held, for a chord to be played in
     ensureAudio();
     padDown("s" + i, i, Math.max(1, vel || 96));
   },
-  up: i => padOff("s" + i)
+  up: i => {
+    const k = padsDown.indexOf(i);
+    if (k >= 0) padsDown.splice(k, 1);
+    if (spelling && spelling.slot === i){ spellDone(); return; }
+    litPads.delete(i);
+    padOff("s" + i);
+  }
 };
 
 /* ---- the bass pattern, on the same sixteen pads ----

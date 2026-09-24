@@ -488,15 +488,17 @@ if (window.Patchwork && Patchwork.surface){
    one. Written as `rack.hidden = isLive` this breaks the moment a third view exists: the
    rack stays on screen underneath the tape deck, because "not live" stopped meaning
    "studio". Deriving isStudio from the others is what keeps that impossible. */
+const song = document.querySelector("#stSong");   // the groovebox build's, in the launcher's place
 function show(which){
   const isLive = which === "live", isTape = which === "tape", isLib = which === "lib";
-  const isSet = which === "set";
+  const isSet = which === "set", isSong = which === "song" && !!song;
   /* ⚠️ AND THE NEGATION GROWS WITH IT, which is the trap the note above warns about and the
      reason Studio is derived rather than named: a fifth view added without this line leaves
      the rack and the launcher on screen underneath the settings page, because "not live, not
      tape, not library" quietly stopped meaning "studio". */
-  const isStudio = !isLive && !isTape && !isLib && !isSet;
+  const isStudio = !isLive && !isTape && !isLib && !isSet && !isSong;
   live.hidden = !isLive;
+  if (song) song.hidden = !isSong;
   if (tape) tape.hidden = !isTape;
   if (lib) lib.hidden = !isLib;
   if (mix) mix.hidden = !isTape;

@@ -2828,3 +2828,156 @@ cut drawing while playing — playheads on a step change only, CS·1's wipe as a
 panels, a kiosk stylesheet without blur, gradients or grain, and `SCREEN=1280x720`; and claw back the
 on-device model service and the second renderer, 99 MB together, checking the flag names against
 Chromium's source rather than a blog.
+
+### Screenless: the Pi draws nothing
+
+Asked for on 2026-09-19: give up HDMI on the Pi, do everything from the Launchkey, and see whether that
+gets the rack onto a Pi 4 — and eventually a Pi Zero 2 W.
+
+**Measured first**, the same way as *Making the rack cheaper to run* — M3 Max, Chrome 153 headless at
+1920x1080, the offline copy, MIDI removed, `--mute-audio`, six instruments from Play all, CPU a second per
+Chrome process from `ps`:
+
+| playing | total | GPU process | renderer | main thread |
+| --- | --- | --- | --- | --- |
+| drawn | 1.11 s | 0.87 | 0.20 | 0.044 |
+| `html{display:none}`, frames never delivered | 0.24 | 0.001 | 0.21 | 0.012 |
+| `html{display:none}`, frames every 250 ms | 0.24 | 0.001 | 0.21 | 0.015 |
+| the real build with `?screenless` | 0.24 | 0.001 | 0.21 | 0.015 |
+
+Drawing was four fifths of the machine, and what is left in the renderer is the audio thread. ⚠️ **Hide the
+page before taking the GPU away:** the rack still drawn under `--disable-gpu` cost the renderer 2.56 s a
+second, rastering in software. (`renderCapacity` read *higher* hidden than drawn, 0.18 against 0.12 — the
+Mac trap recorded above; CPU per process is the number.)
+
+**What it is.**
+- `?screenless` (`shell/host.js`), remembered in localStorage like `?kiosk`, which it implies. The document
+  is `display:none`, and `requestAnimationFrame` becomes a 250 ms timer. The DOM stays because the
+  controller's pages are maps of it — `surface.option()` reads a `<select>`, the mixer page writes a fader
+  and dispatches `input` — and an audit the same day found no engine, `tick()` or Launchkey paint that reads
+  layout: every `getBoundingClientRect` is in a pointer drag or a reveal. Frames are slowed rather than
+  stopped because the tape's rewind advances inside its frame callback (`studio/tape.js`); slowing the
+  browser's own function also covers the loops that never moved to `Patchwork.animate` (CS·1, PM·1, DR·1,
+  the console's meters). `?screenless=off` forgets it — a remembered blank page needs a door.
+- `SCREEN=off`, now the default in `pi/jam-session.conf`: `jam-kiosk` runs `jam-browser --session`, which
+  with no screen is Chromium `--headless=new` loading `?screenless`, and with one execs cage around itself
+  as before, loading `?kiosk&screenless=off`. One unit either way, since its PAM session is what starts
+  PipeWire. cage, wlr-randr and `video=` stay in the image so a card can be switched back from
+  `jam-session.txt`.
+
+**Checked, on the Mac only:** the surface harness under `?kiosk` and under `?screenless` gave identical pad
+and button LEDs, screen text, focus and transport state after each of 19 scripted presses, and Play started
+the rack in both; `jam-browser --smoke` passed with `SCREEN=off` and then, on the same profile, with
+`SCREEN=1280x720` — the second proving the door. ⚠️ **Not on a Pi:** that headless Chromium reaches PipeWire
+and the ALSA sequencer there as the windowed one does, what the GPU process does under headless on V3D, and
+how much memory goes with cage and the compositor.
+
+**What the Launchkey could not do**, which a box with no screen had no other way to do — and what each
+got, the same day. All of it is verified against the surface harness only, drawn and screenless; none of
+it has been pressed on the device.
+- **Songs and projects.** Shift + Transport showed the Library and mounted no page. `studio/songs.js` is
+  that page now: songs on the pads and under knob 1, `>` opens, Record saves, two pads for Save as new and
+  New song. Names are made up (`Song 3`), because nothing can type one, and anything that replaces the desk
+  takes two presses, because the page's confirm is a dialogue nobody can see. New song is
+  `project.forget()` and a reload — nothing else puts every instrument back to its first state.
+- **A patch per instrument.** `surface.patch(id)` wraps the panel's own `#patchSel` in `option()`, and
+  `rig.controls("alt")` puts it on the seventh knob of the second eight beside the sequence on the eighth,
+  for every panel with a patch row. The Songs page has a bank per instrument that can also *save* one,
+  through the panel's `#patchName` and `#patchSave`. ⚠️ Only PM·1 and CS·1 ship sounds; BS·1, VC·1 and
+  DR·1 have an empty list on a fresh card until something is saved. ⚠️ On CS·1, whose second eight falls
+  back to its first, Func hides the seventh of those behind Patch.
+- **One instrument's transport.** Func + Play on a panel clicks that panel's `[data-transport]`; on a page
+  `alt` still means the page's other transport.
+- **LP·1.** Func + pad already cleared a slot — the audit missed it. The pair beside the encoders, idle on
+  a one-bank panel, is now Undo / Push to jam, and with Func Clear all / Clear take.
+- **PM·1.** The `kOut` row, and — found by counting the panel's controls against its banks — chorus, delay
+  sync, the four wave switches and the LFO's wave and key sync. Three banks: Waves, LFO (grown), Out.
+- **Joining a jam** asked with `window.prompt()`. The Songs page's Jam bank lists the relay's rooms; `>`
+  joins or leaves, Record starts one under the last name used. ⚠️ The Pi image has no network yet, so
+  this is for a screenless rack on a laptop until it does.
+
+**Still on the screen only:** spelling a CS·1 chord and its program/trigger note, renaming anything,
+deleting a song or a patch, export and import, MIDI learn, choosing the controller, and the Library's
+recordings (the page brings the view up but plays nothing from it).
+
+**The Pi Zero 2 W, in arithmetic, not yet in fact.** Four Cortex-A53 cores at 1 GHz and 512 MB: a core is
+roughly a third of a Pi 4's and a thirtieth of the laptop's. Web Audio renders a context on one thread. The
+rack playing costs that thread 0.12–0.2 s a second on the laptop, so a Pi 4 core is somewhere between busy
+and full, and a Zero 2 W core is several times over. By the per-instrument figures above (BS·1 0.9%, SQ·1
+0.4%, DR·1 3.7%, VC·1 4.0%, CS·1 4.6% of the laptop's budget), BS·1 and SQ·1 fit a Zero 2 W and DR·1 alone
+does not, until its voices stop being up to 475 live oscillators. Memory: the third Pi's Chromium was about
+400 MB with its GPU process, model service and spare renderer, so 512 MB wants those gone as well as cage.
+And the board has one USB port and no audio output: a hub with a USB interface, or an I2S DAC on the header
+with the Launchkey on the port. **The Pi 4 playing the rack screenless is the measurement that decides the
+rest** — `renderCapacity` while it plays, from `jam-diagnose`.
+
+### The groovebox build
+
+Asked for on 2026-09-20, after the screenless work: everything the Launchkey could not reach gets a
+gesture, and the Pi version stops being the studio with a hidden screen and becomes its own page. Tyler's
+choices, asked and answered: the new sequencer is the Pi version's only (the website keeps its launcher);
+export and import wait; the tape, the library and the jam come out of a **separate lighter build** rather
+than being switched off. Built 2026-09-23; verified against the fake Launchkey only, never on the device.
+
+**`groovebox.html`** (`src/box/parts.txt`) is the studio's manifest with `shell/tape.js`, `library.js`,
+`opus.js`, `cloud.js`, `codec.js`, `talk.js`, `session.js`, `studio/gate.*`, `tape.*`, `library.*` and
+`console.*` left out, its own `head.html` (no web fonts: no network) and `head-bar.html` (Studio, Song,
+Punch, Settings; no jam), and `box/stub.js` where `session.js` sat — an empty session and an off
+talkback, because seven instruments register their sound with the session unguarded and LP·1 taps the
+talkback's strip, and guarding every caller was a change to every instrument for a page most of them
+never see. ⚠️ **`shell/scenes.js` and `studio/scenes.js` stay**: the first is the seam every change lands
+on and the registry every instrument boots into; the second holds the tempo head and fills the Settings
+tab. Its grid is hidden by `box/song.css`, and its controller page is outranked — `ENC_VIEW[4].page` is
+now `["song", "scenes"]`, first mounted wins, and the view is brought up before the page so a page's own
+`show()` has the last word. `Patchwork.transport` and `show()` are still `studio/live.js`'s, which
+learned a Song view. `tools/build-surface-harness.py --box` wraps it into `_boxtest.html`. The Pi boots
+it (`APP_PAGE` in `pi/jam-session.conf`); `jam-browser --smoke` accepts a page with no cloud module.
+Screenless, six instruments playing, it costs what the studio did: 0.23 s of CPU a second, the audio
+thread.
+
+**Song mode** (`shell/song.js`). `song.go(n)` puts sequence n on every instrument that keeps sequences:
+`sequences.peek(id, n)` gives the slot's pattern, or a blank of the grid where the slot is empty (CS·1
+has no blank and plays the progression you came from), and `scenes.land(cells, seam, null, {start:false})`
+— `fire()` pulled apart so the per-instrument landing is one function — hands them to the launcher's
+seam, so the change arrives inside each instrument's tick like a row does. ⚠️ **An empty sequence is
+silence, not a stop**: a row with nothing for an instrument stops it; a sequence with nothing written
+plays nothing and stays on the grid to be written into. The slot number travels with the pattern
+(`sequences.around(id, fn, slot)`), which is how the strip lands on an empty 2 rather than on "none".
+The chain is `[{seq, bars}]`: the next entry is landed by a timer aimed 800 ms before its seam, the seam
+itself exact from the one before; the chain starts the band if it was stopped and stops counting when
+the band stops (a 500 ms check, since nothing announces a stop). Saved with the project as `song`.
+Measured in the harness at 240 bpm, two bars an entry: `song.at` alternated every two seconds.
+
+**Chords from the keys** (`cs1/midi.js`, `spellOn`/`spellOff`/`spellDone`; `cs1/theory.js`,
+`analyseNotes`/`notesName`). A chord pad held on the controller (`padsDown`, from the surface grid only)
+takes every key until it comes up: the pad's chord is released at the first key, each key sounds through
+`trigger()` alone, the grid's label names the notes as they land, and the release writes
+`{r, q, bars, notes}` into the slot — `notes` as played, `r` and `q` from the best exact pitch-class match
+with the bass note preferred as root and the shorter symbol on a tie, `C/E` when the bottom note is not
+the root, the note names spelt out when nothing matches. `voiceChord()` returns the notes as the voicing;
+`buildVoicings()` re-reads `r` from them on a key change; `editChord()` keeps them for a length change
+and drops them for a root or type. `slotCopy()` in `cs1/patches.js` is the one copier for the patch, the
+scene, the sequence and the project, so none forgets the field. ⚠️ Only pads from the controller: a
+key mapped to a slot is a performance. The dim pad after the last chord takes a new one.
+
+**Names from the encoders** (`studio/songs.js`). Func + `>` on a song or a loaded patch: knob 1 turns
+the letter under the cursor through `ALPHABET`, knob 2 and the Track pair (`rig.track()`, a page hook
+that falls through to stepping panels) move it, past the end adds a letter; ∧ inserts a space, ∨ deletes;
+`>` or Record keeps, Func + `>` gives up. A song is `project.rename()` (new); a patch is saved under the
+new name through the panel's own Save and the old deleted through its Delete, so the panel's rules hold.
+Func + a pad deletes, twice. **Controller** is the fifth knob on Settings' Global bank: `surface.available`
+only — never *none*, the reason the knob was taken out before.
+
+**Announced labels.** `paintScreen()` flashed a grid's label only on a page change, so the Songs page
+and CS·1's chord names were talking to nobody. A grid with `announce: true` has a changed, non-empty
+label flashed under the page's name.
+
+**Checked** (harness, drawn and `?screenless`): five scripts in the session's scratchpad — the studio's
+gestures, drawn-versus-screenless state, the groovebox's song page and chain, naming and deleting, chord
+spelling — all passing, no exceptions, no paint faults; `jam-browser --smoke` on both pages.
+**Not checked:** anything on the device; the Launchkey's temp display under the announce flashes, which
+are three SysEx messages per change and may fight the encoder flashes; whether the punch page's Func from
+the Song page behaves on hardware; the image itself (not built since).
+
+**Still on the screen only:** export and import (Tyler: wait), MIDI learn (Tyler: not needed; left in),
+the mood/key menus on CS·1's head, DR·1's kit editor beyond its faders.

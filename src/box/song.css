@@ -1,0 +1,35 @@
+
+/* ---- the Song view (groovebox build) ----
+   In the same clothes as the Live view: the punch page's lab and bar, and numbers the size the
+   fire buttons are, because they are pressed the same way — while looking somewhere else. */
+.st-song{max-width:1100px;margin:0 auto;padding:8px 20px 40px}
+.st-song-seqs{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-bottom:22px}
+.st-song-seq{
+  height:52px;border-radius:4px;cursor:pointer;
+  font-family:"DM Mono",monospace;font-size:15px;letter-spacing:.06em;
+  background:var(--slot);border:1px solid var(--groove);color:var(--silk-dim);
+}
+.st-song-seq.st-song-has{color:var(--silk);border-color:var(--silk-dim)}
+.st-song-seq.st-sel{background:linear-gradient(180deg,#3f9a6e,#2d7150);color:#eafff3;border-color:#1e4f37}
+.st-song-seq.st-song-coming{animation:st-song-blink .5s steps(2,start) infinite;border-color:var(--mint)}
+@keyframes st-song-blink{to{visibility:hidden}}
+.st-song-chain-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.st-song-chain-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.st-song-entry{
+  display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;
+  background:var(--slot);border:1px solid var(--groove);counter-increment:st-song;
+}
+.st-song-entry::before{content:counter(st-song);font-family:"DM Mono",monospace;font-size:11px;
+  color:var(--silk-dim);width:22px}
+.st-song-chain-list{counter-reset:st-song}
+.st-song-entry.st-sel{border-color:var(--silk-dim)}
+.st-song-entry.st-song-playing{border-color:var(--mint);box-shadow:inset 0 0 0 1px var(--mint)}
+.st-song-entry-at{font-family:"DM Mono",monospace;font-size:10.5px;color:var(--mint);min-width:90px}
+.st-song-entry-del{margin-left:auto;padding:4px 10px}
+
+/* ⚠️ THE LAUNCHER'S GRID IS NOT ON THIS BUILD, ITS HEAD IS. The tempo, the metronome, the pattern
+   length and where a change lands are the launcher's head (studio/scenes.html) and every build wants
+   them; the grid of cells under it is the arrangement this build does without (shell/song.js). Hidden
+   rather than left out, because the head and the grid are one fragment and one script. The hint under
+   the head speaks of cells, so it goes too. */
+.st-scenes .st-grid, .st-scenes .st-scenes-head > .st-hint{display:none}

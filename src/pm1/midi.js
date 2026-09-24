@@ -349,8 +349,18 @@ const SURFACE_BANKS = [
                           ["sublvl", null, "Sub"], ["noiselvl", null, "Noi"]]},
   {name: "Shape",   ids: [["pw", null, "Wid"], ["pwm", null, "PWM"], ["pwmrate", null, "PWR"],
                           ["ring", null, "Rng"], ["fm", null, "FM"]]},
-  {name: "LFO",     ids: [["lfor", null, "Rat"], ["lfod", null, "Dly"], ["lfop", null, "Pit"],
-                          ["lfof", null, "Flt"], ["lfoa", null, "Amp"]]}
+  /* The four wave switches, which the Osc bank's eight knobs left no room for. */
+  {name: "Waves",   segs: [["o1w", "Osc 1 wave", "1Wv"], ["o2w", "Osc 2 wave", "2Wv"],
+                           ["subw", "Sub wave", "SbW"], ["noisew", "Noise", "NoW"]]},
+  {name: "LFO",     segs: [["lfoWave", "LFO wave", "Wav"], ["lfoKey", "LFO key sync", "Syn"]],
+                    ids: [["lfor", null, "Rat"], ["lfod", null, "Dly"], ["lfop", null, "Pit"],
+                          ["lfof", null, "Flt"], ["lfoa", null, "Amp"]]},
+  /* The panel's last row, which was in no bank: with no screen that left PM·1's chorus, delay,
+     reverb, velocity and trim where nothing could reach them (2026-09-19). The same day's count
+     found the wave switches and the LFO's two rows unreachable as well; they are above. */
+  {name: "Out",     segs: [["chorus", "Chorus", "Cho"], ["ddiv", "Delay sync", "Div"]],
+                    ids: [["dtime", null, "DTm"], ["dfb", null, "DFb"], ["dmix", null, "DMx"],
+                          ["rmix", null, "Rev"], ["vela", null, "Vel"], ["trim", null, "Trm"]]}
 ];
 let ctlBank = 0;
 function bankNow(){ return Math.min(ctlBank, SURFACE_BANKS.length - 1); }

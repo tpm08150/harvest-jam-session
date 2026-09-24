@@ -108,7 +108,20 @@ function remove(name){
 /* Step out of a project without touching what is on the desk — see the note in the browser. */
 function forget(){ setCurrent(""); }
 
-return {part, capture, apply, save, open, remove, forget, names, all,
+/* The same project under another name; what is open stays open. */
+function rename(from, to){
+  const t = String(to || "").trim();
+  const o = all();
+  if (!o[from] || !t || (t !== from && o[t])) return false;
+  if (t === from) return true;
+  o[t] = o[from];
+  delete o[from];
+  if (!write(o)) return false;
+  if (current === from) setCurrent(t); else notify();
+  return true;
+}
+
+return {part, capture, apply, save, open, remove, rename, forget, names, all,
         get current(){ return current; },
         onChange: fn => watchers.push(fn)};
 })();

@@ -4,21 +4,24 @@
 # Mac or PC — so the Pi can be changed without logging in to it. Take the # off a line to use it,
 # save, put the card back in the Pi and power it on.
 
-# The page the Pi boots into. index.html is the whole rack. Single instruments:
-# drums.html, bass.html, poly-synth.html, chord-synth.html, vocoder.html, looper.html,
-# transitions.html, sequencer.html
-#APP_PAGE=index.html
+# The page the Pi boots into. groovebox.html is the rack made for it: no tape deck, no library, no
+# jam, and sequence numbers for the whole rack instead of the scene launcher. index.html is the whole
+# studio, which the Pi plays worse. Single instruments: drums.html, bass.html, poly-synth.html,
+# chord-synth.html, vocoder.html, looper.html, transitions.html, sequencer.html
+#APP_PAGE=groovebox.html
 
 # Extra Chromium flags. For example, to fit more on an HDMI screen:
 #EXTRA_CHROMIUM_FLAGS=--force-device-scale-factor=0.8
 
-# The mode a screen on HDMI runs at. 1920x1080 unless changed here; 1280x720 is less drawing for the
-# Pi; native is whatever the screen asks for, which on a 4K screen is four times the drawing of 1080p
-# and more than a Pi 4 can keep up with. A screen without the mode gets the largest one inside it.
-#SCREEN=1920x1080
+# The Pi shows no picture unless asked to: drawing the rack costs it more than playing it, so it runs
+# with nothing drawn and everything is done from the Launchkey. To see the rack on an HDMI screen, give
+# the mode here. 1280x720 is the least drawing; 1920x1080 is sharper; native is whatever the screen asks
+# for, which on a 4K screen is four times the drawing of 1080p and more than a Pi 4 can keep up with. A
+# screen without the mode gets the largest one inside it. Expect the Pi to play worse with a picture.
+#SCREEN=1280x720
 
 # cmdline.txt, beside this file, holds video=HDMI-A-1:1920x1080@60D. That keeps HDMI switched on with
-# nothing plugged in, so a screen can be added later; the mode a plugged-in screen runs at is SCREEN.
+# nothing plugged in, which a picture needs; the mode a plugged-in screen runs at is SCREEN.
 
 # jam-diagnose.txt, beside this file, is a report of what the Pi is doing — the controller it can see,
 # how busy its CPU is, its sound. It is written three minutes after power on and every five minutes

@@ -268,10 +268,31 @@ hand afterwards.
 ## On a Raspberry Pi
 
 Burn the Jam Session image to an SD card, put it in a Raspberry Pi, plug in a Launchkey and
-power it on: the Launchkey is a groovebox, with no screen needed — plug in HDMI whenever you want
-to see the rack. GitHub Actions builds the image (`pi/image/build.sh`); `pi/README.md` says where
-to get it and how to burn it. The Pi serves the pages to itself (Web MIDI needs a secure context,
-and `http://localhost` is one) and runs Chromium fullscreen inside `cage` at `index.html?kiosk`.
+power it on: the Launchkey is a groovebox. ⚠️ **The Pi draws nothing** (2026-09-19): drawing the rack
+cost four fifths of the browser's CPU while it played, so the image runs Chromium headless with the
+page hidden (`?screenless` — animation frames slowed to four a second, kiosk implied) and everything
+is done from the Launchkey. `SCREEN=1280x720` in `jam-session.txt` on the card puts the rack back on
+HDMI, inside `cage` at `?kiosk`; `?screenless=off` undoes it in a browser that remembered it.
+
+**It boots `groovebox.html`**, a build of its own (`src/box/parts.txt`, 2026-09-23): the studio
+without the tape deck, the library, jams, talkback, cloud sync and the sign-in — none of it parsed or
+in memory — and with **song mode** in the launcher's place. Every instrument keeps sixteen sequences;
+here **sequence 3 is sequence 3 on every instrument at once**, changed on the same seam a scene row
+lands on, and a **chain** is a list of sequence numbers with a length each, played in order and round
+again. An empty sequence is silence on that instrument, not a stop — write into it. The Song tab
+draws it when there is a screen; on the Launchkey, Shift + Sends:
+
+| | |
+| --- | --- |
+| **Sequences bank** | pads are the sixteen — green is on, flashing is coming, amber holds something; knob 1 the sequence, knob 2 the tempo; **Record** adds the one you are on to the chain, **Func + a pad** adds that one |
+| **Chain bank** | pads are the entries, white is the mark; **∧∨** beside the pads walk it; knob 1 its sequence, knob 2 its bars, knob 3 loop; **Record** adds after the mark, **Func + a pad** removes |
+| **`>`** | play the chain from the mark, or stop it — the band starts if it was stopped and the chain stops with the band |
+| **Func, tapped** | the punch page |
+
+The launcher, its scenes and the Live page are the website's; the groovebox keeps the launcher's
+head (tempo, metronome, where a change lands) and hides its grid. GitHub Actions builds the image
+(`pi/image/build.sh`); `pi/README.md` says where to get it and how to burn it. The Pi serves the
+pages to itself (Web MIDI needs a secure context, and `http://localhost` is one).
 ⚠️ **The Pi's copy is offline**: no sign-in gate and no cloud sync, and songs are saved on the card.
 
 ⚠️ **Every default in this app assumes a person is in front of it** — the surface waits to
@@ -636,11 +657,14 @@ transport and LEDs run over the DAW port, which the surface takes for itself.
 | **Encoders** | the focused panel's eight main controls, named on the screen as you turn them |
 | **An encoder over a list** | one detent, one position — see below |
 | **Func + the eighth encoder** | step through the focused panel's sixteen sequences — progressions on CS·1 — stopping at 1 and 16 |
+| **Func + the seventh encoder** | the focused panel's saved patches, loading each as it lands on it — sound, and the sequences saved with it |
 | **Func + `>`** | hop between a linked pair — LP·1 and whatever it is recording |
 | **∧ ∨ right of the encoders** | which eight — the drum lane on DR·1, a parameter bank on PM·1 |
 | **Hold a pad + ∧ ∨ right of the encoders** | that note's length, a step at a time |
 | **Func, tapped** | a panel's other face where it has one — on CS·1, the bass voice and its pattern; on the launcher, it opens the punch page |
 | **▶ / ■** | the rack transport, the same button the launcher's Play is |
+| **Func + ▶** | start or stop the focused panel alone — its own Play button |
+| **Hold a chord pad + keys** | on CS·1, the keys spell that pad's chord — see *Spelling a chord* |
 | **∧ ∨ left of the pads** | page the grid — see the sequencers below |
 | **Shift + ∧ ∨**, or **Func + ∧ ∨** | move the focus to the previous / next panel |
 | **Func + a pad** | the accent |
@@ -687,7 +711,7 @@ learn and no button spent on it.
 | **Shift + Custom 1** | Settings — a Global bank, then one bank per instrument, and the pads are the banks |
 | **Shift + Plug-in** | Studio, and the encoders follow the focused panel |
 | **Shift + Mixer** | Tape, and the encoders become MX·8 |
-| **Shift + Transport** | Library |
+| **Shift + Transport** | Library, and the **Songs** page — see *Songs, patches and jams* below |
 
 Mixer is the only one that also retargets the encoders, because it is the only one of the
 four that is a thing to turn knobs at. A Custom mode is somebody else's and leaves the app
@@ -1172,6 +1196,52 @@ nothing else. The answer is remembered.
 
 ⚠️ **Record does nothing on purpose.** It is the one button whose obvious meaning — capture
 into the armed scene row — cannot be undone, and a stray thumb should not overwrite a take.
+
+### Songs, patches and jams
+
+Shift + Transport used to bring the Library up and leave the pads and knobs where they were. It is now
+the page for everything you *keep*, which a rack with no screen (see *On a Raspberry Pi*) had no way to
+reach. The pair beside the encoders moves between its banks:
+
+| bank | knob 1 | pads | `>` | Record |
+| --- | --- | --- | --- | --- |
+| **Songs** | points at a song | the songs — white is pointed at, green is open; the last two are **Save as new** (amber) and **New song** (red) | open it | save — over the open song, or as a new one |
+| **an instrument** (one each, where there is a patch row) | its patch | its patches | save a new patch | save over the loaded one |
+| **Jam** | points at a room the relay lists | the rooms | join it — or leave | start a jam of your own |
+
+⚠️ **Nothing here asks for a name**, because there is nothing to type one on: a new song is `Song 3`, a
+new patch `Patch 7` — the lowest number free — and a jam takes the name it had last time. Rename them
+where there is a screen.
+
+⚠️ **Anything that replaces the desk takes two presses.** A song's pad pressed once is pointed at, and
+the screen says its name; pressed again, or `>`, it opens — stopping the rack first. New song is the
+same, and is a reload with no song open, so what was not saved is gone.
+
+**Names, from the encoders.** Func + `>` on a song or a loaded patch starts spelling its name: knob 1
+turns the letter under the cursor, knob 2 or the **Track** pair moves the cursor (past the end adds a
+letter), **∧** beside the pads puts a space in, **∨** takes the letter out, `>` or Record keeps it,
+Func + `>` again gives up. The screen shows the name with the letter in brackets. **Func + a pad**
+deletes that song or patch — pressed twice, like everything here that cannot be undone. Factory
+patches can be neither renamed nor deleted.
+
+**Controller**, on Settings' Global bank: the fifth knob lists the controllers the page can see —
+never *none*, so a detent cannot disconnect the one turning it — and with two plugged in hands the
+surface from one to the other.
+
+On **LP·1** the pair beside the encoders is the row of buttons under the loop: **∧** Undo, **∨** Push to
+jam, **Func + ∨** Clear take, **Func + ∧** Clear all. Func + a pad still empties one slot. On **PM·1**
+three banks were added so that nothing on its panel needs the screen: **Waves**, the LFO's wave and key
+sync in **LFO**, and **Out** — chorus, delay sync, delay time, feedback and mix, reverb, velocity, trim.
+
+### Spelling a chord
+
+On **CS·1**, hold a chord pad on the controller and play the keys: every key pressed before the pad
+comes up goes into that slot, the voicing exactly as played, and the screen names the chord as the
+keys go down — `Dm7`, `C/E`, or the notes spelt out when they are no chord the panel knows. The pad's
+own chord stops at the first key, so what you hear is what you are spelling. The dim pad after the
+last chord takes a new one. A chord played in keeps its notes through a key change (its numeral and
+bass note follow the key); choosing a root or a type from the pad's menu makes it a worked-out voicing
+again. Patches, scenes, sequences and projects carry the notes.
 
 ### The punch page
 

@@ -127,7 +127,8 @@ const rig = {
   /* Anything not mounted means "back to the focused panel", so a profile can pass whatever
      its hardware just reported without first checking whether we have a page for it. */
   setMode(id){
-    const want = (id && pages.has(id)) ? id : "";
+    const list = Array.isArray(id) ? id : [id];
+    const want = list.find(x => x && pages.has(x)) || "";
     if (want === mode) return;
     mode = want;
     if (want){
@@ -190,6 +191,16 @@ const rig = {
     const f = rig.focus;
     if (f && typeof f.spec.transport === "function"){
       try{ f.spec.transport(!!alt); return true; }catch(e){ return false; }
+    }
+    /* ⚠️ ON A PANEL THE OTHER ONE IS THE PANEL. Play is the rack, all or nothing, and the only way
+       to start one instrument alone was its own Play button on the screen — which a box with no
+       screen does not have (2026-09-19). So the modifier presses exactly that button, found by the
+       marker toggle() below uses, and whatever the panel does when it is clicked happens here. A
+       panel with no transport of its own (TS·1) falls through to the rack rather than doing nothing. */
+    if (alt && !mode){
+      const r = Patchwork.focused;
+      const b = r && r.querySelector("[data-transport]");
+      if (b && !b.disabled){ b.click(); return true; }
     }
     rig.toggle();
     return true;
@@ -297,17 +308,18 @@ const rig = {
     if (!list.length && typeof f.spec.controls === "function"){
       try{ list = (f.spec.controls() || []).slice(0, 8); }catch(e){ list = []; }
     }
-    /* ⚠️ THE EIGHTH OF THE SECOND EIGHT IS THE SEQUENCE, on every panel that keeps sixteen — see
-       sequence() below. Composed here rather than asked of each panel, because it means the same
-       thing on all of them and an instrument that registers later should not have to be told. */
-    return layer === "alt" ? withSequence(list, f.id) : list;
+    /* ⚠️ THE EIGHTH OF THE SECOND EIGHT IS THE SEQUENCE, on every panel that keeps sixteen, AND THE
+       SEVENTH IS THE PATCH, on every panel with a patch row — see sequence() and patch() below.
+       Composed here rather than asked of each panel, because they mean the same thing on all of
+       them and an instrument that registers later should not have to be told. */
+    return layer === "alt" ? withExtras(list, f.id) : list;
   },
   /* Whether holding that key would actually change anything here, for a display that should
      only announce a layer when there is one. */
   hasLayer(layer){
     const f = rig.focus;
     /* a panel with no second eight of its own still has one knob that changes under the key */
-    if (f && layer === "alt" && sequence(f.id)) return true;
+    if (f && layer === "alt" && (sequence(f.id) || patch(f.id))) return true;
     const key = layer === "act" ? "actControls" : layer === "alt" ? "shiftControls" : null;
     if (!f || !key || typeof f.spec[key] !== "function") return false;
     try{ return (f.spec[key]() || []).length > 0; }catch(e){ return false; }
@@ -497,6 +509,18 @@ const rig = {
   fireRow(i){
     if (Patchwork.launch && Patchwork.launch.fireRowShared) Patchwork.launch.fireRowShared(i);
     else if (Patchwork.scenes) Patchwork.scenes.fire(i);
+  },
+  /* The Track pair: a page that wants it says so — the Songs page walks a name's cursor with it — and
+     everywhere else it moves the focus one panel along. */
+  track(dir){
+    const f = rig.focus;
+    if (f && typeof f.spec.track === "function"){
+      let r = null;
+      try{ r = f.spec.track(dir); }catch(e){ r = null; }
+      if (r !== false) return r;
+    }
+    rig.step(dir);
+    return null;
   },
   /* Move the focus one instrument along, which is what a Track button means here. */
   step(dir){
@@ -912,14 +936,35 @@ function sequence(id){
     nudge: d => go(at() < 0 ? 0 : Math.max(0, Math.min(Q.COUNT - 1, at() + (d > 0 ? 1 : -1))))
   };
 }
-/* The eighth knob, whatever the panel put there: seven of the list the key opened, then the
-   sequence. A panel that keeps no sequences gets its list back untouched. */
-function withSequence(list, id){
-  const c = sequence(id);
-  if (!c) return list;
-  const out = list.slice(0, 7);
-  while (out.length < 7) out.push(null);
-  out.push(c);
+/* ---- which saved sound is loaded, as a control ----
+   ⚠️ FUNC AND THE SEVENTH ENCODER, ON EVERY PANEL WITH A PATCH ROW. The patch list was a <select> on
+   the screen and in nobody's bank, so a rack with no screen could not change a sound except knob by
+   knob (2026-09-19). It is the panel's own #patchSel through option(), so choosing one is exactly
+   the click: the panel's change handler loads it — sound, and the sequences saved with it.
+
+   ⚠️ IT LOADS ON EVERY DETENT, as the list does on every click, and a patch that carries sequences
+   replaces the sixteen you had. The first entry is the list's own "— select —", which loads
+   nothing; it reads "none" here because the screen has no dash to spell it with. Saving one is on
+   the Songs page (studio/songs.js), where there is a button to spare for it. */
+function patch(id){
+  const root = id ? rootOf(id) : null;
+  const el = root && root.querySelector("#patchSel");
+  const c = el ? option(el, "Patch", "Pat") : null;
+  if (!c) return null;
+  const text = c.text;
+  c.id = "patch-" + id;
+  c.text = () => (el.selectedIndex <= 0 ? "none" : text());
+  return c;
+}
+/* The seventh and eighth knobs, whatever the panel put there: six of the list the key opened, then
+   the patch, then the sequence. A panel that keeps neither gets its list back untouched. */
+function withExtras(list, id){
+  const seq = sequence(id), pat = patch(id);
+  if (!seq && !pat) return list;
+  const out = list.slice(0, 8);
+  while (out.length < 8) out.push(null);
+  if (pat) out[6] = pat;
+  if (seq) out[7] = seq;
   return out;
 }
 
@@ -956,7 +1001,7 @@ function segment(el, label, short){
   };
 }
 
-return {register, mount, panel, onView, option, segment, sceneGrid,
+return {register, mount, panel, onView, option, segment, patch, sceneGrid,
         connect, disconnect, restore, rig,
         get profiles(){ return profiles.map(p => ({id: p.id, name: p.name, sysex: !!p.sysex})); },
         get available(){ return detectAll().map(f => ({id: f.profile.id, name: f.profile.name,

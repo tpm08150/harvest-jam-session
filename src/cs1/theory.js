@@ -236,7 +236,44 @@ function rootName(r, keyPc, minor){
   return LETTERS[idx] + (acc === -1 ? "♭" : acc === 1 ? "♯" : "");
 }
 
+/* ---- a chord spelt from the keys ----
+   ⚠️ A SLOT MAY CARRY ITS OWN NOTES. A slot is (root, quality, bars) and its voicing is worked out
+   from those; since 2026-09-20 a chord can also be played into a pad from the keyboard, and then
+   `notes` — the MIDI notes as played, low to high — IS the voicing, and root and quality are read
+   off it (analyseNotes) so that everything that asks a slot for its root or its name still has an
+   answer: the bass note, the roman numeral, the on-screen pad, the chord registry. Choosing a root
+   or a type by hand drops the notes and goes back to a worked-out voicing (editChord). */
+function analyseNotes(notes){
+  if (!notes || !notes.length) return null;
+  const pcs = [];
+  notes.forEach(n => { const p = ((n % 12) + 12) % 12; if (pcs.indexOf(p) < 0) pcs.push(p); });
+  const bass = ((notes[0] % 12) + 12) % 12;
+  let best = null;
+  /* every root in the chord against every quality: an exact pitch-class match, the bass note
+     preferred as the root (C6 over Am7 with a C at the bottom), the shorter spelling on a tie */
+  for (const root of pcs){
+    for (const q of Object.keys(QUAL)){
+      const iv = QUAL[q].iv.map(i => (root + i) % 12);
+      if (iv.length !== pcs.length || !pcs.every(p => iv.indexOf(p) >= 0)) continue;
+      const score = (root === bass ? 0 : 10) + QUAL[q].s.length;
+      if (!best || score < best.score) best = {root, q, bass, score};
+    }
+  }
+  return best ? {root: best.root, q: best.q, bass, matched: true}
+              : {root: bass, q: pcs.length >= 3 && pcs.indexOf((bass + 3) % 12) >= 0 ? "min" : "maj", bass, matched: false, pcs};
+}
+/* The name of notes as played, for the screen while they are being played and for a slot that
+   keeps them: the chord's name, "/E" when the bottom note is not the root, and the notes spelt
+   out when they are no chord this file knows. */
+function notesName(notes, keyPc, minor){
+  const a = analyseNotes(notes);
+  if (!a) return "";
+  if (!a.matched) return a.pcs.map(p => noteName(p, keyPc, minor)).join(" ");
+  const r = ((a.root - keyPc) % 12 + 12) % 12;
+  return rootName(r, keyPc, minor) + QUAL[a.q].s + (a.bass !== a.root ? "/" + noteName(a.bass, keyPc, minor) : "");
+}
 function chordName(ch, keyPc, minor){
+  if (ch.notes && ch.notes.length) return notesName(ch.notes, keyPc, minor);
   return rootName(ch.r, keyPc, minor) + QUAL[ch.q].s;
 }
 function romanName(ch){
@@ -246,6 +283,11 @@ function romanName(ch){
 
 /* voice leading: pick the inversion/octave whose center sits closest to the last one */
 function voiceChord(ch, keyPc, prevCenter){
+  /* played in: the voicing is the notes, as they were played */
+  if (ch.notes && ch.notes.length){
+    const notes = ch.notes.slice().sort((a, b) => a - b);
+    return {notes, center: notes.reduce((a, b) => a + b, 0) / notes.length};
+  }
   let base = 48 + ((keyPc + ch.r) % 12);
   while (base < 52) base += 12;
   while (base > 63) base -= 12;

@@ -1,15 +1,17 @@
 # Jam Session on a Raspberry Pi
 
 Burn the image to an SD card, put it in a Raspberry Pi, plug in a Launchkey and power it on: the
-Launchkey becomes a groovebox. No screen, keyboard or mouse needed — plug in an HDMI screen whenever
-you want to see the whole rack.
+Launchkey becomes a groovebox. No screen, keyboard or mouse: since 2026-09-19 the Pi draws nothing at
+all and everything is done from the Launchkey, because drawing the rack cost the Pi more than playing
+it. `SCREEN` in `jam-session.txt` brings a picture back on HDMI, at that price.
 
 > ⚠️ **On a Pi 4, 2026-09-13.** The first image booted, HDMI showed the rack and sound came out of a
 > USB audio interface, but the rack was too slow to play and the Launchkey was not recognised. The
 > second image's report found a 1 GB board, a 4K television being driven at 3840x2160, and no Launchkey
 > on the USB bus at all — a bad cable. Images from here set the screen's mode (`SCREEN`) and report the
-> audio thread's load (HANDOFF.md, "The second Pi"). Every image is still checked headless, inside the
-> image, by GitHub Actions before it is uploaded.
+> audio thread's load (HANDOFF.md, "The second Pi"). The third played the Launchkey but was "very
+> sluggish and not playable". ⚠️ **The screenless image has not been on a Pi yet.** Every image is still
+> checked headless, inside the image, by GitHub Actions before it is uploaded.
 
 ## Get the image
 
@@ -27,7 +29,15 @@ you want to see the whole rack.
 - **Sound:** a USB audio interface if one is plugged in, otherwise the Pi 4's 3.5 mm headphone
   jack (noisy, but it needs nothing else). To pick another output from the Launchkey: Shift +
   Custom 1 opens Settings, and its first knob is the output device.
-- **Screen:** plug HDMI into the port next to the power socket, before or after powering on.
+- **The page is `groovebox.html`:** the rack without the tape, the library and the jam, and with song
+  mode — Shift + Sends: the pads are sequences 1-16 for the whole rack, `>` plays the chain. The main
+  README, *On a Raspberry Pi*, has the table.
+- **Songs:** Shift + Transport. Record saves, the pads are the songs — press one to point at it, again
+  to open it — and the pair beside the knobs moves on to each instrument's patches. Func + `>` spells a
+  name from the knobs. Func + Play starts one instrument alone. The main README's *Controllers* section
+  has every gesture.
+- **Screen:** none. To see the rack, set `SCREEN=1280x720` in `jam-session.txt` and plug HDMI into
+  the port next to the power socket; the Pi will play worse for it.
 
 ⚠️ **This copy is offline.** No sign-in and no cloud sync: songs, patterns and patches are saved on
 the SD card. The website is unchanged.
@@ -40,8 +50,9 @@ it is writing. There is no read-only mode yet — see *Not done yet*.
 `jam-session.txt`, on the card's boot partition (the drive called `bootfs` on a Mac or PC):
 
 - `APP_PAGE` — boot into one instrument instead of the whole rack.
-- `SCREEN` — the mode a screen on HDMI runs at: `1920x1080` unless changed, `1280x720` for less drawing,
-  `native` for whatever the screen asks for. A screen without the mode gets the largest one inside it.
+- `SCREEN` — `off` unless changed: no picture, Chromium headless, the rack drawing nothing. Otherwise the
+  mode a screen on HDMI runs at: `1280x720` for the least drawing, `1920x1080`, or `native` for whatever
+  the screen asks for. A screen without the mode gets the largest one inside it.
   ⚠️ A 4K screen's own mode is four times the drawing of 1080p, which a Pi 4 cannot keep up with.
 - `EXTRA_CHROMIUM_FLAGS` — for example `--force-device-scale-factor=0.8` to fit more on screen.
 
@@ -75,11 +86,14 @@ journalctl -fu jam-kiosk                                   # on the Pi: permissi
 ## How it works
 
 `jam-server` serves the built pages on `127.0.0.1:8123`: Web MIDI needs a secure context, and
-`http://localhost` is one. `jam-kiosk` opens a login session on tty7 for the locked user `jam` and
-runs `cage`, a one-window Wayland compositor, which runs `jam-browser`. That starts Chromium, grants
-the rack its permissions, loads `index.html?kiosk`, and restarts the browser if the page stops
-answering. In the page, `src/shell/kiosk.js` does the rest: asks for SysEx, brings the audio up,
-and connects the one Launchkey it finds.
+`http://localhost` is one. `jam-kiosk` opens a login session on tty7 for the locked user `jam` — which
+is also what starts `jam`'s PipeWire — and runs `jam-browser --session`. With `SCREEN=off`, the default,
+that starts Chromium headless, grants the rack its permissions, loads `index.html?screenless`, and
+restarts the browser if the page stops answering; with any other `SCREEN` it runs `cage`, a one-window
+Wayland compositor, around the same thing, and loads `index.html?kiosk`. In the page, `?screenless`
+(`src/shell/host.js`) hides the whole document and slows animation frames to four a second, and
+`src/shell/kiosk.js` does the rest: asks for SysEx, brings the audio up, and connects the one Launchkey
+it finds.
 
 The things that had to be solved, because every default in the app assumes a person:
 
@@ -95,9 +109,9 @@ those calls revokes whatever the one before it granted.)
 `provision.sh` turns the one line `src/shell/cloud.js` keeps for it — `const OFFLINE = false;` — to
 `true` in the copy it installs, and fails unless `index.html` has exactly one.
 
-**No screen is still a screen.** Whether cage and Chromium cope with no display at all has not been
-tried, so the first HDMI port is forced on (`video=…D`) whether or not anything is plugged in: cage
-always has a display for the rack, and a screen plugged in later just shows it. Chromium also runs
+**With a picture, no screen is still a screen.** Whether cage copes with no display at all has not
+been tried, so the first HDMI port is forced on (`video=…D`) whether or not anything is plugged in.
+Headless Chromium needs no display, so `SCREEN=off` does not depend on it. Chromium also runs
 with the flags that stop it throttling a page it thinks nobody can see. The sequencers' clock is
 safe on its AudioWorklet regardless, but the Launchkey's LEDs and screen repaint on timers.
 

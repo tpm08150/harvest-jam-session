@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Bring the Jam Session rack up in Chromium with nobody in front of it.
 
-    jam-browser                     the kiosk: what cage runs (see jam-kiosk.service)
+    jam-browser                     the kiosk: what cage runs, or the whole of it with SCREEN=off
+    jam-browser --session           what jam-kiosk.service runs: cage around this, or with SCREEN=off just this
     jam-browser --wait-for-server   exit 0 once the page server answers, 1 after a minute
     jam-browser --smoke             headless: load the rack, check it came up, exit 0 or 1
     jam-browser --smoke --expect-offline
@@ -37,12 +38,22 @@ import urllib.request
 PORT = int(os.environ.get("PORT") or 8123)
 PAGE = os.environ.get("APP_PAGE") or "index.html"
 ORIGIN = "http://localhost:%d" % PORT
-URL = "%s/%s?kiosk" % (ORIGIN, PAGE)
 DEVTOOLS = int(os.environ.get("DEVTOOLS_PORT") or 9222)
 CHROMIUM = os.environ.get("CHROMIUM") or "/usr/bin/chromium"
 PROFILE = os.environ.get("JAM_PROFILE") or os.path.expanduser("~/.local/share/jam-session/chromium")
 # The mode the screen runs at: WIDTHxHEIGHT, or "native" for whatever the screen prefers. See set_screen().
-SCREEN = (os.environ.get("SCREEN") or "1920x1080").strip().lower()
+SCREEN = (os.environ.get("SCREEN") or "off").strip().lower()
+# ⚠️ NO SCREEN IS THE DEFAULT, AND IT IS MOST OF THE MACHINE. SCREEN=off runs Chromium headless — no cage, no
+# Wayland, nothing composited — and loads the rack with ?screenless (src/shell/host.js), which draws nothing
+# and is played entirely from the controller. Measured on the laptop on 2026-09-19 with six instruments
+# playing, drawing was 0.87 of the browser's 1.11 s of CPU a second; what is left is the audio thread. On
+# the third Pi the renderer and the GPU process had averaged 81% and 67% of a core between them while the
+# main thread that schedules every note waited its turn. ⚠️ NOT YET RUN ON A PI: that headless Chromium
+# reaches PipeWire and the ALSA sequencer as the windowed one does is expected, not seen.
+SCREENLESS = SCREEN in ("off", "none", "no", "headless")
+# ⚠️ THE PAGE REMEMBERS SCREENLESS in the profile's localStorage, as it remembers kiosk, so a card switched
+# back to a picture has to say so or the screen comes up blank.
+URL = "%s/%s?%s" % (ORIGIN, PAGE, "screenless" if SCREENLESS else "kiosk&screenless=off")
 
 # Permission descriptors, named as the page's own navigator.permissions names them. SysEx is what
 # lights the Launchkey's screen; the microphone is VC·1's and LP·1's input and what lets the output
@@ -365,8 +376,19 @@ def bring_up(headless):
 HEALTHY = "!!(window.Patchwork && Patchwork.kiosk && Patchwork.kiosk.on)"
 
 
+def session():
+    """What jam-kiosk.service starts. A screen needs a compositor, so cage runs this again inside itself;
+    no screen needs neither, and this process becomes the kiosk. One unit either way, because the PAM
+    session it opens is also what starts jam's PipeWire."""
+    if SCREENLESS:
+        log("SCREEN=%s: no compositor, Chromium headless, the rack screenless" % SCREEN)
+        return kiosk()
+    # -d no window decorations, -s VT switching allowed, -m last: the rack goes on the newest display.
+    os.execvp("cage", ["cage", "-d", "-s", "-m", "last", "--", os.path.abspath(__file__)])
+
+
 def kiosk():
-    proc, browser, page, _ = bring_up(headless=False)
+    proc, browser, page, _ = bring_up(headless=SCREENLESS)
 
     def on_term(*_):
         stop(proc)
@@ -411,6 +433,8 @@ SMOKE = r"""
   const P = window.Patchwork, r = {};
   r.patchwork = typeof P === "object";
   r.kiosk = !!(P && P.kiosk && P.kiosk.on);
+  r.screenless = !!(P && P.screenless);
+  r.display = getComputedStyle(document.documentElement).display;
   r.cloudConfigured = P && P.cloud ? !!P.cloud.configured : null;
   const gate = document.querySelector("#jamGate");
   r.gateShown = !!(gate && !gate.hidden);
@@ -449,6 +473,9 @@ def smoke(expect_offline):
         check("midi" in granted and "midi+sysex" in granted, "MIDI and SysEx granted over DevTools")
         check(r.get("patchwork"), "the rack loaded (window.Patchwork)")
         check(r.get("kiosk"), "kiosk mode is on")
+        check(bool(r.get("screenless")) == SCREENLESS and (r.get("display") == "none") == SCREENLESS,
+              "the page is %s (SCREEN=%s, screenless %s, display %s)"
+              % ("screenless" if SCREENLESS else "drawn", SCREEN, r.get("screenless"), r.get("display")))
         check(r.get("midiPermission") == "granted",
               "the page sees MIDI with SysEx as granted (%s)" % r.get("midiPermission"))
         access = str(r.get("midiAccess"))
@@ -457,7 +484,10 @@ def smoke(expect_offline):
         check(not access.startswith(("NotAllowedError", "SecurityError", "still waiting")),
               "requestMIDIAccess was neither refused nor left waiting (%s)" % access)
         if expect_offline:
-            check(r.get("cloudConfigured") is False, "cloud sync is off in this copy")
+            # False: the switched line in shell/cloud.js. None: a page built without cloud.js at all
+            # (groovebox.html, src/box/parts.txt), which has nothing to sign in to.
+            check(r.get("cloudConfigured") in (False, None),
+                  "cloud sync is off in this copy (%s)" % ("absent" if r.get("cloudConfigured") is None else "switched off"))
             check(not r.get("gateShown"), "the sign-in gate is not in the way")
         print("  info  audio context: %s" % r.get("audio"), flush=True)
         print("  info  kiosk log: %s" % ("; ".join(r.get("kioskLog") or []) or "(empty)"), flush=True)
@@ -479,6 +509,8 @@ def main(argv):
         return 0 if wait_for_server() else 1
     if "--smoke" in argv:
         return smoke("--expect-offline" in argv)
+    if "--session" in argv:
+        return session()
     return kiosk()
 
 

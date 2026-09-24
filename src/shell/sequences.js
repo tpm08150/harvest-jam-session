@@ -175,7 +175,10 @@ function copyTo(id, i){
 
    A change that leaves the pattern as it was — a patch that only moved the sound — changes
    nothing about which sequence is up. */
-function around(id, fn){
+/* `slot`, when the caller says which of the sixteen it is putting on the grid, settles what content
+   alone cannot: an empty sequence walked into by a global change (shell/song.js) is that sequence,
+   fresh, and not "none"; and a pattern two slots hold is the one the caller named. */
+function around(id, fn, slot){
   const b = book.get(id);
   if (!b || busy) return fn();
   const before = live(b);
@@ -183,11 +186,21 @@ function around(id, fn){
   try{ return fn(); }
   finally {
     const after = live(b);
+    const named = (typeof slot === "number" && slot >= 0 && slot < COUNT) ? slot : -1;
     if (after && (!before || after.key !== before.key)){
-      const hit = b.slots.findIndex(s => s && s.key === after.key);
-      if (hit >= 0) b.at = hit;
-      else if (b.at < 0 || b.slots[b.at]) b.at = -1;
+      const hit = named >= 0 && b.slots[named] && b.slots[named].key === after.key
+        ? named : b.slots.findIndex(s => s && s.key === after.key);
       b.fresh = null;
+      if (hit >= 0) b.at = hit;
+      else if (named >= 0){ b.at = named; if (!b.slots[named]) b.fresh = {i: named, key: after.key}; }
+      else if (b.at < 0 || b.slots[b.at]) b.at = -1;
+      notify();
+    } else if (after && named >= 0 && named !== b.at){
+      /* the same pattern, asked for by a different number: an empty slot entered from a grid that
+         already showed nothing, or a copy in two places */
+      b.fresh = null;
+      b.at = named;
+      if (!b.slots[named]) b.fresh = {i: named, key: after.key};
       notify();
     }
   }
@@ -413,7 +426,31 @@ function notify(){
   subs.forEach(fn => { try{ fn(); }catch(e){} });
 }
 
-return {register, select, copyTo, around, capture, load, count, slotOf, COUNT,
+/* ---- what slot i would put on the grid ----
+   For a caller that has to hand the pattern to something else first — a seam, which lands it later
+   (shell/song.js). What is kept there; else a blank of the grid, or the grid itself where the
+   instrument has no blank; null when there is nothing to go on. */
+function peek(id, i){
+  const b = book.get(id);
+  if (!b || i < 0 || i >= COUNT) return null;
+  if (i === b.at){ const cur = live(b); return cur ? JSON.parse(JSON.stringify(cur.pat)) : null; }
+  const kept = b.slots[i];
+  if (kept) return JSON.parse(JSON.stringify(kept.pat));
+  const cur = live(b);
+  if (!cur) return null;
+  const copy = JSON.parse(JSON.stringify(cur.pat));
+  if (!b.blank) return copy;
+  try{ return b.blank(copy) || copy; }catch(e){ return copy; }
+}
+/* Is there anything in slot i — counting the grid, when i is the one that is up. */
+function filled(id, i){
+  const b = book.get(id);
+  if (!b || i < 0 || i >= COUNT) return false;
+  if (i === b.at) return counts(b, i, live(b));
+  return !!b.slots[i];
+}
+
+return {register, select, copyTo, around, capture, load, count, slotOf, peek, filled, COUNT,
         mount(){ mount(); if (!timer) timer = setInterval(paint, 400); },
         has: id => book.has(id),
         at: id => (book.has(id) ? book.get(id).at : -1),

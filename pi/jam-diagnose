@@ -102,6 +102,7 @@ PAGE_JS = r"""
   const P = window.Patchwork || {}, r = {};
   r.url = location.href;
   r.viewport = [innerWidth, innerHeight, devicePixelRatio];
+  r.screenless = !!(window.Patchwork && Patchwork.screenless);   // SCREEN=off: nothing drawn, frames four times a second
   r.cores = navigator.hardwareConcurrency; r.deviceMemoryGB = navigator.deviceMemory;
   try { r.midiPermission = (await navigator.permissions.query({name: "midi", sysex: true})).state; }
   catch (e) { r.midiPermission = String(e); }
@@ -248,7 +249,7 @@ def main():
        "echo '-- jam-session.txt, lines in use'; grep -v -E '^#|^$' /boot/firmware/jam-session.txt 2>/dev/null || echo '(none)'")
     # The mode the compositor really runs, which is not what cmdline.txt asks for (see set_screen() in
     # jam-browser), and what jam-browser said about setting it.
-    sh("echo '-- the screen, as cage runs it'; " + as_jam(
+    sh("echo '-- the screen, as cage runs it (nothing, with SCREEN=off: there is no cage)'; " + as_jam(
         "sh -c 'for s in $XDG_RUNTIME_DIR/wayland-[0-9]; do [ -S \"$s\" ] && WAYLAND_DISPLAY=${s##*/} wlr-randr; done'"))
     sh("echo '-- jam-browser, this boot'; journalctl -u jam-kiosk -b --no-pager 2>/dev/null | grep -F 'jam-browser:' | tail -20")
     section("Chromium and the rack, through DevTools")

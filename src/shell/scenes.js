@@ -259,9 +259,11 @@ function clear(row, id){
    one you were on would take the row's copy the next time it was put away — see
    shell/sequences.js. Fire, the seam and a jam's live pattern are the three ways in, and all
    three come here. */
-function applyTo(it, pat){
+/* `slot` is which of the instrument's sixteen sequences this pattern is meant to be, when the
+   caller knows — a global sequence change (shell/song.js) does, a scene row does not. */
+function applyTo(it, pat, slot){
   const run = () => it.apply(JSON.parse(JSON.stringify(pat)));
-  return Patchwork.sequences ? Patchwork.sequences.around(it.id, run) : run();
+  return Patchwork.sequences ? Patchwork.sequences.around(it.id, run, slot) : run();
 }
 
 /* Arm a pattern. With the whole rack stopped there is no seam coming, so the row takes
@@ -281,19 +283,37 @@ function applyTo(it, pat){
 function fire(row, id){
   if (!rows[row]) return;
   const targets = id ? insts.filter(x => x.id === id) : insts;
+  const cells = {};
+  targets.forEach(it => { cells[it.id] = {pat: rows[row].cells[it.id] || null}; });
+  land(cells, joinSeam(), row);
+}
+
+/* ⚠️ THE SAME LANDING FOR SOMETHING THAT IS NOT A ROW. shell/song.js changes every instrument's
+   sequence at once, on a seam, and it has to arrive exactly as a row does — inside each instrument's
+   own tick, at the first step past the line — or the two would drift apart by a lookahead. So the
+   whole of what fire() did per instrument lives here, and fire() is one caller of it.
+
+     cells   {id: {pat, slot}} — a null pat is a stop; `slot` is for the sequence strip, see applyTo()
+     seam    the audio time to land on, or null for now
+     row     the launcher row this is, or null for none
+     opts    {start: false} leaves a stopped instrument stopped rather than starting it on the seam;
+             a scene row starts what it lands on, a sequence change plays what is playing */
+function land(cells, seam, row, opts){
+  const startStopped = !(opts && opts.start === false);
   /* One boundary for the whole row, pinned across the start() calls below — see joinSeam().
      Cleared in a finally: a pin left standing would be picked up by the next Play button
      pressed by hand, which is a bar line's worth of surprise nobody asked for. */
-  const seam = joinSeam();
   if (seam != null) Patchwork.clock.pin(seam);
   try{
-    targets.forEach(it => {
-      const pat = rows[row].cells[it.id];
+    insts.forEach(it => {
+      const cell = cells[it.id];
+      if (!cell) return;
+      const pat = cell.pat;
       if (!pat){
         if (it.isPlaying() && seam != null){
           /* a null pattern is the pending STOP — take() reads it at the seam */
           pending.set(it.id, {pat: null, seam});
-          queued.set(it.id, row);
+          if (row != null) queued.set(it.id, row); else queued.delete(it.id);
         } else if (it.isPlaying()){
           it.stop();
           pending.delete(it.id);
@@ -307,8 +327,13 @@ function fire(row, id){
         return;
       }
       if (it.isPlaying() && seam != null){
-        pending.set(it.id, {pat, seam});
-        queued.set(it.id, row);
+        pending.set(it.id, {pat, seam, slot: cell.slot});
+        if (row != null) queued.set(it.id, row); else queued.delete(it.id);
+      } else if (!it.isPlaying() && !startStopped){
+        /* stopped and staying stopped: the pattern goes on the grid now, for when it plays */
+        pending.delete(it.id);
+        applyTo(it, pat, cell.slot);
+        queued.delete(it.id);
       } else {
         /* stopped: take it now and start, so the row is audible from the press. The pin makes
            "now" the row's seam when the rack is running — its first step lands on the same
@@ -317,9 +342,9 @@ function fire(row, id){
            Anything still queued for it is void: this pattern is the answer to that question,
            and a stale queue is how a track came back for one step and stopped again. */
         pending.delete(it.id);
-        applyTo(it, pat);
+        applyTo(it, pat, cell.slot);
         queued.delete(it.id);
-        onRow.set(it.id, row);
+        if (row != null) onRow.set(it.id, row); else onRow.delete(it.id);
         it.start();
         /* ⚠️ STARTED IS NOT YET SOUNDING, and the launcher was drawing it as though it were.
            A stopped instrument is started HERE rather than at the seam — that is deliberate,
@@ -399,7 +424,7 @@ function take(id, when){
   if (!it){ notify(); return true; }
   /* a queued null means the row had nothing for this instrument: stop, at the seam */
   if (pat === null){ it.stop(); onRow.delete(id); }
-  else { applyTo(it, pat); if (row != null) onRow.set(id, row); }
+  else { applyTo(it, pat, q.slot); if (row != null) onRow.set(id, row); }
   notify();
   return true;
 }
@@ -448,8 +473,8 @@ function playing(id){
   return !!(it && it.isPlaying());
 }
 
-return {register, store, storeAll, clear, fire, take, onChange, playing, start, currentRow,
-        setQuantum, setPatternBars,
+return {register, store, storeAll, clear, fire, land, take, onChange, playing, start, currentRow,
+        setQuantum, setPatternBars, joinSeam,
         get quantum(){ return quantum; },
         get patternBars(){ return patternBars; },
         get rows(){ return rows; },

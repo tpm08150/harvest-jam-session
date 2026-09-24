@@ -104,10 +104,14 @@ const ENC_PLUGIN = 2, ENC_MIXER = 1;   // absolute CC 21-28; Mixer and Sends sen
    a counter of the device's own. keys() takes them back — without it Settings had pads that worked
    and knobs that did nothing. */
 const ENC_CUSTOM1 = 6;
+/* ⚠️ A PAGE MAY BE A LIST: the first one mounted on this build wins. The groovebox mounts "song" where
+   the studio mounts "scenes", and neither needs to know the other exists. */
 const ENC_VIEW = {1: {view: "tape",   page: "mixer"},
                   2: {view: "studio", page: ""},
-                  4: {view: "live",   page: "scenes"},
-                  5: {view: "lib",    page: ""}};
+                  4: {view: "live",   page: ["song", "scenes"]},
+                  /* Shift + Transport: the Library, and the Songs page (studio/songs.js) — songs,
+                     patches and jams, the things a rack with no screen could not reach (2026-09-19). */
+                  5: {view: "lib",    page: "songs"}};
 ENC_VIEW[ENC_CUSTOM1] = {view: "set", page: "settings"};
 /* What Settings lends the knobs while Shift is up, and how long an answer to that counts as ours —
    see lendKnobs(). ⚠️ GENEROUS ON PURPOSE. The answer is a USB round trip, but it is read on the main
@@ -830,7 +834,9 @@ function message(io, d, rig){
       /* A Custom mode we have not claimed is somebody else's; leave the app where it is
          rather than guessing — but SAY which one, so a mode that surprises anyone can be
          given a job by number. Custom 2-4 report 7-9; 10 is the one past them. */
-      if (to){ rig.setMode(to.page); rig.goto(to.view); }
+      /* the view first, then the page: a page's own show() brings up the view it belongs on, and on a
+         build where the two differ — the Song page on the Song view — the page has the last word */
+      if (to){ rig.goto(to.view); rig.setMode(to.page); }
       else console.info("launchkey: encoder mode " + d[2] + " is not mapped — "
                       + "see ENC_VIEW in shell/launchkey.js");
       lendKnobs(io, rig);                 // Settings reached with Shift already up lends at once
@@ -1058,8 +1064,8 @@ function message(io, d, rig){
     /* The device's Track pair — what the same two arrows send under Shift. "Which track"
        is which panel here, so this is the Launchkey's own word for it honoured rather than
        reinvented, and it reaches the same place Func and the arrows do. */
-    case B_TRACK_PREV: rig.step(-1); break;
-    case B_TRACK_NEXT: rig.step(1); break;
+    case B_TRACK_PREV: said(io, rig.track(-1)); break;
+    case B_TRACK_NEXT: said(io, rig.track(1)); break;
     /* ⚠️ AND THE ARROWS BESIDE THE ENCODERS BELONG TO THE ENCODERS — the same rule as the
        pair beside the pads, applied to the other half of the surface. They move which eight
        the encoders point at, which on DR·1 means which drum and on PM·1 means which group
@@ -1307,6 +1313,13 @@ function paintScreen(io, rig){
   const changed = s.page !== page;
   s.page = page;
   if (changed && !moved && s.inst && rig.gridPages() > 1) flash(io, "Steps", sub);
+  /* ⚠️ A GRID THAT ASKS TO BE HEARD. The label was written for a page change and nothing else, so a
+     page whose pads answer in words — "Saved Song 2", "Open? Song 1", a chord's name — was talking
+     to nobody. A grid with `announce` set has its label flashed whenever it changes, under the
+     page's name; not on the pass that arrived here, for the reason the page flash is not. */
+  const announce = !!(g && g.announce);
+  if (announce && sub && sub !== s.sub && !moved && s.inst) flash(io, inst, sub);
+  s.sub = announce ? sub : "";
 
   /* ⚠️ NO FLASH FOR THE ENCODER BANK, and there used to be. Changing bank rewrites the
      legend — its title and all eight names — so the answer is already on the screen in more

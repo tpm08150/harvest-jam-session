@@ -1,0 +1,27 @@
+
+<!-- The Song view: which sequence the rack is on, and the chain that plays them in order. Drawn by
+     box/song-ui.js from Patchwork.song; sixteen numbers rather than a launcher grid, because on this
+     build a number is the whole of what you choose. -->
+<div class="st-song" id="stSong" hidden>
+  <div class="st-live-bar">
+    <button class="st-xport" id="sgPlay">▶ Play all</button>
+    <div class="st-tempo">
+      <button id="sgDown" aria-label="Slower">−</button>
+      <span id="sgBpm">120</span>
+      <button id="sgUp" aria-label="Faster">+</button>
+    </div>
+    <span class="st-live-hint" id="sgHint">Pick a sequence: every instrument changes to it on the next seam.</span>
+  </div>
+  <div class="st-song-seqs" id="sgSeqs" role="group" aria-label="Sequences"></div>
+  <div class="st-song-chain">
+    <div class="st-song-chain-bar">
+      <span class="st-fx-lab">Chain</span>
+      <button class="st-xport" id="sgChainPlay">▶ Play chain</button>
+      <button class="st-xport" id="sgChainAdd" title="Add the sequence the rack is on to the end">+ Add</button>
+      <button class="st-xport" id="sgChainLoop" aria-pressed="true">Loop</button>
+      <button class="st-xport" id="sgChainClear">Clear</button>
+      <span class="st-fx-hint" id="sgChainHint"></span>
+    </div>
+    <ol class="st-song-chain-list" id="sgChain"></ol>
+  </div>
+</div>

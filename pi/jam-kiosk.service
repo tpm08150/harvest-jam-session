@@ -1,5 +1,5 @@
 [Unit]
-Description=Jam Session: the rack, fullscreen, in cage
+Description=Jam Session: the rack — headless, or fullscreen in cage when SCREEN asks for a picture
 Documentation=https://github.com/tpm08150/harvest-jam-session/blob/main/pi/README.md
 Wants=jam-server.service dbus.socket systemd-logind.service
 After=jam-server.service dbus.socket systemd-logind.service systemd-user-sessions.service
@@ -30,8 +30,9 @@ Environment=XDG_SESSION_TYPE=wayland
 # Bring tty7 to the front first, as root: a session on a console nobody is showing is not active,
 # and an inactive session is not given the display.
 ExecStartPre=-+/usr/bin/chvt 7
-# -d no window decorations, -s VT switching allowed, -m last: the rack goes on the newest display.
-ExecStart=/usr/bin/cage -d -s -m last -- /opt/jam-session/jam-browser
+# jam-browser decides: SCREEN=off (the default) is Chromium headless with nothing drawn; any other SCREEN
+# puts cage around it. Either way it is this unit, because this session is what starts jam's PipeWire.
+ExecStart=/opt/jam-session/jam-browser --session
 Restart=always
 RestartSec=3
 # ⚠️ ROOM FOR A REALTIME AUDIO THREAD. Chromium asks for realtime scheduling for the thread that renders

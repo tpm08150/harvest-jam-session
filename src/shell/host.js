@@ -101,6 +101,46 @@ function onKey(root, type, fn){
    just stops the routing table growing without bound. */
 window.addEventListener("blur", () => pressed.clear());
 
+/* ---- screenless: the page with nothing looking at it ----
+   ?screenless on the URL (remembered, like ?kiosk, which it implies — see shell/kiosk.js): a Raspberry Pi
+   with no monitor, played entirely from the controller. Two things happen and nothing else changes.
+
+   The document is display:none, so nothing is styled, laid out, painted or composited. ⚠️ THE DOM STAYS,
+   AND HAS TO: the controller's pages read and write it — surface.option() reads a <select>, the mixer
+   page sets a fader's value and dispatches input — and none of that needs a pixel.
+
+   And a "frame" comes four times a second from a plain timer. ⚠️ SLOWED, NOT STOPPED: the tape's rewind
+   advances inside its frame callback (studio/tape.js), and a frame that never came would leave it winding
+   forever. Slowing requestAnimationFrame itself also covers the loops that never moved to animate() —
+   CS·1's wipes, PM·1's steps and meter, DR·1's playhead, the console's meters — in one place.
+
+   Measured 2026-09-19, M3 Max, Chrome 153 headless at 1920x1080, the offline copy, six instruments
+   playing from Play all, CPU a second from ps: drawn, 1.11 s — GPU process 0.87, renderer 0.20, main
+   thread 0.044; like this, 0.24 s — GPU process 0.001, renderer 0.21 (the audio thread), main thread
+   0.015 (0.012 with frames stopped outright). ⚠️ HIDE IT BEFORE SWITCHING THE GPU OFF: the same page
+   still drawn under --disable-gpu cost the renderer 2.56 s a second, rastering in software. */
+const SCREENLESS_KEY = "patchwork-screenless";
+const screenless = (() => {
+  /* ⚠️ A REMEMBERED BLANK PAGE NEEDS A DOOR. ?screenless=off forgets it, from the address bar, because a
+     laptop that tried this once would otherwise open to nothing with no button to press. */
+  if (/[?&]screenless=(off|0)\b/.test(location.search)){
+    try{ localStorage.removeItem(SCREENLESS_KEY); }catch(e){}
+    return false;
+  }
+  const asked = /[?&]screenless\b/.test(location.search);
+  try{
+    if (asked) localStorage.setItem(SCREENLESS_KEY, "1");
+    return asked || localStorage.getItem(SCREENLESS_KEY) === "1";
+  }catch(e){ return asked; }
+})();
+if (screenless){
+  const st = document.createElement("style");
+  st.textContent = "html{display:none !important}";
+  document.documentElement.appendChild(st);
+  window.requestAnimationFrame = fn => setTimeout(() => fn(performance.now()), 250);
+  window.cancelAnimationFrame = id => clearTimeout(id);
+}
+
 /* ---- a loop that asks for frames only while something moves ----
    ⚠️ A FRAME ASKED FOR IS A FRAME MADE, whatever the callback then does with it. A loop that requests the
    next animation frame from every frame keeps the compositor running at the display's rate, and the rack
@@ -137,7 +177,9 @@ function animate(draw, busy, idle){
   return {wake(){ if (timer && moving()){ clearTimeout(timer); timer = 0; } schedule(); }};
 }
 
-return {instrument, onKey, focus, animate,
+return {instrument, onKey, focus, animate, screenless,
+        /* From a console over DevTools, the only way in once nothing is drawn: forget it, then reload. */
+        screenlessOff(){ try{ localStorage.removeItem(SCREENLESS_KEY); }catch(e){} },
         get roots(){ return roots.slice(); },
         get focused(){ return focused; }};
 })();

@@ -24,6 +24,8 @@ Patchwork.kiosk = (() => {
 
 const KEY = "patchwork-kiosk";
 function wanted(){
+  /* A page nobody can see has nobody to click it either: screenless (shell/host.js) is kiosk too. */
+  if (Patchwork.screenless) return true;
   try{
     if (/[?&]kiosk\b/.test(location.search)) return true;
     return localStorage.getItem(KEY) === "1";
